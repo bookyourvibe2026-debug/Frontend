@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -142,9 +143,20 @@ function VendorLoginInner() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0c1912]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(166,255,60,0.12),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(255,176,32,0.10),transparent_45%)]" />
+      <Image
+        src="/vendorbg.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover"
+        style={{ transform: "scale(1.3) translateX(-21%)", transformOrigin: "center" }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c1912] via-[#0c1912]/92 to-[#0c1912]/55 lg:via-[#0c1912]/85 lg:to-[#0c1912]/35" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c1912]/70 via-transparent to-[#0c1912]/40" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(166,255,60,0.16),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(255,176,32,0.14),transparent_45%)]" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-12 px-6 py-16 lg:flex-row lg:items-stretch lg:justify-between">
+      <div className="relative mx-auto flex min-h-screen max-w-[1440px] flex-col items-center justify-center gap-12 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-12">
         <div className="flex max-w-md flex-col justify-center text-[#f6f3ea]">
           <div className="flex items-center gap-2 font-[600] text-2xl" style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#a6ff3c] text-[#0c1912]">BYV</span>

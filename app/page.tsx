@@ -1,39 +1,10 @@
 "use client";
 
-/**
- * BOOK YOUR VIBE — Unified Platform Home Page (Enhanced)
- * --------------------------------------------------------
- * Single-file Next.js (App Router) page. Tailwind CSS required.
- * Drop this in app/page.tsx
- *
- * CHANGELOG vs previous version:
- *  - Hero section is now full, two-column, with a stats strip, trust badges
- *    and a much bigger presence (was a thin banner before).
- *  - "Choose Your Game" tabs + the small "Find A Venue" icon strip have been
- *    REPLACED by one single, full-width "Find Your Games" section — a big
- *    image-led sport strip (7 sports) with hover states and a "NEW" badge
- *    support, matching the brief and the shared public assets.
- *  - Added: Stats strip, How It Works, Why Book Your Vibe (feature grid),
- *    Testimonials, App Download CTA — so the home page feels complete and
- *    full-length instead of stopping after two sections.
- *  - Trending Venues expanded from 5 → 8 venues.
- *  - NOTE ON "MULTIPLE PAGES": this is still one file (as requested) so you
- *    can restructure it yourself, but every major section below is already
- *    written as its own component with no cross-dependencies — when you
- *    split this into real Next.js routes, the natural cut points are:
- *      app/page.tsx              -> Hero + StatsStrip + FindYourGames + Trending
- *      app/venues/page.tsx       -> TrendingVenues (full list) + VenueDetailDrawer
- *      app/events/page.tsx       -> CommunityMatches + EventsAndOffers
- *      app/profile/page.tsx      -> UpcomingBookingCard + WalletCard
- *      components/Navbar.tsx, Footer.tsx, modals/* -> shared across all pages
- *    Each component already accepts props instead of reading global state
- *    directly, so lifting them into separate files is mostly copy/paste.
- */
 
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { type Venue, TRENDING_VENUES } from "../lib/venues";
 import { BrandLogo } from "../components/brand-logo";
 import {
@@ -43,6 +14,7 @@ import {
   MessageSquareMore,
   Percent,
   PhoneCall,
+  ShieldCheck,
   Store,
   Trophy,
 } from "lucide-react";
@@ -197,55 +169,6 @@ const TESTIMONIALS = [
     quote:
       "The QR check-in pushing straight into my revenue dashboard means I stopped reconciling cash registers by hand every night.",
     emoji: "🏟️",
-  },
-];
-
-type LaunchRole = "player" | "owner" | "food" | "admin";
-
-const LAUNCH_ROLES: {
-  id: LaunchRole;
-  title: string;
-  subtitle: string;
-  emoji: string;
-  accent: string;
-  badge: string;
-  actions: string[];
-}[] = [
-  {
-    id: "player",
-    title: "Player tab",
-    subtitle: "Search venues, book slots, join matches, and manage your wallet.",
-    emoji: "🏃",
-    accent: "from-sky-500 to-cyan-500",
-    badge: "Fastest path to play",
-    actions: ["Book courts", "Join a squad", "Track rewards"],
-  },
-  {
-    id: "owner",
-    title: "Owner tab",
-    subtitle: "Manage listings, pricing, walk-ins, bookings, and QR check-ins.",
-    emoji: "🏟️",
-    accent: "from-emerald-500 to-teal-500",
-    badge: "Venue operations",
-    actions: ["Manage inventory", "Open POS", "Review revenue"],
-  },
-  {
-    id: "food",
-    title: "Food tab",
-    subtitle: "Handle menus, counters, order tickets, and billing at the venue.",
-    emoji: "🍔",
-    accent: "from-orange-500 to-rose-500",
-    badge: "Fuel & orders",
-    actions: ["Take orders", "Serve tables", "Set combos"],
-  },
-  {
-    id: "admin",
-    title: "Admin console",
-    subtitle: "Sits above all three roles with master controls, audits, and banners.",
-    emoji: "🛠️",
-    accent: "from-slate-800 to-slate-600",
-    badge: "Global control plane",
-    actions: ["Manage content", "Freeze users", "Audit changes"],
   },
 ];
 
@@ -544,6 +467,14 @@ function Navbar({
           >
             List Your Games
           </Link>
+          <Link
+            href="/admin/login"
+            aria-label="Admin Panel"
+            title="Admin Panel"
+            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-orange-300 hover:text-orange-600 sm:flex"
+          >
+            <ShieldCheck size={18} />
+          </Link>
           <button
             aria-label="Search"
             className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-orange-300 hover:text-orange-600 sm:flex"
@@ -632,6 +563,13 @@ function Navbar({
                 </>
               )}
             </div>
+            <Link
+              href="/admin/login"
+              onClick={() => setMobileOpen(false)}
+              className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 py-2.5 text-center text-xs font-semibold text-slate-600"
+            >
+              <ShieldCheck size={14} /> Admin Panel
+            </Link>
           </nav>
         </div>
       )}
@@ -652,19 +590,27 @@ const QUICK_ACTIONS = [
   { id: "offers", label: "Offers", emoji: "🏷️" },
 ];
 
+const HERO_IMAGES = ["/hero1.png", "/hero2.png", "/hero3.png"];
+const HERO_SLIDE_DURATION_MS = 3500;
+
 function Hero({
   userName,
   searchValue,
   onSearchChange,
-  onQuickAction,
-  onViewAllQuickActions,
 }: {
   userName: string;
   searchValue: string;
   onSearchChange: (v: string) => void;
-  onQuickAction: (id: string) => void;
-  onViewAllQuickActions: () => void;
 }) {
+  const [heroSlide, setHeroSlide] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHeroSlide((i) => (i + 1) % HERO_IMAGES.length);
+    }, HERO_SLIDE_DURATION_MS);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <section id="home" className="relative overflow-hidden">
       <div
@@ -674,6 +620,37 @@ function Hero({
             "linear-gradient(135deg, #15101f 0%, #211731 35%, #2b1f3d 60%, #3a2a1a 100%)",
         }}
       >
+        {/* rotating background slideshow */}
+        <div className="absolute inset-0" aria-hidden>
+          {HERO_IMAGES.map((src, i) => (
+            <div
+              key={src}
+              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                i === heroSlide ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              <Image
+                src={src}
+                alt=""
+                fill
+                priority={i === 0}
+                sizes="100vw"
+                className={`object-cover ${
+                  i === heroSlide ? "animate-[hero-kenburns_3.8s_ease-out_forwards]" : ""
+                }`}
+              />
+            </div>
+          ))}
+          {/* gradient wash so text keeps its contrast over the photos */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(21,16,31,0.88) 0%, rgba(33,23,49,0.82) 35%, rgba(43,31,61,0.78) 60%, rgba(58,42,26,0.72) 100%)",
+            }}
+          />
+        </div>
+
         {/* ambient glow accents */}
         <div className="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-orange-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 right-0 h-[28rem] w-[28rem] rounded-full bg-fuchsia-500/15 blur-3xl" />
@@ -689,94 +666,65 @@ function Hero({
         </div>
 
         <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14 lg:pb-20 lg:pt-16">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]">
-            {/* Left column — copy + search */}
-            <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-orange-200 backdrop-blur-sm">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                Good Morning, {userName} 👋 — Udaipur is live
-              </div>
-
-              <h1 className="text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
-                Let&rsquo;s Find Your{" "}
-                <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-rose-400 bg-clip-text text-transparent">
-                  Vibe
-                </span>
-              </h1>
-              <p className="mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
-                Book courts and turfs, find players for tonight&rsquo;s match, order food
-                courtside, and never argue about who owes what — all from one app.
-              </p>
-
-              {/* Search bar */}
-              <div className="mt-7 flex flex-col gap-2 rounded-2xl bg-white/95 p-2 shadow-2xl shadow-black/30 sm:flex-row sm:items-center sm:rounded-full sm:p-1.5 sm:pl-5">
-                <span aria-hidden className="hidden text-slate-400 sm:block">
-                  🔍
-                </span>
-                <input
-                  value={searchValue}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder="Search turf, badminton, pickleball..."
-                  className="w-full flex-1 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 sm:bg-transparent sm:px-0 sm:py-2"
-                />
-                <div className="flex items-center gap-2">
-                  <button className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 sm:flex">
-                    ⚙️
-                  </button>
-                  <PrimaryButton className="w-full !px-6 !py-3 sm:w-auto">Search</PrimaryButton>
-                </div>
-              </div>
-
-              {/* trust row */}
-              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <span aria-hidden className="text-amber-300">★ 4.8</span> rated by 12,000+ players
-                </span>
-                <span className="hidden h-3 w-px bg-white/15 sm:block" />
-                <span>Zero booking commission for your first 3 matches</span>
-              </div>
+          <div className="max-w-2xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-orange-200 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              Good Morning, {userName} 👋 — Udaipur is live
             </div>
 
-              {/* Right column — quick actions card */}
-            <div className="w-full rounded-3xl bg-white/95 p-5 shadow-2xl backdrop-blur sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm font-bold text-slate-800">Quick Actions</p>
-                <button
-                  type="button"
-                  onClick={onViewAllQuickActions}
-                  className="text-xs font-semibold text-orange-600 transition hover:text-orange-700"
-                >
-                  View All →
+            <h1 className="text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
+              Let&rsquo;s Find Your{" "}
+              <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-rose-400 bg-clip-text text-transparent">
+                Vibe
+              </span>
+            </h1>
+            <p className="mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
+              Book courts and turfs, find players for tonight&rsquo;s match, order food
+              courtside, and never argue about who owes what — all from one app.
+            </p>
+
+            {/* Search bar */}
+            <div className="mt-7 flex flex-col gap-2 rounded-2xl bg-white/95 p-2 shadow-2xl shadow-black/30 sm:flex-row sm:items-center sm:rounded-full sm:p-1.5 sm:pl-5">
+              <span aria-hidden className="hidden text-slate-400 sm:block">
+                🔍
+              </span>
+              <input
+                value={searchValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search turf, badminton, pickleball..."
+                className="w-full flex-1 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 sm:bg-transparent sm:px-0 sm:py-2"
+              />
+              <div className="flex items-center gap-2">
+                <button className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 sm:flex">
+                  ⚙️
                 </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {QUICK_ACTIONS.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => onQuickAction(a.id)}
-                    className="flex flex-col items-center gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md"
-                  >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-50 text-xl">
-                      {a.emoji}
-                    </span>
-                    <span className="text-[11px] font-semibold leading-tight text-slate-600">
-                      {a.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-5 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 p-4 text-white">
-                <span className="text-2xl" aria-hidden>
-                  🏷️
-                </span>
-                <div>
-                  <p className="text-sm font-bold">Flat 20% off your next booking</p>
-                  <p className="text-xs text-orange-100">Use code VIBE20 at checkout</p>
-                </div>
+                <PrimaryButton className="w-full !px-6 !py-3 sm:w-auto">Search</PrimaryButton>
               </div>
             </div>
+
+            {/* trust row */}
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="text-amber-300">★ 4.8</span> rated by 12,000+ players
+              </span>
+              <span className="hidden h-3 w-px bg-white/15 sm:block" />
+              <span>Zero booking commission for your first 3 matches</span>
+            </div>
+          </div>
+
+          {/* slideshow dots */}
+          <div className="mt-10 flex items-center justify-center gap-2 lg:justify-start">
+            {HERO_IMAGES.map((src, i) => (
+              <button
+                key={src}
+                type="button"
+                aria-label={`Show hero image ${i + 1}`}
+                onClick={() => setHeroSlide(i)}
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  i === heroSlide ? "w-7 bg-orange-400" : "w-1.5 bg-white/30 hover:bg-white/50"
+                }`}
+              />
+            ))}
           </div>
         </div>
 
@@ -1277,82 +1225,49 @@ function AppDownloadCTA() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  LAUNCH SCREEN / ROLE SELECTOR                                      */
+/*  QUICK ACTIONS                                                       */
 /* ------------------------------------------------------------------ */
 
-function LaunchScreenPreview() {
-  const [role, setRole] = useState<LaunchRole>("player");
-  const active = LAUNCH_ROLES.find((item) => item.id === role) ?? LAUNCH_ROLES[0];
-
+function QuickActionsSection({
+  onQuickAction,
+  onViewAllQuickActions,
+}: {
+  onQuickAction: (id: string) => void;
+  onViewAllQuickActions: () => void;
+}) {
   return (
-    <section id="launch" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
+    <section id="quick-actions" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
       <SectionHeading
-        eyebrow="App entry"
-        title="The 3 Roles & Their Tabs"
-        subtitle="Launch screen / role selector for players, owners, food operators, and admin."
-        emoji="🧩"
+        eyebrow="Shortcuts"
+        title="Quick Actions"
+        subtitle="Jump straight to booking, players, tournaments, and more."
+        emoji="⚡"
+        actionLabel="View All"
+        onAction={onViewAllQuickActions}
       />
-      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {LAUNCH_ROLES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setRole(item.id)}
-              className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                role === item.id ? "border-orange-300 bg-orange-50" : "border-slate-100 bg-white"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-2xl">
-                  {item.emoji}
-                </span>
-                <span
-                  className={`rounded-full bg-gradient-to-r px-2 py-1 text-[10px] font-bold text-white ${item.accent}`}
-                >
-                  {item.badge}
-                </span>
-              </div>
-              <p className="mt-4 text-sm font-bold text-slate-900">{item.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.subtitle}</p>
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        {QUICK_ACTIONS.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => onQuickAction(a.id)}
+            className="flex flex-col items-center gap-3 rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:border-orange-200 hover:shadow-md"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-50 text-2xl">
+              {a.emoji}
+            </span>
+            <span className="text-xs font-semibold leading-tight text-slate-600">{a.label}</span>
+          </button>
+        ))}
+      </div>
 
-        <div className="overflow-hidden rounded-3xl bg-slate-900 text-white shadow-2xl">
-          <div className="border-b border-white/10 p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-300">
-              {active.badge}
-            </p>
-            <h3 className="mt-2 text-2xl font-extrabold">{active.title}</h3>
-            <p className="mt-2 max-w-xl text-sm text-slate-300">{active.subtitle}</p>
-          </div>
-          <div className="grid gap-4 p-6 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white/5 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                Primary actions
-              </p>
-              <div className="mt-3 flex flex-col gap-2">
-                {active.actions.map((action) => (
-                  <span
-                    key={action}
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200"
-                  >
-                    {action}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 p-4 text-white">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-100">
-                Admin note
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-orange-50">
-                Admin remains a web-only control plane layered above the three user roles, with
-                banners, users, master data, and audit history.
-              </p>
-            </div>
-          </div>
+      <div className="mt-4 flex items-center gap-3 rounded-3xl bg-gradient-to-r from-orange-500 to-rose-500 p-5 text-white">
+        <span className="text-2xl" aria-hidden>
+          🏷️
+        </span>
+        <div>
+          <p className="text-sm font-bold">Flat 20% off your next booking</p>
+          <p className="text-xs text-orange-100">Use code VIBE20 at checkout</p>
         </div>
       </div>
     </section>
@@ -2609,8 +2524,6 @@ export default function HomePage() {
         userName={userName}
         searchValue={search}
         onSearchChange={setSearch}
-        onQuickAction={handleQuickAction}
-        onViewAllQuickActions={() => router.push("/games")}
       />
 
       {filteredVenuesNote !== null && (
@@ -2619,7 +2532,10 @@ export default function HomePage() {
         </p>
       )}
 
-      <LaunchScreenPreview />
+      <QuickActionsSection
+        onQuickAction={handleQuickAction}
+        onViewAllQuickActions={() => router.push("/games")}
+      />
 
       <FindYourGames onSelectSport={handleSelectSport} />
 

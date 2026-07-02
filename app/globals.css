@@ -83,6 +83,15 @@ textarea:focus-visible {
   border-radius: 6px;
 }
 
+@keyframes hero-kenburns {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

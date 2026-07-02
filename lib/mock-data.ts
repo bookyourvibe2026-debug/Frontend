@@ -41,9 +41,31 @@ export function saveListingOverride(id: string, patch: Partial<Listing>) {
   window.localStorage.setItem(LISTING_OVERRIDES_KEY, JSON.stringify(all));
 }
 
+// New listings created in the Package Studio (there's no backend yet, so
+// they live in localStorage alongside the seed listings above).
+const NEW_LISTINGS_KEY = "byv-vendor-new-listings";
+
+function loadNewListings(): Listing[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(window.localStorage.getItem(NEW_LISTINGS_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function addNewListing(listing: Listing) {
+  if (typeof window === "undefined") return;
+  const all = loadNewListings();
+  all.unshift(listing);
+  window.localStorage.setItem(NEW_LISTINGS_KEY, JSON.stringify(all));
+}
+
 export function getListingsWithOverrides(): Listing[] {
   const overrides = loadListingOverrides();
-  return listings.map((l) => (overrides[l.id] ? { ...l, ...overrides[l.id] } : l));
+  const seeded = listings.map((l) => (overrides[l.id] ? { ...l, ...overrides[l.id] } : l));
+  const created = loadNewListings().map((l) => (overrides[l.id] ? { ...l, ...overrides[l.id] } : l));
+  return [...created, ...seeded];
 }
 
 export const vendorProfile = {
@@ -89,7 +111,7 @@ export const listings: Listing[] = [
     ],
     tags: ["cricket", "box cricket", "night-play"],
     priceTiers: [{ id: "tier-1", label: "Per Hour", amount: 1200 }],
-    bookingType: "Slot Booking",
+    bookingType: "Recurring",
     availableFrom: "2026-06-28",
     availableTill: "2026-12-31",
     slotsPerDay: 10,
@@ -124,7 +146,7 @@ export const listings: Listing[] = [
     ],
     tags: ["football", "5-a-side", "weekend-league"],
     priceTiers: [{ id: "tier-1", label: "Per Hour", amount: 1600 }],
-    bookingType: "Slot Booking",
+    bookingType: "Recurring",
     availableFrom: "2026-06-27",
     availableTill: "2026-12-31",
     slotsPerDay: 8,
@@ -159,7 +181,7 @@ export const listings: Listing[] = [
     ],
     tags: ["gaming", "ps5", "pool"],
     priceTiers: [{ id: "tier-1", label: "Per Hour", amount: 400 }],
-    bookingType: "Slot Booking",
+    bookingType: "Recurring",
     availableFrom: "2026-06-25",
     availableTill: "2026-12-31",
     slotsPerDay: 12,
@@ -194,7 +216,7 @@ export const listings: Listing[] = [
     ],
     tags: ["live music", "rooftop", "friday-night"],
     priceTiers: [{ id: "tier-1", label: "Entry Ticket", amount: 499 }],
-    bookingType: "Fixed Date Event",
+    bookingType: "Courses",
     availableFrom: "2026-06-27",
     availableTill: "2026-07-25",
     slotsPerDay: 150,
