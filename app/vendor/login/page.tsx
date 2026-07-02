@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   clearVendorSession,
@@ -31,7 +31,7 @@ const HIGHLIGHTS = [
   { icon: "👥", label: "Customer Management" },
 ];
 
-export default function VendorLoginPage() {
+function VendorLoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
@@ -297,6 +297,14 @@ export default function VendorLoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function VendorLoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-950" />}>
+      <VendorLoginInner />
+    </Suspense>
   );
 }
 

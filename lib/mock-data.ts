@@ -193,6 +193,11 @@ export const listings: Listing[] = [
       { question: "Is re-entry allowed?", answer: "Yes, with the same ticket wristband." },
     ],
     tags: ["live music", "rooftop", "friday-night"],
+    priceTiers: [{ id: "tier-1", label: "Entry Ticket", amount: 499 }],
+    bookingType: "Fixed Date Event",
+    availableFrom: "2026-06-27",
+    availableTill: "2026-07-25",
+    slotsPerDay: 150,
   },
 ];
 
