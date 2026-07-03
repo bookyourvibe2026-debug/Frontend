@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
+import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 
 export const metadata = {
   title: "Find Your Games | Book Your Vibe",
@@ -20,9 +21,46 @@ const SPORTS = [
 export default function GamesPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff,_#f8fafc_40%,_#ffffff_75%)]">
-      <SiteHeader />
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="sm:hidden">
+        <div className="px-4 pt-4">
+          <MobileTopBar />
+        </div>
+        <main className="flex flex-col gap-5 px-4 py-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">
+              Find Your Games
+            </p>
+            <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
+              Pick a sport, then jump to the right venue.
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Browse what&rsquo;s popular right now and move into booking fast.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {SPORTS.map((sport) => (
+              <Link key={sport.id} href="/venues">
+                <MobileCard className="flex items-center gap-4">
+                  <div className="relative h-16 w-16 shrink-0 rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
+                    <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-extrabold text-slate-950">{sport.label}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{sport.note}</p>
+                  </div>
+                </MobileCard>
+              </Link>
+            ))}
+          </div>
+        </main>
+      </div>
+
+      <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white/80 p-6 shadow-[0_20px_80px_rgba(148,163,184,0.18)] backdrop-blur sm:p-10">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div>

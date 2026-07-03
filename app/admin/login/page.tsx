@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import {
   DEMO_ADMIN_CREDENTIALS,
   DEMO_ADMIN_SESSION,
@@ -74,7 +74,16 @@ function AdminLoginInner() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
+    <main className="relative flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
+      <button
+        type="button"
+        onClick={() => router.back()}
+        aria-label="Go back"
+        className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 lg:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
+
       <div className="flex w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
         {/* Left panel — form, with our logo */}
         <div className="w-full p-8 sm:p-12 lg:w-1/2">

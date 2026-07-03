@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { TRENDING_VENUES } from "../../lib/venues";
+import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 
 export const metadata = {
   title: "Venues | Book Your Vibe",
@@ -13,9 +14,62 @@ const VENUES = TRENDING_VENUES;
 export default function VenuesPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#eef2ff_45%,_#ffffff_82%)]">
-      <SiteHeader />
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="sm:hidden">
+        <div className="px-4 pt-4">
+          <MobileTopBar />
+        </div>
+        <main className="flex flex-col gap-5 px-4 py-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Venues</p>
+            <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
+              Choose a venue that feels easy to book.
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Location, sport, price, and how fast a slot is filling — at a glance.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {VENUES.map((venue) => (
+              <MobileCard key={venue.id} className="!p-4">
+                <div
+                  className="relative rounded-2xl p-4 text-white"
+                  style={{ background: venue.image, backgroundSize: "cover" }}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">
+                    {venue.status}
+                  </p>
+                  <h2 className="mt-1 text-lg font-extrabold">{venue.name}</h2>
+                  <p className="mt-1 flex items-center gap-1 text-xs text-white/85">
+                    {venue.sport} · {venue.rating}
+                    <Star className="h-3 w-3 fill-current" />
+                  </p>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      {venue.area} · {venue.distanceKm} km
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.pricePerHour}/hr</p>
+                  </div>
+                  <Link
+                    href={`/venues/${venue.id}`}
+                    className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
+                  >
+                    View details
+                  </Link>
+                </div>
+              </MobileCard>
+            ))}
+          </div>
+        </main>
+      </div>
+
+      <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="rounded-[2rem] bg-slate-950 px-6 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,0.22)] sm:px-10">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-300">Venues</p>
           <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">

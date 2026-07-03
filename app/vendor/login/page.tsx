@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   Calendar,
   Camera,
   ChevronRight,
@@ -168,7 +169,16 @@ function VendorLoginInner() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c1912]/70 via-transparent to-[#0c1912]/40" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(166,255,60,0.16),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(255,176,32,0.14),transparent_45%)]" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-[1440px] flex-col items-center justify-center gap-12 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-12">
+      <button
+        type="button"
+        onClick={() => router.back()}
+        aria-label="Go back"
+        className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[#f6f3ea] backdrop-blur transition hover:bg-white/20 lg:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
+
+      <div className="relative mx-auto flex min-h-screen max-w-[1440px] flex-col-reverse items-center justify-center gap-12 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-12">
         <div className="flex max-w-md flex-col justify-center text-[#f6f3ea]">
           <div className="flex items-center gap-2 font-[600] text-2xl" style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#a6ff3c] text-[#0c1912]">BYV</span>

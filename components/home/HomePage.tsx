@@ -25,6 +25,7 @@ import { Footer } from "./Footer";
 import { LoginModal } from "./modals/LoginModal";
 import { SignupModal } from "./modals/SignupModal";
 import { AdminConsoleModal } from "./modals/AdminConsoleModal";
+import { MobileHome } from "./mobile/MobileHome";
 
 export default function HomePage() {
   const router = useRouter();
@@ -107,79 +108,101 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Navbar
-        onOpenLogin={() => setAuthMode("login")}
-        onOpenSignup={() => setAuthMode("signup")}
-        isLoggedIn={isLoggedIn}
-        userName={userName}
-        onOpenAdmin={() => setAuthMode("admin")}
-      />
-
-      <Hero
-        userName={userName}
-        searchValue={search}
-        onSearchChange={setSearch}
-      />
-
-      {filteredVenuesNote !== null && (
-        <p className="mx-auto -mt-8 max-w-7xl px-4 text-sm text-slate-500 sm:px-6">
-          {filteredVenuesNote} venue(s) match &ldquo;{search}&rdquo;
-        </p>
-      )}
-
-      <QuickActionsSection
-        onQuickAction={handleQuickAction}
-        onViewAllQuickActions={() => router.push("/games")}
-      />
-
-      <FindYourGames onSelectSport={handleSelectSport} />
-
-      <TrendingVenues
-        favorites={favorites}
-        onToggleFavorite={toggleFavorite}
-        onViewVenue={openVenue}
-        onBookVenue={openVenue}
-        onViewAll={() => router.push("/venues")}
-      />
-
-      <HowItWorks />
-
-      <PlatformSystemsSection />
-
-      <section id="book" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
-        <SectionHeading
-          eyebrow="Your snapshot"
-          title="Your Bookings, Wallet & Activity"
-          subtitle="Everything you need before you walk out the door."
+      <div className="sm:hidden">
+        <MobileHome
+          userName={userName}
+          searchValue={search}
+          onSearchChange={setSearch}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onViewVenue={openVenue}
+          onBookVenue={openVenue}
+          onViewAllVenues={() => router.push("/venues")}
+          onQuickAction={handleQuickAction}
+          onViewAllQuickActions={() => router.push("/games")}
+          onChooseGame={() => router.push("/venues")}
+          onJoinCommunity={() => showToast("Joining Badminton Doubles match…")}
+          onViewAllCommunity={() => router.push("/community")}
+          onViewAllEvents={() => router.push("/tournaments")}
+          onViewAllOffers={() => router.push("/offers")}
         />
-        <div className="grid gap-4 lg:grid-cols-3">
-          <UpcomingBookingCard />
-          <WalletCard />
-          <FitnessSnapshotCard />
-        </div>
-      </section>
+      </div>
 
-      <CommunityMatches
-        onJoin={() => showToast("Joining Badminton Doubles match…")}
-        onViewAll={() => router.push("/community")}
-      />
+      <div className="hidden sm:block">
+        <Navbar
+          onOpenLogin={() => setAuthMode("login")}
+          onOpenSignup={() => setAuthMode("signup")}
+          isLoggedIn={isLoggedIn}
+          userName={userName}
+          onOpenAdmin={() => setAuthMode("admin")}
+        />
 
-      <EventsAndOffers
-        onViewAllEvents={() => router.push("/tournaments")}
-        onViewAllOffers={() => router.push("/offers")}
-      />
+        <Hero
+          userName={userName}
+          searchValue={search}
+          onSearchChange={setSearch}
+        />
 
-      <CommerceSection />
+        {filteredVenuesNote !== null && (
+          <p className="mx-auto -mt-8 max-w-7xl px-4 text-sm text-slate-500 sm:px-6">
+            {filteredVenuesNote} venue(s) match &ldquo;{search}&rdquo;
+          </p>
+        )}
 
-      <WalkInPOSSection />
+        <QuickActionsSection
+          onQuickAction={handleQuickAction}
+          onViewAllQuickActions={() => router.push("/games")}
+        />
 
-      <WhyBookYourVibe />
+        <FindYourGames onSelectSport={handleSelectSport} />
 
-      <BuildCostAndExtensionsSection />
+        <TrendingVenues
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onViewVenue={openVenue}
+          onBookVenue={openVenue}
+          onViewAll={() => router.push("/venues")}
+        />
 
-      <Testimonials />
+        <HowItWorks />
 
-      <AppDownloadCTA />
+        <PlatformSystemsSection />
+
+        <section id="book" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
+          <SectionHeading
+            eyebrow="Your snapshot"
+            title="Your Bookings, Wallet & Activity"
+            subtitle="Everything you need before you walk out the door."
+          />
+          <div className="grid gap-4 lg:grid-cols-3">
+            <UpcomingBookingCard />
+            <WalletCard />
+            <FitnessSnapshotCard />
+          </div>
+        </section>
+
+        <CommunityMatches
+          onJoin={() => showToast("Joining Badminton Doubles match…")}
+          onViewAll={() => router.push("/community")}
+        />
+
+        <EventsAndOffers
+          onViewAllEvents={() => router.push("/tournaments")}
+          onViewAllOffers={() => router.push("/offers")}
+        />
+
+        <CommerceSection />
+
+        <WalkInPOSSection />
+
+        <WhyBookYourVibe />
+
+        <BuildCostAndExtensionsSection />
+
+        <Testimonials />
+
+        <AppDownloadCTA />
+      </div>
 
       <Footer />
 

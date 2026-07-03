@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
+import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 
 export const metadata = {
   title: "Offers | Book Your Vibe",
@@ -16,9 +17,42 @@ const OFFERS = [
 export default function OffersPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff7ed,_#f8fafc_45%,_#ffffff_82%)]">
-      <SiteHeader />
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="sm:hidden">
+        <div className="px-4 pt-4">
+          <MobileTopBar />
+        </div>
+        <main className="flex flex-col gap-5 px-4 py-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Offers</p>
+            <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
+              Useful discounts, not noisy promos.
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Book more often without digging through banners or confusing terms.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {OFFERS.map((offer) => (
+              <MobileCard key={offer.title} className="!p-4">
+                <div className={`rounded-2xl bg-gradient-to-r ${offer.accent} p-4 text-white`}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">
+                    {offer.tag}
+                  </p>
+                  <h2 className="mt-1 text-lg font-extrabold">{offer.title}</h2>
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{offer.desc}</p>
+              </MobileCard>
+            ))}
+          </div>
+        </main>
+      </div>
+
+      <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="overflow-hidden rounded-[2rem] bg-white p-6 shadow-[0_20px_80px_rgba(148,163,184,0.18)] sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
             <div>

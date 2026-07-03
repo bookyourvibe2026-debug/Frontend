@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
+import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 
 export const metadata = {
   title: "Community | Book Your Vibe",
@@ -30,9 +31,67 @@ const TESTIMONIALS = [
 export default function CommunityPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eef2ff,_#f8fafc_45%,_#ffffff_80%)]">
-      <SiteHeader />
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="sm:hidden">
+        <div className="px-4 pt-4">
+          <MobileTopBar />
+        </div>
+        <main className="flex flex-col gap-5 px-4 py-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-600">Community</p>
+            <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
+              Find players, matches, and momentum.
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Active matches, trusted feedback, and a fast path back into booking.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {MATCHES.map((match) => (
+              <MobileCard key={match.title} className="flex flex-col gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-600">
+                  Open match
+                </p>
+                <h2 className="text-base font-extrabold text-slate-950">{match.title}</h2>
+                <p className="text-xs text-slate-500">{match.place}</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700">
+                    {match.time}
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                    {match.spots}
+                  </span>
+                </div>
+              </MobileCard>
+            ))}
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-base font-extrabold text-slate-900">What players say</h2>
+            <div className="flex flex-col gap-3">
+              {TESTIMONIALS.map((item) => (
+                <MobileCard key={item.name}>
+                  <p className="text-sm leading-6 text-slate-700">&ldquo;{item.quote}&rdquo;</p>
+                  <p className="mt-3 text-sm font-bold text-slate-950">{item.name}</p>
+                </MobileCard>
+              ))}
+            </div>
+          </div>
+
+          <Link
+            href="/venues"
+            className="rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-5 py-3 text-center text-sm font-semibold text-white shadow-md shadow-orange-500/30"
+          >
+            Browse venues
+          </Link>
+        </main>
+      </div>
+
+      <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white shadow-[0_30px_90px_rgba(15,23,42,0.26)] sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-sky-300">Community</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
