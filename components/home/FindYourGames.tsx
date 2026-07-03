@@ -30,7 +30,7 @@ export function FindYourGames({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-x-4 gap-y-8 min-[420px]:grid-cols-2 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 xl:grid-cols-7">
           {SPORTS_CATALOG.map((s) => (
             <button
               key={s.id}
