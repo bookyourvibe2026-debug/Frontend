@@ -15,7 +15,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useMemo, useState } from "react";
-import { CalendarDays, Clock, Minus, Plus, ShieldCheck, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock, MapPin, Minus, Plus, ShieldCheck, X } from "lucide-react";
 
 export interface BookingVenue {
   id: string;
@@ -209,9 +209,9 @@ function SelectStep({
         <button
           type="button"
           onClick={onContinue}
-          className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/30 transition hover:scale-[1.02]"
+          className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/30 transition hover:scale-[1.02]"
         >
-          Continue ›
+          Continue <ChevronRight className="h-4 w-4" />
         </button>
       </div>
     </div>
@@ -276,9 +276,9 @@ function ReviewStep(props: {
         <button
           type="button"
           onClick={onBack}
-          className="text-sm font-semibold text-slate-400 transition hover:text-orange-600"
+          className="flex items-center gap-0.5 text-sm font-semibold text-slate-400 transition hover:text-orange-600"
         >
-          ‹ Back
+          <ChevronLeft className="h-4 w-4" /> Back
         </button>
         <h2 className="text-xl font-extrabold text-slate-900">
           Review &amp; Confirm Your Booking
@@ -292,8 +292,8 @@ function ReviewStep(props: {
             <p className="text-base font-bold text-slate-900">
               {venue.sport} — {venue.name}
             </p>
-            <p className="text-xs text-slate-400">
-              📍 {venue.area} · Please review your slot &amp; details
+            <p className="flex items-center gap-1 text-xs text-slate-400">
+              <MapPin className="h-3.5 w-3.5" /> {venue.area} · Please review your slot &amp; details
             </p>
           </div>
 
@@ -425,7 +425,7 @@ function ReviewStep(props: {
                   }`}
                 >
                   <span className="mr-2 border-r border-slate-200 pr-2 text-sm font-semibold text-slate-600">
-                    🇮🇳 +91
+                    +91
                   </span>
                   <input
                     type="tel"
@@ -470,7 +470,9 @@ function ReviewStep(props: {
                 : "cursor-not-allowed bg-slate-300 text-white"
             }`}
           >
-            Proceed to Payment ›
+            <span className="inline-flex items-center gap-1">
+              Proceed to Payment <ChevronRight className="h-4 w-4" />
+            </span>
           </button>
         </div>
       </div>
@@ -503,8 +505,8 @@ function ConfirmedStep({
 }) {
   return (
     <div className="relative m-4 w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">
-        ✅
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+        <Check className="h-8 w-8" strokeWidth={3} />
       </div>
       <h2 className="mt-4 text-xl font-extrabold text-slate-900">Booking Confirmed!</h2>
       <p className="mt-1 text-sm text-slate-500">

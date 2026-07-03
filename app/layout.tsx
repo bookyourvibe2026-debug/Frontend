@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WhatsAppWidget } from "@/components/WhatsAppWidget";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
+        <WhatsAppWidget />
       </body>
     </html>
   );

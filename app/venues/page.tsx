@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Star } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { TRENDING_VENUES } from "../../lib/venues";
 
@@ -52,7 +53,10 @@ export default function VenuesPage() {
                   {venue.status}
                 </p>
                 <h2 className="mt-2 text-2xl font-black">{venue.name}</h2>
-                <p className="mt-1 text-sm text-white/85">{venue.sport} · {venue.rating}★</p>
+                <p className="mt-1 flex items-center gap-1 text-sm text-white/85">
+                  {venue.sport} · {venue.rating}
+                  <Star className="h-3.5 w-3.5 fill-current" />
+                </p>
               </div>
 
               <div className="mt-5 flex items-center justify-between gap-3">

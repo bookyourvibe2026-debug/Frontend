@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Search, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Wallet } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import {
   payoutBookingsByVendor,
@@ -98,7 +98,9 @@ export default function VendorPayoutsPage() {
               <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold text-white ${c.color}`}>{c.letter}</span>
               <p className="mt-3 font-semibold text-ink">{c.name}</p>
               <p className="mt-1 text-xs text-ink-faint">{c.subtitle}</p>
-              <p className="mt-3 text-xs font-semibold text-vibe-violet">View Payouts →</p>
+              <p className="mt-3 flex items-center gap-1 text-xs font-semibold text-vibe-violet">
+                View Payouts <ArrowRight className="h-3.5 w-3.5" />
+              </p>
             </button>
           ))}
         </div>

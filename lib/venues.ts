@@ -7,6 +7,8 @@
 /*  gets a rich detail page without hand-authoring each one.           */
 /* ------------------------------------------------------------------ */
 
+import { CircleParking, Toilet, Lightbulb, Snowflake, CircleDot, type LucideIcon } from "lucide-react";
+
 export type Venue = {
   id: string;
   name: string;
@@ -132,8 +134,12 @@ export interface VenueDetail {
   highlights: string[];
   inclusions: string[];
   exclusions: string[];
-  amenities: string[];
+  amenities: { icon: LucideIcon; label: string }[];
 }
+
+const PARKING = { icon: CircleParking, label: "Parking" };
+const WASHROOM = { icon: Toilet, label: "Washroom" };
+const FLOODLIGHTS = { icon: Lightbulb, label: "Floodlights" };
 
 const SPORT_DETAILS: Record<string, Omit<VenueDetail, "summary">> = {
   Cricket: {
@@ -141,49 +147,49 @@ const SPORT_DETAILS: Record<string, Omit<VenueDetail, "summary">> = {
     highlights: ["Floodlit turf pitch", "Bowling machine on request", "Free parking", "Seating for spectators"],
     inclusions: ["Turf pitch access", "Stumps & bails", "Drinking water", "Changing room"],
     exclusions: ["Bats & personal gear", "Food & beverages", "Coaching sessions"],
-    amenities: ["🅿️ Parking", "🚻 Washroom", "💡 Floodlights"],
+    amenities: [PARKING, WASHROOM, FLOODLIGHTS],
   },
   Badminton: {
     hours: "6:00 AM – 11:00 PM",
     highlights: ["Wooden sprung court", "Anti-slip flooring", "Air-conditioned hall", "Well-lit courts"],
     inclusions: ["Court access", "Net setup", "Drinking water", "Changing room"],
     exclusions: ["Rackets & shuttles", "Food & beverages", "Coaching"],
-    amenities: ["❄️ AC Hall", "🚻 Washroom", "💡 Floodlights"],
+    amenities: [{ icon: Snowflake, label: "AC Hall" }, WASHROOM, FLOODLIGHTS],
   },
   Pickleball: {
     hours: "6:00 AM – 10:00 PM",
     highlights: ["Regulation-size court", "Fresh court surface", "Beginner friendly", "Evening floodlights"],
     inclusions: ["Court access", "Net setup", "Drinking water", "Changing room"],
     exclusions: ["Paddles & balls", "Food & beverages", "Coaching"],
-    amenities: ["🅿️ Parking", "🚻 Washroom", "💡 Floodlights"],
+    amenities: [PARKING, WASHROOM, FLOODLIGHTS],
   },
   Tennis: {
     hours: "6:00 AM – 10:00 PM",
     highlights: ["Synthetic hard court", "Pro-grade net", "Floodlit for night play", "Ball machine on request"],
     inclusions: ["Court access", "Net setup", "Drinking water", "Changing room"],
     exclusions: ["Rackets & balls", "Food & beverages", "Coaching"],
-    amenities: ["🅿️ Parking", "🚻 Washroom", "💡 Floodlights"],
+    amenities: [PARKING, WASHROOM, FLOODLIGHTS],
   },
   Football: {
     hours: "6:00 AM – 12:00 AM",
     highlights: ["5-a-side artificial turf", "Floodlit ground", "Bibs available", "Ample parking"],
     inclusions: ["Turf access", "Match ball", "Drinking water", "Changing room"],
     exclusions: ["Boots & shin guards", "Food & beverages", "Referee"],
-    amenities: ["🅿️ Parking", "🚻 Washroom", "💡 Floodlights"],
+    amenities: [PARKING, WASHROOM, FLOODLIGHTS],
   },
   "Table Tennis": {
     hours: "8:00 AM – 10:00 PM",
     highlights: ["ITTF-approved tables", "Indoor climate control", "Beginner & pro tables", "Well-lit hall"],
     inclusions: ["Table access", "Net setup", "Drinking water", "Seating"],
     exclusions: ["Bats & balls", "Food & beverages", "Coaching"],
-    amenities: ["❄️ Indoor", "🚻 Washroom", "💡 Lighting"],
+    amenities: [{ icon: Snowflake, label: "Indoor" }, WASHROOM, { icon: Lightbulb, label: "Lighting" }],
   },
   Snooker: {
     hours: "10:00 AM – 1:00 AM",
     highlights: ["Tournament-grade tables", "Premium cues available", "Lounge seating", "Chilled ambience"],
     inclusions: ["Table access", "Cues & balls", "Chalk", "Lounge seating"],
     exclusions: ["Food & beverages", "Personal cue storage", "Private events"],
-    amenities: ["❄️ Lounge", "🚻 Washroom", "🎱 Pro Tables"],
+    amenities: [{ icon: Snowflake, label: "Lounge" }, WASHROOM, { icon: CircleDot, label: "Pro Tables" }],
   },
 };
 
@@ -192,7 +198,7 @@ const DEFAULT_DETAIL: Omit<VenueDetail, "summary"> = {
   highlights: ["Well-maintained facility", "Floodlit for night play", "Free parking", "Easy online booking"],
   inclusions: ["Venue access", "Basic equipment", "Drinking water", "Changing room"],
   exclusions: ["Personal gear", "Food & beverages", "Coaching"],
-  amenities: ["🅿️ Parking", "🚻 Washroom", "💡 Floodlights"],
+  amenities: [PARKING, WASHROOM, FLOODLIGHTS],
 };
 
 export function getVenueDetail(venue: Venue): VenueDetail {

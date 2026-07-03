@@ -2,25 +2,41 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import {
+  Calendar,
+  Camera,
+  Check,
+  CreditCard,
+  Dumbbell,
+  Feather,
+  Gamepad2,
+  Goal,
+  KeyRound,
+  Ticket,
+  Trophy,
+  TrendingUp,
+  Volleyball,
+  type LucideIcon,
+} from "lucide-react";
 import VendorRegistrationModal from "@/components/vendor/VendorRegistrationModal";
 import type { RegistrationFormData } from "@/components/vendor/types";
 
-const FEATURES = [
-  { icon: "📅", title: "Slot-Based Booking", desc: "Let players book hourly slots on your turf, court, or arena in real time." },
-  { icon: "🏆", title: "Tournament Hosting", desc: "Publish and manage tournaments, leagues, and private matches." },
-  { icon: "🎫", title: "Walk-in Ticketing", desc: "Sell counter bookings alongside your online slots, in sync." },
-  { icon: "📷", title: "QR Check-In", desc: "Scan players in at the gate with instant QR verification." },
-  { icon: "💳", title: "Instant Payouts", desc: "Fast, secure settlements straight to your bank account." },
-  { icon: "📈", title: "Revenue Insights", desc: "Track peak hours, occupancy, and earnings from one dashboard." },
+const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
+  { icon: Calendar, title: "Slot-Based Booking", desc: "Let players book hourly slots on your turf, court, or arena in real time." },
+  { icon: Trophy, title: "Tournament Hosting", desc: "Publish and manage tournaments, leagues, and private matches." },
+  { icon: Ticket, title: "Walk-in Ticketing", desc: "Sell counter bookings alongside your online slots, in sync." },
+  { icon: Camera, title: "QR Check-In", desc: "Scan players in at the gate with instant QR verification." },
+  { icon: CreditCard, title: "Instant Payouts", desc: "Fast, secure settlements straight to your bank account." },
+  { icon: TrendingUp, title: "Revenue Insights", desc: "Track peak hours, occupancy, and earnings from one dashboard." },
 ];
 
-const CATEGORIES = [
-  { icon: "⚽", title: "Turf & Sports Grounds", desc: "Football, cricket, and multi-sport turfs across India." },
-  { icon: "🏏", title: "Box Cricket Arenas", desc: "Indoor and outdoor box cricket venues." },
-  { icon: "🎮", title: "Gaming Zones", desc: "PS5 lounges, VR arenas, and eSports cafes." },
-  { icon: "🎳", title: "Bowling & Skating", desc: "Bowling alleys and skating rinks for all ages." },
-  { icon: "🏸", title: "Court Sports", desc: "Badminton, pickleball, and table tennis courts." },
-  { icon: "🔑", title: "Escape Rooms", desc: "Themed escape rooms and puzzle experiences." },
+const CATEGORIES: { icon: LucideIcon; title: string; desc: string }[] = [
+  { icon: Goal, title: "Turf & Sports Grounds", desc: "Football, cricket, and multi-sport turfs across India." },
+  { icon: Dumbbell, title: "Box Cricket Arenas", desc: "Indoor and outdoor box cricket venues." },
+  { icon: Gamepad2, title: "Gaming Zones", desc: "PS5 lounges, VR arenas, and eSports cafes." },
+  { icon: Volleyball, title: "Bowling & Skating", desc: "Bowling alleys and skating rinks for all ages." },
+  { icon: Feather, title: "Court Sports", desc: "Badminton, pickleball, and table tennis courts." },
+  { icon: KeyRound, title: "Escape Rooms", desc: "Themed escape rooms and puzzle experiences." },
 ];
 
 const WHO_CAN_REGISTER = [
@@ -113,9 +129,14 @@ export default function VendorRegisterPage() {
         </p>
 
         <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
-          {["⚽ Turfs", "🎮 Gaming Zones", "🏏 Box Cricket", "🏸 Court Sports"].map((t) => (
-            <div key={t} className="rounded-xl bg-white/5 py-4 text-sm font-semibold">
-              {t}
+          {[
+            { icon: Goal, label: "Turfs" },
+            { icon: Gamepad2, label: "Gaming Zones" },
+            { icon: Dumbbell, label: "Box Cricket" },
+            { icon: Feather, label: "Court Sports" },
+          ].map((t) => (
+            <div key={t.label} className="flex items-center justify-center gap-2 rounded-xl bg-white/5 py-4 text-sm font-semibold">
+              <t.icon className="h-4 w-4" /> {t.label}
             </div>
           ))}
         </div>
@@ -131,7 +152,7 @@ export default function VendorRegisterPage() {
         <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
           {CATEGORIES.map((c) => (
             <div key={c.title} className="rounded-2xl border border-[#e4ded0] bg-white p-6">
-              <span className="text-2xl">{c.icon}</span>
+              <c.icon className="h-7 w-7 text-[#3f7d3f]" />
               <h3 className="mt-3 font-bold">{c.title}</h3>
               <p className="mt-1 text-sm text-[#3f5449]">{c.desc}</p>
             </div>
@@ -146,7 +167,7 @@ export default function VendorRegisterPage() {
         <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
           {FEATURES.map((f) => (
             <div key={f.title} className="rounded-2xl bg-white p-6">
-              <span className="text-2xl">{f.icon}</span>
+              <f.icon className="h-7 w-7 text-[#3f7d3f]" />
               <h3 className="mt-3 font-bold">{f.title}</h3>
               <p className="mt-1 text-sm text-[#3f5449]">{f.desc}</p>
             </div>
@@ -161,7 +182,7 @@ export default function VendorRegisterPage() {
         <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
           {WHO_CAN_REGISTER.map((w) => (
             <div key={w} className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3 text-sm font-semibold">
-              <span className="text-[#3f7d3f]">✓</span> {w}
+              <Check className="h-4 w-4 shrink-0 text-[#3f7d3f]" /> {w}
             </div>
           ))}
         </div>

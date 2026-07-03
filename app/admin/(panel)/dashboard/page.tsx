@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, CalendarCheck2, UserPlus, Activity, Users, Download } from "lucide-react";
+import { Compass, CalendarCheck2, UserPlus, Activity, Users, Download, ArrowUp } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { adminBookingsSeed, dashboardStats, stateBreakdown, topCities } from "@/lib/admin-mock-data";
 
@@ -112,7 +112,9 @@ function StatCard({ icon, label, value, growth }: { icon: React.ReactNode; label
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{label}</p>
         <p className="mt-1 font-display text-2xl font-bold text-ink">{value.toLocaleString("en-IN")}</p>
-        <p className="mt-0.5 text-xs font-semibold text-vibe-limeDark">↑ {growth}%</p>
+        <p className="mt-0.5 flex items-center gap-0.5 text-xs font-semibold text-vibe-limeDark">
+          <ArrowUp className="h-3 w-3" /> {growth}%
+        </p>
       </div>
       <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-vibe-violet/10 text-vibe-violet">{icon}</span>
     </div>

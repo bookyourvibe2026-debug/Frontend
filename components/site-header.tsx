@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Bell, ChevronDown, Menu, MapPin, Search, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 
 const NAV_LINKS = [
@@ -32,8 +33,8 @@ export function SiteHeader() {
         />
 
         <button className="hidden items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-orange-300 hover:text-orange-600 md:flex">
-          <span aria-hidden>📍</span> Udaipur
-          <span aria-hidden className="text-xs">▾</span>
+          <MapPin className="h-3.5 w-3.5" aria-hidden /> Udaipur
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
         </button>
 
         <nav className="hidden flex-1 items-center justify-center gap-6 lg:flex">
@@ -55,13 +56,13 @@ export function SiteHeader() {
             aria-label="Search"
             className="hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600 sm:flex"
           >
-            🔍
+            <Search className="h-4 w-4" />
           </button>
           <button
             aria-label="Notifications"
             className="relative hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600 sm:flex"
           >
-            🔔
+            <Bell className="h-4 w-4" />
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
               3
             </span>
@@ -79,7 +80,7 @@ export function SiteHeader() {
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Toggle menu"
           >
-            {mobileOpen ? "✕" : "☰"}
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
         </div>
       </div>

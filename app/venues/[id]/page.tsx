@@ -21,6 +21,7 @@ import {
   Share2,
   Star,
   ArrowLeft,
+  Building2,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
@@ -42,7 +43,7 @@ export default function VenueDetailPage() {
       <div className="min-h-screen bg-slate-50">
         <SiteHeader />
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <p className="text-6xl">🏟️</p>
+          <Building2 className="mx-auto h-16 w-16 text-slate-300" />
           <h1 className="mt-4 text-2xl font-extrabold text-slate-900">
             Venue not found
           </h1>
@@ -167,10 +168,11 @@ export default function VenueDetailPage() {
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                 {detail.amenities.map((a) => (
                   <div
-                    key={a}
-                    className="rounded-lg bg-slate-50 py-2 font-semibold text-slate-600"
+                    key={a.label}
+                    className="flex flex-col items-center gap-1.5 rounded-lg bg-slate-50 py-3 font-semibold text-slate-600"
                   >
-                    {a}
+                    <a.icon className="h-4 w-4 text-orange-500" />
+                    {a.label}
                   </div>
                 ))}
               </div>

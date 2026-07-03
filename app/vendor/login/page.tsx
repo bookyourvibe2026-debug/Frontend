@@ -5,6 +5,18 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Calendar,
+  Camera,
+  ChevronRight,
+  CreditCard,
+  Megaphone,
+  Ticket,
+  Trophy,
+  TrendingUp,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import {
   clearVendorSession,
   DEMO_VENDOR_CREDENTIALS,
   DEMO_VENDOR_SESSION,
@@ -21,15 +33,15 @@ const TABS: { id: LoginTab; label: string }[] = [
   { id: "subadmin", label: "Subadmin" },
 ];
 
-const HIGHLIGHTS = [
-  { icon: "📅", label: "Slot-Based Booking" },
-  { icon: "🏆", label: "Tournament Hosting" },
-  { icon: "🎫", label: "Walk-in Ticketing" },
-  { icon: "📷", label: "QR Check-In" },
-  { icon: "💳", label: "Instant Payouts" },
-  { icon: "📈", label: "Revenue Insights" },
-  { icon: "📣", label: "Growth Marketing Tools" },
-  { icon: "👥", label: "Customer Management" },
+const HIGHLIGHTS: { icon: LucideIcon; label: string }[] = [
+  { icon: Calendar, label: "Slot-Based Booking" },
+  { icon: Trophy, label: "Tournament Hosting" },
+  { icon: Ticket, label: "Walk-in Ticketing" },
+  { icon: Camera, label: "QR Check-In" },
+  { icon: CreditCard, label: "Instant Payouts" },
+  { icon: TrendingUp, label: "Revenue Insights" },
+  { icon: Megaphone, label: "Growth Marketing Tools" },
+  { icon: Users, label: "Customer Management" },
 ];
 
 function VendorLoginInner() {
@@ -203,7 +215,7 @@ function VendorLoginInner() {
           <div className="mt-8 grid grid-cols-2 gap-3">
             {HIGHLIGHTS.map((h) => (
               <div key={h.label} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-3 text-xs font-semibold text-[#e6ede8]">
-                <span>{h.icon}</span>
+                <h.icon className="h-4 w-4 shrink-0 text-[#a6ff3c]" />
                 {h.label}
               </div>
             ))}
@@ -296,7 +308,8 @@ function VendorLoginInner() {
               disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0c1912] py-3 text-sm font-bold text-[#a6ff3c] transition hover:opacity-90 disabled:opacity-60"
             >
-              {loading ? "Logging in…" : tab === "phone" && !otpSent ? "Send OTP" : "Login"} {!loading && "›"}
+              {loading ? "Logging in…" : tab === "phone" && !otpSent ? "Send OTP" : "Login"}
+              {!loading && <ChevronRight className="h-4 w-4" />}
             </button>
           </div>
 

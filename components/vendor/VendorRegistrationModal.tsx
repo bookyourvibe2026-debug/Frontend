@@ -1,6 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Building,
+  Building2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Hash,
+  KeyRound,
+  Landmark,
+  Lock,
+  Mail,
+  MapPin,
+  MapPinned,
+  RotateCw,
+  Smartphone,
+  Type,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 
 const VENUE_TYPES: VenueType[] = [
@@ -160,7 +180,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
           aria-label="Close registration"
           className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-[#10241a] hover:bg-white"
         >
-          ✕
+          <X className="h-4 w-4" />
         </button>
 
         <aside className="hidden w-72 shrink-0 flex-col justify-between bg-[#0c1912] p-8 text-[#f6f3ea] sm:flex">
@@ -177,7 +197,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
             <ul className="mt-3 space-y-2 text-sm text-[#c9d6cd]">
               {CHECKLISTS[phase].map((item) => (
                 <li key={item} className="flex items-start gap-2">
-                  <span className="mt-0.5 text-[#a6ff3c]">✓</span>
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#a6ff3c]" />
                   <span>{item}</span>
                 </li>
               ))}
@@ -206,7 +226,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
               <>
                 <div className="flex gap-2">
                   <Field
-                    icon="📱"
+                    icon={Smartphone}
                     placeholder="Phone Number"
                     value={data.phone}
                     onChange={(v) => update("phone", v.replace(/\D/g, "").slice(0, 10))}
@@ -225,7 +245,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 {!data.otpVerified && (
                   <div className="flex gap-2">
                     <Field
-                      icon="🔑"
+                      icon={KeyRound}
                       placeholder="Enter OTP"
                       value={data.otp}
                       onChange={(v) => update("otp", v.replace(/\D/g, "").slice(0, 6))}
@@ -240,18 +260,22 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                     </button>
                   </div>
                 )}
-                {data.otpVerified && <p className="text-sm font-semibold text-[#3f7d3f]">✓ Phone number verified</p>}
+                {data.otpVerified && (
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-[#3f7d3f]">
+                    <Check className="h-4 w-4" /> Phone number verified
+                  </p>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
-                    icon="🏟️"
+                    icon={Building2}
                     placeholder="Venue / Business Display Name"
                     value={data.businessName}
                     onChange={(v) => update("businessName", v)}
                     error={errors.businessName}
                   />
                   <Field
-                    icon="👤"
+                    icon={User}
                     placeholder="Owner Name"
                     value={data.ownerName}
                     onChange={(v) => update("ownerName", v)}
@@ -260,7 +284,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 </div>
 
                 <Field
-                  icon="✉️"
+                  icon={Mail}
                   placeholder="Business / Personal Email"
                   value={data.email}
                   onChange={(v) => update("email", v)}
@@ -269,7 +293,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
 
                 <div>
                   <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
-                    <span>🏢</span>
+                    <Building className="h-4 w-4 shrink-0 text-[#3f5449]" />
                     <select
                       value={data.venueType}
                       onChange={(e) => update("venueType", e.target.value as VenueType)}
@@ -313,7 +337,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
             {phase === 3 && (
               <>
                 <Field
-                  icon="🏦"
+                  icon={Landmark}
                   placeholder="Bank Account Number"
                   value={data.accountNumber}
                   onChange={(v) => update("accountNumber", v.replace(/\D/g, "").slice(0, 18))}
@@ -321,7 +345,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 />
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
-                    icon="🔤"
+                    icon={Type}
                     placeholder="IFSC Code"
                     value={data.ifscCode}
                     onChange={(v) => update("ifscCode", v.toUpperCase().slice(0, 11))}
@@ -329,7 +353,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                     mono
                   />
                   <Field
-                    icon="👤"
+                    icon={User}
                     placeholder="Account Holder Name"
                     value={data.accountHolderName}
                     onChange={(v) => update("accountHolderName", v)}
@@ -344,7 +368,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
-                      <span>📍</span>
+                      <MapPin className="h-4 w-4 shrink-0 text-[#3f5449]" />
                       <select
                         value={data.state}
                         onChange={(e) => update("state", e.target.value)}
@@ -360,10 +384,10 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                     </div>
                     {errors.state && <p className="mt-1 text-xs text-red-600">{errors.state}</p>}
                   </div>
-                  <Field icon="🏙️" placeholder="City" value={data.city} onChange={(v) => update("city", v)} error={errors.city} />
+                  <Field icon={MapPinned} placeholder="City" value={data.city} onChange={(v) => update("city", v)} error={errors.city} />
                 </div>
                 <Field
-                  icon="🔢"
+                  icon={Hash}
                   placeholder="Pincode"
                   value={data.pincode}
                   onChange={(v) => update("pincode", v.replace(/\D/g, "").slice(0, 6))}
@@ -405,9 +429,13 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                       className="rounded-lg border border-[#e4ded0] px-3 py-2 text-sm"
                       aria-label="Refresh puzzle"
                     >
-                      ↻
+                      <RotateCw className="h-4 w-4" />
                     </button>
-                    {captchaSolved && <span className="text-sm font-semibold text-[#3f7d3f]">✓ Verified</span>}
+                    {captchaSolved && (
+                      <span className="flex items-center gap-1 text-sm font-semibold text-[#3f7d3f]">
+                        <Check className="h-4 w-4" /> Verified
+                      </span>
+                    )}
                   </div>
                   {errors.captcha && <p className="mt-2 text-xs text-red-600">{errors.captcha}</p>}
                 </div>
@@ -434,8 +462,8 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
 
           <div className="mt-8 flex items-center justify-between border-t border-[#e4ded0] pt-6">
             {phase > 1 ? (
-              <button onClick={back} className="text-sm font-bold text-[#10241a]">
-                ← Back
+              <button onClick={back} className="flex items-center gap-1 text-sm font-bold text-[#10241a]">
+                <ChevronLeft className="h-4 w-4" /> Back
               </button>
             ) : (
               <span />
@@ -444,17 +472,21 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
             {phase < 5 ? (
               <button
                 onClick={next}
-                className="rounded-full bg-[#0c1912] px-6 py-3 text-sm font-bold text-[#a6ff3c] transition hover:opacity-90"
+                className="flex items-center gap-1 rounded-full bg-[#0c1912] px-6 py-3 text-sm font-bold text-[#a6ff3c] transition hover:opacity-90"
               >
-                Next Phase →
+                Next Phase <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
               <button
                 onClick={finishSetup}
                 disabled={submitting}
-                className="rounded-full bg-[#a6ff3c] px-6 py-3 text-sm font-bold text-[#0c1912] transition hover:opacity-90 disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-full bg-[#a6ff3c] px-6 py-3 text-sm font-bold text-[#0c1912] transition hover:opacity-90 disabled:opacity-60"
               >
-                {submitting ? "Submitting…" : "✓ Finish Setup"}
+                {submitting ? "Submitting…" : (
+                  <>
+                    <Check className="h-4 w-4" /> Finish Setup
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -465,14 +497,14 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
 }
 
 function Field({
-  icon,
+  icon: Icon,
   placeholder,
   value,
   onChange,
   error,
   mono,
 }: {
-  icon: string;
+  icon: LucideIcon;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
@@ -486,7 +518,7 @@ function Field({
           error ? "border-red-400" : "border-[#e4ded0]"
         }`}
       >
-        <span>{icon}</span>
+        <Icon className="h-4 w-4 shrink-0 text-[#3f5449]" />
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -519,7 +551,7 @@ function PasswordField({
   return (
     <div className="w-full">
       <div className={`flex items-center gap-2 rounded-xl border bg-white px-4 py-3 ${error ? "border-red-400" : "border-[#e4ded0]"}`}>
-        <span>🔒</span>
+        <Lock className="h-4 w-4 shrink-0 text-[#3f5449]" />
         <input
           type={show ? "text" : "password"}
           value={value}
