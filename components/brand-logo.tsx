@@ -46,7 +46,7 @@ export function BrandLogo({
       {showText && (
         <div className={`min-w-0 leading-tight ${textClassName}`.trim()}>
           <p className={`text-sm font-extrabold tracking-tight ${titleClassName}`.trim()}>
-            BOOK <span className="text-orange-600">YOUR VIBE</span>
+            BOOK <span className="text-brand-600">YOUR VIBE</span>
           </p>
           {showTagline && (
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${subtitleClassName}`.trim()}>

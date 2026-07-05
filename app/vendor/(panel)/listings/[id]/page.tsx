@@ -1,14 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Camera, ClipboardList, FileText, Pencil } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
+import { Toast } from "@/components/admin/Toast";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
-import { getListingsWithOverrides, saveListingOverride } from "@/lib/mock-data";
-import { readFileAsDataUrl } from "@/lib/files";
+import { uploadVendorImage } from "@/lib/api/uploads";
 import { Listing } from "@/lib/types";
+import { getVendorListingById, updateVendorListing } from "@/lib/api/vendor";
+import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
+import { ApiError } from "@/lib/api/client";
 
 type Tab = "overview" | "registrations";
 
@@ -20,11 +23,26 @@ const TYPE_TONE: Record<Listing["type"], "info" | "success" | "pending"> = {
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
-  const [listing, setListing] = useState<Listing | undefined>(() =>
-    getListingsWithOverrides().find((l) => l.id === params.id)
-  );
+  const [listing, setListing] = useState<Listing | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
   const [studioOpen, setStudioOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVendorListingById(params.id)
+      .then((l) => setListing(apiListingToMock(l)))
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load listing"))
+      .finally(() => setLoading(false));
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl2 border border-dashed border-surface-border bg-white py-16 text-center">
+        <p className="text-sm text-ink-faint">Loading listing...</p>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
@@ -38,16 +56,24 @@ export default function ListingDetailPage() {
   }
 
   async function replaceImage(index: number, file: File) {
-    const url = await readFileAsDataUrl(file);
-    const images = listing!.images.map((img, i) => (i === index ? { ...img, url } : img));
-    saveListingOverride(listing!.id, { images });
-    setListing((l) => (l ? { ...l, images } : l));
+    try {
+      const { url } = await uploadVendorImage(file, "listings");
+      const images = listing!.images.map((img, i) => (i === index ? { ...img, url } : img));
+      const saved = await updateVendorListing(listing!.id, { images });
+      setListing(apiListingToMock(saved));
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to update photo");
+    }
   }
 
-  function handleStudioSave(updated: Listing) {
-    saveListingOverride(updated.id, updated);
-    setListing(updated);
-    setStudioOpen(false);
+  async function handleStudioSave(updated: Listing) {
+    try {
+      const saved = await updateVendorListing(updated.id, mockListingToApiInput(updated));
+      setListing(apiListingToMock(saved));
+      setStudioOpen(false);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to update listing");
+    }
   }
 
   return (
@@ -69,6 +95,8 @@ export default function ListingDetailPage() {
       {studioOpen && (
         <PackageStudio mode="edit" initialListing={listing} onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />
       )}
+
+      <Toast message={toast} onDone={() => setToast(null)} />
     </div>
   );
 }

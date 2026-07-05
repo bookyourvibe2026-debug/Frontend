@@ -1,11 +1,38 @@
 "use client";
 
-import { Activity, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, AlertTriangle, CheckCircle2, Clock, Cpu, Database, MemoryStick } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
-import { systemHealthSnapshot } from "@/lib/admin-mock-data";
+import { getSystemHealth } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
+import { SystemHealth } from "@/lib/api/types";
+
+function formatUptime(seconds: number) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
+function formatBytes(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export default function SystemHealthPage() {
-  const s = systemHealthSnapshot;
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSystemHealth()
+      .then(setHealth)
+      .catch((err) => setError(err instanceof ApiError ? err.describe() : "Failed to load system health"));
+  }, []);
+
+  const isHealthy = health?.database.state === "connected";
 
   return (
     <div className="space-y-5">
@@ -13,74 +40,78 @@ export default function SystemHealthPage() {
         <h1 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
           <Activity size={20} className="text-vibe-violet" /> System Health
         </h1>
-        <p className="mt-0.5 text-xs text-ink-faint">Monitor API and service endpoints status.</p>
+        <p className="mt-0.5 text-xs text-ink-faint">Live status of the API server and its database connection.</p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-100 text-vibe-limeDark">
-            <CheckCircle2 size={18} />
-          </span>
-          <div>
-            <p className="font-semibold text-ink">{s.serviceName}</p>
-            <p className="text-xs text-ink-faint">Main Service</p>
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl2 border border-vibe-coral/30 bg-rose-50 p-4 text-sm text-vibe-coral">
+          <AlertTriangle size={16} /> {error}
+        </div>
+      )}
+
+      {health && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
+            <div className="flex items-center gap-3">
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full ${isHealthy ? "bg-lime-100 text-vibe-limeDark" : "bg-rose-100 text-vibe-coral"}`}>
+                <CheckCircle2 size={18} />
+              </span>
+              <div>
+                <p className="font-semibold text-ink">Book Your Vibe API</p>
+                <p className="text-xs text-ink-faint">Main Service</p>
+              </div>
+            </div>
+            <Badge tone={isHealthy ? "success" : "danger"}>{isHealthy ? "Operational" : "Degraded"}</Badge>
+            <div className="text-xs text-ink-faint">
+              <p className="uppercase tracking-wide">Timestamp</p>
+              <p className="font-semibold text-ink">{new Date(health.timestamp).toLocaleString("en-IN")}</p>
+            </div>
+            <div className="text-xs text-ink-faint">
+              <p className="uppercase tracking-wide">Node Version</p>
+              <p className="font-semibold text-ink">{health.nodeVersion}</p>
+            </div>
           </div>
-        </div>
-        <Badge tone="success">{s.status}</Badge>
-        <div className="text-xs text-ink-faint">
-          <p className="uppercase tracking-wide">Timestamp</p>
-          <p className="font-semibold text-ink">{s.timestamp}</p>
-        </div>
-        <div className="text-xs text-ink-faint">
-          <p className="uppercase tracking-wide">Base URL</p>
-          <p className="font-semibold text-ink">{s.baseUrl}</p>
-        </div>
-      </div>
 
-      <div>
-        <p className="mb-3 font-display font-semibold text-ink">Performance Management</p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Avg Response Time" value={`${s.avgResponseTime}ms`} hint="All endpoints" />
-          <StatTile label="Fastest Endpoint" value={`${s.fastestEndpoint.ms}ms`} hint={s.fastestEndpoint.name} tone="green" />
-          <StatTile label="Slowest Endpoint" value={`${s.slowestEndpoint.ms}ms`} hint={s.slowestEndpoint.name} tone="amber" />
-          <StatTile label="Slow APIs" value={String(s.slowApisOver1000ms)} hint="Over 1000ms" />
-        </div>
-      </div>
+          <div>
+            <p className="mb-3 font-display font-semibold text-ink">Runtime</p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <StatTile icon={<Clock size={15} />} label="Uptime" value={formatUptime(health.uptimeSeconds)} />
+              <StatTile icon={<Cpu size={15} />} label="Heap Used" value={formatBytes(health.memory.heapUsed)} />
+              <StatTile icon={<MemoryStick size={15} />} label="Heap Total" value={formatBytes(health.memory.heapTotal)} />
+              <StatTile icon={<MemoryStick size={15} />} label="RSS Memory" value={formatBytes(health.memory.rss)} />
+            </div>
+          </div>
 
-      <div>
-        <p className="mb-3 font-display font-semibold text-ink">Endpoint Status</p>
-        <div className="space-y-4">
-          {s.endpoints.map((e) => (
-            <div key={e.name} className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
+          <div>
+            <p className="mb-3 font-display font-semibold text-ink">Database</p>
+            <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-vibe-limeDark" />
+                  <Database size={16} className={isHealthy ? "text-vibe-limeDark" : "text-vibe-coral"} />
                   <div>
-                    <p className="font-semibold text-ink">{e.name}</p>
-                    <p className="text-xs text-ink-faint">{e.url}</p>
+                    <p className="font-semibold text-ink">{health.database.name || "—"}</p>
+                    <p className="text-xs text-ink-faint">{health.database.host || "—"}</p>
                   </div>
                 </div>
-                <Badge tone="success">{e.statusCode}</Badge>
+                <Badge tone={isHealthy ? "success" : "danger"}>{health.database.state}</Badge>
               </div>
-              <p className="mt-2 text-xs text-ink-faint">⏱ {e.ms}ms</p>
-              <p className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Response</p>
-              <pre className="overflow-x-auto rounded-lg bg-cream-200/60 p-3 text-xs text-ink-soft">
-                {JSON.stringify(e.response, null, 2)}
-              </pre>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
+
+      {!health && !error && <div className="rounded-xl2 border border-surface-border bg-white p-10 text-center text-sm text-ink-faint">Loading system health...</div>}
     </div>
   );
 }
 
-function StatTile({ label, value, hint, tone = "default" }: { label: string; value: string; hint: string; tone?: string }) {
+function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl2 border border-surface-border bg-white p-4 shadow-panel">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{label}</p>
-      <p className={`mt-1 font-display text-xl font-bold ${tone === "green" ? "text-vibe-limeDark" : tone === "amber" ? "text-vibe-amber" : "text-ink"}`}>{value}</p>
-      <p className="mt-0.5 text-[11px] text-ink-faint">{hint}</p>
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+        {icon} {label}
+      </p>
+      <p className="mt-1 font-display text-xl font-bold text-ink">{value}</p>
     </div>
   );
 }

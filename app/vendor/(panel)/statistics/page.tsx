@@ -1,19 +1,58 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Users, CalendarRange } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import StatCard from "@/components/vendor/StatCard";
-import { bookings, listings } from "@/lib/mock-data";
+import { getVendorBookings, getVendorListings } from "@/lib/api/vendor";
+import { ApiError } from "@/lib/api/client";
+import { Booking, Listing } from "@/lib/api/types";
 
 export default function StatisticsPage() {
-  const totalRevenue = bookings.reduce((s, b) => s + b.yourEarning, 0);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const byListing = listings.map((l) => {
-    const listingBookings = bookings.filter((b) => b.listing === l.title);
-    return {
-      title: l.title,
-      count: listingBookings.length,
-      revenue: listingBookings.reduce((s, b) => s + b.yourEarning, 0),
-    };
-  });
+  useEffect(() => {
+    Promise.all([getVendorBookings({ limit: 500 }), getVendorListings()])
+      .then(([bookingsResult, listingItems]) => {
+        setBookings(bookingsResult.items);
+        setListings(listingItems);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.describe() : "Failed to load statistics"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalRevenue = useMemo(() => bookings.reduce((s, b) => s + b.vendorEarning, 0), [bookings]);
+
+  const byListing = useMemo(
+    () =>
+      listings.map((l) => {
+        const listingBookings = bookings.filter((b) => b.listingId === l._id);
+        return {
+          title: l.title,
+          count: listingBookings.length,
+          revenue: listingBookings.reduce((s, b) => s + b.vendorEarning, 0),
+        };
+      }),
+    [listings, bookings]
+  );
+
+  const repeatCustomers = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of bookings) counts.set(b.phone, (counts.get(b.phone) ?? 0) + 1);
+    return Array.from(counts.values()).filter((c) => c > 1).length;
+  }, [bookings]);
+
+  const avgLeadTimeDays = useMemo(() => {
+    if (bookings.length === 0) return 0;
+    const totalDays = bookings.reduce((sum, b) => {
+      const lead = (new Date(b.dateTime).getTime() - new Date(b.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      return sum + Math.max(lead, 0);
+    }, 0);
+    return Math.round((totalDays / bookings.length) * 10) / 10;
+  }, [bookings]);
 
   const maxRevenue = Math.max(1, ...byListing.map((b) => b.revenue));
 
@@ -25,10 +64,12 @@ export default function StatisticsPage() {
         description="See how your turfs, games and events are performing over time."
       />
 
+      {error && <p className="rounded-lg bg-rose-50 px-4 py-3 text-xs text-vibe-coral">{error}</p>}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Total Revenue" value={`₹${totalRevenue.toLocaleString("en-IN")}`} hint="All-time earnings" icon={TrendingUp} accent="violet" />
-        <StatCard label="Repeat Customers" value="0" hint="Booked more than once" icon={Users} accent="lime" />
-        <StatCard label="Avg. Booking Lead Time" value="2 days" hint="Booking made vs slot date" icon={CalendarRange} accent="amber" />
+        <StatCard label="Repeat Customers" value={String(repeatCustomers)} hint="Booked more than once" icon={Users} accent="lime" />
+        <StatCard label="Avg. Booking Lead Time" value={`${avgLeadTimeDays} day(s)`} hint="Booking made vs slot date" icon={CalendarRange} accent="amber" />
       </div>
 
       <SectionCard title="Revenue by Listing" description="Which turfs, games or events are bringing in the most.">
@@ -49,6 +90,8 @@ export default function StatisticsPage() {
               </div>
             </div>
           ))}
+          {loading && <p className="text-sm text-ink-faint">Loading...</p>}
+          {!loading && byListing.length === 0 && <p className="text-sm text-ink-faint">No listings yet.</p>}
         </div>
       </SectionCard>
     </div>

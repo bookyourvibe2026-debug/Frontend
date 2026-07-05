@@ -1,23 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Eye, Copy, Share2, Trash2, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
-import {
-  addAdminListing,
-  cloneAdminListing,
-  deleteAdminListing,
-  getAdminListingsWithOverrides,
-} from "@/lib/admin-mock-data";
 import { Listing, ListingType } from "@/lib/types";
+import { getAdminListings, createAdminListing, updateAdminListing, deleteAdminListing } from "@/lib/api/admin";
+import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
+import { ApiError } from "@/lib/api/client";
 
 type OwnerTab = "all" | "admin" | "vendor";
 
 export default function AdminListingsPage() {
-  const [listings, setListings] = useState<Listing[]>(() => getAdminListingsWithOverrides());
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"Active" | "Inactive">("Active");
   const [ownerTab, setOwnerTab] = useState<OwnerTab>("all");
@@ -25,12 +23,19 @@ export default function AdminListingsPage() {
   const [city, setCity] = useState("All Cities");
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
-  const [studio, setStudio] = useState<{ type: ListingType } | null>(null);
+  const [studio, setStudio] = useState<{ type: ListingType; editing?: Listing } | null>(null);
   const pageSize = 10;
 
-  function refresh() {
-    setListings(getAdminListingsWithOverrides());
-  }
+  const refresh = useCallback(() => {
+    getAdminListings()
+      .then((items) => setListings(items.map(apiListingToMock)))
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load listings"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const categories = useMemo(() => ["All Categories", ...Array.from(new Set(listings.map((l) => l.category)))], [listings]);
   const cities = useMemo(() => ["All Cities", ...Array.from(new Set(listings.map((l) => l.city)))], [listings]);
@@ -52,10 +57,15 @@ export default function AdminListingsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  function handleClone(listing: Listing) {
-    const clone = cloneAdminListing(listing);
-    refresh();
-    setToast(`Cloned "${listing.title}" as "${clone.title}"`);
+  async function handleClone(listing: Listing) {
+    try {
+      const input = mockListingToApiInput({ ...listing, title: `${listing.title} (Copy)`, status: "Inactive" });
+      const clone = await createAdminListing(input);
+      refresh();
+      setToast(`Cloned "${listing.title}" as "${clone.title}"`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to clone listing");
+    }
   }
 
   function handleShare(listing: Listing) {
@@ -64,18 +74,31 @@ export default function AdminListingsPage() {
     setToast("Listing link copied to clipboard");
   }
 
-  function handleDelete(listing: Listing) {
+  async function handleDelete(listing: Listing) {
     if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
-    deleteAdminListing(listing.id);
-    refresh();
-    setToast(`Deleted "${listing.title}"`);
+    try {
+      await deleteAdminListing(listing.id);
+      refresh();
+      setToast(`Deleted "${listing.title}"`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to delete listing");
+    }
   }
 
-  function handleStudioSave(listing: Listing) {
-    addAdminListing(listing);
-    setStudio(null);
-    refresh();
-    setToast(`Created "${listing.title}"`);
+  async function handleStudioSave(listing: Listing) {
+    try {
+      if (studio?.editing) {
+        await updateAdminListing(studio.editing.id, mockListingToApiInput(listing));
+        setToast(`Updated "${listing.title}"`);
+      } else {
+        await createAdminListing(mockListingToApiInput(listing));
+        setToast(`Created "${listing.title}"`);
+      }
+      setStudio(null);
+      refresh();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to save listing");
+    }
   }
 
   return (
@@ -246,7 +269,14 @@ export default function AdminListingsPage() {
                 </td>
               </tr>
             ))}
-            {pageItems.length === 0 && (
+            {loading && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-faint">
+                  Loading listings...
+                </td>
+              </tr>
+            )}
+            {!loading && pageItems.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-faint">
                   No listings match this filter.
@@ -287,6 +317,7 @@ export default function AdminListingsPage() {
         <PackageStudio
           mode="create"
           initialType={studio.type}
+          audience="admin"
           onClose={() => setStudio(null)}
           onSave={handleStudioSave}
         />

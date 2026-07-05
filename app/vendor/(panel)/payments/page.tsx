@@ -1,16 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { PageHero } from "@/components/vendor/ui";
 import StatCard from "@/components/vendor/StatCard";
 import { Banknote, PiggyBank, Landmark, CircleDollarSign } from "lucide-react";
-import { settledPayments } from "@/lib/mock-data";
+import { getVendorSettledPayments } from "@/lib/api/vendor";
+import { ApiError } from "@/lib/api/client";
+import { SettledPayment } from "@/lib/api/types";
 
 export default function PaymentsPage() {
   const [tab, setTab] = useState<"online" | "offline">("online");
+  const [payments, setPayments] = useState<SettledPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalOnline = settledPayments.reduce((s, p) => s + p.yourEarning, 0);
+  useEffect(() => {
+    getVendorSettledPayments()
+      .then(setPayments)
+      .catch((err) => setError(err instanceof ApiError ? err.describe() : "Failed to load settlements"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const online = useMemo(() => payments.filter((p) => p.payment !== "Cash (Offline)"), [payments]);
+  const offline = useMemo(() => payments.filter((p) => p.payment === "Cash (Offline)"), [payments]);
+
+  const totalOnline = online.reduce((s, p) => s + p.yourEarning, 0);
+  const totalOffline = offline.reduce((s, p) => s + p.yourEarning, 0);
+  const visible = tab === "online" ? online : offline;
+
+  function handleExport() {
+    const rows = visible.map((p) => [p.date, p.listingName, p.orderId, p.totalAmount, p.platformFee, p.yourEarning]);
+    const csv = [["Date", "Listing Name", "Order ID", "Total Amount", "Platform Fee", "Your Earning"], ...rows]
+      .map((r) => r.map((cell) => `"${cell}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "settlements-export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-6">
@@ -19,16 +50,21 @@ export default function PaymentsPage() {
         title="Payment settled"
         description="Track your online earnings, offline collections and pending settlements."
         right={
-          <button className="inline-flex items-center gap-2 rounded-xl bg-white text-vibe-violet font-semibold text-sm px-4 py-2.5 hover:bg-white/90 transition-colors">
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-xl bg-white text-vibe-violet font-semibold text-sm px-4 py-2.5 hover:bg-white/90 transition-colors"
+          >
             <Download size={16} /> Export
           </button>
         }
       />
 
+      {error && <p className="rounded-lg bg-rose-50 px-4 py-3 text-xs text-vibe-coral">{error}</p>}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Offline Collection"
-          value="₹0.00"
+          value={`₹${totalOffline.toLocaleString("en-IN")}`}
           hint="Direct cash payments collected at the venue"
           icon={Banknote}
           accent="amber"
@@ -42,14 +78,14 @@ export default function PaymentsPage() {
         />
         <StatCard
           label="Amount Settled"
-          value={`₹${totalOnline.toLocaleString("en-IN")}`}
+          value={`₹${(totalOnline + totalOffline).toLocaleString("en-IN")}`}
           hint="Paid into your bank account"
           icon={PiggyBank}
           accent="lime"
         />
         <StatCard
           label="Remaining Settlement"
-          value="₹0.00"
+          value="₹0"
           hint="Pending transfer to your bank"
           icon={Landmark}
           accent="coral"
@@ -84,29 +120,25 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {tab === "online" ? (
-                settledPayments.length > 0 ? (
-                  settledPayments.map((p) => (
-                    <tr key={p.orderId} className="border-b border-surface-border last:border-0 hover:bg-cream-200/40">
-                      <td className="px-5 py-4 text-ink-soft">{p.date}</td>
-                      <td className="px-5 py-4 font-medium text-ink">{p.listingName}</td>
-                      <td className="px-5 py-4 font-mono text-xs text-ink-soft">{p.orderId}</td>
-                      <td className="px-5 py-4 text-right text-ink">
-                        ₹{p.totalAmount.toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-5 py-4 text-right text-ink-faint">
-                        ₹{p.platformFee.toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-5 py-4 text-right font-semibold text-vibe-limeDark">
-                        ₹{p.yourEarning.toLocaleString("en-IN")}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <EmptyRow />
-                )
-              ) : (
-                <EmptyRow />
+              {visible.map((p) => (
+                <tr key={p.orderId} className="border-b border-surface-border last:border-0 hover:bg-cream-200/40">
+                  <td className="px-5 py-4 text-ink-soft">{new Date(p.date).toLocaleDateString("en-GB")}</td>
+                  <td className="px-5 py-4 font-medium text-ink">{p.listingName}</td>
+                  <td className="px-5 py-4 font-mono text-xs text-ink-soft">{p.orderId}</td>
+                  <td className="px-5 py-4 text-right text-ink">
+                    ₹{p.totalAmount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-5 py-4 text-right text-ink-faint">
+                    ₹{p.platformFee.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-5 py-4 text-right font-semibold text-vibe-limeDark">
+                    ₹{p.yourEarning.toLocaleString("en-IN")}
+                  </td>
+                </tr>
+              ))}
+              {loading && <EmptyRow text="Loading settlements..." />}
+              {!loading && visible.length === 0 && (
+                <EmptyRow text="No settlements yet — they will show up here once a payout is processed." />
               )}
             </tbody>
           </table>
@@ -116,11 +148,11 @@ export default function PaymentsPage() {
   );
 }
 
-function EmptyRow() {
+function EmptyRow({ text }: { text: string }) {
   return (
     <tr>
       <td colSpan={6} className="px-5 py-14 text-center text-sm text-ink-faint">
-        No settlements yet — they will show up here once a payout is processed.
+        {text}
       </td>
     </tr>
   );

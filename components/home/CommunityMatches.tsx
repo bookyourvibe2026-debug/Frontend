@@ -27,7 +27,7 @@ export function CommunityMatches({ onJoin, onViewAll }: { onJoin: () => void; on
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-sm font-bold text-orange-600">Today, 8:00 PM</p>
+            <p className="text-sm font-bold text-brand-600">Today, 8:00 PM</p>
             <p className="text-xs text-slate-500">₹100 / Player</p>
           </div>
           <PrimaryButton onClick={onJoin}>Join Now</PrimaryButton>

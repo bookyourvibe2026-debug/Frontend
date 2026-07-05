@@ -19,7 +19,7 @@ export function BuildCostAndExtensionsSection() {
           <div className="mt-4 space-y-3">
             {BUILD_COST_NOTES.map((note) => (
               <div key={note} className="flex items-start gap-3 text-sm text-slate-600">
-                <span className="mt-1 h-2 w-2 rounded-full bg-orange-500" />
+                <span className="mt-1 h-2 w-2 rounded-full bg-brand-500" />
                 <span>{note}</span>
               </div>
             ))}

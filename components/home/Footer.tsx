@@ -19,7 +19,7 @@ const FOOTER_QUICK_LINKS: FooterLink[] = [
 function FooterLinkItem({ link }: { link: FooterLink }) {
   const className =
     "group inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white";
-  const icon = link.icon ?? <ArrowUpRight className="h-3.5 w-3.5 text-orange-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />;
+  const icon = link.icon ?? <ArrowUpRight className="h-3.5 w-3.5 text-brand-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />;
 
   if (link.href.startsWith("http") || link.href.startsWith("mailto:") || link.href.startsWith("tel:")) {
     return (
@@ -42,7 +42,7 @@ export function Footer() {
   return (
     <footer className="relative mt-20 overflow-hidden border-t border-white/10 bg-[#060a15] text-slate-300">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-0 top-0 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/10 blur-3xl" />
+        <div className="absolute left-0 top-0 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-500/10 blur-3xl" />
         <div className="absolute right-0 top-24 h-72 w-72 translate-x-1/3 rounded-full bg-sky-500/10 blur-3xl" />
       </div>
 
@@ -63,7 +63,7 @@ export function Footer() {
 
         <div className="mt-6 flex flex-col gap-2.5 text-sm text-slate-400">
           <a href="mailto:info@bookyourvibe.in" className="flex items-center gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-orange-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-brand-300">
               <Mail className="h-4 w-4" />
             </span>
             <span className="truncate">info@bookyourvibe.in</span>
@@ -80,7 +80,7 @@ export function Footer() {
             rel="noreferrer"
             className="flex items-center gap-3"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-orange-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-brand-300">
               <MapPin className="h-4 w-4" />
             </span>
             <span className="truncate">Udaipur, Rajasthan, India</span>
@@ -142,7 +142,7 @@ export function Footer() {
 
             <div className="space-y-2.5 text-sm text-slate-400">
               <a href="mailto:info@bookyourvibe.in" className="flex items-center gap-3 transition hover:text-white">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-orange-300">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-brand-300">
                   <Mail className="h-4 w-4" />
                 </span>
                 <span>info@bookyourvibe.in</span>
@@ -164,7 +164,7 @@ export function Footer() {
                 rel="noreferrer"
                 className="flex items-center gap-3 transition hover:text-white"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-orange-300">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-brand-300">
                   <MapPin className="h-4 w-4" />
                 </span>
                 <span>Udaipur, Rajasthan, India</span>
@@ -198,7 +198,7 @@ export function Footer() {
                 href={link.href}
                 aria-label={link.label}
                 title={link.label}
-                className="group flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:-translate-y-0.5 hover:border-orange-400/30 hover:bg-orange-500/10 hover:text-white"
+                className="group flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:-translate-y-0.5 hover:border-brand-400/30 hover:bg-brand-500/10 hover:text-white"
               >
                 {link.icon}
               </Link>

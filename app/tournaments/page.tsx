@@ -27,7 +27,7 @@ export default function TournamentsPage() {
         </div>
         <main className="flex flex-col gap-5 px-4 py-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Tournaments</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Tournaments</p>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
               Competitive events without the clutter.
             </h1>
@@ -41,7 +41,7 @@ export default function TournamentsPage() {
               <MobileCard key={event.name} className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-600">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">
                       {event.sport}
                     </p>
                     <h2 className="mt-1 text-base font-extrabold text-slate-950">{event.name}</h2>
@@ -51,7 +51,7 @@ export default function TournamentsPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                  <span className="rounded-full bg-orange-50 px-3 py-1.5 font-semibold text-orange-700">
+                  <span className="rounded-full bg-brand-50 px-3 py-1.5 font-semibold text-brand-700">
                     {event.date}
                   </span>
                   <span className="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
@@ -71,7 +71,7 @@ export default function TournamentsPage() {
       </div>
 
       <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
-        <section className="rounded-[2rem] bg-gradient-to-br from-orange-500 via-rose-500 to-fuchsia-600 p-6 text-white shadow-[0_30px_90px_rgba(249,115,22,0.22)] sm:p-10">
+        <section className="rounded-[2rem] bg-gradient-to-br from-brand-500 via-accent-500 to-fuchsia-600 p-6 text-white shadow-[0_30px_90px_rgba(249,115,22,0.22)] sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/75">
             Tournaments
           </p>
@@ -103,7 +103,7 @@ export default function TournamentsPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-600">
+                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">
                     {event.sport}
                   </p>
                   <h2 className="mt-2 text-2xl font-black text-slate-950">{event.name}</h2>
@@ -114,7 +114,7 @@ export default function TournamentsPage() {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                <span className="rounded-full bg-orange-50 px-4 py-2 font-semibold text-orange-700">
+                <span className="rounded-full bg-brand-50 px-4 py-2 font-semibold text-brand-700">
                   {event.date}
                 </span>
                 <span className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-700">
@@ -126,7 +126,7 @@ export default function TournamentsPage() {
                 <p className="text-sm text-slate-500">Best suited for competitive players and squads.</p>
                 <Link
                   href="/community"
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500"
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
                 >
                   Register interest
                 </Link>

@@ -27,9 +27,9 @@ export function QuickActionsSection({
             key={a.id}
             type="button"
             onClick={() => onQuickAction(a.id)}
-            className="flex flex-col items-center gap-3 rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:border-orange-200 hover:shadow-md"
+            className="flex flex-col items-center gap-3 rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-md"
           >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-500">
               <a.icon className="h-6 w-6" />
             </span>
             <span className="text-xs font-semibold leading-tight text-slate-600">{a.label}</span>
@@ -37,13 +37,13 @@ export function QuickActionsSection({
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-3xl bg-gradient-to-r from-orange-500 to-rose-500 p-5 text-white">
+      <div className="mt-4 flex items-center gap-3 rounded-3xl bg-gradient-to-r from-brand-500 to-accent-500 p-5 text-white">
         <span aria-hidden>
           <Tag className="h-6 w-6" />
         </span>
         <div>
           <p className="text-sm font-bold">Flat 20% off your next booking</p>
-          <p className="text-xs text-orange-100">Use code VIBE20 at checkout</p>
+          <p className="text-xs text-brand-100">Use code VIBE20 at checkout</p>
         </div>
       </div>
     </section>

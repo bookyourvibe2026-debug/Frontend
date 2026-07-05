@@ -30,7 +30,7 @@ export const NAV_LINKS = [
   { label: "Find Your Games", href: "/games" },
   { label: "Venues", href: "/venues" },
   { label: "Tournaments", href: "/tournaments" },
-  { label: "Offers", href: "/offers" },
+  { label: "Blog", href: "/blogs" },
   { label: "Community", href: "/community" },
 ];
 
@@ -47,7 +47,7 @@ export const SPORTS_CATALOG: Sport[] = [
     label: "Box Cricket",
     image: "/bat.png",
     alt: "Box cricket bat and ball",
-    bubble: "from-amber-200 via-orange-100 to-amber-50",
+    bubble: "from-amber-200 via-brand-100 to-amber-50",
   },
   {
     id: "football",
@@ -76,7 +76,7 @@ export const SPORTS_CATALOG: Sport[] = [
     label: "Cricket Nets",
     image: "/nets.png",
     alt: "Cricket ball and net practice",
-    bubble: "from-rose-200 via-red-100 to-rose-50",
+    bubble: "from-accent-200 via-red-100 to-accent-50",
   },
   {
     id: "tennis",
@@ -90,7 +90,7 @@ export const SPORTS_CATALOG: Sport[] = [
     label: "Table Tennis",
     image: "/tabletennis.png",
     alt: "Table tennis paddle and ball",
-    bubble: "from-pink-200 via-rose-100 to-amber-50",
+    bubble: "from-pink-200 via-accent-100 to-amber-50",
   },
 ];
 
@@ -221,7 +221,7 @@ export const COMMERCE_PLANS = [
     price: "Custom",
     note: "For owners",
     bullets: ["Dynamic pricing", "Walk-in POS", "Revenue and booking analytics"],
-    accent: "from-orange-500 to-rose-500",
+    accent: "from-brand-500 to-accent-500",
   },
   {
     name: "Enterprise",

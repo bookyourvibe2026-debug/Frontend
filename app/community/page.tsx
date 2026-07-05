@@ -53,7 +53,7 @@ export default function CommunityPage() {
           <div className="flex flex-col gap-3">
             {MATCHES.map((match) => (
               <MobileCard key={match.title} className="flex flex-col gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-600">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">
                   Open match
                 </p>
                 <h2 className="text-base font-extrabold text-slate-950">{match.title}</h2>
@@ -84,7 +84,7 @@ export default function CommunityPage() {
 
           <Link
             href="/venues"
-            className="rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-5 py-3 text-center text-sm font-semibold text-white shadow-md shadow-orange-500/30"
+            className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-5 py-3 text-center text-sm font-semibold text-white shadow-md shadow-brand-500/30"
           >
             Browse venues
           </Link>
@@ -109,7 +109,7 @@ export default function CommunityPage() {
               key={match.title}
               className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-600">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">
                 Open match
               </p>
               <h2 className="mt-2 text-2xl font-black text-slate-950">{match.title}</h2>
@@ -138,7 +138,7 @@ export default function CommunityPage() {
           ))}
         </section>
 
-        <section className="mt-8 rounded-[2rem] bg-gradient-to-r from-orange-500 to-rose-500 p-6 text-white sm:p-8">
+        <section className="mt-8 rounded-[2rem] bg-gradient-to-r from-brand-500 to-accent-500 p-6 text-white sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-white/80">

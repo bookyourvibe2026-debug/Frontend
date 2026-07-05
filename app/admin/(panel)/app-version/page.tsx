@@ -1,22 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Save, Smartphone } from "lucide-react";
 import { Toast } from "@/components/admin/Toast";
-import { getAppVersionConfig, saveAppVersionConfig } from "@/lib/admin-mock-data";
-import { AppVersionConfig } from "@/lib/types";
+import { listAppVersions, upsertAppVersion } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
+import { AppVersionConfig } from "@/lib/api/types";
+
+type Draft = Omit<AppVersionConfig, "_id" | "updatedAt">;
+
+function emptyDraft(platform: "ios" | "android"): Draft {
+  return { platform, currentVersion: "1.0.0", minRequiredVersion: "1.0.0", downloadUrl: "", releaseNotes: "", forceUpdate: false };
+}
 
 export default function AppVersionPage() {
-  const [config, setConfig] = useState(() => getAppVersionConfig());
+  const [ios, setIos] = useState<Draft>(emptyDraft("ios"));
+  const [android, setAndroid] = useState<Draft>(emptyDraft("android"));
+  const [saving, setSaving] = useState<"ios" | "android" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  function updatePlatform(platform: "ios" | "android", patch: Partial<AppVersionConfig>) {
-    setConfig((c) => ({ ...c, [platform]: { ...c[platform], ...patch } }));
-  }
+  const refresh = useCallback(() => {
+    listAppVersions()
+      .then((configs) => {
+        const iosConfig = configs.find((c) => c.platform === "ios");
+        const androidConfig = configs.find((c) => c.platform === "android");
+        if (iosConfig) setIos(iosConfig);
+        if (androidConfig) setAndroid(androidConfig);
+      })
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load app version config"));
+  }, []);
 
-  function handleSave(platform: "ios" | "android") {
-    saveAppVersionConfig(config);
-    setToast(`${platform === "ios" ? "iOS" : "Android"} version config saved`);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function handleSave(platform: "ios" | "android") {
+    const draft = platform === "ios" ? ios : android;
+    setSaving(platform);
+    try {
+      const saved = await upsertAppVersion({
+        platform,
+        currentVersion: draft.currentVersion,
+        minRequiredVersion: draft.minRequiredVersion,
+        downloadUrl: draft.downloadUrl,
+        releaseNotes: draft.releaseNotes,
+        forceUpdate: draft.forceUpdate,
+      });
+      if (platform === "ios") setIos(saved);
+      else setAndroid(saved);
+      setToast(`${platform === "ios" ? "iOS" : "Android"} version config saved`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to save config");
+    } finally {
+      setSaving(null);
+    }
   }
 
   return (
@@ -38,7 +75,7 @@ export default function AppVersionPage() {
         </div>
         <button
           onClick={() => {
-            setConfig(getAppVersionConfig());
+            refresh();
             setToast("Config refreshed");
           }}
           className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
@@ -52,20 +89,22 @@ export default function AppVersionPage() {
           title="iOS Version Control"
           subtitle="App Store listing aur minimum supported iOS build yahan manage karein."
           gradient="from-sky-600 to-cyan-600"
-          config={config.ios}
-          endpoint="PUT /api/version/admin/ios"
-          onChange={(patch) => updatePlatform("ios", patch)}
+          config={ios}
+          endpoint="PUT /admin/app-version"
+          onChange={(patch) => setIos((c) => ({ ...c, ...patch }))}
           onSave={() => handleSave("ios")}
+          saving={saving === "ios"}
           saveLabel="Save iOS"
         />
         <PlatformCard
           title="Android Version Control"
           subtitle="Play Store release aur forced update threshold yahan update karein."
           gradient="from-emerald-600 to-teal-600"
-          config={config.android}
-          endpoint="PUT /api/version/admin/android"
-          onChange={(patch) => updatePlatform("android", patch)}
+          config={android}
+          endpoint="PUT /admin/app-version"
+          onChange={(patch) => setAndroid((c) => ({ ...c, ...patch }))}
           onSave={() => handleSave("android")}
+          saving={saving === "android"}
           saveLabel="Save Android"
         />
       </div>
@@ -83,15 +122,17 @@ function PlatformCard({
   endpoint,
   onChange,
   onSave,
+  saving,
   saveLabel,
 }: {
   title: string;
   subtitle: string;
   gradient: string;
-  config: AppVersionConfig;
+  config: Draft;
   endpoint: string;
-  onChange: (patch: Partial<AppVersionConfig>) => void;
+  onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
+  saving: boolean;
   saveLabel: string;
 }) {
   return (
@@ -148,8 +189,12 @@ function PlatformCard({
           <p className="text-[11px] text-ink-faint">
             Save karte hi <code className="rounded bg-cream-200 px-1 py-0.5">{endpoint}</code> call trigger hoga.
           </p>
-          <button onClick={onSave} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink/85">
-            <Save size={14} /> {saveLabel}
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink/85 disabled:opacity-60"
+          >
+            <Save size={14} /> {saving ? "Saving..." : saveLabel}
           </button>
         </div>
       </div>

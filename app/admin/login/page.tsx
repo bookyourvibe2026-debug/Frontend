@@ -3,13 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import {
-  DEMO_ADMIN_CREDENTIALS,
-  DEMO_ADMIN_SESSION,
-  getAdminSession,
-  setAdminSession,
-} from "@/lib/admin-session";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { adminLogin, restoreAdminSession } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 
 function AdminLoginInner() {
   const router = useRouter();
@@ -24,18 +20,13 @@ function AdminLoginInner() {
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    if (getAdminSession()) {
-      setRedirecting(true);
-      router.replace(redirectTo);
-    }
+    restoreAdminSession().then((admin) => {
+      if (admin) {
+        setRedirecting(true);
+        router.replace(redirectTo);
+      }
+    });
   }, [redirectTo, router]);
-
-  function useDemoCredential() {
-    setEmail(DEMO_ADMIN_CREDENTIALS.email);
-    setPassword(DEMO_ADMIN_CREDENTIALS.password);
-    setShowPassword(true);
-    setError("");
-  }
 
   async function handleLogin() {
     setError("");
@@ -50,16 +41,10 @@ function AdminLoginInner() {
 
     setLoading(true);
     try {
-      const matches =
-        email.trim().toLowerCase() === DEMO_ADMIN_CREDENTIALS.email && password === DEMO_ADMIN_CREDENTIALS.password;
-
-      if (!matches) {
-        setError("Invalid credentials. Use the demo credentials below.");
-        return;
-      }
-
-      setAdminSession({ ...DEMO_ADMIN_SESSION, loggedInAt: new Date().toISOString() });
+      await adminLogin({ email: email.trim(), password });
       router.replace(redirectTo);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -137,29 +122,6 @@ function AdminLoginInner() {
               className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
             >
               {loading ? "Logging in..." : "Admin Login"}
-            </button>
-          </div>
-
-          <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <ShieldCheck size={13} /> Demo credentials
-            </p>
-            <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
-              <div>
-                <p className="text-[10px] uppercase text-slate-400">Email</p>
-                <p className="font-semibold text-slate-800">{DEMO_ADMIN_CREDENTIALS.email}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase text-slate-400">Password</p>
-                <p className="font-semibold text-slate-800">{DEMO_ADMIN_CREDENTIALS.password}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={useDemoCredential}
-              className="mt-3 rounded-full border border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white"
-            >
-              Use demo login
             </button>
           </div>
 

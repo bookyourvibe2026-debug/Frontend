@@ -15,8 +15,8 @@ export function StarRating({ rating }: { rating: number }) {
 export function StatusPill({ status }: { status: Venue["status"] }) {
   const styles: Record<Venue["status"], string> = {
     Available: "bg-emerald-500/90 text-white",
-    "Filling Fast": "bg-orange-500/90 text-white",
-    Full: "bg-rose-500/90 text-white",
+    "Filling Fast": "bg-brand-500/90 text-white",
+    Full: "bg-accent-500/90 text-white",
   };
   return (
     <span
@@ -33,17 +33,20 @@ export function PrimaryButton({
   onClick,
   className = "",
   type = "button",
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
   type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`rounded-full bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/30 transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] ${className}`}
+      disabled={disabled}
+      className={`rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 ${className}`}
     >
       {children}
     </button>
@@ -63,7 +66,7 @@ export function GhostButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-orange-300 hover:text-orange-600 ${className}`}
+      className={`rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600 ${className}`}
     >
       {children}
     </button>
@@ -93,7 +96,7 @@ export function SectionHeading({
         {eyebrow && (
           <p
             className={`mb-2 text-xs font-bold uppercase tracking-[0.2em] ${
-              light ? "text-orange-300" : "text-orange-600"
+              light ? "text-brand-300" : "text-brand-600"
             }`}
           >
             {eyebrow}
@@ -105,7 +108,7 @@ export function SectionHeading({
           }`}
         >
           {title}
-          {Icon && <Icon className="h-6 w-6 text-orange-500" aria-hidden />}
+          {Icon && <Icon className="h-6 w-6 text-brand-500" aria-hidden />}
         </h2>
         {subtitle && (
           <p className={`mt-2 text-sm sm:text-base ${light ? "text-slate-300" : "text-slate-500"}`}>
@@ -117,7 +120,7 @@ export function SectionHeading({
         <button
           onClick={onAction}
           className={`inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold transition ${
-            light ? "text-orange-300 hover:text-orange-200" : "text-orange-600 hover:text-orange-700"
+            light ? "text-brand-300 hover:text-brand-200" : "text-brand-600 hover:text-brand-700"
           }`}
         >
           {actionLabel} <ArrowRight className="h-4 w-4" />

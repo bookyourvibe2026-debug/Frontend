@@ -23,6 +23,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Palette,
 } from "lucide-react";
 
 type NavItem = {
@@ -63,6 +64,10 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/vendor-payouts", label: "Vendor Payouts", icon: Wallet },
       { href: "/admin/refund-payouts", label: "Refund Payouts", icon: RotateCcw, comingSoon: true },
     ],
+  },
+  {
+    title: "Design",
+    items: [{ href: "/admin/appearance", label: "Appearance", icon: Palette }],
   },
   {
     title: "System",

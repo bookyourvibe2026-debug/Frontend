@@ -27,7 +27,7 @@ export function WalkInPOSSection() {
                 className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700"
               >
                 <span className="flex items-center gap-2">
-                  <tab.icon className="h-4 w-4 text-orange-500" /> {tab.label}
+                  <tab.icon className="h-4 w-4 text-brand-500" /> {tab.label}
                 </span>
                 <span className="text-xs text-slate-400">Live</span>
               </div>
@@ -68,7 +68,7 @@ export function WalkInPOSSection() {
               <span>₹{total}</span>
             </div>
           </div>
-          <button className="mt-4 w-full rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-3 text-sm font-semibold text-white">
+          <button className="mt-4 w-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-3 text-sm font-semibold text-white">
             Take Payment
           </button>
           <p className="mt-3 text-xs text-slate-400">

@@ -19,8 +19,8 @@ export function HowItWorks() {
             key={step.id}
             className="relative flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
           >
-            <span className="text-xs font-bold text-orange-300">STEP {i + 1}</span>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+            <span className="text-xs font-bold text-brand-300">STEP {i + 1}</span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
               <step.icon className="h-6 w-6" />
             </span>
             <p className="text-base font-bold text-slate-900">{step.title}</p>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bold, Italic, List, Quote, Code2, ImagePlus, Pencil, Trash2, Send } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
-import { getBlogPosts, saveBlogPosts } from "@/lib/admin-mock-data";
+import { createBlogPost, deleteBlogPost, listBlogPosts, updateBlogPost } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
+import { BlogPost } from "@/lib/api/types";
 import { readFileAsDataUrl } from "@/lib/files";
-import { BlogPost } from "@/lib/types";
 
 function slugify(title: string) {
   return title
@@ -17,7 +18,9 @@ function slugify(title: string) {
 }
 
 export default function AdminBlogPage() {
-  const [posts, setPosts] = useState<BlogPost[]>(() => getBlogPosts());
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -27,12 +30,18 @@ export default function AdminBlogPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const publishedCount = useMemo(() => posts.filter((p) => p.status === "Published").length, [posts]);
+  const refresh = useCallback(() => {
+    listBlogPosts()
+      .then(setPosts)
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load posts"))
+      .finally(() => setLoading(false));
+  }, []);
 
-  function persist(next: BlogPost[]) {
-    setPosts(next);
-    saveBlogPosts(next);
-  }
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const publishedCount = useMemo(() => posts.filter((p) => p.status === "Published").length, [posts]);
 
   function resetForm() {
     setEditingId(null);
@@ -61,33 +70,42 @@ export default function AdminBlogPage() {
     setThumbnail(await readFileAsDataUrl(file));
   }
 
-  function handlePublish() {
+  async function handlePublish() {
     if (!title.trim()) {
       setToast("Add a post title first.");
       return;
     }
-    const post: BlogPost = {
-      id: editingId ?? `bp-${Date.now()}`,
-      title: title.trim(),
-      slug: slug.trim() || slugify(title),
-      thumbnail,
-      content,
-      status: "Published",
-      publishedOn: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-    };
-
-    if (editingId) {
-      persist(posts.map((p) => (p.id === editingId ? post : p)));
-      setToast("Post updated");
-    } else {
-      persist([post, ...posts]);
-      setToast("Post published");
+    setSaving(true);
+    try {
+      if (editingId) {
+        await updateBlogPost(editingId, {
+          title: title.trim(),
+          slug: slug.trim() || slugify(title),
+          thumbnail,
+          content,
+        });
+        setToast("Post updated");
+      } else {
+        await createBlogPost({
+          title: title.trim(),
+          slug: slug.trim() || slugify(title),
+          thumbnail,
+          content,
+          status: "Published",
+        });
+        setToast("Post published");
+      }
+      resetForm();
+      refresh();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to save post");
+    } finally {
+      setSaving(false);
     }
-    resetForm();
   }
 
   function handleEdit(post: BlogPost) {
-    setEditingId(post.id);
+    setEditingId(post._id);
     setTitle(post.title);
     setSlug(post.slug);
     setContent(post.content);
@@ -95,10 +113,15 @@ export default function AdminBlogPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!window.confirm("Delete this post?")) return;
-    persist(posts.filter((p) => p.id !== id));
-    setToast("Post deleted");
+    try {
+      await deleteBlogPost(id);
+      setToast("Post deleted");
+      refresh();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to delete post");
+    }
   }
 
   return (
@@ -116,9 +139,10 @@ export default function AdminBlogPage() {
           )}
           <button
             onClick={handlePublish}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-vibe-violet px-4 py-2 text-sm font-semibold text-white hover:bg-vibe-violetSoft"
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-vibe-violet px-4 py-2 text-sm font-semibold text-white hover:bg-vibe-violetSoft disabled:opacity-60"
           >
-            <Send size={14} /> {editingId ? "Update Post" : "Publish Post"}
+            <Send size={14} /> {saving ? "Saving..." : editingId ? "Update Post" : "Publish Post"}
           </button>
         </div>
       </div>
@@ -173,6 +197,7 @@ export default function AdminBlogPage() {
               className="flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-dashed border-surface-border bg-cream-200/40 hover:bg-cream-200"
             >
               {thumbnail ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={thumbnail} alt="thumbnail" className="h-full w-full object-cover" />
               ) : (
                 <>
@@ -203,14 +228,17 @@ export default function AdminBlogPage() {
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <div key={post.id} className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
+            <div key={post._id} className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
               <div className="relative h-36 bg-cream-300">
-                {post.thumbnail && <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />}
+                {post.thumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
+                )}
                 <div className="absolute right-2 top-2 flex gap-1.5">
                   <button onClick={() => handleEdit(post)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-vibe-violet shadow">
                     <Pencil size={13} />
                   </button>
-                  <button onClick={() => handleDelete(post.id)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-vibe-coral shadow">
+                  <button onClick={() => handleDelete(post._id)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-vibe-coral shadow">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -218,12 +246,16 @@ export default function AdminBlogPage() {
               <div className="p-3">
                 <div className="flex items-center gap-2">
                   <Badge tone={post.status === "Published" ? "success" : "neutral"}>{post.status.toUpperCase()}</Badge>
-                  <span className="text-[11px] text-ink-faint">{post.publishedOn}</span>
+                  <span className="text-[11px] text-ink-faint">
+                    {post.publishedOn ? new Date(post.publishedOn).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Not published"}
+                  </span>
                 </div>
                 <p className="mt-1.5 line-clamp-2 text-sm font-semibold text-ink">{post.title}</p>
               </div>
             </div>
           ))}
+          {loading && <p className="col-span-full py-6 text-center text-sm text-ink-faint">Loading posts...</p>}
+          {!loading && posts.length === 0 && <p className="col-span-full py-6 text-center text-sm text-ink-faint">No posts yet.</p>}
         </div>
       </div>
 

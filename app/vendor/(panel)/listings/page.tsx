@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Copy, Eye, Plus, Search, Trash2 } from "lucide-react";
 import { PageHero, Badge } from "@/components/vendor/ui";
-import { getListingsWithOverrides } from "@/lib/mock-data";
+import { Toast } from "@/components/admin/Toast";
 import { Listing } from "@/lib/types";
+import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
+import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
+import { ApiError } from "@/lib/api/client";
 
 const TABS = ["All", "Turf", "Game", "Event"] as const;
 
@@ -16,9 +19,44 @@ const TYPE_TONE: Record<Listing["type"], "info" | "success" | "pending"> = {
 };
 
 export default function ListingsPage() {
-  const [allListings] = useState<Listing[]>(() => getListingsWithOverrides());
+  const [allListings, setAllListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
   const [query, setQuery] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    getVendorListings()
+      .then((items) => setAllListings(items.map(apiListingToMock)))
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load listings"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function handleClone(listing: Listing) {
+    try {
+      const input = mockListingToApiInput({ ...listing, title: `${listing.title} (Copy)`, status: "Inactive" });
+      const clone = await createVendorListing(input);
+      refresh();
+      setToast(`Cloned "${listing.title}" as "${clone.title}"`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to clone listing");
+    }
+  }
+
+  async function handleDelete(listing: Listing) {
+    if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
+    try {
+      await deleteVendorListing(listing.id);
+      refresh();
+      setToast(`Deleted "${listing.title}"`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to delete listing");
+    }
+  }
 
   const filtered = useMemo(() => {
     return allListings.filter((l) => {
@@ -26,7 +64,7 @@ export default function ListingsPage() {
       const matchesQuery = l.title.toLowerCase().includes(query.toLowerCase());
       return matchesTab && matchesQuery;
     });
-  }, [tab, query]);
+  }, [allListings, tab, query]);
 
   return (
     <div className="space-y-6">
@@ -90,9 +128,19 @@ export default function ListingsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         {filtered.map((listing) => (
-          <ListingCard key={listing.id} listing={listing} />
+          <ListingCard
+            key={listing.id}
+            listing={listing}
+            onClone={() => handleClone(listing)}
+            onDelete={() => handleDelete(listing)}
+          />
         ))}
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="col-span-full rounded-xl2 border border-dashed border-surface-border bg-white py-14 text-center">
+            <p className="text-sm text-ink-faint">Loading listings...</p>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="col-span-full rounded-xl2 border border-dashed border-surface-border bg-white py-14 text-center">
             <p className="text-sm text-ink-faint">
               No listings match this filter yet — try another tab or add a new listing.
@@ -100,6 +148,8 @@ export default function ListingsPage() {
           </div>
         )}
       </div>
+
+      <Toast message={toast} onDone={() => setToast(null)} />
     </div>
   );
 }
@@ -124,7 +174,15 @@ function SummaryCard({
   );
 }
 
-function ListingCard({ listing }: { listing: Listing }) {
+function ListingCard({
+  listing,
+  onClone,
+  onDelete,
+}: {
+  listing: Listing;
+  onClone: () => void;
+  onDelete: () => void;
+}) {
   return (
     <div className="rounded-xl2 border border-surface-border bg-white overflow-hidden shadow-panel flex flex-col">
       <div className="h-32 bg-gradient-to-br from-vibe-indigo to-vibe-violetSoft relative flex items-end p-4">
@@ -159,11 +217,17 @@ function ListingCard({ listing }: { listing: Listing }) {
           >
             <Eye size={14} /> View
           </Link>
-          <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-surface-border text-ink-soft text-xs font-semibold py-2 hover:bg-cream-300 transition-colors">
+          <button
+            onClick={onClone}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-surface-border text-ink-soft text-xs font-semibold py-2 hover:bg-cream-300 transition-colors"
+          >
             <Copy size={14} /> Clone
           </button>
         </div>
-        <button className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 text-vibe-coral text-xs font-semibold py-2 hover:bg-rose-50 transition-colors">
+        <button
+          onClick={onDelete}
+          className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 text-vibe-coral text-xs font-semibold py-2 hover:bg-rose-50 transition-colors"
+        >
           <Trash2 size={14} /> Delete
         </button>
       </div>

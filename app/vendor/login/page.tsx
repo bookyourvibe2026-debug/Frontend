@@ -17,13 +17,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import {
-  clearVendorSession,
-  DEMO_VENDOR_CREDENTIALS,
-  DEMO_VENDOR_SESSION,
-  getVendorSession,
-  setVendorSession,
-} from "@/lib/vendor-session";
+import { restoreVendorSession, vendorLogin } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 
 type LoginTab = "email" | "phone" | "staff" | "subadmin";
 
@@ -61,29 +56,24 @@ function VendorLoginInner() {
   const [redirecting, setRedirecting] = useState(false);
 
   const identifierLabel =
-    tab === "email" ? "Email" : tab === "phone" ? "Phone Number" : tab === "staff" ? "Staff ID" : "Subadmin ID";
+    tab === "email" ? "Email" : tab === "phone" ? "Phone Number" : tab === "staff" ? "Staff Email" : "Subadmin Email";
   const identifierPlaceholder =
-    tab === "email" ? "vendor@bookyourvibes.com" : tab === "phone" ? "98765 43210" : tab === "staff" ? "STAFF-0001" : "SUB-0001";
+    tab === "email"
+      ? "vendor@bookyourvibes.com"
+      : tab === "phone"
+      ? "98765 43210"
+      : tab === "staff"
+      ? "staff@business.com"
+      : "subadmin@business.com";
 
   useEffect(() => {
-    const current = getVendorSession();
-
-    if (current) {
-      setRedirecting(true);
-      router.replace(redirectTo);
-    }
+    restoreVendorSession().then((vendor) => {
+      if (vendor) {
+        setRedirecting(true);
+        router.replace(redirectTo);
+      }
+    });
   }, [redirectTo, router]);
-
-  function useDemoCredential() {
-    clearVendorSession();
-    setTab("email");
-    setIdentifier(DEMO_VENDOR_CREDENTIALS.email);
-    setPassword(DEMO_VENDOR_CREDENTIALS.password);
-    setOtp("");
-    setOtpSent(false);
-    setShowPassword(true);
-    setError("");
-  }
 
   async function handleLogin() {
     setError("");
@@ -91,51 +81,25 @@ function VendorLoginInner() {
       setError(`Enter your ${identifierLabel.toLowerCase()}.`);
       return;
     }
-    if (tab === "phone" && !otpSent) {
-      setOtpSent(true);
+    if (tab === "phone") {
+      if (!otpSent) {
+        setOtpSent(true);
+        return;
+      }
+      setError("Phone OTP login isn't available yet — please use the Email tab.");
       return;
     }
-    if (tab === "phone" && !otp.trim()) {
-      setError("Enter the OTP sent to your phone.");
-      return;
-    }
-    if (tab !== "phone" && !password.trim()) {
+    if (!password.trim()) {
       setError("Enter your password.");
       return;
     }
 
     setLoading(true);
     try {
-      const normalizedIdentifier = identifier.replace(/\s+/g, "");
-      const isEmailLogin =
-        tab === "email" &&
-        normalizedIdentifier.toLowerCase() === DEMO_VENDOR_CREDENTIALS.email &&
-        password === DEMO_VENDOR_CREDENTIALS.password;
-      const isPhoneLogin =
-        tab === "phone" &&
-        normalizedIdentifier === DEMO_VENDOR_CREDENTIALS.phone &&
-        otp === DEMO_VENDOR_CREDENTIALS.otp;
-      const isStaffLogin =
-        tab === "staff" &&
-        normalizedIdentifier.toUpperCase() === DEMO_VENDOR_CREDENTIALS.staffId &&
-        password === DEMO_VENDOR_CREDENTIALS.password;
-      const isSubadminLogin =
-        tab === "subadmin" &&
-        normalizedIdentifier.toUpperCase() === DEMO_VENDOR_CREDENTIALS.subadminId &&
-        password === DEMO_VENDOR_CREDENTIALS.password;
-
-      if (!isEmailLogin && !isPhoneLogin && !isStaffLogin && !isSubadminLogin) {
-        setError("Demo credential mismatch. Use the credential card below.");
-        return;
-      }
-
-      setVendorSession({
-        ...DEMO_VENDOR_SESSION,
-        role: tab === "staff" ? "staff" : tab === "subadmin" ? "subadmin" : "vendor",
-        loggedInAt: new Date().toISOString(),
-      });
-
+      await vendorLogin({ email: identifier.trim(), password });
       router.replace(redirectTo);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -190,37 +154,6 @@ function VendorLoginInner() {
           <p className="mt-3 text-sm text-[#c9d6cd]">
             Manage your turf, court, or arena bookings, slots, and payouts from your professional dashboard.
           </p>
-
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#a6ff3c]">
-              Demo access
-            </p>
-            <div className="mt-3 grid gap-2 text-sm text-[#e6ede8] sm:grid-cols-2">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-[#c9d6cd]">Email</p>
-                <p className="font-semibold">{DEMO_VENDOR_CREDENTIALS.email}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-[#c9d6cd]">Password</p>
-                <p className="font-semibold">{DEMO_VENDOR_CREDENTIALS.password}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-[#c9d6cd]">Phone OTP</p>
-                <p className="font-semibold">
-                  {DEMO_VENDOR_CREDENTIALS.phone} / {DEMO_VENDOR_CREDENTIALS.otp}
-                </p>
-              </div>
-              <div className="sm:text-right">
-                <button
-                  type="button"
-                  onClick={useDemoCredential}
-                  className="rounded-full border border-white/15 px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#f6f3ea] transition hover:bg-white/10"
-                >
-                  Use demo login
-                </button>
-              </div>
-            </div>
-          </div>
 
           <div className="mt-8 grid grid-cols-2 gap-3">
             {HIGHLIGHTS.map((h) => (

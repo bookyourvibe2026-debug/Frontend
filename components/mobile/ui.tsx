@@ -5,9 +5,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Bell,
-  ChevronDown,
   Menu,
-  MapPin,
   ShieldCheck,
   Store,
   X,
@@ -20,7 +18,7 @@ const MOBILE_NAV_LINKS = [
   { label: "Find Your Games", href: "/games" },
   { label: "Venues", href: "/venues" },
   { label: "Tournaments", href: "/tournaments" },
-  { label: "Offers", href: "/offers" },
+  { label: "Blog", href: "/blogs" },
   { label: "Community", href: "/community" },
 ];
 
@@ -37,16 +35,12 @@ export function MobileTopBar() {
           priority
         />
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600">
-            <MapPin className="h-3.5 w-3.5 text-orange-500" aria-hidden /> Udaipur
-            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-          </button>
           <button
             aria-label="Notifications"
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
               3
             </span>
           </button>
@@ -98,14 +92,14 @@ export function MobileTopBar() {
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
               >
-                <Store className="h-4 w-4 text-orange-500" /> Vendor Panel
+                <Store className="h-4 w-4 text-brand-500" /> Vendor Panel
               </Link>
               <Link
                 href="/admin/login"
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
               >
-                <ShieldCheck className="h-4 w-4 text-orange-500" /> Admin Panel
+                <ShieldCheck className="h-4 w-4 text-brand-500" /> Admin Panel
               </Link>
             </div>
           </div>
@@ -148,7 +142,7 @@ export function MobileSectionRow({
       {actionLabel && (
         <button
           onClick={onAction}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600"
         >
           {actionLabel} <ArrowRight className="h-3.5 w-3.5" />
         </button>
@@ -176,7 +170,7 @@ export function MobileChip({
       onClick={onClick}
       className={`flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border px-4 py-3 transition ${
         selected
-          ? "border-orange-300 bg-orange-50 text-orange-600"
+          ? "border-brand-300 bg-brand-50 text-brand-600"
           : "border-slate-100 bg-white text-slate-600"
       }`}
     >

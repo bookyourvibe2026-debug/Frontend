@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Calendar,
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import VendorRegistrationModal from "@/components/vendor/VendorRegistrationModal";
 import type { RegistrationFormData } from "@/components/vendor/types";
+import { vendorRegister } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 
 const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   { icon: Calendar, title: "Slot-Based Booking", desc: "Let players book hourly slots on your turf, court, or arena in real time." },
@@ -65,13 +68,27 @@ const FAQS = [
 ];
 
 export default function VendorRegisterPage() {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   async function handleSubmit(data: RegistrationFormData) {
-    // TODO: replace with your real API call, e.g.
-    // await fetch("/api/vendor/register", { method: "POST", body: JSON.stringify(data) });
-    console.log("Vendor registration submitted:", data);
-    setModalOpen(false);
+    setSubmitError(null);
+    try {
+      await vendorRegister({
+        ownerName: data.ownerName,
+        businessName: data.businessName,
+        email: data.email,
+        phone: data.phone,
+        state: data.state,
+        city: data.city,
+        password: data.password,
+      });
+      setModalOpen(false);
+      router.push("/vendor/dashboard");
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
+    }
   }
 
   return (
@@ -120,13 +137,17 @@ export default function VendorRegisterPage() {
         </div>
 
         <p className="mt-4 text-xs text-[#c9d6cd]">
-          Already have demo access? Use{" "}
+          Already a partner?{" "}
           <Link href="/vendor/login" className="font-bold text-[#a6ff3c] underline">
-            vendor login
-          </Link>{" "}
-          with <span className="font-mono">vendor@bookyourvibes.com</span> /{" "}
-          <span className="font-mono">ByvDemo@123</span>.
+            Log in here
+          </Link>
+          .
         </p>
+        {submitError && (
+          <p className="mx-auto mt-4 max-w-md rounded-xl bg-red-500/15 px-4 py-2 text-xs font-semibold text-red-200">
+            {submitError}
+          </p>
+        )}
 
         <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
           {[

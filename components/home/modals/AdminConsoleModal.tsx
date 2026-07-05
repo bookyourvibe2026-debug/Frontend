@@ -124,7 +124,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
         {/* header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-orange-500">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-500">
               Internal · Ops Only
             </p>
             <h2 className="text-xl font-extrabold text-slate-900">Master Admin Console</h2>
@@ -151,7 +151,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                 onClick={() => setTab(t.id as typeof tab)}
                 className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
                   tab === t.id
-                    ? "bg-orange-50 text-orange-600"
+                    ? "bg-brand-50 text-brand-600"
                     : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
@@ -172,7 +172,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                 key={t.id}
                 onClick={() => setTab(t.id as typeof tab)}
                 className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
-                  tab === t.id ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-500"
+                  tab === t.id ? "bg-brand-500 text-white" : "bg-slate-100 text-slate-500"
                 }`}
               >
                 {t.label}
@@ -184,7 +184,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {tab === "banners" && (
               <div className="flex flex-col gap-5">
-                <div className="rounded-2xl border border-dashed border-orange-300 bg-orange-50 p-4">
+                <div className="rounded-2xl border border-dashed border-brand-300 bg-brand-50 p-4">
                   <p className="mb-3 text-sm font-bold text-slate-800">
                     Add new banner (drag-and-drop image upload simulated)
                   </p>
@@ -215,7 +215,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                       className="flex flex-col gap-3 rounded-xl border border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-rose-400 text-white">
+                        <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-accent-400 text-white">
                           <ImageIcon className="h-4 w-4" />
                         </span>
                         <div>
@@ -236,7 +236,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                         </button>
                         <button
                           onClick={() => removeBanner(b.id)}
-                          className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600"
+                          className="rounded-full bg-accent-50 px-3 py-1 text-xs font-semibold text-accent-600"
                         >
                           Remove
                         </button>
@@ -271,7 +271,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         u.status === "Active"
                           ? "bg-emerald-100 text-emerald-700"
-                          : "bg-rose-100 text-rose-600"
+                          : "bg-accent-100 text-accent-600"
                       }`}
                     >
                       {u.status}
@@ -304,7 +304,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                       {s}
                       <button
                         onClick={() => removeSport(s)}
-                        className="text-slate-400 hover:text-rose-500"
+                        className="text-slate-400 hover:text-accent-500"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -324,7 +324,7 @@ export function AdminConsoleModal({ onClose }: { onClose: () => void }) {
                     key={i}
                     className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 text-sm text-slate-700"
                   >
-                    <span className="h-2 w-2 rounded-full bg-orange-500" />
+                    <span className="h-2 w-2 rounded-full bg-brand-500" />
                     {entry}
                   </div>
                 ))}

@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { PrimaryButton } from "../ui";
 import { FieldLabel, inputClass, ModalShell } from "./ModalShell";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { ApiError } from "@/lib/api/client";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -17,54 +19,52 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export function LoginModal({
   onClose,
-  onLoginSuccess,
+  onLoggedIn,
   onSwitchToSignup,
 }: {
   onClose: () => void;
-  onLoginSuccess: (name: string) => void;
+  onLoggedIn: () => void;
   onSwitchToSignup: () => void;
 }) {
-  const [method, setMethod] = useState<"mobile" | "email">("mobile");
+  const { login } = useCustomerAuth();
+  const [method, setMethod] = useState<"mobile" | "email">("email");
   const [mobile, setMobile] = useState("");
   const [emailVal, setEmailVal] = useState("");
   const [password, setPassword] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const sendOtp = useCallback(() => {
     if (mobile.replace(/\D/g, "").length !== 10) {
       setError("Enter a valid 10-digit mobile number.");
       return;
     }
-    setError("");
-    setOtpSent(true);
-    // TODO: call /api/auth/send-otp
+    setError("Mobile OTP login isn't available yet — please use Email & Password.");
   }, [mobile]);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       if (method === "mobile") {
-        if (!otpSent) {
-          sendOtp();
-          return;
-        }
-        if (otp.length !== 6) {
-          setError("Enter the 6-digit OTP sent to your mobile.");
-          return;
-        }
-      } else {
-        if (!emailVal || !password) {
-          setError("Enter both email and password.");
-          return;
-        }
+        sendOtp();
+        return;
+      }
+      if (!emailVal || !password) {
+        setError("Enter both email and password.");
+        return;
       }
       setError("");
-      // TODO: call /api/auth/login
-      onLoginSuccess(method === "mobile" ? `User${mobile.slice(-4)}` : emailVal.split("@")[0]);
+      setSubmitting(true);
+      try {
+        await login(emailVal, password);
+        onLoggedIn();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
     },
-    [method, otpSent, otp, emailVal, password, mobile, onLoginSuccess, sendOtp]
+    [method, emailVal, password, login, onLoggedIn, sendOtp]
   );
 
   return (
@@ -78,7 +78,7 @@ export function LoginModal({
               setError("");
             }}
             className={`rounded-lg py-2 text-sm font-semibold transition ${
-              method === m ? "bg-white text-orange-600 shadow" : "text-slate-500"
+              method === m ? "bg-white text-brand-600 shadow" : "text-slate-500"
             }`}
           >
             {m === "mobile" ? "Mobile OTP" : "Email & Password"}
@@ -88,52 +88,25 @@ export function LoginModal({
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {method === "mobile" ? (
-          <>
-            <div>
-              <FieldLabel>Mobile Number</FieldLabel>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  maxLength={10}
-                  placeholder="98765 43210"
-                  className={inputClass}
-                  disabled={otpSent}
-                />
-                {!otpSent && (
-                  <button
-                    type="button"
-                    onClick={sendOtp}
-                    className="whitespace-nowrap rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-                  >
-                    Send OTP
-                  </button>
-                )}
-              </div>
+          <div>
+            <FieldLabel>Mobile Number</FieldLabel>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                maxLength={10}
+                placeholder="98765 43210"
+                className={inputClass}
+              />
+              <button
+                type="button"
+                onClick={sendOtp}
+                className="whitespace-nowrap rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+              >
+                Send OTP
+              </button>
             </div>
-            {otpSent && (
-              <div>
-                <FieldLabel>Enter OTP</FieldLabel>
-                <input
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                  placeholder="6-digit OTP"
-                  className={inputClass}
-                />
-                <p className="mt-1 text-xs text-slate-400">
-                  Sent to +91 {mobile}.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setOtpSent(false)}
-                    className="font-semibold text-orange-600"
-                  >
-                    Change number
-                  </button>
-                </p>
-              </div>
-            )}
-          </>
+          </div>
         ) : (
           <>
             <div>
@@ -155,17 +128,17 @@ export function LoginModal({
                 placeholder="••••••••"
                 className={inputClass}
               />
-              <p className="mt-1 text-right text-xs font-semibold text-orange-600">
+              <p className="mt-1 text-right text-xs font-semibold text-brand-600">
                 Forgot password?
               </p>
             </div>
           </>
         )}
 
-        {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
+        {error && <p className="text-xs font-semibold text-accent-600">{error}</p>}
 
-        <PrimaryButton type="submit" className="w-full">
-          {method === "mobile" && !otpSent ? "Continue" : "Login"}
+        <PrimaryButton type="submit" className="w-full" disabled={submitting}>
+          {method === "mobile" ? "Send OTP" : submitting ? "Logging in…" : "Login"}
         </PrimaryButton>
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -174,7 +147,7 @@ export function LoginModal({
         </div>
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 hover:border-orange-300"
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand-300"
         >
           <GoogleIcon className="h-4 w-4" /> Continue with Google
         </button>
@@ -184,7 +157,7 @@ export function LoginModal({
           <button
             type="button"
             onClick={onSwitchToSignup}
-            className="font-semibold text-orange-600"
+            className="font-semibold text-brand-600"
           >
             Create an account
           </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Flame, Heart, MapPin } from "lucide-react";
-import { type Venue, TRENDING_VENUES } from "@/lib/venues";
+import { type Venue } from "@/lib/venues";
 import { PrimaryButton, SectionHeading, StarRating, StatusPill } from "./ui";
 
 function VenueCard({
@@ -29,8 +29,8 @@ function VenueCard({
             onView();
           }
         }}
-        className="relative h-40 w-full cursor-pointer text-left"
-        style={{ background: venue.image, backgroundSize: "cover" }}
+        className="relative h-40 w-full cursor-pointer bg-slate-900 text-left"
+        style={venue.image ? { backgroundImage: `url(${venue.image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
       >
         <div className="absolute left-3 top-3">
           <StarRating rating={venue.rating} />
@@ -44,7 +44,7 @@ function VenueCard({
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow"
           aria-label="Toggle favorite"
         >
-          <Heart className={`h-4 w-4 ${isFavorite ? "fill-rose-500 text-rose-500" : "text-slate-400"}`} />
+          <Heart className={`h-4 w-4 ${isFavorite ? "fill-accent-500 text-accent-500" : "text-slate-400"}`} />
         </button>
         <div className="absolute bottom-3 left-3 flex items-center gap-2">
           <StatusPill status={venue.status} />
@@ -73,18 +73,22 @@ function VenueCard({
 }
 
 export function TrendingVenues({
+  venues,
   favorites,
   onToggleFavorite,
   onViewVenue,
   onBookVenue,
   onViewAll,
 }: {
+  venues: Venue[];
   favorites: Set<string>;
   onToggleFavorite: (id: string) => void;
   onViewVenue: (v: Venue) => void;
   onBookVenue: (v: Venue) => void;
   onViewAll: () => void;
 }) {
+  if (venues.length === 0) return null;
+
   return (
     <section id="venues" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
       <SectionHeading
@@ -96,7 +100,7 @@ export function TrendingVenues({
         onAction={onViewAll}
       />
       <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4">
-        {TRENDING_VENUES.map((v) => (
+        {venues.map((v) => (
           <VenueCard
             key={v.id}
             venue={v}

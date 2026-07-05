@@ -5,6 +5,9 @@ import { Building2, Footprints, Sandwich, type LucideIcon } from "lucide-react";
 import type { Role } from "../types";
 import { GhostButton, PrimaryButton } from "../ui";
 import { FieldLabel, inputClass, ModalShell } from "./ModalShell";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { vendorRegister } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 
 const ROLE_OPTIONS: { id: Role; label: string; icon: LucideIcon; desc: string }[] = [
   { id: "player", label: "Player", icon: Footprints, desc: "Book venues, join matches & events" },
@@ -12,15 +15,25 @@ const ROLE_OPTIONS: { id: Role; label: string; icon: LucideIcon; desc: string }[
   { id: "food", label: "Food Owner", icon: Sandwich, desc: "Manage menu, orders & billing" },
 ];
 
+const CITY_STATE: Record<string, string> = {
+  Udaipur: "Rajasthan",
+  Jaipur: "Rajasthan",
+  Ahmedabad: "Gujarat",
+  Delhi: "Delhi",
+  Mumbai: "Maharashtra",
+  Bangalore: "Karnataka",
+};
+
 export function SignupModal({
   onClose,
-  onSignupSuccess,
+  onSignedUp,
   onSwitchToLogin,
 }: {
   onClose: () => void;
-  onSignupSuccess: (name: string, role: Role) => void;
+  onSignedUp: (role: Role) => void;
   onSwitchToLogin: () => void;
 }) {
+  const { register: registerCustomer } = useCustomerAuth();
   const [step, setStep] = useState<1 | 2>(1);
   const [role, setRole] = useState<Role>("player");
   const [fullName, setFullName] = useState("");
@@ -32,6 +45,7 @@ export function SignupModal({
   const [city, setCity] = useState("Udaipur");
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleNext = () => {
     if (!role) {
@@ -42,7 +56,7 @@ export function SignupModal({
     setStep(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || mobile.replace(/\D/g, "").length !== 10 || !emailVal || !password) {
       setError("Please fill all required fields correctly.");
@@ -56,9 +70,33 @@ export function SignupModal({
       setError("Please accept the Terms & Privacy Policy to continue.");
       return;
     }
+    if (role === "food") {
+      setError("Food Owner accounts are coming soon — please check back later.");
+      return;
+    }
+
     setError("");
-    // TODO: call /api/auth/signup with { role, fullName, mobile, emailVal, password, businessName, city }
-    onSignupSuccess(fullName.split(" ")[0], role);
+    setSubmitting(true);
+    try {
+      if (role === "player") {
+        await registerCustomer({ name: fullName, email: emailVal, phone: mobile, password });
+      } else {
+        await vendorRegister({
+          ownerName: fullName,
+          businessName,
+          email: emailVal,
+          phone: mobile,
+          state: CITY_STATE[city] ?? city,
+          city,
+          password,
+        });
+      }
+      onSignedUp(role);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -79,11 +117,11 @@ export function SignupModal({
               onClick={() => setRole(r.id)}
               className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition ${
                 role === r.id
-                  ? "border-orange-500 bg-orange-50"
-                  : "border-slate-100 hover:border-orange-200"
+                  ? "border-brand-500 bg-brand-50"
+                  : "border-slate-100 hover:border-brand-200"
               }`}
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-orange-500 shadow">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow">
                 <r.icon className="h-5 w-5" />
               </span>
               <div>
@@ -92,13 +130,13 @@ export function SignupModal({
               </div>
               <span
                 className={`ml-auto h-5 w-5 rounded-full border-2 ${
-                  role === r.id ? "border-orange-500 bg-orange-500" : "border-slate-300"
+                  role === r.id ? "border-brand-500 bg-brand-500" : "border-slate-300"
                 }`}
               />
             </button>
           ))}
 
-          {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
+          {error && <p className="text-xs font-semibold text-accent-600">{error}</p>}
 
           <PrimaryButton onClick={handleNext} className="mt-2 w-full">
             Continue
@@ -106,7 +144,7 @@ export function SignupModal({
 
           <p className="text-center text-sm text-slate-500">
             Already have an account?{" "}
-            <button onClick={onSwitchToLogin} className="font-semibold text-orange-600">
+            <button onClick={onSwitchToLogin} className="font-semibold text-brand-600">
               Log in
             </button>
           </p>
@@ -191,18 +229,18 @@ export function SignupModal({
               onChange={(e) => setAgree(e.target.checked)}
               className="mt-0.5"
             />
-            I agree to the <span className="font-semibold text-orange-600">Terms & Conditions</span>{" "}
-            and <span className="font-semibold text-orange-600">Privacy Policy</span>.
+            I agree to the <span className="font-semibold text-brand-600">Terms & Conditions</span>{" "}
+            and <span className="font-semibold text-brand-600">Privacy Policy</span>.
           </label>
 
-          {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
+          {error && <p className="text-xs font-semibold text-accent-600">{error}</p>}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <GhostButton onClick={() => setStep(1)} className="flex-1">
               Back
             </GhostButton>
-            <PrimaryButton type="submit" className="flex-1">
-              Create Account
+            <PrimaryButton type="submit" className="flex-1" disabled={submitting}>
+              {submitting ? "Creating…" : "Create Account"}
             </PrimaryButton>
           </div>
         </form>

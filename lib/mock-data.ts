@@ -288,6 +288,7 @@ export const vendorRoles: VendorRole[] = [
       earnings: { view: false, create: false, edit: false, delete: false },
       verification: { view: true, create: false, edit: true, delete: false },
       settings: { view: false, create: false, edit: false, delete: false },
+      membership: { view: false, create: false, edit: false, delete: false },
     },
   },
 ];
@@ -333,5 +334,11 @@ export const moduleMeta: {
     label: "Settings",
     description: "Business profile and account preferences.",
     toggles: ["view", "edit"],
+  },
+  {
+    key: "membership",
+    label: "Membership",
+    description: "Membership plans, packages, and subscriber management.",
+    toggles: ["view", "create", "edit", "delete"],
   },
 ];

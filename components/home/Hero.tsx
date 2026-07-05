@@ -65,20 +65,20 @@ export function Hero({
         </div>
 
         {/* ambient glow accents */}
-        <div className="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-orange-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-brand-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 right-0 h-[28rem] w-[28rem] rounded-full bg-fuchsia-500/15 blur-3xl" />
         <div className="pointer-events-none absolute right-1/4 top-10 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl" />
 
         <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14 lg:pb-20 lg:pt-16">
           <div className="max-w-2xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-orange-200 backdrop-blur-sm">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-brand-200 backdrop-blur-sm">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
               Good Morning, {userName} <Hand className="h-3.5 w-3.5" /> — Udaipur is live
             </div>
 
             <h1 className="text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
               Let&rsquo;s Find Your{" "}
-              <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-rose-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-brand-400 via-amber-300 to-accent-400 bg-clip-text text-transparent">
                 Vibe
               </span>
             </h1>
@@ -128,7 +128,7 @@ export function Hero({
                 aria-label={`Show hero image ${i + 1}`}
                 onClick={() => setHeroSlide(i)}
                 className={`h-1.5 rounded-full transition-all duration-500 ${
-                  i === heroSlide ? "w-7 bg-orange-400" : "w-1.5 bg-white/30 hover:bg-white/50"
+                  i === heroSlide ? "w-7 bg-brand-400" : "w-1.5 bg-white/30 hover:bg-white/50"
                 }`}
               />
             ))}
@@ -140,7 +140,7 @@ export function Hero({
           <div className="grid translate-y-8 grid-cols-2 gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-xl sm:translate-y-12 sm:grid-cols-4 sm:gap-4 sm:p-6">
             {HERO_STATS.map((s) => (
               <div key={s.id} className="flex flex-col items-center gap-1 text-center sm:flex-row sm:items-center sm:gap-3 sm:text-left">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
                   <s.icon className="h-5 w-5" />
                 </span>
                 <div>

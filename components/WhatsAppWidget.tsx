@@ -100,7 +100,7 @@ export function WhatsAppWidget() {
                 />
               </div>
 
-              {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
+              {error && <p className="text-xs font-semibold text-accent-600">{error}</p>}
 
               <button
                 type="submit"

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, Menu, MapPin, Search, ShieldCheck, X } from "lucide-react";
+import { ChevronDown, Menu, MapPin, Search, ShieldCheck, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { NAV_LINKS } from "./data";
 import { GhostButton, PrimaryButton } from "./ui";
@@ -14,12 +14,14 @@ export function Navbar({
   isLoggedIn,
   userName,
   onOpenAdmin,
+  onLogout,
 }: {
   onOpenLogin: () => void;
   onOpenSignup: () => void;
   isLoggedIn: boolean;
   userName: string;
   onOpenAdmin: () => void;
+  onLogout: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -40,7 +42,7 @@ export function Navbar({
           />
 
           {/* Location */}
-          <button className="hidden items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-orange-300 hover:text-orange-600 xl:flex">
+          <button className="hidden items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-600 xl:flex">
             <MapPin className="h-3.5 w-3.5" aria-hidden /> Udaipur
             <ChevronDown className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -54,7 +56,7 @@ export function Navbar({
               href={link.href}
               className={`shrink-0 text-sm font-semibold transition ${
                 isActive(link.href)
-                  ? "text-orange-600"
+                  ? "text-brand-600"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -67,7 +69,7 @@ export function Navbar({
         <div className="flex items-center gap-4 lg:gap-5">
           <Link
             href="/vendor/register"
-            className="hidden rounded-full border border-orange-200 bg-orange-50 px-5 py-2.5 text-sm font-semibold text-orange-700 transition hover:border-orange-300 hover:bg-orange-100 lg:inline-flex"
+            className="hidden rounded-full border border-brand-200 bg-brand-50 px-5 py-2.5 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100 lg:inline-flex"
           >
             List Your Games
           </Link>
@@ -75,37 +77,34 @@ export function Navbar({
             href="/admin/login"
             aria-label="Admin Panel"
             title="Admin Panel"
-            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-orange-300 hover:text-orange-600 sm:flex"
+            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-brand-300 hover:text-brand-600 sm:flex"
           >
             <ShieldCheck size={18} />
           </Link>
           <button
             aria-label="Search"
-            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-orange-300 hover:text-orange-600 sm:flex"
+            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-brand-300 hover:text-brand-600 sm:flex"
           >
             <Search className="h-4 w-4" />
-          </button>
-          <button
-            aria-label="Notifications"
-            className="relative hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-orange-300 hover:text-orange-600 sm:flex"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-              3
-            </span>
           </button>
 
           {isLoggedIn ? (
             <div className="hidden items-center gap-3 lg:flex">
               <button
                 onClick={onOpenAdmin}
-                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-orange-300 hover:text-orange-600"
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
               >
                 Admin Console
               </button>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
                 {userName.charAt(0).toUpperCase()}
               </div>
+              <button
+                onClick={onLogout}
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-accent-300 hover:text-accent-600"
+              >
+                Logout
+              </button>
             </div>
           ) : (
             <PrimaryButton onClick={onOpenLogin} className="hidden lg:inline-flex">
@@ -136,7 +135,7 @@ export function Navbar({
                   setMobileOpen(false);
                 }}
                 className={`text-sm font-semibold ${
-                  isActive(link.href) ? "text-orange-600" : "text-slate-700"
+                  isActive(link.href) ? "text-brand-600" : "text-slate-700"
                 }`}
               >
                 {link.label}
@@ -144,9 +143,14 @@ export function Navbar({
             ))}
             <div className="mt-2 flex gap-2">
               {isLoggedIn ? (
-                <GhostButton onClick={onOpenAdmin} className="flex-1">
-                  Admin Console
-                </GhostButton>
+                <>
+                  <GhostButton onClick={onOpenAdmin} className="flex-1">
+                    Admin Console
+                  </GhostButton>
+                  <GhostButton onClick={onLogout} className="flex-1">
+                    Logout
+                  </GhostButton>
+                </>
               ) : (
                 <>
                   <Link
@@ -154,7 +158,7 @@ export function Navbar({
                     onClick={() => {
                       setMobileOpen(false);
                     }}
-                    className="flex-1 rounded-full border border-orange-200 bg-orange-50 px-4 py-2.5 text-center text-sm font-semibold text-orange-700 transition hover:border-orange-300 hover:bg-orange-100"
+                    className="flex-1 rounded-full border border-brand-200 bg-brand-50 px-4 py-2.5 text-center text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100"
                   >
                     List Your Games
                   </Link>

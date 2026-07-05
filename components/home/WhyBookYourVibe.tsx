@@ -19,7 +19,7 @@ export function WhyBookYourVibe() {
             key={f.id}
             className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
               <f.icon className="h-5 w-5" />
             </span>
             <p className="text-base font-bold text-slate-900">{f.title}</p>

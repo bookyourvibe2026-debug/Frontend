@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Search, Wallet } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
-import {
-  payoutBookingsByVendor,
-  payoutCategoriesSeed,
-  payoutVendorEntriesSeed,
-} from "@/lib/admin-mock-data";
-import { PayoutVendorEntry } from "@/lib/types";
+import { Toast } from "@/components/admin/Toast";
+import { getVendorPayoutBookings, listPayoutCategories, listVendorPayouts, PayoutBookingBreakdown } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
+import { PayoutCategory, VendorPayout, VendorPayoutStatus } from "@/lib/api/types";
 
 type Step = "category" | "vendor" | "bookings";
 
@@ -18,36 +16,74 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "bookings", label: "Bookings" },
 ];
 
+function vendorName(entry: VendorPayout) {
+  return typeof entry.vendorId === "string" ? "Unknown vendor" : entry.vendorId.businessName;
+}
+
 export default function VendorPayoutsPage() {
+  const [categories, setCategories] = useState<PayoutCategory[]>([]);
+  const [entries, setEntries] = useState<VendorPayout[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [bookings, setBookings] = useState<PayoutBookingBreakdown[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
   const [step, setStep] = useState<Step>("category");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [selectedVendor, setSelectedVendor] = useState<PayoutVendorEntry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<VendorPayout | null>(null);
   const [typeFilter, setTypeFilter] = useState<"All" | "Standard" | "Affiliate">("All");
-  const [statusFilter, setStatusFilter] = useState<"All" | PayoutVendorEntry["status"]>("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | VendorPayoutStatus>("All");
   const [query, setQuery] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
 
-  const category = payoutCategoriesSeed.find((c) => c.id === categoryId);
+  useEffect(() => {
+    listPayoutCategories()
+      .then(setCategories)
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load categories"));
+  }, []);
 
-  const entriesForCategory = useMemo(
-    () => payoutVendorEntriesSeed.filter((e) => e.categoryId === categoryId),
-    [categoryId]
-  );
+  useEffect(() => {
+    if (!categoryId) return;
+    setLoadingEntries(true);
+    listVendorPayouts({ categoryId, limit: 100 })
+      .then((result) => setEntries(result.items))
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load payouts"))
+      .finally(() => setLoadingEntries(false));
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!selectedEntry) return;
+    setLoadingBookings(true);
+    getVendorPayoutBookings(selectedEntry._id)
+      .then(setBookings)
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load booking breakdown"))
+      .finally(() => setLoadingBookings(false));
+  }, [selectedEntry]);
+
+  const category = categories.find((c) => c._id === categoryId);
 
   const filteredEntries = useMemo(() => {
-    return entriesForCategory.filter((e) => {
+    return entries.filter((e) => {
       const matchesType = typeFilter === "All" || e.type === typeFilter;
       const matchesStatus = statusFilter === "All" || e.status === statusFilter;
-      const matchesQuery = e.vendorName.toLowerCase().includes(query.toLowerCase());
+      const matchesQuery = vendorName(e).toLowerCase().includes(query.toLowerCase());
       return matchesType && matchesStatus && matchesQuery;
     });
-  }, [entriesForCategory, typeFilter, statusFilter, query]);
+  }, [entries, typeFilter, statusFilter, query]);
 
   const totals = useMemo(() => {
-    const totalVendors = new Set(entriesForCategory.map((e) => e.vendorId)).size;
-    const settledBookings = entriesForCategory.reduce((sum, e) => sum + e.bookingsCount, 0);
-    const paidAmount = entriesForCategory.filter((e) => e.status === "Paid").reduce((sum, e) => sum + e.amount, 0);
+    const totalVendors = new Set(entries.map((e) => (typeof e.vendorId === "string" ? e.vendorId : e.vendorId._id))).size;
+    const settledBookings = entries.reduce((sum, e) => sum + e.bookingsCount, 0);
+    const paidAmount = entries.filter((e) => e.status === "Paid").reduce((sum, e) => sum + e.amount, 0);
     return { totalVendors, settledBookings, paidAmount };
-  }, [entriesForCategory]);
+  }, [entries]);
+
+  const goBack = useCallback(() => {
+    if (step === "bookings") {
+      setStep("vendor");
+    } else {
+      setStep("category");
+      setCategoryId(null);
+    }
+  }, [step]);
 
   return (
     <div className="space-y-5">
@@ -60,7 +96,7 @@ export default function VendorPayoutsPage() {
         </div>
         {step !== "category" && (
           <button
-            onClick={() => (step === "bookings" ? setStep("vendor") : (setStep("category"), setCategoryId(null)))}
+            onClick={goBack}
             className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border px-3.5 py-2 text-sm font-semibold text-ink-soft hover:bg-cream-300"
           >
             <ArrowLeft size={14} /> Back
@@ -86,11 +122,11 @@ export default function VendorPayoutsPage() {
 
       {step === "category" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {payoutCategoriesSeed.map((c) => (
+          {categories.map((c) => (
             <button
-              key={c.id}
+              key={c._id}
               onClick={() => {
-                setCategoryId(c.id);
+                setCategoryId(c._id);
                 setStep("vendor");
               }}
               className="rounded-xl2 border border-surface-border bg-white p-5 text-left shadow-panel transition hover:-translate-y-0.5 hover:shadow-md"
@@ -103,6 +139,9 @@ export default function VendorPayoutsPage() {
               </p>
             </button>
           ))}
+          {categories.length === 0 && (
+            <p className="col-span-full py-10 text-center text-sm text-ink-faint">No payout categories yet.</p>
+          )}
         </div>
       )}
 
@@ -158,9 +197,9 @@ export default function VendorPayoutsPage() {
               </thead>
               <tbody>
                 {filteredEntries.map((e) => (
-                  <tr key={e.id} className="border-b border-surface-border last:border-0">
+                  <tr key={e._id} className="border-b border-surface-border last:border-0">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-ink">{e.vendorName}</p>
+                      <p className="font-semibold text-ink">{vendorName(e)}</p>
                       <p className="text-[11px] text-ink-faint">{e.bookingsCount} bookings</p>
                     </td>
                     <td className="px-4 py-3">
@@ -173,12 +212,12 @@ export default function VendorPayoutsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-ink">₹{e.amount.toLocaleString("en-IN")}</p>
-                      <p className="text-[11px] text-ink-faint">{e.date}</p>
+                      <p className="text-[11px] text-ink-faint">{new Date(e.createdAt).toLocaleDateString("en-GB")}</p>
                     </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => {
-                          setSelectedVendor(e);
+                          setSelectedEntry(e);
                           setStep("bookings");
                         }}
                         className="rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-300"
@@ -188,7 +227,14 @@ export default function VendorPayoutsPage() {
                     </td>
                   </tr>
                 ))}
-                {filteredEntries.length === 0 && (
+                {loadingEntries && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-ink-faint">
+                      Loading payouts...
+                    </td>
+                  </tr>
+                )}
+                {!loadingEntries && filteredEntries.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-4 py-10 text-center text-sm text-ink-faint">
                       No payouts match this filter.
@@ -201,32 +247,39 @@ export default function VendorPayoutsPage() {
         </>
       )}
 
-      {step === "bookings" && selectedVendor && (
+      {step === "bookings" && selectedEntry && (
         <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
-          <p className="font-display font-semibold text-ink">{selectedVendor.vendorName}</p>
+          <p className="font-display font-semibold text-ink">{vendorName(selectedEntry)}</p>
           <p className="mb-4 text-xs text-ink-faint">
-            {selectedVendor.type} payout · {selectedVendor.status} · ₹{selectedVendor.amount.toLocaleString("en-IN")}
+            {selectedEntry.type} payout · {selectedEntry.status} · ₹{selectedEntry.amount.toLocaleString("en-IN")}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-surface-border text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
-                  <th className="pb-2">Booking ID</th>
+                  <th className="pb-2">Order ID</th>
                   <th className="pb-2">Customer</th>
                   <th className="pb-2">Listing</th>
                   <th className="pb-2">Owner Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {(payoutBookingsByVendor[selectedVendor.vendorId] ?? []).map((b) => (
-                  <tr key={b.bookingId} className="border-b border-surface-border last:border-0">
-                    <td className="py-2 font-mono text-xs text-ink-soft">{b.bookingId}</td>
-                    <td className="py-2 text-ink-soft">{b.customer}</td>
-                    <td className="py-2 text-ink-soft">{b.listingName}</td>
-                    <td className="py-2 font-semibold text-ink">₹{b.ownerAmount.toLocaleString("en-IN")}</td>
+                {bookings.map((b) => (
+                  <tr key={b.orderId} className="border-b border-surface-border last:border-0">
+                    <td className="py-2 font-mono text-xs text-ink-soft">{b.orderId}</td>
+                    <td className="py-2 text-ink-soft">{b.customerName}</td>
+                    <td className="py-2 text-ink-soft">{b.listingTitle}</td>
+                    <td className="py-2 font-semibold text-ink">₹{b.vendorEarning.toLocaleString("en-IN")}</td>
                   </tr>
                 ))}
-                {(payoutBookingsByVendor[selectedVendor.vendorId] ?? []).length === 0 && (
+                {loadingBookings && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-xs text-ink-faint">
+                      Loading bookings...
+                    </td>
+                  </tr>
+                )}
+                {!loadingBookings && bookings.length === 0 && (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-xs text-ink-faint">
                       No individual booking breakdown available for this vendor yet.
@@ -238,6 +291,8 @@ export default function VendorPayoutsPage() {
           </div>
         </div>
       )}
+
+      <Toast message={toast} onDone={() => setToast(null)} />
     </div>
   );
 }

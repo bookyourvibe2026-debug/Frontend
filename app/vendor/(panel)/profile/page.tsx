@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Save, Upload } from "lucide-react";
 import { SectionCard } from "@/components/vendor/ui";
-import { vendorProfile } from "@/lib/mock-data";
+import { getVendorProfile, updateVendorProfile } from "@/lib/api/vendor";
+import { ApiError } from "@/lib/api/client";
+import { Vendor } from "@/lib/api/types";
+import { uploadVendorImage } from "@/lib/api/uploads";
 
 const CATEGORIES = [
   "Turf Owners",
@@ -14,41 +17,123 @@ const CATEGORIES = [
   "Hospitality & Stay Partners",
 ];
 
-export default function ProfilePage() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    "Turf Owners",
-    "Event Organizers",
-  ]);
+function completeness(v: Vendor) {
+  const fields = [
+    v.ownerName,
+    v.businessName,
+    v.phone,
+    v.email,
+    v.businessType,
+    v.gstNumber,
+    v.address.street,
+    v.city,
+    v.state,
+    v.address.pinCode,
+    v.bankDetails.accountNumber,
+    v.bankDetails.ifsc,
+    v.bankDetails.bankName,
+    v.bankDetails.accountType,
+    v.logo,
+    v.categories.length > 0 ? "x" : undefined,
+  ];
+  const filled = fields.filter(Boolean).length;
+  return Math.round((filled / fields.length) * 100);
+}
 
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(cat)
-        ? prev.filter((c) => c !== cat)
-        : prev.length < 5
-        ? [...prev, cat]
-        : prev
-    );
-  };
+export default function ProfilePage() {
+  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getVendorProfile()
+      .then(setVendor)
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load profile"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function toggleCategory(cat: string) {
+    setVendor((v) => {
+      if (!v) return v;
+      const has = v.categories.includes(cat);
+      if (has) return { ...v, categories: v.categories.filter((c) => c !== cat) };
+      if (v.categories.length >= 5) return v;
+      return { ...v, categories: [...v.categories, cat] };
+    });
+  }
+
+  async function handleLogoUpload(file: File | undefined) {
+    if (!file || !vendor) return;
+    setLogoUploading(true);
+    try {
+      const { url } = await uploadVendorImage(file, "vendor-logos");
+      setVendor({ ...vendor, logo: url });
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to upload logo");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!vendor) return;
+    setSaving(true);
+    try {
+      const updated = await updateVendorProfile({
+        ownerName: vendor.ownerName,
+        businessName: vendor.businessName,
+        city: vendor.city,
+        state: vendor.state,
+        logo: vendor.logo,
+        businessType: vendor.businessType,
+        gstNumber: vendor.gstNumber,
+        categories: vendor.categories,
+        address: vendor.address,
+        bankDetails: vendor.bankDetails,
+      });
+      setVendor(updated);
+      setToast("Profile saved");
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !vendor) {
+    return <div className="rounded-xl2 border border-surface-border bg-white p-10 text-center text-sm text-ink-faint">Loading profile...</div>;
+  }
+
+  const pct = completeness(vendor);
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl2 border border-surface-border bg-white shadow-panel p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative h-16 w-16 rounded-full border-4 border-vibe-lime flex items-center justify-center text-sm font-display font-semibold text-vibe-violet">
-            81%
+            {pct}%
           </div>
           <div>
             <h1 className="font-display font-semibold text-lg text-ink">User Profile</h1>
             <p className="text-xs text-ink-faint">Complete your profile to get the Verified Badge</p>
             <p className="text-xs font-semibold text-vibe-limeDark mt-0.5">
-              ● Verification In Progress
+              {vendor.status === "approved" ? "● Verified" : "● Verification In Progress"}
             </p>
           </div>
         </div>
-        <button className="inline-flex items-center gap-2 rounded-lg bg-vibe-violet px-5 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violetSoft">
-          <Save size={16} /> Save Changes
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-vibe-violet px-5 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violetSoft disabled:opacity-60"
+        >
+          <Save size={16} /> {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
+
+      {toast && <p className="text-xs text-ink-faint">{toast}</p>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <SectionCard title="Basic Identity">
@@ -58,11 +143,20 @@ export default function ProfilePage() {
                 Business Logo
               </label>
               <div className="flex items-center gap-3">
-                <div className="h-16 w-16 rounded-xl bg-cream-300 flex items-center justify-center text-ink-faint">
-                  <Upload size={18} />
+                <div className="h-16 w-16 overflow-hidden rounded-xl bg-cream-300 flex items-center justify-center text-ink-faint">
+                  {vendor.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={vendor.logo} alt="Business logo" className="h-full w-full object-cover" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
                 </div>
                 <div>
-                  <button className="rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-300">
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e.target.files?.[0])} />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-300"
+                  >
                     Choose file
                   </button>
                   <p className="text-[11px] text-ink-faint mt-1">
@@ -71,38 +165,62 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            <Input label="Vendor Name" defaultValue={vendorProfile.vendorName} />
-            <Input label="Business Name" defaultValue={vendorProfile.businessName} />
+            <Input label="Vendor Name" value={vendor.ownerName} onChange={(v) => setVendor({ ...vendor, ownerName: v })} />
+            <Input label="Business Name" value={vendor.businessName} onChange={(v) => setVendor({ ...vendor, businessName: v })} />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Phone" defaultValue={vendorProfile.phone} />
-              <Input label="Email" defaultValue={vendorProfile.email} />
+              <Input label="Phone" value={vendor.phone} disabled />
+              <Input label="Email" value={vendor.email} disabled />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">
                   Business Type
                 </label>
-                <select className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet">
+                <select
+                  value={vendor.businessType ?? ""}
+                  onChange={(e) => setVendor({ ...vendor, businessType: e.target.value as Vendor["businessType"] })}
+                  className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
+                >
+                  <option value="" disabled>
+                    Select type
+                  </option>
                   <option>Company</option>
                   <option>Individual / Proprietor</option>
                   <option>Partnership</option>
                 </select>
               </div>
-              <Input label="GST Number" placeholder="Optional" />
+              <Input
+                label="GST Number"
+                placeholder="Optional"
+                value={vendor.gstNumber ?? ""}
+                onChange={(v) => setVendor({ ...vendor, gstNumber: v })}
+              />
             </div>
           </div>
         </SectionCard>
 
         <SectionCard title="Business Address">
           <div className="space-y-4">
-            <Input label="Registered Street Address" defaultValue="MI Road" />
+            <Input
+              label="Registered Street Address"
+              value={vendor.address.street ?? ""}
+              onChange={(v) => setVendor({ ...vendor, address: { ...vendor.address, street: v } })}
+            />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="City" defaultValue={vendorProfile.city} />
-              <Input label="State / Province" defaultValue={vendorProfile.state} />
+              <Input label="City" value={vendor.city ?? ""} onChange={(v) => setVendor({ ...vendor, city: v })} />
+              <Input label="State / Province" value={vendor.state} onChange={(v) => setVendor({ ...vendor, state: v })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="PIN / Zip Code" defaultValue="302001" />
-              <Input label="Country" defaultValue="India" />
+              <Input
+                label="PIN / Zip Code"
+                value={vendor.address.pinCode ?? ""}
+                onChange={(v) => setVendor({ ...vendor, address: { ...vendor.address, pinCode: v } })}
+              />
+              <Input
+                label="Country"
+                value={vendor.address.country ?? "India"}
+                onChange={(v) => setVendor({ ...vendor, address: { ...vendor.address, country: v } })}
+              />
             </div>
           </div>
 
@@ -111,17 +229,40 @@ export default function ProfilePage() {
           </h4>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Account Number" placeholder="******1234" />
-              <Input label="IFSC Code" placeholder="e.g. SBIN0001234" />
+              <Input
+                label="Account Number"
+                placeholder="******1234"
+                value={vendor.bankDetails.accountNumber ?? ""}
+                onChange={(v) => setVendor({ ...vendor, bankDetails: { ...vendor.bankDetails, accountNumber: v } })}
+              />
+              <Input
+                label="IFSC Code"
+                placeholder="e.g. SBIN0001234"
+                value={vendor.bankDetails.ifsc ?? ""}
+                onChange={(v) => setVendor({ ...vendor, bankDetails: { ...vendor.bankDetails, ifsc: v } })}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Bank Name" placeholder="e.g. SBI" />
+              <Input
+                label="Bank Name"
+                placeholder="e.g. SBI"
+                value={vendor.bankDetails.bankName ?? ""}
+                onChange={(v) => setVendor({ ...vendor, bankDetails: { ...vendor.bankDetails, bankName: v } })}
+              />
               <div>
                 <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">
                   Account Type
                 </label>
-                <select className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet">
-                  <option>Select Type</option>
+                <select
+                  value={vendor.bankDetails.accountType ?? ""}
+                  onChange={(e) =>
+                    setVendor({ ...vendor, bankDetails: { ...vendor.bankDetails, accountType: e.target.value as Vendor["bankDetails"]["accountType"] } })
+                  }
+                  className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
+                >
+                  <option value="" disabled>
+                    Select Type
+                  </option>
                   <option>Savings</option>
                   <option>Current</option>
                 </select>
@@ -136,13 +277,13 @@ export default function ProfilePage() {
         description="Select exactly what your business offers (Max 5)"
         action={
           <span className="text-xs font-semibold rounded-full bg-vibe-violet/10 text-vibe-violet px-3 py-1">
-            {selectedCategories.length}/5 Selected
+            {vendor.categories.length}/5 Selected
           </span>
         }
       >
         <div className="grid sm:grid-cols-2 gap-3">
           {CATEGORIES.map((cat) => {
-            const active = selectedCategories.includes(cat);
+            const active = vendor.categories.includes(cat);
             return (
               <button
                 key={cat}
@@ -170,12 +311,16 @@ export default function ProfilePage() {
 
 function Input({
   label,
-  defaultValue,
+  value,
   placeholder,
+  disabled,
+  onChange,
 }: {
   label: string;
-  defaultValue?: string;
+  value?: string;
   placeholder?: string;
+  disabled?: boolean;
+  onChange?: (value: string) => void;
 }) {
   return (
     <div>
@@ -183,9 +328,11 @@ function Input({
         {label}
       </label>
       <input
-        defaultValue={defaultValue}
+        value={value ?? ""}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint"
+        disabled={disabled}
+        onChange={(e) => onChange?.(e.target.value)}
+        className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint disabled:bg-cream-200/60 disabled:text-ink-faint"
       />
     </div>
   );

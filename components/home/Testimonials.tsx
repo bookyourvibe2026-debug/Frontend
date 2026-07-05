@@ -14,7 +14,7 @@ export function Testimonials() {
             key={t.id}
             className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
           >
-            <span className="text-orange-500" aria-hidden>
+            <span className="text-brand-500" aria-hidden>
               <t.icon className="h-7 w-7" />
             </span>
             <p className="text-sm leading-relaxed text-slate-600">&ldquo;{t.quote}&rdquo;</p>

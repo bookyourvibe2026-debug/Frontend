@@ -3,34 +3,27 @@
 /* ------------------------------------------------------------------ */
 /*  BOOKING FLOW                                                       */
 /*                                                                     */
-/*  Full "Book Now" journey, modeled on the Book-My-Adventure flow     */
-/*  but adapted for hourly venue slots:                                */
+/*  Real booking journey against the live backend:                     */
+/*    0. auth      -> log in / sign up if not already a player         */
+/*    1. review    -> date + start time + contact + price              */
+/*    2. confirmed -> real order id + booking pass                     */
 /*                                                                     */
-/*    1. select    -> pick how many 1-hour slots (qty stepper)         */
-/*    2. review    -> date + start time + contact + price summary      */
-/*    3. confirmed -> order id, ticket note, done                      */
-/*                                                                     */
-/*  Self-contained client component. Pass a venue + onClose. No route  */
-/*  plumbing needed, so it drops into any page that has a venue.       */
+/*  Price shown is exactly listing.price — the backend has no slot-    */
+/*  quantity or markup concept yet, so we don't pretend it does.       */
 /* ------------------------------------------------------------------ */
 
-import { useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock, MapPin, Minus, Plus, ShieldCheck, X } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Check, ChevronRight, Clock, MapPin, ShieldCheck, X } from "lucide-react";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { LoginModal } from "@/components/home/modals/LoginModal";
+import { SignupModal } from "@/components/home/modals/SignupModal";
+import { createMyBooking } from "@/lib/api/customerBookings";
+import { ApiError } from "@/lib/api/client";
+import type { Booking, Listing, PaymentMethod } from "@/lib/api/types";
 
-export interface BookingVenue {
-  id: string;
-  name: string;
-  area: string;
-  sport: string;
-  pricePerHour: number;
-  status: "Available" | "Filling Fast" | "Full";
-  image: string;
-}
+type Step = "review" | "confirmed";
 
-type Step = "select" | "review" | "confirmed";
-
-const FEE_RATE = 0.03; // "Fees & Taxes" — 3% of subtotal
-const MAX_SLOTS = 8;
+const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)"];
 
 /* Start times a venue can be booked from. */
 const START_TIMES = [
@@ -44,222 +37,111 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function prettyDate(iso: string) {
-  if (!iso) return "Select a date";
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function makeOrderId() {
-  return "BYV" + Math.random().toString(36).slice(2, 8).toUpperCase();
+function to24Hour(time12: string) {
+  const [time, meridiem] = time12.split(" ");
+  const [hourStr, minute] = time.split(":");
+  let hour = Number(hourStr) % 12;
+  if (meridiem === "PM") hour += 12;
+  return `${String(hour).padStart(2, "0")}:${minute}`;
 }
 
 /* ------------------------------------------------------------------ */
 
-export default function BookingFlow({
-  venue,
-  onClose,
-}: {
-  venue: BookingVenue;
-  onClose: () => void;
-}) {
-  const [step, setStep] = useState<Step>("select");
-  const [slots, setSlots] = useState(1);
+export default function BookingFlow({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  const { status } = useCustomerAuth();
+  const [authView, setAuthView] = useState<"login" | "signup">("login");
+  const [step, setStep] = useState<Step>("review");
   const [date, setDate] = useState(todayISO());
-  const [time, setTime] = useState(START_TIMES[6]); // 12:00 PM default
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [time, setTime] = useState(START_TIMES[6]);
+  const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
   const [agreed, setAgreed] = useState(false);
-  const [orderId, setOrderId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [booking, setBooking] = useState<Booking | null>(null);
 
-  const subtotal = venue.pricePerHour * slots;
-  const fees = Math.round(subtotal * FEE_RATE);
-  const grandTotal = subtotal + fees;
+  if (status === "loading") {
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-slate-600">Loading...</div>
+      </div>
+    );
+  }
 
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const phoneOk = /^\d{10}$/.test(phone);
-  const canPay =
-    name.trim().length > 1 && emailOk && phoneOk && agreed && !!date;
+  if (status === "guest") {
+    return authView === "login" ? (
+      <LoginModal onClose={onClose} onLoggedIn={() => {}} onSwitchToSignup={() => setAuthView("signup")} />
+    ) : (
+      <SignupModal onClose={onClose} onSignedUp={() => {}} onSwitchToLogin={() => setAuthView("login")} />
+    );
+  }
 
-  const inc = () => setSlots((s) => Math.min(MAX_SLOTS, s + 1));
-  const dec = () => setSlots((s) => Math.max(1, s - 1));
+  const canPay = agreed && !!date;
 
-  const handlePay = () => {
+  async function handlePay() {
     if (!canPay) return;
-    setOrderId(makeOrderId());
-    setStep("confirmed");
-  };
+    setSubmitting(true);
+    setError("");
+    try {
+      const dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
+      const created = await createMyBooking({ listingId: listing._id, dateTime, payment });
+      setBooking(created);
+      setStep("confirmed");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-black/50 backdrop-blur-sm sm:items-center">
-      {step === "select" && (
-        <SelectStep
-          venue={venue}
-          slots={slots}
-          subtotal={subtotal}
-          onInc={inc}
-          onDec={dec}
-          onCancel={onClose}
-          onContinue={() => setStep("review")}
-        />
-      )}
-
       {step === "review" && (
         <ReviewStep
-          venue={venue}
-          slots={slots}
+          listing={listing}
           date={date}
           time={time}
-          name={name}
-          email={email}
-          phone={phone}
+          payment={payment}
           agreed={agreed}
-          subtotal={subtotal}
-          fees={fees}
-          grandTotal={grandTotal}
-          emailOk={emailOk || email === ""}
-          phoneOk={phoneOk || phone === ""}
           canPay={canPay}
-          onInc={inc}
-          onDec={dec}
+          submitting={submitting}
+          error={error}
           setDate={setDate}
           setTime={setTime}
-          setName={setName}
-          setEmail={setEmail}
-          setPhone={setPhone}
+          setPayment={setPayment}
           setAgreed={setAgreed}
-          onBack={() => setStep("select")}
           onClose={onClose}
           onPay={handlePay}
         />
       )}
 
-      {step === "confirmed" && (
-        <ConfirmedStep
-          venue={venue}
-          slots={slots}
-          date={date}
-          time={time}
-          grandTotal={grandTotal}
-          orderId={orderId}
-          name={name}
-          onClose={onClose}
-        />
+      {step === "confirmed" && booking && (
+        <ConfirmedStep listing={listing} booking={booking} onClose={onClose} />
       )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 1 — SELECT SLOTS                                              */
-/* ------------------------------------------------------------------ */
-
-function SelectStep({
-  venue,
-  slots,
-  subtotal,
-  onInc,
-  onDec,
-  onCancel,
-  onContinue,
-}: {
-  venue: BookingVenue;
-  slots: number;
-  subtotal: number;
-  onInc: () => void;
-  onDec: () => void;
-  onCancel: () => void;
-  onContinue: () => void;
-}) {
-  return (
-    <div className="relative m-4 w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
-      <p className="text-lg font-extrabold text-slate-900">Select Slots</p>
-      <p className="mt-0.5 text-xs text-slate-400">
-        {venue.name} · {venue.sport}
-      </p>
-
-      <div className="mt-5 flex items-center justify-between border-b border-slate-100 pb-5">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">1 Hour Slot</p>
-          <p className="text-xs text-slate-400">₹{venue.pricePerHour}</p>
-        </div>
-        <Stepper value={slots} onInc={onInc} onDec={onDec} />
-      </div>
-
-      <div className="mt-4 flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-900">Total Amount</p>
-        <p className="text-lg font-extrabold text-orange-600">
-          ₹{subtotal.toLocaleString("en-IN")}
-        </p>
-      </div>
-
-      <div className="mt-6 flex gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/30 transition hover:scale-[1.02]"
-        >
-          Continue <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  STEP 2 — REVIEW & CONFIRM                                          */
+/*  STEP — REVIEW & CONFIRM                                            */
 /* ------------------------------------------------------------------ */
 
 function ReviewStep(props: {
-  venue: BookingVenue;
-  slots: number;
+  listing: Listing;
   date: string;
   time: string;
-  name: string;
-  email: string;
-  phone: string;
+  payment: PaymentMethod;
   agreed: boolean;
-  subtotal: number;
-  fees: number;
-  grandTotal: number;
-  emailOk: boolean;
-  phoneOk: boolean;
   canPay: boolean;
-  onInc: () => void;
-  onDec: () => void;
+  submitting: boolean;
+  error: string;
   setDate: (v: string) => void;
   setTime: (v: string) => void;
-  setName: (v: string) => void;
-  setEmail: (v: string) => void;
-  setPhone: (v: string) => void;
+  setPayment: (v: PaymentMethod) => void;
   setAgreed: (v: boolean) => void;
-  onBack: () => void;
   onClose: () => void;
   onPay: () => void;
 }) {
-  const {
-    venue, slots, date, time, name, email, phone, agreed,
-    subtotal, fees, grandTotal, emailOk, phoneOk, canPay,
-    onInc, onDec, setDate, setTime, setName, setEmail, setPhone,
-    setAgreed, onBack, onClose, onPay,
-  } = props;
-
-  const slotsLeft = useMemo(
-    () => (venue.status === "Filling Fast" ? 6 : 50),
-    [venue.status]
-  );
+  const { listing, date, time, payment, agreed, canPay, submitting, error, setDate, setTime, setPayment, setAgreed, onClose, onPay } = props;
 
   return (
     <div className="relative my-6 w-full max-w-4xl rounded-3xl bg-slate-50 p-5 shadow-2xl sm:p-7">
@@ -272,40 +154,26 @@ function ReviewStep(props: {
         <X className="h-4 w-4" />
       </button>
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-0.5 text-sm font-semibold text-slate-400 transition hover:text-orange-600"
-        >
-          <ChevronLeft className="h-4 w-4" /> Back
-        </button>
-        <h2 className="text-xl font-extrabold text-slate-900">
-          Review &amp; Confirm Your Booking
-        </h2>
-      </div>
+      <h2 className="text-xl font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* LEFT COLUMN */}
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl border border-slate-100 bg-white p-5">
             <p className="text-base font-bold text-slate-900">
-              {venue.sport} — {venue.name}
+              {listing.category} — {listing.title}
             </p>
             <p className="flex items-center gap-1 text-xs text-slate-400">
-              <MapPin className="h-3.5 w-3.5" /> {venue.area} · Please review your slot &amp; details
+              <MapPin className="h-3.5 w-3.5" /> {listing.city} · Please review your slot &amp; details
             </p>
           </div>
 
-          {/* Date & time */}
           <div className="rounded-2xl border border-slate-100 bg-white p-5">
             <p className="text-sm font-bold text-slate-900">Select Date &amp; Time</p>
 
-            <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              Select Date *
-            </label>
+            <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Select Date *</label>
             <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-500">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
                 <CalendarDays className="h-4 w-4" />
               </span>
               <input
@@ -317,18 +185,12 @@ function ReviewStep(props: {
               />
             </div>
 
-            <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              Reporting Time *
-            </label>
+            <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Reporting Time *</label>
             <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-500">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
                 <Clock className="h-4 w-4" />
               </span>
-              <select
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
-              >
+              <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none">
                 {START_TIMES.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -337,141 +199,57 @@ function ReviewStep(props: {
               </select>
             </div>
           </div>
-
-          {/* Slots */}
-          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
-            <div className="flex items-center gap-2 border-l-4 border-orange-500 px-5 py-3">
-              <p className="text-sm font-bold text-slate-900">Select Slots</p>
-            </div>
-            <div className="flex items-center justify-between px-5 pb-5">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">1 Hour Slot</p>
-                <p className="text-xs text-slate-400">
-                  ₹{venue.pricePerHour.toLocaleString("en-IN")} only
-                </p>
-              </div>
-              <div className="flex items-center gap-6">
-                <Stepper value={slots} onInc={onInc} onDec={onDec} />
-                <p className="w-20 text-right text-sm font-bold text-slate-900">
-                  ₹{subtotal.toLocaleString("en-IN")}
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* RIGHT COLUMN */}
         <div className="flex flex-col gap-4">
-          {/* Price summary */}
           <div className="rounded-2xl border border-slate-100 bg-white p-5">
             <p className="text-sm font-bold text-slate-900">Price Summary</p>
-            <div className="mt-4 space-y-2 text-sm">
-              <Row
-                label={`1 Hour Slot (${slots})`}
-                value={`₹${subtotal.toLocaleString("en-IN")}.00`}
-              />
-              <Row label="Fees & Taxes" value={`₹${fees.toLocaleString("en-IN")}.00`} />
-              <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="font-bold text-orange-600">Grand Total</span>
-                <span className="font-extrabold text-orange-600">
-                  ₹{grandTotal.toLocaleString("en-IN")}.00
-                </span>
-              </div>
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
+              <span className="font-bold text-brand-600">Total</span>
+              <span className="font-extrabold text-brand-600">₹{listing.price.toLocaleString("en-IN")}</span>
             </div>
           </div>
 
-          {/* Contact details */}
           <div className="rounded-2xl border border-slate-100 bg-white p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-900">Contact Details</p>
-              <span className="text-[11px] font-bold text-emerald-600">
-                ● {slotsLeft} SLOTS AVAILABLE
-              </span>
-            </div>
-
-            <div className="mt-3 rounded-lg border-l-4 border-orange-400 bg-orange-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
-              <span className="font-bold text-slate-800">NOTE:</span> After successful
-              payment, downloading your ticket is{" "}
-              <span className="font-bold underline">compulsory</span> for verification at
-              the venue.
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <input
-                type="text"
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-400"
-              />
-              <div>
-                <input
-                  type="email"
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-orange-400 ${
-                    emailOk ? "border-slate-200" : "border-rose-300"
-                  }`}
-                />
-                {!emailOk && (
-                  <p className="mt-1 text-[11px] text-rose-500">Enter a valid email.</p>
-                )}
-              </div>
-              <div>
-                <div
-                  className={`flex items-center rounded-xl border px-3 ${
-                    phoneOk ? "border-slate-200" : "border-rose-300"
+            <p className="text-sm font-bold text-slate-900">Payment Method</p>
+            <div className="mt-3 flex gap-2">
+              {PAYMENT_METHODS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPayment(p)}
+                  className={`flex-1 rounded-xl border px-3 py-2.5 text-xs font-semibold transition ${
+                    payment === p ? "border-brand-400 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}
                 >
-                  <span className="mr-2 border-r border-slate-200 pr-2 text-sm font-semibold text-slate-600">
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    placeholder="10-digit number"
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                    }
-                    className="w-full py-3 text-sm outline-none"
-                  />
-                </div>
-                {!phoneOk && (
-                  <p className="mt-1 text-[11px] text-rose-500">
-                    Enter a 10-digit mobile number.
-                  </p>
-                )}
-              </div>
-
-              <label className="flex items-start gap-2 text-xs text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-orange-600"
-                />
-                <span>
-                  I accept the{" "}
-                  <span className="font-semibold underline">Terms &amp; Conditions</span>.
-                </span>
-              </label>
+                  {p === "Cashfree (Online)" ? "Pay Online" : "Pay at Venue"}
+                </button>
+              ))}
             </div>
+
+            {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+            <label className="mt-4 flex items-start gap-2 text-xs text-slate-600">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-600" />
+              <span>
+                I accept the <span className="font-semibold underline">Terms &amp; Conditions</span>.
+              </span>
+            </label>
           </div>
 
           <button
             type="button"
-            disabled={!canPay}
+            disabled={!canPay || submitting}
             onClick={onPay}
             className={`w-full rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition ${
-              canPay
-                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/30 hover:scale-[1.01]"
+              canPay && !submitting
+                ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
                 : "cursor-not-allowed bg-slate-300 text-white"
             }`}
           >
             <span className="inline-flex items-center gap-1">
-              Proceed to Payment <ChevronRight className="h-4 w-4" />
+              {submitting ? "Booking..." : "Confirm Booking"} <ChevronRight className="h-4 w-4" />
             </span>
           </button>
         </div>
@@ -481,75 +259,42 @@ function ReviewStep(props: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 3 — CONFIRMATION                                              */
+/*  STEP — CONFIRMATION                                                */
 /* ------------------------------------------------------------------ */
 
-function ConfirmedStep({
-  venue,
-  slots,
-  date,
-  time,
-  grandTotal,
-  orderId,
-  name,
-  onClose,
-}: {
-  venue: BookingVenue;
-  slots: number;
-  date: string;
-  time: string;
-  grandTotal: number;
-  orderId: string;
-  name: string;
-  onClose: () => void;
-}) {
+function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; booking: Booking; onClose: () => void }) {
   return (
     <div className="relative m-4 w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
         <Check className="h-8 w-8" strokeWidth={3} />
       </div>
       <h2 className="mt-4 text-xl font-extrabold text-slate-900">Booking Confirmed!</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        {name ? `${name.split(" ")[0]}, your` : "Your"} slot at {venue.name} is locked in.
-      </p>
+      <p className="mt-1 text-sm text-slate-500">Your slot at {listing.title} is locked in.</p>
 
       <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left text-sm">
-        <Row label="Order ID" value={<span className="font-mono font-bold">{orderId}</span>} />
-        <Row label="Venue" value={`${venue.name} · ${venue.sport}`} />
-        <Row label="Date" value={prettyDate(date)} />
-        <Row label="Time" value={`${time} · ${slots} hr${slots > 1 ? "s" : ""}`} />
+        <Row label="Order ID" value={<span className="font-mono font-bold">{booking.orderId}</span>} />
+        <Row label="Venue" value={`${listing.title} · ${listing.category}`} />
+        <Row label="Date & Time" value={new Date(booking.dateTime).toLocaleString("en-GB")} />
         <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
-          <span className="font-bold text-slate-900">Paid</span>
-          <span className="font-extrabold text-emerald-600">
-            ₹{grandTotal.toLocaleString("en-IN")}.00
-          </span>
+          <span className="font-bold text-slate-900">{booking.paymentStatus === "paid" ? "Paid" : "Payment"}</span>
+          <span className="font-extrabold text-emerald-600">₹{booking.totalAmount.toLocaleString("en-IN")}</span>
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border-l-4 border-orange-400 bg-orange-50 px-3 py-2 text-left text-xs text-slate-600">
-        <ShieldCheck className="h-4 w-4 shrink-0 text-orange-500" />
+      <div className="mt-4 flex items-center gap-2 rounded-xl border-l-4 border-brand-400 bg-brand-50 px-3 py-2 text-left text-xs text-slate-600">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-brand-500" />
         <span>
-          Downloading your ticket is <span className="font-bold">compulsory</span> for
-          check-in at the venue.
+          Show this Order ID at the venue — the owner scans/enters it to check you in as <span className="font-bold">{booking.orderId}</span>.
         </span>
       </div>
 
-      <div className="mt-5 flex gap-3">
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          Download Ticket
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/30 transition hover:scale-[1.02]"
-        >
-          Done
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-5 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
+      >
+        Done
+      </button>
     </div>
   );
 }
@@ -558,45 +303,7 @@ function ConfirmedStep({
 /*  SHARED BITS                                                        */
 /* ------------------------------------------------------------------ */
 
-function Stepper({
-  value,
-  onInc,
-  onDec,
-}: {
-  value: number;
-  onInc: () => void;
-  onDec: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={onDec}
-        aria-label="Decrease"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
-      >
-        <Minus className="h-4 w-4" />
-      </button>
-      <span className="w-5 text-center text-sm font-bold text-slate-900">{value}</span>
-      <button
-        type="button"
-        onClick={onInc}
-        aria-label="Increase"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600 transition hover:bg-orange-200"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-}: {
-  label: React.ReactNode;
-  value: React.ReactNode;
-}) {
+function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-slate-500">{label}</span>

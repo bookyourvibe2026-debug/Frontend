@@ -5,12 +5,12 @@ export function UpcomingBookingCard() {
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-bold text-slate-900">Upcoming Booking</p>
-        <button className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600">
+        <button className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
           View All <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="flex items-center gap-3 rounded-xl bg-orange-50 p-3">
-        <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-orange-500 text-white">
+      <div className="flex items-center gap-3 rounded-xl bg-brand-50 p-3">
+        <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-brand-500 text-white">
           <span className="text-[10px] font-bold uppercase">May</span>
           <span className="text-sm font-extrabold leading-none">27</span>
         </div>
@@ -48,15 +48,15 @@ export function WalletCard() {
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-bold text-slate-900">My Wallet</p>
-        <button className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600">
+        <button className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
           View All <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="flex items-center justify-between rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 p-4 text-white">
+      <div className="flex items-center justify-between rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 p-4 text-white">
         <div>
-          <p className="text-xs text-orange-100">Wallet Balance</p>
+          <p className="text-xs text-brand-100">Wallet Balance</p>
           <p className="text-2xl font-extrabold">₹1,250.00</p>
-          <p className="mt-1 flex items-center gap-1 text-xs text-orange-100">
+          <p className="mt-1 flex items-center gap-1 text-xs text-brand-100">
             <Star className="h-3.5 w-3.5 fill-current" aria-hidden /> 250 Reward Points
           </p>
         </div>
@@ -73,7 +73,7 @@ export function FitnessSnapshotCard() {
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-bold text-slate-900">Your Activity</p>
-        <button className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600">
+        <button className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
           View All <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>

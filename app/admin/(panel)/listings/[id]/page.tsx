@@ -1,19 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Copy, FileText, IndianRupee, MapPin, Layers, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
-import {
-  adminBookingsSeed,
-  cloneAdminListing,
-  getAdminListingsWithOverrides,
-  saveAdminListingOverride,
-} from "@/lib/admin-mock-data";
 import { Listing } from "@/lib/types";
+import { getAdminListingById, createAdminListing, updateAdminListing, getAdminBookings } from "@/lib/api/admin";
+import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
+import { ApiError } from "@/lib/api/client";
+import type { Booking as ApiBooking } from "@/lib/api/types";
 
 const SUB_PAGES = [
   { id: "overview", label: "Package Overview", comingSoon: false },
@@ -31,25 +29,43 @@ type SubPageId = (typeof SUB_PAGES)[number]["id"];
 export default function AdminListingDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [listing, setListing] = useState<Listing | undefined>(() =>
-    getAdminListingsWithOverrides().find((l) => l.id === params.id)
-  );
+  const [listing, setListing] = useState<Listing | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [subPage, setSubPage] = useState<SubPageId>("overview");
   const [activeImage, setActiveImage] = useState(0);
   const [studioOpen, setStudioOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    getAdminListingById(params.id)
+      .then((l) => setListing(apiListingToMock(l)))
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load listing"))
+      .finally(() => setLoading(false));
+    getAdminBookings({ limit: 100 })
+      .then((res) => setBookings(res.items))
+      .catch(() => {});
+  }, [params.id]);
+
   const bookingsForListing = useMemo(
-    () => (listing ? adminBookingsSeed.filter((b) => b.listingName === listing.title) : []),
-    [listing]
+    () => (listing ? bookings.filter((b) => b.listingId === listing.id) : []),
+    [listing, bookings]
   );
 
   const businessSnapshot = useMemo(() => {
-    const grossRevenue = bookingsForListing.reduce((sum, b) => sum + b.collected, 0);
-    const platformProfit = bookingsForListing.reduce((sum, b) => sum + b.b2bCharge + b.taxes, 0);
-    const vendorPayout = bookingsForListing.reduce((sum, b) => sum + b.ownerAmount, 0);
+    const grossRevenue = bookingsForListing.reduce((sum, b) => sum + b.totalAmount, 0);
+    const platformProfit = bookingsForListing.reduce((sum, b) => sum + b.platformFee + b.taxes, 0);
+    const vendorPayout = bookingsForListing.reduce((sum, b) => sum + b.vendorEarning, 0);
     return { bookings: bookingsForListing.length, grossRevenue, platformProfit, vendorPayout };
   }, [bookingsForListing]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl2 border border-dashed border-surface-border bg-white py-16 text-center">
+        <p className="text-sm text-ink-faint">Loading listing...</p>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
@@ -62,17 +78,26 @@ export default function AdminListingDetailPage() {
     );
   }
 
-  function handleClone() {
-    const clone = cloneAdminListing(listing!);
-    setToast(`Cloned as "${clone.title}"`);
-    router.push(`/admin/listings/${clone.id}`);
+  async function handleClone() {
+    try {
+      const input = mockListingToApiInput({ ...listing!, title: `${listing!.title} (Copy)`, status: "Inactive" });
+      const clone = await createAdminListing(input);
+      setToast(`Cloned as "${clone.title}"`);
+      router.push(`/admin/listings/${clone._id}`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to clone listing");
+    }
   }
 
-  function handleStudioSave(updated: Listing) {
-    saveAdminListingOverride(updated.id, updated);
-    setListing(updated);
-    setStudioOpen(false);
-    setToast("Package updated");
+  async function handleStudioSave(updated: Listing) {
+    try {
+      const saved = await updateAdminListing(updated.id, mockListingToApiInput(updated));
+      setListing(apiListingToMock(saved));
+      setStudioOpen(false);
+      setToast("Package updated");
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to update listing");
+    }
   }
 
   const cover = listing.images[0]?.url;
@@ -238,7 +263,9 @@ export default function AdminListingDetailPage() {
         )}
       </div>
 
-      {studioOpen && <PackageStudio mode="edit" initialListing={listing} onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />}
+      {studioOpen && (
+        <PackageStudio mode="edit" initialListing={listing} audience="admin" onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />
+      )}
 
       <Toast message={toast} onDone={() => setToast(null)} />
     </div>

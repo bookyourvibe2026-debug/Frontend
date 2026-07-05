@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { listings } from "@/lib/mock-data";
-import { Booking } from "@/lib/types";
+import { createVendorBooking, getVendorListings } from "@/lib/api/vendor";
+import { ApiError } from "@/lib/api/client";
+import { Booking, Listing, PaymentMethod, BookingStatus } from "@/lib/api/types";
 
-const PAYMENT_METHODS: Booking["payment"][] = ["Cashfree (Online)", "Cash (Offline)", "UPI"];
-const STATUSES: Booking["status"][] = ["Confirmed", "Pending", "Completed", "Cancelled"];
+const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)", "UPI"];
+const STATUSES: BookingStatus[] = ["Confirmed", "Pending", "Completed", "Cancelled"];
 
 interface Props {
   open: boolean;
@@ -14,11 +15,11 @@ interface Props {
   onCreate: (booking: Booking) => void;
 }
 
-function emptyState() {
+function emptyState(firstListingId: string) {
   return {
     customer: "",
     phone: "",
-    listing: listings[0]?.title ?? "",
+    listingId: firstListingId,
     date: "",
     time: "",
     totalAmount: "",
@@ -27,14 +28,22 @@ function emptyState() {
   };
 }
 
-function makeOrderId() {
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `BYV-MAN-${rand}`;
-}
-
 export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
-  const [form, setForm] = useState(emptyState());
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [form, setForm] = useState(emptyState(""));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    getVendorListings()
+      .then((items) => {
+        setListings(items);
+        setForm((f) => ({ ...f, listingId: f.listingId || items[0]?._id || "" }));
+      })
+      .catch((err) => setLoadError(err instanceof ApiError ? err.describe() : "Failed to load listings"));
+  }, [open]);
 
   if (!open) return null;
 
@@ -47,7 +56,7 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
     const e: Record<string, string> = {};
     if (!form.customer.trim()) e.customer = "Customer name is required.";
     if (!/^[6-9]\d{9}$/.test(form.phone)) e.phone = "Enter a valid 10-digit phone number.";
-    if (!form.listing) e.listing = "Select a listing.";
+    if (!form.listingId) e.listingId = "Select a listing.";
     if (!form.date) e.date = "Select a date.";
     if (!form.time) e.time = "Select a time.";
     const amount = Number(form.totalAmount);
@@ -56,30 +65,30 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
     return Object.keys(e).length === 0;
   }
 
-  function handleSubmit(ev: React.FormEvent) {
+  async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (!validate()) return;
 
-    const totalAmount = Number(form.totalAmount);
-    const platformFee = Math.round(totalAmount * 0.03);
-    const [year, month, day] = form.date.split("-");
-    const dateTime = `${day}/${month}/${year} | ${form.time}`;
-
-    onCreate({
-      orderId: makeOrderId(),
-      customer: form.customer.trim(),
-      phone: form.phone,
-      listing: form.listing,
-      dateTime,
-      totalAmount,
-      platformFee,
-      yourEarning: totalAmount - platformFee,
-      payment: form.payment as Booking["payment"],
-      status: form.status as Booking["status"],
-    });
-
-    setForm(emptyState());
-    onClose();
+    setSubmitting(true);
+    try {
+      const dateTime = new Date(`${form.date}T${form.time}:00`).toISOString();
+      const booking = await createVendorBooking({
+        listingId: form.listingId,
+        customerName: form.customer.trim(),
+        phone: form.phone,
+        dateTime,
+        totalAmount: Number(form.totalAmount),
+        payment: form.payment,
+        status: form.status,
+      });
+      onCreate(booking);
+      setForm(emptyState(listings[0]?._id ?? ""));
+      onClose();
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.describe() : "Failed to create booking");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -97,6 +106,7 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {loadError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-vibe-coral">{loadError}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Customer Name" error={errors.customer}>
               <input
@@ -116,14 +126,14 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
             </FormField>
           </div>
 
-          <FormField label="Listing" error={errors.listing}>
+          <FormField label="Listing" error={errors.listingId}>
             <select
-              value={form.listing}
-              onChange={(e) => update("listing", e.target.value)}
-              className={inputClass(!!errors.listing)}
+              value={form.listingId}
+              onChange={(e) => update("listingId", e.target.value)}
+              className={inputClass(!!errors.listingId)}
             >
               {listings.map((l) => (
-                <option key={l.id} value={l.title}>
+                <option key={l._id} value={l._id}>
                   {l.title}
                 </option>
               ))}
@@ -193,9 +203,10 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-vibe-violet px-4 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violet/90"
+              disabled={submitting}
+              className="rounded-lg bg-vibe-violet px-4 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violet/90 disabled:opacity-60"
             >
-              Create Booking
+              {submitting ? "Creating..." : "Create Booking"}
             </button>
           </div>
         </form>

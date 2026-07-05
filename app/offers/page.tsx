@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 const OFFERS = [
-  { title: "First booking bonus", desc: "Get 20% off your first slot on selected venues.", tag: "New users", accent: "from-orange-500 to-rose-500" },
+  { title: "First booking bonus", desc: "Get 20% off your first slot on selected venues.", tag: "New users", accent: "from-brand-500 to-accent-500" },
   { title: "Midweek saver", desc: "Lower rates for Tuesday to Thursday evening slots.", tag: "Weekday deal", accent: "from-sky-500 to-cyan-500" },
   { title: "Squad bundle", desc: "Split the bill with friends and save on group bookings.", tag: "Groups", accent: "from-emerald-500 to-teal-500" },
   { title: "Flash sale", desc: "Limited-time drops on nearby venues before prime-time.", tag: "Limited", accent: "from-fuchsia-500 to-violet-600" },
@@ -27,7 +27,7 @@ export default function OffersPage() {
         </div>
         <main className="flex flex-col gap-5 px-4 py-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Offers</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Offers</p>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
               Useful discounts, not noisy promos.
             </h1>
@@ -56,7 +56,7 @@ export default function OffersPage() {
         <section className="overflow-hidden rounded-[2rem] bg-white p-6 shadow-[0_20px_80px_rgba(148,163,184,0.18)] sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-600">Offers</p>
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-600">Offers</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 Useful discounts, not noisy promos.
               </h1>
@@ -65,7 +65,7 @@ export default function OffersPage() {
                 cluttered banners or confusing terms.
               </p>
             </div>
-            <div className="rounded-[1.75rem] bg-gradient-to-br from-orange-500 to-rose-500 p-6 text-white">
+            <div className="rounded-[1.75rem] bg-gradient-to-br from-brand-500 to-accent-500 p-6 text-white">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
                 Featured today
               </p>
@@ -95,7 +95,7 @@ export default function OffersPage() {
         <section className="mt-8 rounded-[2rem] bg-slate-950 p-6 text-white sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-300">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-300">
                 Membership
               </p>
               <h2 className="mt-2 text-2xl font-black">Simple pricing, no surprise math.</h2>

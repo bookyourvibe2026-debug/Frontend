@@ -27,11 +27,11 @@ export function CommerceSection() {
             <div className="space-y-3 p-5">
               {plan.bullets.map((bullet) => (
                 <div key={bullet} className="flex items-start gap-3 text-sm text-slate-600">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-orange-500" />
+                  <span className="mt-1 h-2 w-2 rounded-full bg-brand-500" />
                   <span>{bullet}</span>
                 </div>
               ))}
-              <button className="mt-2 w-full rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-orange-300 hover:text-orange-600">
+              <button className="mt-2 w-full rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-600">
                 Compare plan
               </button>
             </div>

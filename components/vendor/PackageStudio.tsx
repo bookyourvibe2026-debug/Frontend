@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, ExternalLink, Plus, Trash2, Upload, X } from "lucide-react";
-import { readFileAsDataUrl } from "@/lib/files";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
+import { ApiError } from "@/lib/api/client";
 import {
   AddOn,
   BookingType,
@@ -14,6 +15,8 @@ import {
   ListingType,
   PriceTier,
 } from "@/lib/types";
+
+type Audience = "admin" | "vendor";
 
 const STEPS = [
   { id: 1, label: "Package", hint: "Photos & cover" },
@@ -73,6 +76,10 @@ type StepProps = {
   draft: Listing;
   update: <K extends keyof Listing>(key: K, value: Listing[K]) => void;
 };
+
+function uploadImage(audience: Audience, file: File) {
+  return audience === "admin" ? uploadAdminImage(file, "listings") : uploadVendorImage(file, "listings");
+}
 
 const inputClass =
   "w-full rounded-lg border border-surface-border bg-cream-200/40 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint";
@@ -178,6 +185,7 @@ function PhotoBox({
   dims,
   hint,
   image,
+  uploading,
   inputRef,
   onFile,
   onRemove,
@@ -188,6 +196,7 @@ function PhotoBox({
   dims: string;
   hint: string;
   image?: ListingImage;
+  uploading?: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onFile: (file: File | undefined) => void;
   onRemove?: () => void;
@@ -221,7 +230,12 @@ function PhotoBox({
         }}
       />
 
-      {image ? (
+      {uploading ? (
+        <div className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border bg-cream-200/50">
+          <Loader2 size={20} className="animate-spin text-vibe-violet" />
+          <span className="text-xs font-semibold text-ink-faint">Uploading...</span>
+        </div>
+      ) : image ? (
         <div className="relative h-56 overflow-hidden rounded-lg bg-cream-300">
           <img src={image.url} alt={label} className="h-full w-full object-cover" />
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/60 px-3 py-2 text-xs font-semibold text-white">
@@ -246,41 +260,64 @@ function PhotoBox({
       )}
 
       <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-vibe-amber">{outputNote}</p>
-      {!image && <p className="mt-2 text-xs text-ink-faint">No {label.toLowerCase()} selected yet</p>}
+      {!image && !uploading && <p className="mt-2 text-xs text-ink-faint">No {label.toLowerCase()} selected yet</p>}
     </div>
   );
 }
 
-function PackageStep({ draft, update }: StepProps) {
+function PackageStep({ draft, update, audience }: StepProps & { audience: Audience }) {
   const posterInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
   const bulkInput = useRef<HTMLInputElement>(null);
+  const [uploadingSlots, setUploadingSlots] = useState<Set<number>>(new Set());
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function appendFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const urls = await Promise.all(Array.from(files).map(readFileAsDataUrl));
-    const startIndex = draft.images.length;
-    const newImages: ListingImage[] = urls.map((url, i) => ({
-      id: `img-${Date.now()}-${i}`,
-      url,
-      label: startIndex + i === 0 ? "Poster" : startIndex + i === 1 ? "Banner" : `Photo ${startIndex + i + 1}`,
-    }));
-    update("images", [...draft.images, ...newImages]);
+    setError(null);
+    setBulkUploading(true);
+    try {
+      const results = await Promise.all(Array.from(files).map((f) => uploadImage(audience, f)));
+      const startIndex = draft.images.length;
+      const newImages: ListingImage[] = results.map((r, i) => ({
+        id: `img-${Date.now()}-${i}`,
+        url: r.url,
+        label: startIndex + i === 0 ? "Poster" : startIndex + i === 1 ? "Banner" : `Photo ${startIndex + i + 1}`,
+      }));
+      update("images", [...draft.images, ...newImages]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Upload failed");
+    } finally {
+      setBulkUploading(false);
+    }
   }
 
   async function replaceAt(index: number, file: File | undefined) {
     if (!file) return;
-    const url = await readFileAsDataUrl(file);
-    const images = [...draft.images];
-    while (images.length <= index) {
-      images.push({
-        id: `img-${Date.now()}-${images.length}`,
-        url: "",
-        label: images.length === 0 ? "Poster" : images.length === 1 ? "Banner" : `Photo ${images.length + 1}`,
+    setError(null);
+    setUploadingSlots((prev) => new Set(prev).add(index));
+    try {
+      const result = await uploadImage(audience, file);
+      const images = [...draft.images];
+      while (images.length <= index) {
+        images.push({
+          id: `img-${Date.now()}-${images.length}`,
+          url: "",
+          label: images.length === 0 ? "Poster" : images.length === 1 ? "Banner" : `Photo ${images.length + 1}`,
+        });
+      }
+      images[index] = { ...images[index], url: result.url };
+      update("images", images);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Upload failed");
+    } finally {
+      setUploadingSlots((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
       });
     }
-    images[index] = { ...images[index], url };
-    update("images", images);
   }
 
   function setAsPoster(index: number) {
@@ -304,6 +341,10 @@ function PackageStep({ draft, update }: StepProps) {
         {draft.images.length} of 10 uploaded — first image is poster, second is banner
       </p>
 
+      {error && (
+        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-vibe-coral">{error}</div>
+      )}
+
       <input
         ref={bulkInput}
         type="file"
@@ -317,19 +358,29 @@ function PackageStep({ draft, update }: StepProps) {
       />
       <button
         type="button"
+        disabled={bulkUploading}
         onClick={() => bulkInput.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
           appendFiles(e.dataTransfer.files);
         }}
-        className="mb-6 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-vibe-violet/40 bg-vibe-violet/5 py-8 text-center transition-colors hover:bg-vibe-violet/10"
+        className="mb-6 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-vibe-violet/40 bg-vibe-violet/5 py-8 text-center transition-colors hover:bg-vibe-violet/10 disabled:opacity-60"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border bg-white text-vibe-violet shadow-sm">
-          <Upload size={16} />
-        </span>
-        <span className="text-sm font-semibold text-ink">Drop photos here or click to browse</span>
-        <span className="text-[11px] text-ink-faint">JPG, PNG or WEBP · max 5 MB each</span>
+        {bulkUploading ? (
+          <>
+            <Loader2 size={20} className="animate-spin text-vibe-violet" />
+            <span className="text-sm font-semibold text-ink">Uploading...</span>
+          </>
+        ) : (
+          <>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border bg-white text-vibe-violet shadow-sm">
+              <Upload size={16} />
+            </span>
+            <span className="text-sm font-semibold text-ink">Drop photos here or click to browse</span>
+            <span className="text-[11px] text-ink-faint">JPG, PNG or WEBP · max 5 MB each</span>
+          </>
+        )}
       </button>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -339,6 +390,7 @@ function PackageStep({ draft, update }: StepProps) {
           dims="1080 x 1350 px"
           hint="Aspect Ratio: 4:5 · Best for reach & screen coverage"
           image={poster}
+          uploading={uploadingSlots.has(0)}
           inputRef={posterInput}
           onFile={(f) => replaceAt(0, f)}
           onRemove={poster ? () => removeAt(0) : undefined}
@@ -350,6 +402,7 @@ function PackageStep({ draft, update }: StepProps) {
           dims="1200 x 600 px"
           hint="Landscape cover for listings and hero sections"
           image={banner}
+          uploading={uploadingSlots.has(1)}
           inputRef={bannerInput}
           onFile={(f) => replaceAt(1, f)}
           onRemove={banner ? () => removeAt(1) : undefined}
@@ -973,12 +1026,14 @@ export function PackageStudio({
   mode,
   initialListing,
   initialType = "Turf",
+  audience = "vendor",
   onClose,
   onSave,
 }: {
   mode: "create" | "edit";
   initialListing?: Listing;
   initialType?: ListingType;
+  audience?: Audience;
   onClose: () => void;
   onSave: (listing: Listing) => void;
 }) {
@@ -1070,7 +1125,7 @@ export function PackageStudio({
         )}
 
         <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel sm:p-6">
-          {step === 1 && <PackageStep draft={draft} update={update} />}
+          {step === 1 && <PackageStep draft={draft} update={update} audience={audience} />}
           {step === 2 && <LocationStep draft={draft} update={update} />}
           {step === 3 && <BookingStep draft={draft} update={update} />}
           {step === 4 && <PricingStep draft={draft} update={update} />}

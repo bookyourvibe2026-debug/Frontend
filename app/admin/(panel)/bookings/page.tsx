@@ -1,56 +1,91 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
-import { adminBookingsSeed, bookingsStats } from "@/lib/admin-mock-data";
+import { getAdminBookings } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
+import { Booking, BookingStatus, PaymentStatus } from "@/lib/api/types";
 
 const CSV_HEADERS = [
-  "Booking ID",
+  "Order ID",
   "Customer",
   "Listing",
   "Event Date",
   "Collected",
-  "B2B Charge",
+  "Platform Fee",
   "Taxes",
   "Affiliate Amt",
-  "Owner Amount",
+  "Vendor Earning",
   "Status",
   "Payment",
 ];
 
+const STATUS_BADGE_TONE: Record<BookingStatus, "success" | "pending" | "danger" | "neutral"> = {
+  Confirmed: "success",
+  Pending: "pending",
+  Cancelled: "danger",
+  Completed: "neutral",
+};
+
+const PAYMENT_BADGE_TONE: Record<PaymentStatus, "success" | "pending" | "danger"> = {
+  paid: "success",
+  pending: "pending",
+  failed: "danger",
+  refunded: "danger",
+};
+
 export default function AdminBookingsPage() {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [paymentFilter, setPaymentFilter] = useState("All Payment");
+  const [statusFilter, setStatusFilter] = useState<"All Status" | BookingStatus>("All Status");
+  const [paymentFilter, setPaymentFilter] = useState<"All Payment" | PaymentStatus>("All Payment");
   const [toast, setToast] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return adminBookingsSeed.filter((b) => {
-      const matchesQuery =
-        b.customer.toLowerCase().includes(query.toLowerCase()) ||
-        b.listingName.toLowerCase().includes(query.toLowerCase()) ||
-        b.bookingId.toLowerCase().includes(query.toLowerCase());
-      const matchesStatus = statusFilter === "All Status" || b.status === statusFilter.toLowerCase();
-      const matchesPayment = paymentFilter === "All Payment" || b.payment === paymentFilter.toLowerCase();
-      return matchesQuery && matchesStatus && matchesPayment;
-    });
-  }, [query, statusFilter, paymentFilter]);
+  useEffect(() => {
+    getAdminBookings({ status: statusFilter === "All Status" ? undefined : statusFilter, limit: 200 })
+      .then((result) => {
+        setBookings(result.items);
+        setTotal(result.total);
+      })
+      .catch((err) => setToast(err instanceof ApiError ? err.describe() : "Failed to load bookings"))
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
 
-  function handleExport() {
+  const filtered = useMemo(() => {
+    return bookings.filter((b) => {
+      const matchesQuery =
+        b.customerName.toLowerCase().includes(query.toLowerCase()) ||
+        (b.listingTitle ?? "").toLowerCase().includes(query.toLowerCase()) ||
+        b.orderId.toLowerCase().includes(query.toLowerCase());
+      const matchesPayment = paymentFilter === "All Payment" || b.paymentStatus === paymentFilter;
+      return matchesQuery && matchesPayment;
+    });
+  }, [bookings, query, paymentFilter]);
+
+  const stats = useMemo(() => {
+    const confirmed = bookings.filter((b) => b.status === "Confirmed").length;
+    const pending = bookings.filter((b) => b.status === "Pending").length;
+    const revenue = bookings.filter((b) => b.paymentStatus === "paid").reduce((sum, b) => sum + b.totalAmount, 0);
+    return { confirmed, pending, revenue };
+  }, [bookings]);
+
+  const handleExport = useCallback(() => {
     const rows = filtered.map((b) => [
-      b.bookingId,
-      b.customer,
-      b.listingName,
-      b.eventDate,
-      b.collected,
-      b.b2bCharge,
+      b.orderId,
+      b.customerName,
+      b.listingTitle ?? "",
+      new Date(b.dateTime).toLocaleDateString("en-GB"),
+      b.totalAmount,
+      b.platformFee,
       b.taxes,
-      b.affiliateAmt,
-      b.ownerAmount,
+      b.affiliateAmount,
+      b.vendorEarning,
       b.status,
-      b.payment,
+      b.paymentStatus,
     ]);
     const csv = [CSV_HEADERS, ...rows].map((r) => r.map((cell) => `"${cell}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -61,7 +96,7 @@ export default function AdminBookingsPage() {
     a.click();
     URL.revokeObjectURL(url);
     setToast(`Exported ${filtered.length} bookings`);
-  }
+  }, [filtered]);
 
   return (
     <div className="space-y-5">
@@ -71,15 +106,15 @@ export default function AdminBookingsPage() {
           <p className="mt-0.5 text-xs text-ink-faint">Manage all listing bookings and payments.</p>
         </div>
         <Badge tone="info">
-          Total: {bookingsStats.total} | Results: {filtered.length}
+          Total: {total} | Results: {filtered.length}
         </Badge>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="Total" value={bookingsStats.total.toLocaleString("en-IN")} />
-        <StatTile label="Confirmed" value={bookingsStats.confirmed.toLocaleString("en-IN")} tone="green" />
-        <StatTile label="Revenue" value={`₹${bookingsStats.revenue.toLocaleString("en-IN")}`} tone="violet" />
-        <StatTile label="Pending" value={bookingsStats.pending.toLocaleString("en-IN")} tone="amber" />
+        <StatTile label="Total" value={total.toLocaleString("en-IN")} />
+        <StatTile label="Confirmed" value={stats.confirmed.toLocaleString("en-IN")} tone="green" />
+        <StatTile label="Revenue" value={`₹${stats.revenue.toLocaleString("en-IN")}`} tone="violet" />
+        <StatTile label="Pending" value={stats.pending.toLocaleString("en-IN")} tone="amber" />
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl2 border border-surface-border bg-white p-4 shadow-panel lg:flex-row lg:items-center">
@@ -88,20 +123,31 @@ export default function AdminBookingsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by customer, listing, or booking ID..."
+            placeholder="Search by customer, listing, or order ID..."
             className="w-full rounded-lg border border-surface-border bg-cream-200/40 py-2 pl-9 pr-3 text-sm outline-none focus:border-vibe-violet"
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "All Status" | BookingStatus)}
+          className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm"
+        >
           <option>All Status</option>
           <option>Confirmed</option>
           <option>Pending</option>
           <option>Cancelled</option>
-        </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm">
-          <option>All Payment</option>
           <option>Completed</option>
-          <option>Pending</option>
+        </select>
+        <select
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value as "All Payment" | PaymentStatus)}
+          className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm"
+        >
+          <option>All Payment</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+          <option value="refunded">Refunded</option>
         </select>
         <button
           onClick={handleExport}
@@ -115,48 +161,55 @@ export default function AdminBookingsPage() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-surface-border text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
-              <th className="px-4 py-3">Booking ID</th>
+              <th className="px-4 py-3">Order ID</th>
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Listing</th>
               <th className="px-4 py-3">Event Date</th>
               <th className="px-4 py-3">Collected</th>
-              <th className="px-4 py-3">B2B Charge</th>
+              <th className="px-4 py-3">Platform Fee</th>
               <th className="px-4 py-3">Taxes</th>
               <th className="px-4 py-3">Affiliate Amt</th>
-              <th className="px-4 py-3">Owner Amount</th>
+              <th className="px-4 py-3">Vendor Earning</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((b) => (
-              <tr key={b.bookingId} className="border-b border-surface-border last:border-0">
-                <td className="px-4 py-3 font-mono text-xs text-ink-soft">{b.bookingId}</td>
+              <tr key={b._id} className="border-b border-surface-border last:border-0">
+                <td className="px-4 py-3 font-mono text-xs text-ink-soft">{b.orderId}</td>
                 <td className="px-4 py-3">
-                  <p className="font-semibold text-ink">{b.customer}</p>
+                  <p className="font-semibold text-ink">{b.customerName}</p>
                   <p className="text-xs text-ink-faint">{b.email}</p>
                   {b.isAffiliate && <Badge tone="info">Affiliate</Badge>}
                 </td>
-                <td className="px-4 py-3 text-ink-soft">{b.listingName}</td>
+                <td className="px-4 py-3 text-ink-soft">{b.listingTitle}</td>
                 <td className="px-4 py-3 text-ink-faint">
-                  {b.eventDate}
+                  {new Date(b.dateTime).toLocaleDateString("en-GB")}
                   <br />
-                  <span className="text-[10px]">Booked {b.bookedOn}</span>
+                  <span className="text-[10px]">Booked {new Date(b.createdAt).toLocaleDateString("en-GB")}</span>
                 </td>
-                <td className="px-4 py-3 font-semibold text-ink">₹{b.collected.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-vibe-coral">₹{b.b2bCharge.toLocaleString("en-IN")}</td>
+                <td className="px-4 py-3 font-semibold text-ink">₹{b.totalAmount.toLocaleString("en-IN")}</td>
+                <td className="px-4 py-3 text-vibe-coral">₹{b.platformFee.toLocaleString("en-IN")}</td>
                 <td className="px-4 py-3 text-vibe-coral">₹{b.taxes.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-vibe-coral">₹{b.affiliateAmt.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 font-semibold text-ink">₹{b.ownerAmount.toLocaleString("en-IN")}</td>
+                <td className="px-4 py-3 text-vibe-coral">₹{b.affiliateAmount.toLocaleString("en-IN")}</td>
+                <td className="px-4 py-3 font-semibold text-ink">₹{b.vendorEarning.toLocaleString("en-IN")}</td>
                 <td className="px-4 py-3">
-                  <Badge tone={b.status === "confirmed" ? "success" : b.status === "pending" ? "pending" : "danger"}>{b.status}</Badge>
+                  <Badge tone={STATUS_BADGE_TONE[b.status]}>{b.status}</Badge>
                 </td>
                 <td className="px-4 py-3">
-                  <Badge tone={b.payment === "completed" ? "success" : "pending"}>{b.payment}</Badge>
+                  <Badge tone={PAYMENT_BADGE_TONE[b.paymentStatus]}>{b.paymentStatus}</Badge>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr>
+                <td colSpan={11} className="px-4 py-10 text-center text-sm text-ink-faint">
+                  Loading bookings...
+                </td>
+              </tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={11} className="px-4 py-10 text-center text-sm text-ink-faint">
                   No bookings match this filter.
@@ -167,7 +220,7 @@ export default function AdminBookingsPage() {
         </table>
         <div className="flex items-center justify-between border-t border-surface-border px-4 py-3 text-xs text-ink-faint">
           <span>
-            Showing 1-{filtered.length} of {bookingsStats.total}
+            Showing 1-{filtered.length} of {total}
           </span>
         </div>
       </div>

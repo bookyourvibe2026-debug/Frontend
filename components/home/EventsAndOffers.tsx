@@ -27,12 +27,12 @@ export function EventsAndOffers({
 
       <div id="offers" className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <SectionHeading title="Offers For You" actionLabel="View All" onAction={onViewAllOffers} />
-        <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 p-4 text-white">
+        <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-500 to-accent-500 p-4 text-white">
           <div>
             <p className="text-3xl font-extrabold">
               FLAT <span className="text-yellow-200">20%</span>
             </p>
-            <p className="text-sm font-medium text-orange-50">OFF on Your Next Booking</p>
+            <p className="text-sm font-medium text-brand-50">OFF on Your Next Booking</p>
           </div>
           <span aria-hidden>
             <Tag className="h-8 w-8" />

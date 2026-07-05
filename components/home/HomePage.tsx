@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { type Venue, TRENDING_VENUES } from "@/lib/venues";
+import { type Venue, listingToVenue } from "@/lib/venues";
+import { browseVenues } from "@/lib/api/venues";
 import type { AuthMode, Role } from "./types";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
@@ -26,15 +27,24 @@ import { LoginModal } from "./modals/LoginModal";
 import { SignupModal } from "./modals/SignupModal";
 import { AdminConsoleModal } from "./modals/AdminConsoleModal";
 import { MobileHome } from "./mobile/MobileHome";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 
 export default function HomePage() {
   const router = useRouter();
+  const { customer, status: authStatus, logout } = useCustomerAuth();
   const [authMode, setAuthMode] = useState<AuthMode>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("Yashank");
+  const isLoggedIn = authStatus === "authenticated";
+  const userName = customer?.name.split(" ")[0] ?? "Guest";
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [venues, setVenues] = useState<Venue[]>([]);
+
+  useEffect(() => {
+    browseVenues({ limit: 12 })
+      .then((result) => setVenues(result.items.map(listingToVenue)))
+      .catch(() => setVenues([]));
+  }, []);
 
   const openVenue = useCallback(
     (v: Venue) => router.push(`/venues/${v.id}`),
@@ -80,31 +90,36 @@ export default function HomePage() {
     [router]
   );
 
-  const handleLoginSuccess = useCallback((name: string) => {
-    setUserName(name);
-    setIsLoggedIn(true);
+  const handleLoggedIn = useCallback(() => {
     setAuthMode(null);
-    showToast(`Welcome back, ${name}!`);
-  }, [showToast]);
+    showToast(`Welcome back, ${userName}!`);
+  }, [showToast, userName]);
 
-  const handleSignupSuccess = useCallback(
-    (name: string, role: Role) => {
-      setUserName(name);
-      setIsLoggedIn(true);
+  const handleSignedUp = useCallback(
+    (role: Role) => {
       setAuthMode(null);
-      const roleLabel = role === "player" ? "Player" : role === "owner" ? "Venue Owner" : "Food Owner";
-      showToast(`Account created as ${roleLabel}. Welcome, ${name}!`);
+      if (role === "owner") {
+        showToast("Vendor account created — redirecting to your dashboard…");
+        router.push("/vendor/dashboard");
+        return;
+      }
+      showToast(`Account created. Welcome!`);
     },
-    [showToast]
+    [showToast, router]
   );
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    showToast("Logged out.");
+  }, [logout, showToast]);
 
   const filteredVenuesNote = useMemo(() => {
     if (!search) return null;
-    const matches = TRENDING_VENUES.filter((v) =>
+    const matches = venues.filter((v) =>
       v.name.toLowerCase().includes(search.toLowerCase())
     );
     return matches.length;
-  }, [search]);
+  }, [search, venues]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -113,6 +128,7 @@ export default function HomePage() {
           userName={userName}
           searchValue={search}
           onSearchChange={setSearch}
+          venues={venues}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onViewVenue={openVenue}
@@ -135,6 +151,7 @@ export default function HomePage() {
           isLoggedIn={isLoggedIn}
           userName={userName}
           onOpenAdmin={() => setAuthMode("admin")}
+          onLogout={handleLogout}
         />
 
         <Hero
@@ -157,6 +174,7 @@ export default function HomePage() {
         <FindYourGames onSelectSport={handleSelectSport} />
 
         <TrendingVenues
+          venues={venues}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onViewVenue={openVenue}
@@ -210,14 +228,14 @@ export default function HomePage() {
       {authMode === "login" && (
         <LoginModal
           onClose={() => setAuthMode(null)}
-          onLoginSuccess={handleLoginSuccess}
+          onLoggedIn={handleLoggedIn}
           onSwitchToSignup={() => setAuthMode("signup")}
         />
       )}
       {authMode === "signup" && (
         <SignupModal
           onClose={() => setAuthMode(null)}
-          onSignupSuccess={handleSignupSuccess}
+          onSignedUp={handleSignedUp}
           onSwitchToLogin={() => setAuthMode("login")}
         />
       )}
