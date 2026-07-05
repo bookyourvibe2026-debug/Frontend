@@ -31,7 +31,8 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1").replace(/\/+$/, "");
+const API_PREFIX = "/api/v1";
+const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000");
 
 interface ApiSuccessBody<T> {
   success: true;
@@ -114,7 +115,14 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
 }
 
 function joinApiPath(path: string): string {
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const prefixedPath = normalizedPath.startsWith(API_PREFIX) ? normalizedPath : `${API_PREFIX}${normalizedPath}`;
+  return `${API_BASE_URL}${prefixedPath}`;
+}
+
+function normalizeApiBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.endsWith(API_PREFIX) ? trimmed.slice(0, -API_PREFIX.length) : trimmed;
 }
 
 async function performFetch(path: string, options: RequestOptions, token: string | null): Promise<Response> {
