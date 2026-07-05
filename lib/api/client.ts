@@ -31,7 +31,7 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1").replace(/\/+$/, "");
 
 interface ApiSuccessBody<T> {
   success: true;
@@ -69,7 +69,7 @@ async function refreshAccessToken(audience: Audience): Promise<string | null> {
 
   const attempt = (async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/${audience}/refresh`, {
+      const res = await fetch(joinApiPath(`/auth/${audience}/refresh`), {
         method: "POST",
         credentials: "include",
       });
@@ -102,7 +102,7 @@ export interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  const url = new URL(joinApiPath(path));
   if (query) {
     for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
       if (value !== undefined && value !== null && value !== "") {
@@ -111,6 +111,10 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
     }
   }
   return url.toString();
+}
+
+function joinApiPath(path: string): string {
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 async function performFetch(path: string, options: RequestOptions, token: string | null): Promise<Response> {
@@ -165,7 +169,7 @@ async function performUpload(path: string, form: FormData, token: string | null)
   if (token) headers.Authorization = `Bearer ${token}`;
 
   // No Content-Type header — the browser sets multipart/form-data with the correct boundary itself.
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(joinApiPath(path), {
     method: "POST",
     headers,
     credentials: "include",
