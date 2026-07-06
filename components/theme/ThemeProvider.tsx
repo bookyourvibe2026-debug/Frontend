@@ -1,14 +1,24 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { DEFAULT_THEME, isThemeId, type ThemeId } from "@/lib/themes";
-import { getSiteTheme } from "@/lib/api/appearance";
+import { CUSTOM_THEME_ID, DEFAULT_THEME, isThemeId, type ThemeId } from "@/lib/themes";
+import { generateShades, type ShadeStep } from "@/lib/colorShades";
+import { getSiteAppearance } from "@/lib/api/appearance";
 
 const STORAGE_KEY = "byv-theme";
+const CUSTOM_STORAGE_KEY = "byv-theme-custom";
+const SHADE_STEPS: ShadeStep[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+
+export interface CustomColors {
+  brand: string;
+  accent: string;
+}
 
 type ThemeContextValue = {
   theme: ThemeId;
+  customColors: CustomColors | null;
   setTheme: (theme: ThemeId) => void;
+  setCustomTheme: (colors: CustomColors) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -19,24 +29,66 @@ function readStoredTheme(): ThemeId {
   return isThemeId(stored) ? stored : DEFAULT_THEME;
 }
 
+function readStoredCustomColors(): CustomColors | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as CustomColors) : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyCustomColors(colors: CustomColors) {
+  const brandShades = generateShades(colors.brand);
+  const accentShades = generateShades(colors.accent);
+  for (const step of SHADE_STEPS) {
+    document.documentElement.style.setProperty(`--brand-${step}`, brandShades[step]);
+    document.documentElement.style.setProperty(`--accent-${step}`, accentShades[step]);
+  }
+}
+
+function clearCustomColors() {
+  for (const step of SHADE_STEPS) {
+    document.documentElement.style.removeProperty(`--brand-${step}`);
+    document.documentElement.style.removeProperty(`--accent-${step}`);
+  }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>(readStoredTheme);
+  const [customColors, setCustomColorsState] = useState<CustomColors | null>(readStoredCustomColors);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+    if (theme === CUSTOM_THEME_ID && customColors) {
+      applyCustomColors(customColors);
+    } else {
+      clearCustomColors();
+    }
+  }, [theme, customColors]);
 
   useEffect(() => {
     let cancelled = false;
     // localStorage is only a fast-paint cache; the backend's site-wide theme is the source of truth
     // for every visitor, so reconcile against it once the page has loaded.
-    getSiteTheme()
-      .then((serverTheme) => {
+    getSiteAppearance()
+      .then(({ theme: serverTheme, customBrand, customAccent }) => {
         if (cancelled) return;
-        setThemeState((current) => {
-          if (serverTheme === current) return current;
-          window.localStorage.setItem(STORAGE_KEY, serverTheme);
-          return serverTheme;
+        const serverCustomColors = customBrand && customAccent ? { brand: customBrand, accent: customAccent } : null;
+
+        setThemeState((current) => (serverTheme === current ? current : serverTheme));
+        window.localStorage.setItem(STORAGE_KEY, serverTheme);
+
+        setCustomColorsState((current) => {
+          const same = current && serverCustomColors && current.brand === serverCustomColors.brand && current.accent === serverCustomColors.accent;
+          if (same) return current;
+          if (serverCustomColors) {
+            window.localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(serverCustomColors));
+          } else {
+            window.localStorage.removeItem(CUSTOM_STORAGE_KEY);
+          }
+          return serverCustomColors;
         });
       })
       .catch(() => {
@@ -50,9 +102,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback((next: ThemeId) => {
     setThemeState(next);
     window.localStorage.setItem(STORAGE_KEY, next);
+    if (next !== CUSTOM_THEME_ID) {
+      setCustomColorsState(null);
+      window.localStorage.removeItem(CUSTOM_STORAGE_KEY);
+    }
   }, []);
 
-  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+  const setCustomTheme = useCallback((colors: CustomColors) => {
+    setThemeState(CUSTOM_THEME_ID);
+    setCustomColorsState(colors);
+    window.localStorage.setItem(STORAGE_KEY, CUSTOM_THEME_ID);
+    window.localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(colors));
+  }, []);
+
+  return (
+    <ThemeContext.Provider value={{ theme, customColors, setTheme, setCustomTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

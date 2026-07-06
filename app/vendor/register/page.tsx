@@ -83,6 +83,7 @@ export default function VendorRegisterPage() {
         state: data.state,
         city: data.city,
         password: data.password,
+        vertical: data.vertical,
       });
       setModalOpen(false);
       router.push("/vendor/dashboard");

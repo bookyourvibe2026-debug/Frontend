@@ -6,7 +6,11 @@ export type ThemeId =
   | "ocean-court"
   | "royal-purple"
   | "fire-red"
-  | "gold-luxury";
+  | "gold-luxury"
+  | "custom";
+
+/** Not a preset — picked live by the admin as a one-off brand/accent hex pair. */
+export const CUSTOM_THEME_ID: ThemeId = "custom";
 
 export interface ThemePreset {
   id: ThemeId;
@@ -31,5 +35,5 @@ export const THEME_PRESETS: ThemePreset[] = [
 export const DEFAULT_THEME: ThemeId = "vibe-orange";
 
 export function isThemeId(value: string | null): value is ThemeId {
-  return !!value && THEME_PRESETS.some((t) => t.id === value);
+  return !!value && (value === CUSTOM_THEME_ID || THEME_PRESETS.some((t) => t.id === value));
 }

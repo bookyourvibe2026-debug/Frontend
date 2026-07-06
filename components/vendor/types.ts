@@ -10,6 +10,8 @@ export type VenueType =
   | "Individual"
   | "Company";
 
+export type BusinessVertical = "turf" | "food" | "both";
+
 export interface RegistrationFormData {
   phone: string;
   otp: string;
@@ -17,6 +19,7 @@ export interface RegistrationFormData {
   businessName: string;
   ownerName: string;
   email: string;
+  vertical: BusinessVertical;
   venueType: VenueType;
   password: string;
   confirmPassword: string;
@@ -36,6 +39,7 @@ export const emptyFormData: RegistrationFormData = {
   businessName: "",
   ownerName: "",
   email: "",
+  vertical: "turf",
   venueType: "Turf / Sports Ground",
   password: "",
   confirmPassword: "",

@@ -54,6 +54,7 @@ export default function VendorPanelLayout({
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onLogout={() => void handleLogout()}
+          vertical={session.vertical}
         />
         <div className="flex-1 min-w-0 flex flex-col">
           <Topbar

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,18 +14,30 @@ import {
   BarChart3,
   Megaphone,
   LogOut,
+  UtensilsCrossed,
+  ClipboardList,
   X,
 } from "lucide-react";
+import type { VendorVertical } from "@/lib/api/types";
 
-const NAV_ITEMS = [
+const TURF_NAV_ITEMS = [
   { href: "/vendor/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/vendor/listings", label: "My Listings", icon: Briefcase },
   { href: "/vendor/bookings", label: "Bookings Management", icon: CalendarCheck2 },
   { href: "/vendor/payments", label: "Payment Settled", icon: Wallet },
   { href: "/vendor/memberships", label: "Memberships", icon: CreditCard },
+  { href: "/vendor/statistics", label: "Statistics", icon: BarChart3 },
+] as const;
+
+const FOOD_NAV_ITEMS = [
+  { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
+  { href: "/vendor/food/menu", label: "Menu Management", icon: UtensilsCrossed },
+  { href: "/vendor/food/orders", label: "Food Orders", icon: ClipboardList },
+] as const;
+
+const SHARED_NAV_ITEMS = [
   { href: "/vendor/role-access", label: "Role Access", icon: ShieldCheck },
   { href: "/vendor/profile", label: "Profile", icon: Settings2 },
-  { href: "/vendor/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/vendor/marketing", label: "Marketing", icon: Megaphone },
 ] as const;
 
@@ -32,12 +45,18 @@ export default function Sidebar({
   open,
   onClose,
   onLogout,
+  vertical,
 }: {
   open: boolean;
   onClose: () => void;
   onLogout: () => void;
+  vertical: VendorVertical;
 }) {
   const pathname = usePathname();
+  const [appMode, setAppMode] = useState<"turf" | "food">("turf");
+
+  const activeMode = vertical === "both" ? appMode : vertical === "food" ? "food" : "turf";
+  const navItems = [...(activeMode === "food" ? FOOD_NAV_ITEMS : TURF_NAV_ITEMS), ...SHARED_NAV_ITEMS];
 
   return (
     <>
@@ -76,11 +95,34 @@ export default function Sidebar({
           </button>
         </div>
 
+        {vertical === "both" && (
+          <div className="p-3 border-b border-surface-border">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-cream-200 p-1 text-xs font-semibold">
+              <button
+                onClick={() => setAppMode("turf")}
+                className={`rounded-lg py-2 transition ${
+                  appMode === "turf" ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
+                }`}
+              >
+                Owner App
+              </button>
+              <button
+                onClick={() => setAppMode("food")}
+                className={`rounded-lg py-2 transition ${
+                  appMode === "food" ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
+                }`}
+              >
+                Food App
+              </button>
+            </div>
+          </div>
+        )}
+
         <nav className="px-3 py-5 space-y-1">
           <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">
             Navigation
           </p>
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname?.startsWith(href);
             return (
               <Link

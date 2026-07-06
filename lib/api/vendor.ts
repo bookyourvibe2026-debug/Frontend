@@ -2,10 +2,13 @@ import { apiRequest, type Paginated } from "./client";
 import type {
   Booking,
   BookingStatus,
+  FoodOrder,
+  FoodOrderStatus,
   Listing,
   ListingType,
   Membership,
   MembershipPlanType,
+  MenuItem,
   ModulePermissionKey,
   PermissionsMap,
   SettledPayment,
@@ -13,6 +16,7 @@ import type {
   SubscriptionStatus,
   Vendor,
   VendorDashboard,
+  VendorFoodDashboard,
   VendorStaff,
 } from "./types";
 
@@ -206,4 +210,50 @@ export function updateSubscriptionStatus(id: string, status: SubscriptionStatus)
 
 export function checkInVendorBooking(orderId: string) {
   return apiRequest<Booking>(`/vendor/bookings/${orderId}/checkin`, { method: "POST", audience: AUD });
+}
+
+/* ---- Menu (Food Owner) ---- */
+
+export function listVendorMenu() {
+  return apiRequest<MenuItem[]>("/vendor/menu", { audience: AUD });
+}
+
+export interface MenuItemInput {
+  name: string;
+  description?: string;
+  price: number;
+  category?: string;
+  photo?: string;
+  inStock?: boolean;
+  prepTimeMins?: number;
+}
+
+export function createVendorMenuItem(input: MenuItemInput) {
+  return apiRequest<MenuItem>("/vendor/menu", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateVendorMenuItem(id: string, input: Partial<MenuItemInput>) {
+  return apiRequest<MenuItem>(`/vendor/menu/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function deleteVendorMenuItem(id: string) {
+  return apiRequest<null>(`/vendor/menu/${id}`, { method: "DELETE", audience: AUD });
+}
+
+/* ---- Food Orders (Food Owner) ---- */
+
+export function getVendorFoodOrders(params: { status?: FoodOrderStatus; page?: number; limit?: number } = {}) {
+  return apiRequest<Paginated<FoodOrder>>("/vendor/food-orders", { query: params, audience: AUD });
+}
+
+export function updateVendorFoodOrderStatus(orderId: string, status: FoodOrderStatus) {
+  return apiRequest<FoodOrder>(`/vendor/food-orders/${orderId}/status`, { method: "PATCH", body: { status }, audience: AUD });
+}
+
+export function checkInVendorFoodOrder(orderId: string) {
+  return apiRequest<FoodOrder>(`/vendor/food-orders/${orderId}/checkin`, { method: "POST", audience: AUD });
+}
+
+export function getVendorFoodDashboard(period: "day" | "week" | "month" | "year" = "day") {
+  return apiRequest<VendorFoodDashboard>("/vendor/food-dashboard", { query: { period }, audience: AUD });
 }

@@ -247,10 +247,16 @@ export function upsertAppVersion(input: {
 
 /* ---- Site appearance ---- */
 
-export function getAdminSiteAppearance() {
-  return apiRequest<{ theme: string }>("/admin/appearance", { audience: AUD });
+interface SiteAppearanceResponse {
+  theme: string;
+  customBrand?: string;
+  customAccent?: string;
 }
 
-export function updateSiteAppearance(theme: string) {
-  return apiRequest<{ theme: string }>("/admin/appearance", { method: "PUT", body: { theme }, audience: AUD });
+export function getAdminSiteAppearance() {
+  return apiRequest<SiteAppearanceResponse>("/admin/appearance", { audience: AUD });
+}
+
+export function updateSiteAppearance(input: { theme: string; customBrand?: string; customAccent?: string }) {
+  return apiRequest<SiteAppearanceResponse>("/admin/appearance", { method: "PUT", body: input, audience: AUD });
 }

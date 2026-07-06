@@ -289,6 +289,8 @@ export const vendorRoles: VendorRole[] = [
       verification: { view: true, create: false, edit: true, delete: false },
       settings: { view: false, create: false, edit: false, delete: false },
       membership: { view: false, create: false, edit: false, delete: false },
+      menu: { view: false, create: false, edit: false, delete: false },
+      foodOrders: { view: false, create: false, edit: false, delete: false },
     },
   },
 ];
@@ -340,5 +342,17 @@ export const moduleMeta: {
     label: "Membership",
     description: "Membership plans, packages, and subscriber management.",
     toggles: ["view", "create", "edit", "delete"],
+  },
+  {
+    key: "menu",
+    label: "Menu",
+    description: "Food menu items, pricing, and stock availability.",
+    toggles: ["view", "create", "edit", "delete"],
+  },
+  {
+    key: "foodOrders",
+    label: "Food Orders",
+    description: "Accept, prepare, and deliver incoming food orders.",
+    toggles: ["view", "edit"],
   },
 ];

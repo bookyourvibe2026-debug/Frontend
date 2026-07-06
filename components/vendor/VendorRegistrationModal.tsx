@@ -18,10 +18,11 @@ import {
   Smartphone,
   Type,
   User,
+  UtensilsCrossed,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
+import { BusinessVertical, RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 
@@ -52,7 +53,7 @@ const INDIAN_STATES = [
 ];
 
 const CHECKLISTS: Record<number, string[]> = {
-  1: ["Business Name", "Your Full Name", "Business Email (Verified via OTP)", "Venue Type (Company, Individual, etc)", "Contact Phone Number"],
+  1: ["Business Type (Turf, Food, or Both)", "Business Name", "Your Full Name", "Business Email (Verified via OTP)", "Contact Phone Number"],
   2: ["Strong Password (min 8 characters)", "Confirm Password", "Passwords must match"],
   3: ["Bank Account Number", "IFSC Code", "Account Holder Name"],
   4: ["State", "City", "Postal Code (Pincode)"],
@@ -248,6 +249,35 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
           <div className="mt-6 flex-1 space-y-4">
             {phase === 1 && (
               <>
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#3f5449]">
+                    What are you registering?
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(
+                      [
+                        { value: "turf", label: "Turf / Sports Venue", icon: Building2 },
+                        { value: "food", label: "Food Court / Restaurant", icon: UtensilsCrossed },
+                        { value: "both", label: "Both", icon: Check },
+                      ] as { value: BusinessVertical; label: string; icon: LucideIcon }[]
+                    ).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => update("vertical", option.value)}
+                        className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                          data.vertical === option.value
+                            ? "border-[#0c1912] bg-[#0c1912] text-[#a6ff3c]"
+                            : "border-[#e4ded0] bg-white text-[#10241a] hover:border-[#0c1912]/40"
+                        }`}
+                      >
+                        <option.icon className="h-4 w-4 shrink-0" />
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     icon={Building2}
@@ -323,22 +353,24 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                   error={errors.phone}
                 />
 
-                <div>
-                  <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
-                    <Building className="h-4 w-4 shrink-0 text-[#3f5449]" />
-                    <select
-                      value={data.venueType}
-                      onChange={(e) => update("venueType", e.target.value as VenueType)}
-                      className="w-full bg-transparent text-sm text-[#10241a] outline-none"
-                    >
-                      {VENUE_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                {data.vertical !== "food" && (
+                  <div>
+                    <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
+                      <Building className="h-4 w-4 shrink-0 text-[#3f5449]" />
+                      <select
+                        value={data.venueType}
+                        onChange={(e) => update("venueType", e.target.value as VenueType)}
+                        className="w-full bg-transparent text-sm text-[#10241a] outline-none"
+                      >
+                        {VENUE_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
@@ -433,11 +465,15 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
               <>
                 <div className="rounded-xl border border-[#e4ded0] bg-white p-5">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <ReviewItem
+                      label="Business Type"
+                      value={data.vertical === "turf" ? "Turf / Sports Venue" : data.vertical === "food" ? "Food Court / Restaurant" : "Both"}
+                    />
                     <ReviewItem label="Business Name" value={data.businessName} />
                     <ReviewItem label="Owner Name" value={data.ownerName} />
                     <ReviewItem label="Email Address" value={data.email} />
                     <ReviewItem label="Phone Number" value={data.phone} />
-                    <ReviewItem label="Venue Type" value={data.venueType} />
+                    {data.vertical !== "food" && <ReviewItem label="Venue Type" value={data.venueType} />}
                     <ReviewItem label="City / State" value={`${data.city}, ${data.state}`} />
                   </div>
                 </div>

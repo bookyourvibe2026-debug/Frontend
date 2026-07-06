@@ -114,9 +114,69 @@ export interface Booking {
   updatedAt: string;
 }
 
+export interface MenuItem {
+  _id: string;
+  vendorId: string;
+  name: string;
+  description?: string;
+  price: number;
+  category: string;
+  photo?: string;
+  inStock: boolean;
+  prepTimeMins?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FoodOrderStatus = "Pending" | "Accepted" | "Rejected" | "Preparing" | "Ready" | "Delivered" | "Cancelled";
+
+export interface FoodOrderItem {
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface FoodOrder {
+  _id: string;
+  orderId: string;
+  vendorId: string;
+  customerId: string;
+  customerName: string;
+  phone: string;
+  items: FoodOrderItem[];
+  totalAmount: number;
+  status: FoodOrderStatus;
+  notes?: string;
+  checkedIn: boolean;
+  checkedInAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FoodVendor {
+  _id: string;
+  businessName: string;
+  ownerName: string;
+  logo?: string;
+  city?: string;
+  state: string;
+  categories: string[];
+}
+
+export interface VendorFoodDashboard {
+  period: "day" | "week" | "month" | "year";
+  ordersByStatus: Partial<Record<FoodOrderStatus, number>>;
+  totalRevenue: number;
+  deliveredOrderCount: number;
+  allTimeOrderCount: number;
+}
+
 export type VendorStatus = "pending" | "approved" | "suspended";
 export type VendorBusinessType = "Company" | "Individual / Proprietor" | "Partnership";
 export type VendorBankAccountType = "Savings" | "Current";
+/** Which side(s) of the platform this vendor operates — turf owner, food owner, or both. */
+export type VendorVertical = "turf" | "food" | "both";
 
 export interface Vendor {
   _id: string;
@@ -126,6 +186,7 @@ export interface Vendor {
   phone: string;
   state: string;
   city?: string;
+  vertical: VendorVertical;
   status: VendorStatus;
   approvedOn?: string | null;
   notifications: { email: boolean; whatsapp: boolean; offline: boolean };
@@ -150,7 +211,16 @@ export interface VendorPopulated {
   ownerName: string;
 }
 
-export type ModulePermissionKey = "dashboard" | "bookings" | "listings" | "earnings" | "verification" | "settings" | "membership";
+export type ModulePermissionKey =
+  | "dashboard"
+  | "bookings"
+  | "listings"
+  | "earnings"
+  | "verification"
+  | "settings"
+  | "membership"
+  | "menu"
+  | "foodOrders";
 export type PermissionAction = "view" | "create" | "edit" | "delete";
 export type PermissionsMap<K extends string> = Partial<Record<K, Record<PermissionAction, boolean>>>;
 

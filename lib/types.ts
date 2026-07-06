@@ -112,7 +112,9 @@ export type ModulePermissionKey =
   | "earnings"
   | "verification"
   | "settings"
-  | "membership";
+  | "membership"
+  | "menu"
+  | "foodOrders";
 
 export interface RoleModulePermissions {
   view: boolean;

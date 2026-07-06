@@ -18,6 +18,8 @@ const emptyPermissions: PermState = {
   verification: { view: false, create: false, edit: false, delete: false },
   settings: { view: false, create: false, edit: false, delete: false },
   membership: { view: false, create: false, edit: false, delete: false },
+  menu: { view: false, create: false, edit: false, delete: false },
+  foodOrders: { view: false, create: false, edit: false, delete: false },
 };
 
 export default function RoleAccessPage() {

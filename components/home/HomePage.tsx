@@ -79,7 +79,7 @@ export default function HomePage() {
         players: "/community",
         tournaments: "/tournaments",
         near: "/venues",
-        food: "/offers",
+        food: "/food",
         offers: "/offers",
       };
       router.push(routes[id] ?? "/games");
