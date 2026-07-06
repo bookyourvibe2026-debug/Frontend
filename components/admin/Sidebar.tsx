@@ -6,17 +6,13 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Compass,
-  MessageSquare,
   LayoutGrid,
   BookOpen,
   Users,
   Building2,
   ShieldCheck,
   CalendarCheck2,
-  BarChart3,
-  Megaphone,
   Wallet,
-  RotateCcw,
   Smartphone,
   Activity,
   LogOut,
@@ -39,7 +35,6 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/listings", label: "Listings", icon: Compass },
-      { href: "/admin/user-queries", label: "User Queries", icon: MessageSquare, comingSoon: true },
       { href: "/admin/categories", label: "Categories", icon: LayoutGrid, comingSoon: true },
     ],
   },
@@ -54,16 +49,11 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/vendor-management", label: "Vendor Management", icon: Building2 },
       { href: "/admin/sub-admins", label: "Manage Sub Admins", icon: ShieldCheck, comingSoon: true },
       { href: "/admin/bookings", label: "Bookings Management", icon: CalendarCheck2 },
-      { href: "/admin/shared-package-report", label: "Shared Package Report", icon: BarChart3, comingSoon: true },
-      { href: "/admin/marketing", label: "Marketing Campaigns", icon: Megaphone, comingSoon: true },
     ],
   },
   {
     title: "Payments",
-    items: [
-      { href: "/admin/vendor-payouts", label: "Vendor Payouts", icon: Wallet },
-      { href: "/admin/refund-payouts", label: "Refund Payouts", icon: RotateCcw, comingSoon: true },
-    ],
+    items: [{ href: "/admin/vendor-payouts", label: "Vendor Payouts", icon: Wallet }],
   },
   {
     title: "Design",
