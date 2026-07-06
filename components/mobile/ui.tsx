@@ -26,18 +26,19 @@ export function MobileTopBar() {
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <BrandLogo
-          showText={false}
-          logoBoxClassName="h-12 w-12 rounded-2xl"
-          imageClassName="p-1.5"
+          logoBoxClassName="h-11 w-11 rounded-xl"
+          imageClassName="p-1"
+          titleClassName="text-slate-900 text-xs"
+          subtitleClassName="text-slate-400 text-[8px]"
           priority
         />
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
             aria-label="Toggle menu"
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600"
           >
             {menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Menu, MapPin, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 
 const NAV_LINKS = [
@@ -31,11 +31,6 @@ export function SiteHeader() {
           showText={false}
           priority
         />
-
-        <button className="hidden items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 md:flex">
-          <MapPin className="h-3.5 w-3.5" aria-hidden /> Udaipur
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-        </button>
 
         <nav className="hidden flex-1 items-center justify-center gap-6 lg:flex">
           {NAV_LINKS.map((link) => (

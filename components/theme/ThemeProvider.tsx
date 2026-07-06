@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { DEFAULT_THEME, isThemeId, type ThemeId } from "@/lib/themes";
+import { getSiteTheme } from "@/lib/api/appearance";
 
 const STORAGE_KEY = "byv-theme";
 
@@ -24,6 +25,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // localStorage is only a fast-paint cache; the backend's site-wide theme is the source of truth
+    // for every visitor, so reconcile against it once the page has loaded.
+    getSiteTheme()
+      .then((serverTheme) => {
+        if (cancelled) return;
+        setThemeState((current) => {
+          if (serverTheme === current) return current;
+          window.localStorage.setItem(STORAGE_KEY, serverTheme);
+          return serverTheme;
+        });
+      })
+      .catch(() => {
+        // Backend unreachable — keep whatever theme is already cached/default.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const setTheme = useCallback((next: ThemeId) => {
     setThemeState(next);

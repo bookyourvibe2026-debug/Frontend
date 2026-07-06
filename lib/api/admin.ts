@@ -244,3 +244,13 @@ export function upsertAppVersion(input: {
 }) {
   return apiRequest<AppVersionConfig>("/admin/app-version", { method: "PUT", body: input, audience: AUD });
 }
+
+/* ---- Site appearance ---- */
+
+export function getAdminSiteAppearance() {
+  return apiRequest<{ theme: string }>("/admin/appearance", { audience: AUD });
+}
+
+export function updateSiteAppearance(theme: string) {
+  return apiRequest<{ theme: string }>("/admin/appearance", { method: "PUT", body: { theme }, audience: AUD });
+}

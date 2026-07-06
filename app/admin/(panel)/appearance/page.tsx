@@ -5,14 +5,18 @@ import { Check, Palette, Sparkles, Star } from "lucide-react";
 import { Toast } from "@/components/admin/Toast";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { THEME_PRESETS, type ThemePreset } from "@/lib/themes";
+import { updateSiteAppearance } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/client";
 
 function ThemeCard({
   preset,
   active,
+  disabled,
   onApply,
 }: {
   preset: ThemePreset;
   active: boolean;
+  disabled: boolean;
   onApply: () => void;
 }) {
   return (
@@ -41,8 +45,8 @@ function ThemeCard({
 
       <button
         onClick={onApply}
-        disabled={active}
-        className={`mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+        disabled={active || disabled}
+        className={`mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
           active
             ? "cursor-default bg-vibe-violet/10 text-vibe-violet"
             : "bg-ink text-white hover:bg-vibe-violet"
@@ -63,12 +67,21 @@ function ThemeCard({
 export default function AppearancePage() {
   const { theme, setTheme } = useTheme();
   const [toast, setToast] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const activePreset = THEME_PRESETS.find((p) => p.id === theme) ?? THEME_PRESETS[0];
 
-  function applyTheme(preset: ThemePreset) {
-    setTheme(preset.id);
-    setToast(`"${preset.name}" applied — live across the whole site`);
+  async function applyTheme(preset: ThemePreset) {
+    setSaving(true);
+    try {
+      await updateSiteAppearance(preset.id);
+      setTheme(preset.id);
+      setToast(`"${preset.name}" applied — live across the whole site`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Couldn't save the theme. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -96,7 +109,13 @@ export default function AppearancePage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {THEME_PRESETS.map((preset) => (
-          <ThemeCard key={preset.id} preset={preset} active={preset.id === theme} onApply={() => applyTheme(preset)} />
+          <ThemeCard
+            key={preset.id}
+            preset={preset}
+            active={preset.id === theme}
+            disabled={saving}
+            onApply={() => applyTheme(preset)}
+          />
         ))}
       </div>
 

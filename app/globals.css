@@ -2,6 +2,8 @@
 @import "../components/vendor/theme.css";
 
 :root {
+  /* Opt out of Android/Chrome's automatic dark-theme inversion — this site is light-mode only. */
+  color-scheme: light only;
   --background: #ffffff;
   --foreground: #171717;
   --font-inter: "Inter", "Segoe UI", "Trebuchet MS", Arial, sans-serif;

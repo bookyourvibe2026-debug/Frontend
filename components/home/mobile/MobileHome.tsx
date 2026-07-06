@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
+  ArrowRight,
   Building2,
-  CreditCard,
   Feather,
   Heart,
   LayoutGrid,
@@ -54,16 +55,16 @@ function MobileVenueCard({
       : "bg-accent-500/90 text-white";
 
   return (
-    <div className="flex w-[72vw] max-w-[280px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+    <div className="flex w-[30vw] min-w-[104px] max-w-[150px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
       <div
         role="button"
         tabIndex={0}
         onClick={onView}
-        className="relative h-32 w-full cursor-pointer bg-slate-900"
+        className="relative h-20 w-full cursor-pointer bg-slate-900"
         style={venue.image ? { backgroundImage: `url(${venue.image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
       >
-        <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-amber-300 backdrop-blur-sm">
-          <Star className="h-3 w-3 fill-current" /> {venue.rating.toFixed(1)}
+        <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300 backdrop-blur-sm">
+          <Star className="h-2.5 w-2.5 fill-current" /> {venue.rating.toFixed(1)}
         </span>
         <button
           type="button"
@@ -72,30 +73,29 @@ function MobileVenueCard({
             onToggleFavorite();
           }}
           aria-label="Toggle favorite"
-          className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow"
+          className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 shadow"
         >
-          <Heart className={`h-3.5 w-3.5 ${isFavorite ? "fill-accent-500 text-accent-500" : "text-slate-400"}`} />
+          <Heart className={`h-2.5 w-2.5 ${isFavorite ? "fill-accent-500 text-accent-500" : "text-slate-400"}`} />
         </button>
         <span
-          className={`absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusStyles}`}
+          className={`absolute bottom-1.5 left-1.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${statusStyles}`}
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-white/90" /> {venue.status}
+          <span className="h-1 w-1 rounded-full bg-white/90" /> {venue.status}
         </span>
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <h3 className="text-sm font-bold text-slate-900">{venue.name}</h3>
-        <p className="flex items-center gap-1 text-[11px] text-slate-500">
-          <MapPin className="h-3 w-3" aria-hidden /> {venue.area}
-          <span className="mx-0.5">·</span> {venue.distanceKm} km
+      <div className="flex flex-1 flex-col gap-0.5 p-2">
+        <h3 className="truncate text-[11px] font-bold text-slate-900">{venue.name}</h3>
+        <p className="flex items-center gap-0.5 truncate text-[9px] text-slate-500">
+          <MapPin className="h-2.5 w-2.5 shrink-0" aria-hidden /> {venue.area}
         </p>
-        <p className="mt-1 text-sm font-bold text-slate-900">
+        <p className="mt-0.5 text-[11px] font-bold text-slate-900">
           ₹{venue.pricePerHour}
-          <span className="font-normal text-slate-400"> /hour</span>
+          <span className="font-normal text-slate-400"> /hr</span>
         </p>
         <button
           type="button"
           onClick={onBook}
-          className="mt-2 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 py-2 text-xs font-semibold text-white shadow-sm"
+          className="mt-1 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 py-1.5 text-[10px] font-semibold text-white shadow-sm"
         >
           Book Now
         </button>
@@ -160,11 +160,11 @@ export function MobileHome({
     <div className="flex flex-col gap-7 px-4 pb-8 pt-4">
       <MobileTopBar />
 
-      <div>
-        <p className="flex items-center gap-1.5 text-sm text-slate-500">
+      <div className="text-right">
+        <p className="flex items-center justify-end gap-1.5 text-xs text-slate-500">
           Good Morning, {userName} <span aria-hidden>👋</span>
         </p>
-        <h1 className="mt-1 text-3xl font-extrabold leading-tight text-slate-900">
+        <h1 className="mt-1 text-2xl font-extrabold leading-tight text-slate-900">
           Let&rsquo;s Find Your{" "}
           <span className="bg-gradient-to-r from-brand-500 via-amber-500 to-accent-500 bg-clip-text text-transparent">
             Vibe
@@ -172,43 +172,43 @@ export function MobileHome({
         </h1>
       </div>
 
-      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1.5 pl-4 shadow-sm">
-        <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-        <input
-          value={searchValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search turf, badminton, pickleball..."
-          className="w-full flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
-        />
+      <div className="-mt-4 flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 shadow-sm">
         <button
           type="button"
           aria-label="Filters"
           onClick={() => setFiltersOpen(true)}
-          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-sm"
+          className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-sm"
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-3 w-3" />
           {activeFilterCount > 0 && (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white ring-2 ring-white">
               {activeFilterCount}
             </span>
           )}
         </button>
+        <input
+          value={searchValue}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search turf, badminton, pickleball..."
+          className="w-full flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+        />
+        <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       </div>
 
       <section>
         <MobileSectionRow title="Quick Actions" actionLabel="View All" onAction={onViewAllQuickActions} />
-        <div className="grid grid-cols-3 gap-y-4">
+        <div className="grid grid-cols-6 gap-1">
           {QUICK_ACTIONS.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => onQuickAction(a.id)}
-              className="flex flex-col items-center gap-2 text-center"
+              className="flex flex-col items-center gap-1.5 text-center"
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
-                <a.icon className="h-6 w-6" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
+                <a.icon className="h-5 w-5" />
               </span>
-              <span className="text-[11px] font-semibold leading-tight text-slate-600">{a.label}</span>
+              <span className="text-[9px] font-semibold leading-tight text-brand-600">{a.label}</span>
             </button>
           ))}
         </div>
@@ -265,7 +265,12 @@ export function MobileHome({
 
       <section className="grid grid-cols-2 gap-3">
         <MobileCard className="flex flex-col gap-3 !p-4">
-          <p className="text-xs font-bold text-slate-900">Upcoming Booking</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-900">Upcoming Booking</p>
+            <Link href="/profile" className="text-[10px] font-semibold text-brand-600">
+              View All
+            </Link>
+          </div>
           <div className="flex items-center gap-2 rounded-xl bg-brand-50 p-2.5">
             <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-500 text-white">
               <span className="text-[8px] font-bold uppercase leading-none">May</span>
@@ -296,14 +301,17 @@ export function MobileHome({
               </div>
             ))}
           </div>
+          <Link href="/profile" className="flex items-center gap-1 text-[10px] font-semibold text-brand-600">
+            View Details <ArrowRight className="h-3 w-3" />
+          </Link>
         </MobileCard>
 
         <MobileCard className="flex flex-col gap-3 !p-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-900">My Wallet</p>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-500">
-              <CreditCard className="h-4 w-4" />
-            </span>
+            <Link href="/profile" className="text-[10px] font-semibold text-brand-600">
+              View
+            </Link>
           </div>
           <div>
             <p className="text-xl font-extrabold text-slate-900">₹1,250.00</p>
