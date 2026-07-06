@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Bell, ChevronDown, Menu, MapPin, Search, X } from "lucide-react";
+import { ChevronDown, Menu, MapPin, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 
 const NAV_LINKS = [
@@ -52,22 +52,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            aria-label="Search"
-            className="hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 sm:flex"
-          >
-            <Search className="h-4 w-4" />
-          </button>
-          <button
-            aria-label="Notifications"
-            className="relative hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 sm:flex"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
-              3
-            </span>
-          </button>
-
           <Link
             href="/"
             className="hidden rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.03] sm:inline-flex"

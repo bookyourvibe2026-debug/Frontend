@@ -19,14 +19,16 @@ import { EventsAndOffers } from "./EventsAndOffers";
 import { CommerceSection } from "./CommerceSection";
 import { WalkInPOSSection } from "./WalkInPOSSection";
 import { WhyBookYourVibe } from "./WhyBookYourVibe";
+import { AboutUs } from "./AboutUs";
 import { BuildCostAndExtensionsSection } from "./BuildCostAndExtensionsSection";
 import { Testimonials } from "./Testimonials";
 import { AppDownloadCTA } from "./AppDownloadCTA";
 import { Footer } from "./Footer";
 import { LoginModal } from "./modals/LoginModal";
 import { SignupModal } from "./modals/SignupModal";
-import { AdminConsoleModal } from "./modals/AdminConsoleModal";
+import { FiltersModal } from "./modals/FiltersModal";
 import { MobileHome } from "./mobile/MobileHome";
+import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 
 export default function HomePage() {
@@ -39,6 +41,8 @@ export default function HomePage() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
     browseVenues({ limit: 12 })
@@ -114,12 +118,9 @@ export default function HomePage() {
   }, [logout, showToast]);
 
   const filteredVenuesNote = useMemo(() => {
-    if (!search) return null;
-    const matches = venues.filter((v) =>
-      v.name.toLowerCase().includes(search.toLowerCase())
-    );
-    return matches.length;
-  }, [search, venues]);
+    if (!search && filters.activeFilterCount === 0) return null;
+    return filters.filteredVenues.length;
+  }, [search, filters.activeFilterCount, filters.filteredVenues]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -150,7 +151,7 @@ export default function HomePage() {
           onOpenSignup={() => setAuthMode("signup")}
           isLoggedIn={isLoggedIn}
           userName={userName}
-          onOpenAdmin={() => setAuthMode("admin")}
+          avatarUrl={customer?.avatarUrl}
           onLogout={handleLogout}
         />
 
@@ -158,6 +159,8 @@ export default function HomePage() {
           userName={userName}
           searchValue={search}
           onSearchChange={setSearch}
+          onOpenFilters={() => setFiltersOpen(true)}
+          activeFilterCount={filters.activeFilterCount}
         />
 
         {filteredVenuesNote !== null && (
@@ -174,7 +177,7 @@ export default function HomePage() {
         <FindYourGames onSelectSport={handleSelectSport} />
 
         <TrendingVenues
-          venues={venues}
+          venues={filters.filteredVenues}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onViewVenue={openVenue}
@@ -215,6 +218,8 @@ export default function HomePage() {
 
         <WhyBookYourVibe />
 
+        <AboutUs />
+
         <BuildCostAndExtensionsSection />
 
         <Testimonials />
@@ -239,8 +244,13 @@ export default function HomePage() {
           onSwitchToLogin={() => setAuthMode("login")}
         />
       )}
-      {authMode === "admin" && <AdminConsoleModal onClose={() => setAuthMode(null)} />}
-
+      {filtersOpen && (
+        <FiltersModal
+          onClose={() => setFiltersOpen(false)}
+          resultCount={filters.filteredVenues.length}
+          filters={filters}
+        />
+      )}
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-xl">

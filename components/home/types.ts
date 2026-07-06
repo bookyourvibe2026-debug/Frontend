@@ -9,7 +9,7 @@ export type Sport = {
   bubble: string;
 };
 
-export type AuthMode = "login" | "signup" | "admin" | null;
+export type AuthMode = "login" | "signup" | null;
 
 export type FooterLink = {
   label: string;

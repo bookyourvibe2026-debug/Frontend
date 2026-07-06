@@ -18,3 +18,7 @@ export function uploadAdminImage(file: File, folder: string) {
 export function uploadVendorImage(file: File, folder: string) {
   return uploadImage("/vendor/uploads", "vendor", file, folder);
 }
+
+export function uploadCustomerImage(file: File, folder: string) {
+  return uploadImage("/auth/customer/uploads", "customer", file, folder);
+}

@@ -10,10 +10,14 @@ export function Hero({
   userName,
   searchValue,
   onSearchChange,
+  onOpenFilters,
+  activeFilterCount = 0,
 }: {
   userName: string;
   searchValue: string;
   onSearchChange: (v: string) => void;
+  onOpenFilters: () => void;
+  activeFilterCount?: number;
 }) {
   const [heroSlide, setHeroSlide] = useState(0);
 
@@ -99,8 +103,18 @@ export function Hero({
                 className="w-full flex-1 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 sm:bg-transparent sm:px-0 sm:py-2"
               />
               <div className="flex items-center gap-2">
-                <button className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 sm:flex">
+                <button
+                  type="button"
+                  aria-label="Filters"
+                  onClick={onOpenFilters}
+                  className="relative hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 sm:flex"
+                >
                   <Settings className="h-4 w-4" />
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-white">
+                      {activeFilterCount}
+                    </span>
+                  )}
                 </button>
                 <PrimaryButton className="w-full !px-6 !py-3 sm:w-auto">Search</PrimaryButton>
               </div>

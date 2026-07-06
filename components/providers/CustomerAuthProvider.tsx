@@ -2,10 +2,13 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
+  customerGoogleAuth,
   customerLogin,
+  customerLoginWithOtp,
   customerLogout,
   customerRegister,
   restoreCustomerSession,
+  updateMyCustomerProfile,
   type CustomerProfile,
 } from "@/lib/api/auth";
 
@@ -15,8 +18,11 @@ interface CustomerAuthContextValue {
   customer: CustomerProfile | null;
   status: Status;
   login: (identifier: string, password: string) => Promise<CustomerProfile>;
+  loginWithGoogle: (idToken: string) => Promise<CustomerProfile>;
+  loginWithEmailOtp: (email: string, otp: string) => Promise<CustomerProfile>;
   register: (input: { name: string; email: string; phone: string; password: string }) => Promise<CustomerProfile>;
   logout: () => Promise<void>;
+  updateProfile: (input: { name?: string; avatarUrl?: string }) => Promise<CustomerProfile>;
 }
 
 const CustomerAuthContext = createContext<CustomerAuthContextValue | null>(null);
@@ -44,6 +50,20 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     return profile;
   }, []);
 
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const profile = await customerGoogleAuth(idToken);
+    setCustomer(profile);
+    setStatus("authenticated");
+    return profile;
+  }, []);
+
+  const loginWithEmailOtp = useCallback(async (email: string, otp: string) => {
+    const profile = await customerLoginWithOtp({ email, otp });
+    setCustomer(profile);
+    setStatus("authenticated");
+    return profile;
+  }, []);
+
   const register = useCallback(
     async (input: { name: string; email: string; phone: string; password: string }) => {
       const profile = await customerRegister(input);
@@ -60,8 +80,16 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     setStatus("guest");
   }, []);
 
+  const updateProfile = useCallback(async (input: { name?: string; avatarUrl?: string }) => {
+    const profile = await updateMyCustomerProfile(input);
+    setCustomer(profile);
+    return profile;
+  }, []);
+
   return (
-    <CustomerAuthContext.Provider value={{ customer, status, login, register, logout }}>
+    <CustomerAuthContext.Provider
+      value={{ customer, status, login, loginWithGoogle, loginWithEmailOtp, register, logout, updateProfile }}
+    >
       {children}
     </CustomerAuthContext.Provider>
   );

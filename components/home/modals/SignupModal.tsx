@@ -11,8 +11,8 @@ import { ApiError } from "@/lib/api/client";
 
 const ROLE_OPTIONS: { id: Role; label: string; icon: LucideIcon; desc: string }[] = [
   { id: "player", label: "Player", icon: Footprints, desc: "Book venues, join matches & events" },
-  { id: "owner", label: "Venue Owner", icon: Building2, desc: "List your venue, manage bookings" },
-  { id: "food", label: "Food Owner", icon: Sandwich, desc: "Manage menu, orders & billing" },
+  // { id: "owner", label: "Venue Owner", icon: Building2, desc: "List your venue, manage bookings" },
+  // { id: "food", label: "Food Owner", icon: Sandwich, desc: "Manage menu, orders & billing" },
 ];
 
 const CITY_STATE: Record<string, string> = {

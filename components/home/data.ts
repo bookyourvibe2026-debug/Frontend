@@ -32,6 +32,7 @@ export const NAV_LINKS = [
   { label: "Tournaments", href: "/tournaments" },
   { label: "Blog", href: "/blogs" },
   { label: "Community", href: "/community" },
+  { label: "About Us", href: "/#about-us" },
 ];
 
 export const HERO_STATS = [
@@ -302,7 +303,7 @@ export const FOOTER_COLUMNS: { title: string; items: FooterLink[] }[] = [
     title: "Company",
     items: [
       { label: "Home", href: "/" },
-      { label: "About Us", href: "/#why-book-your-vibe" },
+      { label: "About Us", href: "/#about-us" },
       { label: "Contact Us", href: "mailto:info@bookyourvibe.in" },
       { label: "Vendor Login", href: "/vendor/login" },
     ],

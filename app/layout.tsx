@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { WhatsAppWidget } from "@/components/WhatsAppWidget";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CustomerAuthProvider } from "@/components/providers/CustomerAuthProvider";
+import { GoogleAuthProvider } from "@/components/providers/GoogleAuthProvider";
 import "./globals.css";
 
 const THEME_INIT_SCRIPT = `
@@ -37,10 +38,12 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>
-          <CustomerAuthProvider>
-            {children}
-            <WhatsAppWidget />
-          </CustomerAuthProvider>
+          <GoogleAuthProvider>
+            <CustomerAuthProvider>
+              {children}
+              <WhatsAppWidget />
+            </CustomerAuthProvider>
+          </GoogleAuthProvider>
         </ThemeProvider>
       </body>
     </html>

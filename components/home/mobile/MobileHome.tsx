@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
   Building2,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { type Venue } from "@/lib/venues";
 import { QUICK_ACTIONS } from "../data";
+import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 
 const CHOOSE_GAME_CHIPS = [
@@ -31,33 +32,6 @@ const CHOOSE_GAME_CHIPS = [
   { id: "swimming", label: "Swimming" },
   { id: "more", label: "More" },
 ] as const;
-
-const PRICE_OPTIONS = [
-  { label: "Under ₹300", value: 300 },
-  { label: "Under ₹600", value: 600 },
-  { label: "Under ₹1000", value: 1000 },
-] as const;
-
-const DISTANCE_OPTIONS = [
-  { label: "< 2 km", value: 2 },
-  { label: "< 5 km", value: 5 },
-  { label: "< 10 km", value: 10 },
-] as const;
-
-const SORT_OPTIONS = [
-  { label: "Recommended", value: "recommended" },
-  { label: "Top Rated", value: "rating" },
-  { label: "Price: Low to High", value: "price" },
-  { label: "Nearest", value: "distance" },
-] as const;
-
-type SortBy = (typeof SORT_OPTIONS)[number]["value"];
-
-function filterPillClass(active: boolean): string {
-  return `rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-    active ? "border-brand-300 bg-brand-50 text-brand-600" : "border-slate-200 text-slate-600"
-  }`;
-}
 
 function MobileVenueCard({
   venue,
@@ -167,57 +141,20 @@ export function MobileHome({
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedSports, setSelectedSports] = useState<Set<string>>(new Set());
-  const [maxPrice, setMaxPrice] = useState<number | null>(null);
-  const [maxDistance, setMaxDistance] = useState<number | null>(null);
-  const [sortBy, setSortBy] = useState<SortBy>("recommended");
-
-  const sportOptions = useMemo(() => Array.from(new Set(venues.map((v) => v.sport))), [venues]);
-
-  const toggleSport = (sport: string) =>
-    setSelectedSports((prev) => {
-      const next = new Set(prev);
-      if (next.has(sport)) {
-        next.delete(sport);
-      } else {
-        next.add(sport);
-      }
-      return next;
-    });
-
-  const resetFilters = () => {
-    setSelectedSports(new Set());
-    setMaxPrice(null);
-    setMaxDistance(null);
-    setSortBy("recommended");
-  };
-
-  const activeFilterCount =
-    selectedSports.size +
-    (maxPrice !== null ? 1 : 0) +
-    (maxDistance !== null ? 1 : 0) +
-    (sortBy !== "recommended" ? 1 : 0);
-
-  const filteredVenues = useMemo(() => {
-    const query = searchValue.trim().toLowerCase();
-    const list = venues.filter((v) => {
-      const matchesSearch =
-        !query ||
-        v.name.toLowerCase().includes(query) ||
-        v.sport.toLowerCase().includes(query) ||
-        v.area.toLowerCase().includes(query);
-      const matchesSport = selectedSports.size === 0 || selectedSports.has(v.sport);
-      const matchesPrice = maxPrice === null || v.pricePerHour <= maxPrice;
-      const matchesDistance = maxDistance === null || v.distanceKm <= maxDistance;
-      return matchesSearch && matchesSport && matchesPrice && matchesDistance;
-    });
-
-    const sorted = [...list];
-    if (sortBy === "rating") sorted.sort((a, b) => b.rating - a.rating);
-    else if (sortBy === "price") sorted.sort((a, b) => a.pricePerHour - b.pricePerHour);
-    else if (sortBy === "distance") sorted.sort((a, b) => a.distanceKm - b.distanceKm);
-    return sorted;
-  }, [venues, searchValue, selectedSports, maxPrice, maxDistance, sortBy]);
+  const {
+    sportOptions,
+    selectedSports,
+    toggleSport,
+    maxPrice,
+    setMaxPrice,
+    maxDistance,
+    setMaxDistance,
+    sortBy,
+    setSortBy,
+    resetFilters,
+    activeFilterCount,
+    filteredVenues,
+  } = useVenueFilters(venues, searchValue);
 
   return (
     <div className="flex flex-col gap-7 px-4 pb-8 pt-4">

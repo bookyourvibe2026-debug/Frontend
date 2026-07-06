@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Bell,
   Menu,
   ShieldCheck,
   Store,
@@ -35,15 +34,6 @@ export function MobileTopBar() {
           priority
         />
         <div className="flex items-center gap-2">
-          <button
-            aria-label="Notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
-              3
-            </span>
-          </button>
           <button
             aria-label="Toggle menu"
             onClick={() => setMenuOpen((v) => !v)}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, MapPin, Search, ShieldCheck, X } from "lucide-react";
+import { Menu, ShieldCheck, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { NAV_LINKS } from "./data";
 import { GhostButton, PrimaryButton } from "./ui";
@@ -13,14 +13,14 @@ export function Navbar({
   onOpenSignup,
   isLoggedIn,
   userName,
-  onOpenAdmin,
+  avatarUrl,
   onLogout,
 }: {
   onOpenLogin: () => void;
   onOpenSignup: () => void;
   isLoggedIn: boolean;
   userName: string;
-  onOpenAdmin: () => void;
+  avatarUrl?: string;
   onLogout: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -40,12 +40,6 @@ export function Navbar({
             showText={false}
             priority
           />
-
-          {/* Location */}
-          <button className="hidden items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-600 xl:flex">
-            <MapPin className="h-3.5 w-3.5" aria-hidden /> Udaipur
-            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-          </button>
         </div>
 
         {/* Nav links */}
@@ -81,24 +75,21 @@ export function Navbar({
           >
             <ShieldCheck size={18} />
           </Link>
-          <button
-            aria-label="Search"
-            className="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-brand-300 hover:text-brand-600 sm:flex"
-          >
-            <Search className="h-4 w-4" />
-          </button>
-
           {isLoggedIn ? (
             <div className="hidden items-center gap-3 lg:flex">
-              <button
-                onClick={onOpenAdmin}
-                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+              <Link
+                href="/profile"
+                aria-label="My Profile"
+                title="My Profile"
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200"
               >
-                Admin Console
-              </button>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
-                {userName.charAt(0).toUpperCase()}
-              </div>
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt={userName} className="h-full w-full object-cover" />
+                ) : (
+                  userName.charAt(0).toUpperCase()
+                )}
+              </Link>
               <button
                 onClick={onLogout}
                 className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-accent-300 hover:text-accent-600"
@@ -144,9 +135,13 @@ export function Navbar({
             <div className="mt-2 flex gap-2">
               {isLoggedIn ? (
                 <>
-                  <GhostButton onClick={onOpenAdmin} className="flex-1">
-                    Admin Console
-                  </GhostButton>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex-1 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                  >
+                    My Profile
+                  </Link>
                   <GhostButton onClick={onLogout} className="flex-1">
                     Logout
                   </GhostButton>

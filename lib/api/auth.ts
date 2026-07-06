@@ -10,6 +10,7 @@ export interface CustomerProfile {
   name: string;
   email: string;
   phone: string;
+  avatarUrl?: string;
   status?: "active" | "blocked";
 }
 
@@ -32,6 +33,32 @@ export function customerLogin(input: { identifier: string; password: string }) {
   });
 }
 
+export function customerGoogleAuth(idToken: string) {
+  return apiRequest<CustomerAuthResult>("/auth/customer/google", { method: "POST", body: { idToken } }).then((res) => {
+    setAccessToken("customer", res.accessToken);
+    return res.customer;
+  });
+}
+
+export function customerRequestLoginOtp(email: string) {
+  return apiRequest<null>("/auth/customer/otp/request", { method: "POST", body: { email } });
+}
+
+export function customerLoginWithOtp(input: { email: string; otp: string }) {
+  return apiRequest<CustomerAuthResult>("/auth/customer/otp/login", { method: "POST", body: input }).then((res) => {
+    setAccessToken("customer", res.accessToken);
+    return res.customer;
+  });
+}
+
+export function customerForgotPassword(email: string) {
+  return apiRequest<null>("/auth/customer/forgot-password", { method: "POST", body: { email } });
+}
+
+export function customerResetPassword(input: { email: string; otp: string; newPassword: string }) {
+  return apiRequest<null>("/auth/customer/reset-password", { method: "POST", body: input });
+}
+
 export async function customerLogout() {
   try {
     await apiRequest<null>("/auth/customer/logout", { method: "POST" });
@@ -42,6 +69,10 @@ export async function customerLogout() {
 
 export function getCurrentCustomer() {
   return apiRequest<CustomerProfile>("/auth/customer/me", { audience: "customer" });
+}
+
+export function updateMyCustomerProfile(input: { name?: string; avatarUrl?: string }) {
+  return apiRequest<CustomerProfile>("/auth/customer/me", { method: "PATCH", body: input, audience: "customer" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,6 +141,22 @@ export async function vendorLogout() {
 
 export function getCurrentVendor() {
   return apiRequest<VendorProfile>("/auth/vendor/me", { audience: "vendor" });
+}
+
+export function vendorRequestRegisterOtp(email: string) {
+  return apiRequest<null>("/auth/vendor/register/otp/request", { method: "POST", body: { email } });
+}
+
+export function vendorVerifyRegisterOtp(input: { email: string; otp: string }) {
+  return apiRequest<null>("/auth/vendor/register/otp/verify", { method: "POST", body: input });
+}
+
+export function vendorForgotPassword(email: string) {
+  return apiRequest<null>("/auth/vendor/forgot-password", { method: "POST", body: { email } });
+}
+
+export function vendorResetPassword(input: { email: string; otp: string; newPassword: string }) {
+  return apiRequest<null>("/auth/vendor/reset-password", { method: "POST", body: input });
 }
 
 /* ------------------------------------------------------------------ */

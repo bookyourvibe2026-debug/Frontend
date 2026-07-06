@@ -22,6 +22,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
+import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 
 const VENUE_TYPES: VenueType[] = [
   "Turf / Sports Ground",
@@ -50,7 +52,7 @@ const INDIAN_STATES = [
 ];
 
 const CHECKLISTS: Record<number, string[]> = {
-  1: ["Business Name", "Your Full Name", "Business Email", "Venue Type (Company, Individual, etc)", "Contact Phone Number (Verified via OTP)"],
+  1: ["Business Name", "Your Full Name", "Business Email (Verified via OTP)", "Venue Type (Company, Individual, etc)", "Contact Phone Number"],
   2: ["Strong Password (min 8 characters)", "Confirm Password", "Passwords must match"],
   3: ["Bank Account Number", "IFSC Code", "Account Holder Name"],
   4: ["State", "City", "Postal Code (Pincode)"],
@@ -69,6 +71,8 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -91,10 +95,10 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
     const e: Record<string, string> = {};
     if (p === 1) {
       if (!/^[6-9]\d{9}$/.test(data.phone)) e.phone = "Enter a valid 10-digit phone number.";
-      if (!data.otpVerified) e.otp = "Please verify your phone number with OTP.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "Enter a valid email address.";
+      if (!data.otpVerified) e.otp = "Please verify your email with the OTP.";
       if (!data.businessName.trim()) e.businessName = "Venue / business name is required.";
       if (!data.ownerName.trim()) e.ownerName = "Owner name is required.";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "Enter a valid email address.";
     }
     if (p === 2) {
       if (data.password.length < 8) e.password = "Password must be at least 8 characters.";
@@ -126,22 +130,42 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
     if (phase > 1) setPhase(phase - 1);
   }
 
-  function sendOtp() {
-    if (!/^[6-9]\d{9}$/.test(data.phone)) {
-      setErrors((e) => ({ ...e, phone: "Enter a valid 10-digit phone number first." }));
+  async function sendOtp() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      setErrors((e) => ({ ...e, email: "Enter a valid email address first." }));
       return;
     }
     setSendingOtp(true);
-    // TODO: wire to your real OTP provider (MSG91 / Firebase / Twilio Verify etc.)
-    setTimeout(() => setSendingOtp(false), 900);
+    setErrors((e) => ({ ...e, email: "", otp: "" }));
+    try {
+      await vendorRequestRegisterOtp(data.email);
+      setOtpSent(true);
+    } catch (err) {
+      setErrors((e) => ({
+        ...e,
+        email: err instanceof ApiError ? err.describe() : "Couldn't send the code. Please try again.",
+      }));
+    } finally {
+      setSendingOtp(false);
+    }
   }
 
-  function verifyOtp() {
-    // TODO: replace with real OTP verification call
-    if (data.otp.trim().length === 4 || data.otp.trim().length === 6) {
+  async function verifyOtp() {
+    if (data.otp.trim().length !== 6) {
+      setErrors((e) => ({ ...e, otp: "Enter the 6-digit code sent to your email." }));
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      await vendorVerifyRegisterOtp({ email: data.email, otp: data.otp.trim() });
       update("otpVerified", true);
-    } else {
-      setErrors((e) => ({ ...e, otp: "Enter the OTP sent to your phone." }));
+    } catch (err) {
+      setErrors((e) => ({
+        ...e,
+        otp: err instanceof ApiError ? err.describe() : "Invalid or expired code.",
+      }));
+    } finally {
+      setVerifyingOtp(false);
     }
   }
 
@@ -224,48 +248,6 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
           <div className="mt-6 flex-1 space-y-4">
             {phase === 1 && (
               <>
-                <div className="flex gap-2">
-                  <Field
-                    icon={Smartphone}
-                    placeholder="Phone Number"
-                    value={data.phone}
-                    onChange={(v) => update("phone", v.replace(/\D/g, "").slice(0, 10))}
-                    error={errors.phone}
-                  />
-                  <button
-                    type="button"
-                    onClick={sendOtp}
-                    disabled={sendingOtp || data.otpVerified}
-                    className="h-[52px] shrink-0 rounded-xl bg-[#0c1912] px-5 text-sm font-bold text-[#a6ff3c] disabled:opacity-50"
-                  >
-                    {data.otpVerified ? "Sent" : sendingOtp ? "…" : "OTP"}
-                  </button>
-                </div>
-
-                {!data.otpVerified && (
-                  <div className="flex gap-2">
-                    <Field
-                      icon={KeyRound}
-                      placeholder="Enter OTP"
-                      value={data.otp}
-                      onChange={(v) => update("otp", v.replace(/\D/g, "").slice(0, 6))}
-                      error={errors.otp}
-                    />
-                    <button
-                      type="button"
-                      onClick={verifyOtp}
-                      className="h-[52px] shrink-0 rounded-xl border border-[#0c1912] px-5 text-sm font-bold text-[#0c1912]"
-                    >
-                      Verify
-                    </button>
-                  </div>
-                )}
-                {data.otpVerified && (
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-[#3f7d3f]">
-                    <Check className="h-4 w-4" /> Phone number verified
-                  </p>
-                )}
-
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     icon={Building2}
@@ -283,12 +265,62 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                   />
                 </div>
 
+                <div className="flex gap-2">
+                  <Field
+                    icon={Mail}
+                    placeholder="Business / Personal Email"
+                    value={data.email}
+                    onChange={(v) => {
+                      update("email", v);
+                      update("otpVerified", false);
+                      setOtpSent(false);
+                    }}
+                    error={errors.email}
+                  />
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={sendingOtp || data.otpVerified}
+                    className="h-[52px] shrink-0 rounded-xl bg-[#0c1912] px-5 text-sm font-bold text-[#a6ff3c] disabled:opacity-50"
+                  >
+                    {data.otpVerified ? "Sent" : sendingOtp ? "…" : otpSent ? "Resend" : "Send OTP"}
+                  </button>
+                </div>
+
+                {!data.otpVerified && otpSent && (
+                  <div className="flex gap-2">
+                    <Field
+                      icon={KeyRound}
+                      placeholder="Enter OTP"
+                      value={data.otp}
+                      onChange={(v) => update("otp", v.replace(/\D/g, "").slice(0, 6))}
+                      error={errors.otp}
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyOtp}
+                      disabled={verifyingOtp}
+                      className="h-[52px] shrink-0 rounded-xl border border-[#0c1912] px-5 text-sm font-bold text-[#0c1912] disabled:opacity-50"
+                    >
+                      {verifyingOtp ? "…" : "Verify"}
+                    </button>
+                  </div>
+                )}
+                {!data.otpVerified && !otpSent && errors.otp && (
+                  <p className="text-xs text-red-600">{errors.otp}</p>
+                )}
+                {data.otpVerified && (
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-[#3f7d3f]">
+                    <Check className="h-4 w-4" /> Email verified
+                  </p>
+                )}
+
                 <Field
-                  icon={Mail}
-                  placeholder="Business / Personal Email"
-                  value={data.email}
-                  onChange={(v) => update("email", v)}
-                  error={errors.email}
+                  icon={Smartphone}
+                  placeholder="Phone Number"
+                  value={data.phone}
+                  onChange={(v) => update("phone", v.replace(/\D/g, "").slice(0, 10))}
+                  error={errors.phone}
                 />
 
                 <div>
