@@ -2,6 +2,9 @@ import { apiRequest, type Paginated } from "./client";
 import type {
   Booking,
   BookingStatus,
+  Coach,
+  CoachBooking,
+  CoachBookingStatus,
   FoodOrder,
   FoodOrderStatus,
   Listing,
@@ -14,6 +17,10 @@ import type {
   SettledPayment,
   Subscription,
   SubscriptionStatus,
+  Tournament,
+  TournamentRegistration,
+  TournamentRegistrationStatus,
+  TournamentStatus,
   Vendor,
   VendorDashboard,
   VendorFoodDashboard,
@@ -161,6 +168,122 @@ export function updateVendorBookingStatus(orderId: string, status: BookingStatus
   return apiRequest<Booking>(`/vendor/bookings/${orderId}/status`, {
     method: "PATCH",
     body: { status, cancellationReason },
+    audience: AUD,
+  });
+}
+
+/* ---- Coaches ---- */
+
+export function listVendorCoaches(params: { status?: "Active" | "Inactive"; page?: number; limit?: number } = {}) {
+  return apiRequest<Paginated<Coach>>("/vendor/coaches", { query: params, audience: AUD });
+}
+
+export function getVendorCoachById(id: string) {
+  return apiRequest<Coach>(`/vendor/coaches/${id}`, { audience: AUD });
+}
+
+export interface CreateCoachInput {
+  name: string;
+  category: string;
+  subCategory?: string;
+  experienceYears?: number;
+  fees: number;
+  bio?: string;
+  photoUrl?: string;
+  status?: "Active" | "Inactive";
+}
+
+export function createCoach(input: CreateCoachInput) {
+  return apiRequest<Coach>("/vendor/coaches", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateCoach(id: string, input: Partial<CreateCoachInput>) {
+  return apiRequest<Coach>(`/vendor/coaches/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function deleteCoach(id: string) {
+  return apiRequest<null>(`/vendor/coaches/${id}`, { method: "DELETE", audience: AUD });
+}
+
+export function addCoachSlot(coachId: string, input: { date: string; startTime: string; endTime: string }) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/slots`, { method: "POST", body: input, audience: AUD });
+}
+
+export function removeCoachSlot(coachId: string, slotId: string) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/slots/${slotId}`, { method: "DELETE", audience: AUD });
+}
+
+export function listVendorCoachBookings(params: { status?: CoachBookingStatus; coachId?: string; page?: number; limit?: number } = {}) {
+  return apiRequest<Paginated<CoachBooking>>("/vendor/coaches/bookings", { query: params, audience: AUD });
+}
+
+export function checkInVendorCoachBooking(orderId: string) {
+  return apiRequest<CoachBooking>(`/vendor/coaches/bookings/${orderId}/checkin`, { method: "POST", audience: AUD });
+}
+
+/* ---- Tournaments ---- */
+
+export function listVendorTournaments(params: { status?: TournamentStatus; page?: number; limit?: number } = {}) {
+  return apiRequest<Paginated<Tournament>>("/vendor/tournaments", { query: params, audience: AUD });
+}
+
+export function getVendorTournamentById(id: string) {
+  return apiRequest<Tournament>(`/vendor/tournaments/${id}`, { audience: AUD });
+}
+
+export interface CreateTournamentInput {
+  title: string;
+  category: string;
+  subCategory?: string;
+  description: string;
+  city: string;
+  state: string;
+  address: string;
+  entryFee: number;
+  prizeMoney?: number;
+  startDate: string;
+  endDate: string;
+  registrationDeadline: string;
+  maxTeams?: number;
+  status?: TournamentStatus;
+}
+
+export function createTournament(input: CreateTournamentInput) {
+  return apiRequest<Tournament>("/vendor/tournaments", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateTournament(id: string, input: Partial<CreateTournamentInput>) {
+  return apiRequest<Tournament>(`/vendor/tournaments/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function addTournamentFixture(
+  tournamentId: string,
+  input: { round: string; teamAId: string; teamBId: string; scheduledAt: string }
+) {
+  return apiRequest<Tournament>(`/vendor/tournaments/${tournamentId}/fixtures`, { method: "POST", body: input, audience: AUD });
+}
+
+export function updateFixtureResult(
+  tournamentId: string,
+  fixtureId: string,
+  input: { teamAScore: number; teamBScore: number; winnerTeamId?: string }
+) {
+  return apiRequest<Tournament>(`/vendor/tournaments/${tournamentId}/fixtures/${fixtureId}`, {
+    method: "PATCH",
+    body: input,
+    audience: AUD,
+  });
+}
+
+export function listVendorTournamentRegistrations(
+  params: { status?: TournamentRegistrationStatus; tournamentId?: string; page?: number; limit?: number } = {}
+) {
+  return apiRequest<Paginated<TournamentRegistration>>("/vendor/tournaments/registrations", { query: params, audience: AUD });
+}
+
+export function checkInVendorTournamentRegistration(orderId: string) {
+  return apiRequest<TournamentRegistration>(`/vendor/tournaments/registrations/${orderId}/checkin`, {
+    method: "POST",
     audience: AUD,
   });
 }

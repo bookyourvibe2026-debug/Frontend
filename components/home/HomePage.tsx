@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type Venue, listingToVenue } from "@/lib/venues";
 import { browseVenues } from "@/lib/api/venues";
-import type { AuthMode, Role } from "./types";
-import { Navbar } from "./Navbar";
+import { SiteHeader } from "@/components/site-header";
 import { Hero } from "./Hero";
 import { QuickActionsSection } from "./QuickActionsSection";
 import { FindYourGames } from "./FindYourGames";
@@ -24,8 +23,6 @@ import { BuildCostAndExtensionsSection } from "./BuildCostAndExtensionsSection";
 import { Testimonials } from "./Testimonials";
 import { AppDownloadCTA } from "./AppDownloadCTA";
 import { Footer } from "./Footer";
-import { LoginModal } from "./modals/LoginModal";
-import { SignupModal } from "./modals/SignupModal";
 import { FiltersModal } from "./modals/FiltersModal";
 import { MobileHome } from "./mobile/MobileHome";
 import { useVenueFilters } from "./useVenueFilters";
@@ -33,9 +30,7 @@ import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 
 export default function HomePage() {
   const router = useRouter();
-  const { customer, status: authStatus, logout } = useCustomerAuth();
-  const [authMode, setAuthMode] = useState<AuthMode>(null);
-  const isLoggedIn = authStatus === "authenticated";
+  const { customer } = useCustomerAuth();
   const userName = customer?.name.split(" ")[0] ?? "Guest";
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -94,29 +89,6 @@ export default function HomePage() {
     [router]
   );
 
-  const handleLoggedIn = useCallback(() => {
-    setAuthMode(null);
-    showToast(`Welcome back, ${userName}!`);
-  }, [showToast, userName]);
-
-  const handleSignedUp = useCallback(
-    (role: Role) => {
-      setAuthMode(null);
-      if (role === "owner") {
-        showToast("Vendor account created — redirecting to your dashboard…");
-        router.push("/vendor/dashboard");
-        return;
-      }
-      showToast(`Account created. Welcome!`);
-    },
-    [showToast, router]
-  );
-
-  const handleLogout = useCallback(async () => {
-    await logout();
-    showToast("Logged out.");
-  }, [logout, showToast]);
-
   const filteredVenuesNote = useMemo(() => {
     if (!search && filters.activeFilterCount === 0) return null;
     return filters.filteredVenues.length;
@@ -146,14 +118,7 @@ export default function HomePage() {
       </div>
 
       <div className="hidden sm:block">
-        <Navbar
-          onOpenLogin={() => setAuthMode("login")}
-          onOpenSignup={() => setAuthMode("signup")}
-          isLoggedIn={isLoggedIn}
-          userName={userName}
-          avatarUrl={customer?.avatarUrl}
-          onLogout={handleLogout}
-        />
+        <SiteHeader />
 
         <Hero
           userName={userName}
@@ -229,21 +194,6 @@ export default function HomePage() {
 
       <Footer />
 
-      {/* Auth modals */}
-      {authMode === "login" && (
-        <LoginModal
-          onClose={() => setAuthMode(null)}
-          onLoggedIn={handleLoggedIn}
-          onSwitchToSignup={() => setAuthMode("signup")}
-        />
-      )}
-      {authMode === "signup" && (
-        <SignupModal
-          onClose={() => setAuthMode(null)}
-          onSignedUp={handleSignedUp}
-          onSwitchToLogin={() => setAuthMode("login")}
-        />
-      )}
       {filtersOpen && (
         <FiltersModal
           onClose={() => setFiltersOpen(false)}

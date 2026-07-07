@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, MapPin, Share2, ArrowLeft, Building2 } from "lucide-react";
+import { CheckCircle2, XCircle, MapPin, Share2, ArrowLeft, Building2, UserRoundCog } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
 import { getVenueById } from "@/lib/api/venues";
@@ -191,6 +191,19 @@ export default function VenueDetailPage() {
                 Book Now
               </button>
             </div>
+
+            <Link
+              href="/coaches"
+              className="mt-4 flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+                <UserRoundCog className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold text-slate-900">Want a coach here?</span>
+                <span className="block text-xs text-slate-500">Browse coaches and book a session</span>
+              </span>
+            </Link>
           </div>
         </div>
       </main>

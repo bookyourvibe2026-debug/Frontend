@@ -114,7 +114,9 @@ export type ModulePermissionKey =
   | "settings"
   | "membership"
   | "menu"
-  | "foodOrders";
+  | "foodOrders"
+  | "coaches"
+  | "tournaments";
 
 export interface RoleModulePermissions {
   view: boolean;

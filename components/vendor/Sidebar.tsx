@@ -16,6 +16,8 @@ import {
   LogOut,
   UtensilsCrossed,
   ClipboardList,
+  UserRoundCog,
+  Trophy,
   X,
 } from "lucide-react";
 import type { VendorVertical } from "@/lib/api/types";
@@ -26,6 +28,8 @@ const TURF_NAV_ITEMS = [
   { href: "/vendor/bookings", label: "Bookings Management", icon: CalendarCheck2 },
   { href: "/vendor/payments", label: "Payment Settled", icon: Wallet },
   { href: "/vendor/memberships", label: "Memberships", icon: CreditCard },
+  { href: "/vendor/coaches", label: "Coaches", icon: UserRoundCog },
+  { href: "/vendor/tournaments", label: "Tournaments", icon: Trophy },
   { href: "/vendor/statistics", label: "Statistics", icon: BarChart3 },
 ] as const;
 

@@ -25,16 +25,6 @@ import {
 } from "lucide-react";
 import type { FooterLink, Sport } from "./types";
 
-export const NAV_LINKS = [
-  { label: "Home", href: "/" },
-  { label: "Find Your Games", href: "/games" },
-  { label: "Venues", href: "/venues" },
-  { label: "Tournaments", href: "/tournaments" },
-  { label: "Blog", href: "/blogs" },
-  { label: "Community", href: "/community" },
-  { label: "About Us", href: "/#about-us" },
-];
-
 export const HERO_STATS = [
   { id: "venues", label: "Venues Listed", value: "500+", icon: Building2 },
   { id: "players", label: "Active Players", value: "50K+", icon: Users },

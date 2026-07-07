@@ -1,20 +1,34 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
+import { browsePublicTournaments } from "@/lib/api/tournaments";
+import { Tournament } from "@/lib/api/types";
 
-export const metadata = {
-  title: "Tournaments | Book Your Vibe",
-  description: "Browse upcoming tournaments and competitive events.",
-};
+function statusLabel(t: Tournament) {
+  if (t.status === "Completed") return "Completed";
+  if (t.status === "Ongoing") return "Ongoing";
+  if (t.maxTeams && t.spotsLeft === 0) return "Full";
+  if (t.maxTeams && t.spotsLeft !== undefined && t.spotsLeft <= 2) return "Filling Fast";
+  return "Registration Open";
+}
 
-const TOURNAMENTS = [
-  { name: "Weekend Cricket Cup", sport: "Cricket", date: "Sat, 12 Jul", prize: "₹25,000", status: "Registration Open" },
-  { name: "City Badminton Ladder", sport: "Badminton", date: "Sun, 13 Jul", prize: "₹10,000", status: "Filling Fast" },
-  { name: "Pickleball Sprint Series", sport: "Pickleball", date: "Fri, 18 Jul", prize: "₹7,500", status: "New" },
-  { name: "Football Turf League", sport: "Football", date: "Sun, 20 Jul", prize: "₹30,000", status: "Registration Open" },
-];
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+}
 
 export default function TournamentsPage() {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    browsePublicTournaments({ limit: 24 })
+      .then((result) => setTournaments(result.items))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff7ed,_#f8fafc_42%,_#ffffff_78%)]">
       <div className="hidden sm:block">
@@ -37,35 +51,42 @@ export default function TournamentsPage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {TOURNAMENTS.map((event) => (
-              <MobileCard key={event.name} className="flex flex-col gap-3">
+            {tournaments.map((t) => (
+              <MobileCard key={t._id} className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">
-                      {event.sport}
+                      {t.category}
                     </p>
-                    <h2 className="mt-1 text-base font-extrabold text-slate-950">{event.name}</h2>
+                    <h2 className="mt-1 text-base font-extrabold text-slate-950">{t.title}</h2>
                   </div>
                   <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
-                    {event.status}
+                    {statusLabel(t)}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                   <span className="rounded-full bg-brand-50 px-3 py-1.5 font-semibold text-brand-700">
-                    {event.date}
+                    {formatDate(t.startDate)}
                   </span>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
-                    Prize {event.prize}
-                  </span>
+                  {!!t.prizeMoney && (
+                    <span className="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
+                      Prize ₹{t.prizeMoney.toLocaleString("en-IN")}
+                    </span>
+                  )}
                 </div>
                 <Link
-                  href="/community"
+                  href={`/tournaments/${t._id}`}
                   className="rounded-full bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white"
                 >
-                  Register interest
+                  View & Register
                 </Link>
               </MobileCard>
             ))}
+            {!loading && tournaments.length === 0 && (
+              <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
+                No tournaments live right now. Check back soon.
+              </p>
+            )}
           </div>
         </main>
       </div>
@@ -96,43 +117,55 @@ export default function TournamentsPage() {
         </section>
 
         <section className="mt-8 grid gap-4 lg:grid-cols-2">
-          {TOURNAMENTS.map((event) => (
+          {tournaments.map((t) => (
             <article
-              key={event.name}
+              key={t._id}
               className="rounded-[1.75rem] border border-slate-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">
-                    {event.sport}
+                    {t.category}
                   </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950">{event.name}</h2>
+                  <h2 className="mt-2 text-2xl font-black text-slate-950">{t.title}</h2>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                  {event.status}
+                  {statusLabel(t)}
                 </span>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                 <span className="rounded-full bg-brand-50 px-4 py-2 font-semibold text-brand-700">
-                  {event.date}
+                  {formatDate(t.startDate)}
                 </span>
-                <span className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-700">
-                  Prize {event.prize}
+                {!!t.prizeMoney && (
+                  <span className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-700">
+                    Prize ₹{t.prizeMoney.toLocaleString("en-IN")}
+                  </span>
+                )}
+                <span className="rounded-full bg-slate-100 px-4 py-2 font-semibold text-slate-700">
+                  {t.city}
                 </span>
               </div>
 
               <div className="mt-6 flex items-center justify-between gap-3">
-                <p className="text-sm text-slate-500">Best suited for competitive players and squads.</p>
+                <p className="text-sm text-slate-500">
+                  {t.maxTeams ? `${t.registeredTeamsCount}/${t.maxTeams} teams registered` : "Best suited for competitive squads."}
+                </p>
                 <Link
-                  href="/community"
+                  href={`/tournaments/${t._id}`}
                   className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
                 >
-                  Register interest
+                  View & Register
                 </Link>
               </div>
             </article>
           ))}
+          {!loading && tournaments.length === 0 && (
+            <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
+              No tournaments live right now. Check back soon.
+            </p>
+          )}
         </section>
       </main>
     </div>

@@ -291,6 +291,8 @@ export const vendorRoles: VendorRole[] = [
       membership: { view: false, create: false, edit: false, delete: false },
       menu: { view: false, create: false, edit: false, delete: false },
       foodOrders: { view: false, create: false, edit: false, delete: false },
+      coaches: { view: false, create: false, edit: false, delete: false },
+      tournaments: { view: false, create: false, edit: false, delete: false },
     },
   },
 ];
@@ -354,5 +356,17 @@ export const moduleMeta: {
     label: "Food Orders",
     description: "Accept, prepare, and deliver incoming food orders.",
     toggles: ["view", "edit"],
+  },
+  {
+    key: "coaches",
+    label: "Coaches",
+    description: "Add coaches, manage their coaching slots, and check in sessions.",
+    toggles: ["view", "create", "edit", "delete"],
+  },
+  {
+    key: "tournaments",
+    label: "Tournaments",
+    description: "Create tournaments, manage fixtures and results, and check in teams.",
+    toggles: ["view", "create", "edit", "delete"],
   },
 ];

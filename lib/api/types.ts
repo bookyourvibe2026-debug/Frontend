@@ -45,6 +45,10 @@ export interface Listing {
   category: string;
   subCategory?: string;
   price: number;
+  /** Ticket cap for type: "Event" listings — unused for Turf/Game. */
+  capacity?: number;
+  /** Present on the public detail response for type: "Event" listings with a capacity set. */
+  spotsLeft?: number;
   status: ListingStatus;
   trending: boolean;
   isPrivate: boolean;
@@ -107,6 +111,137 @@ export interface Booking {
   paymentOrderId?: string;
   status: BookingStatus;
   isAffiliate: boolean;
+  cancellationReason?: string;
+  checkedIn: boolean;
+  checkedInAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoachSlot {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  isBooked: boolean;
+}
+
+export interface Coach {
+  _id: string;
+  vendorId: string;
+  name: string;
+  category: string;
+  subCategory?: string;
+  experienceYears?: number;
+  fees: number;
+  bio?: string;
+  photoUrl?: string;
+  status: "Active" | "Inactive";
+  slots: CoachSlot[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CoachBookingStatus = "Confirmed" | "Cancelled" | "Completed";
+
+export interface CoachBooking {
+  _id: string;
+  orderId: string;
+  coachId: string;
+  vendorId: string;
+  customerId?: string | null;
+  customerName: string;
+  phone: string;
+  email?: string;
+  slotId: string;
+  slotDate: string;
+  slotStartTime: string;
+  slotEndTime: string;
+  amount: number;
+  payment: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paymentOrderId?: string;
+  status: CoachBookingStatus;
+  cancellationReason?: string;
+  checkedIn: boolean;
+  checkedInAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TournamentStatus = "Upcoming" | "Ongoing" | "Completed" | "Cancelled";
+export type FixtureStatus = "Scheduled" | "Completed";
+
+export interface TournamentFixture {
+  id: string;
+  round: string;
+  teamAId: string;
+  teamBId: string;
+  scheduledAt: string;
+  teamAScore?: number;
+  teamBScore?: number;
+  winnerTeamId?: string;
+  status: FixtureStatus;
+}
+
+export interface LeaderboardEntry {
+  teamId: string;
+  teamName: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+}
+
+export interface Tournament {
+  _id: string;
+  vendorId: string;
+  title: string;
+  category: string;
+  subCategory?: string;
+  description: string;
+  city: string;
+  state: string;
+  address: string;
+  entryFee: number;
+  prizeMoney?: number;
+  startDate: string;
+  endDate: string;
+  registrationDeadline: string;
+  maxTeams?: number;
+  registeredTeamsCount: number;
+  status: TournamentStatus;
+  fixtures: TournamentFixture[];
+  spotsLeft?: number;
+  leaderboard?: LeaderboardEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TournamentRegistrationStatus = "Registered" | "Cancelled" | "Withdrawn";
+
+export interface TournamentPlayer {
+  name: string;
+  phone?: string;
+}
+
+export interface TournamentRegistration {
+  _id: string;
+  orderId: string;
+  tournamentId: string;
+  vendorId: string;
+  customerId?: string | null;
+  teamName: string;
+  captainName: string;
+  captainPhone: string;
+  captainEmail?: string;
+  players: TournamentPlayer[];
+  amount: number;
+  payment: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paymentOrderId?: string;
+  status: TournamentRegistrationStatus;
   cancellationReason?: string;
   checkedIn: boolean;
   checkedInAt?: string | null;
@@ -224,7 +359,9 @@ export type ModulePermissionKey =
   | "settings"
   | "membership"
   | "menu"
-  | "foodOrders";
+  | "foodOrders"
+  | "coaches"
+  | "tournaments";
 export type PermissionAction = "view" | "create" | "edit" | "delete";
 export type PermissionsMap<K extends string> = Partial<Record<K, Record<PermissionAction, boolean>>>;
 

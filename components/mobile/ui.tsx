@@ -16,6 +16,8 @@ const MOBILE_NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Find Your Games", href: "/games" },
   { label: "Venues", href: "/venues" },
+  { label: "Events", href: "/events" },
+  { label: "Coaches", href: "/coaches" },
   { label: "Tournaments", href: "/tournaments" },
   { label: "Blog", href: "/blogs" },
   { label: "Community", href: "/community" },
