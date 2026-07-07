@@ -46,22 +46,32 @@ export default function FoodPage() {
             <Link
               key={vendor._id}
               href={`/food/${vendor._id}`}
-              className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+              className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
             >
-              {vendor.logo ? (
+              {vendor.banner ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={vendor.logo} alt={vendor.businessName} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                <img src={vendor.banner} alt={vendor.businessName} className="h-28 w-full object-cover" />
               ) : (
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
-                  <UtensilsCrossed className="h-6 w-6" />
-                </span>
+                <div className="flex h-28 w-full items-center justify-center bg-brand-50 text-brand-300">
+                  <UtensilsCrossed className="h-8 w-8" />
+                </div>
               )}
-              <div className="min-w-0">
-                <h2 className="truncate font-bold text-slate-900">{vendor.businessName}</h2>
-                <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                  <MapPin className="h-3 w-3" /> {vendor.city ? `${vendor.city}, ` : ""}
-                  {vendor.state}
-                </p>
+              <div className="flex items-center gap-4 p-4">
+                {vendor.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={vendor.logo} alt={vendor.businessName} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
+                    <UtensilsCrossed className="h-6 w-6" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <h2 className="truncate font-bold text-slate-900">{vendor.businessName}</h2>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                    <MapPin className="h-3 w-3" /> {vendor.city ? `${vendor.city}, ` : ""}
+                    {vendor.state}
+                  </p>
+                </div>
               </div>
             </Link>
           ))}

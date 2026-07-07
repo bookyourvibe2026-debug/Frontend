@@ -159,6 +159,8 @@ export interface FoodVendor {
   businessName: string;
   ownerName: string;
   logo?: string;
+  banner?: string;
+  poster?: string;
   city?: string;
   state: string;
   categories: string[];
@@ -191,6 +193,8 @@ export interface Vendor {
   approvedOn?: string | null;
   notifications: { email: boolean; whatsapp: boolean; offline: boolean };
   logo?: string;
+  banner?: string;
+  poster?: string;
   businessType?: VendorBusinessType;
   gstNumber?: string;
   categories: string[];

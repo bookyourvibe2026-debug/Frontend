@@ -45,6 +45,8 @@ export interface UpdateVendorProfileInput {
   state?: string;
   notifications?: Partial<{ email: boolean; whatsapp: boolean; offline: boolean }>;
   logo?: string;
+  banner?: string;
+  poster?: string;
   businessType?: Vendor["businessType"];
   gstNumber?: string;
   categories?: string[];

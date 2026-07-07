@@ -105,6 +105,14 @@ export default function FoodVendorPage() {
 
         {vendor && (
           <>
+            {vendor.poster && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={vendor.poster}
+                alt={`${vendor.businessName} poster`}
+                className="mb-6 h-48 w-full rounded-2xl object-cover sm:h-64"
+              />
+            )}
             <div className="flex items-center gap-4">
               {vendor.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
