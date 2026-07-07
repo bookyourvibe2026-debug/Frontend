@@ -116,15 +116,15 @@ export default function FoodVendorPage() {
             <div className="flex items-center gap-4">
               {vendor.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={vendor.logo} alt={vendor.businessName} className="h-16 w-16 rounded-2xl object-cover" />
+                <img src={vendor.logo} alt={vendor.businessName} className="h-16 w-16 shrink-0 rounded-2xl object-cover" />
               ) : (
-                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
                   <UtensilsCrossed className="h-7 w-7" />
                 </span>
               )}
-              <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{vendor.businessName}</h1>
-                <p className="text-sm text-slate-500">
+              <div className="min-w-0">
+                <h1 className="truncate text-2xl font-extrabold text-slate-900 sm:text-3xl">{vendor.businessName}</h1>
+                <p className="truncate text-sm text-slate-500">
                   {vendor.city ? `${vendor.city}, ` : ""}
                   {vendor.state}
                 </p>
@@ -135,9 +135,9 @@ export default function FoodVendorPage() {
               {categories.map(([category, categoryItems]) => (
                 <section key={category}>
                   <h2 className="text-sm font-bold uppercase tracking-wide text-brand-600">{category}</h2>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {categoryItems.map((item) => (
-                      <div key={item._id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                      <div key={item._id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
                         {item.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={item.photo} alt={item.name} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
@@ -154,7 +154,7 @@ export default function FoodVendorPage() {
                             {item.prepTimeMins ? <span className="ml-1 font-normal text-slate-400">· ~{item.prepTimeMins} min</span> : null}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           <button
                             onClick={() => setQty(item._id, (cart[item._id] ?? 0) - 1)}
                             disabled={!cart[item._id]}
