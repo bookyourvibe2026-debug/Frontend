@@ -27,6 +27,7 @@ import { FiltersModal } from "./modals/FiltersModal";
 import { MobileHome } from "./mobile/MobileHome";
 import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
 
 export default function HomePage() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function HomePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [challengeOpen, setChallengeOpen] = useState(false);
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
@@ -110,7 +112,7 @@ export default function HomePage() {
           onQuickAction={handleQuickAction}
           onViewAllQuickActions={() => router.push("/games")}
           onChooseGame={() => router.push("/venues")}
-          onJoinCommunity={() => showToast("Joining Badminton Doubles match…")}
+          onJoinCommunity={() => setChallengeOpen(true)}
           onViewAllCommunity={() => router.push("/community")}
           onViewAllEvents={() => router.push("/tournaments")}
           onViewAllOffers={() => router.push("/offers")}
@@ -170,6 +172,7 @@ export default function HomePage() {
         <CommunityMatches
           onJoin={() => showToast("Joining Badminton Doubles match…")}
           onViewAll={() => router.push("/community")}
+          onLaunchChallenge={() => setChallengeOpen(true)}
         />
 
         <EventsAndOffers
@@ -201,6 +204,7 @@ export default function HomePage() {
           filters={filters}
         />
       )}
+      {challengeOpen && <ChallengeFlow onClose={() => setChallengeOpen(false)} />}
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-xl">

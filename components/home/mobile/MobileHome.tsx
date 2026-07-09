@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Building2,
   Feather,
+  Flame,
   Heart,
   LayoutGrid,
   MapPin,
@@ -324,8 +325,32 @@ export function MobileHome({
       </section>
 
       <section>
-        <MobileSectionRow title="Community Matches Near You" actionLabel="View All" onAction={onViewAllCommunity} />
-        <MobileCard className="flex flex-col gap-3">
+        <MobileSectionRow title="Live Challenge" actionLabel="View All" onAction={onViewAllCommunity} />
+        <button type="button" onClick={onJoinCommunity} className="w-full text-left">
+          <MobileCard className="relative flex flex-col gap-4 overflow-hidden !bg-slate-950 !p-5 text-white">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(249,115,22,0.34),transparent_34%),radial-gradient(circle_at_84%_100%,rgba(16,185,129,0.2),transparent_38%)]" />
+            <div className="relative flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/35 bg-orange-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-orange-300">
+                <Flame className="h-3.5 w-3.5" /> Live Challenge
+              </span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-300">New</span>
+            </div>
+            <div className="relative">
+              <p className="text-xl font-black uppercase leading-tight">Vibe Challenge</p>
+              <p className="mt-2 max-w-[260px] text-xs font-medium leading-relaxed text-slate-400">
+                Challenge your friend, generate match posters, add food stakes, and share on WhatsApp.
+              </p>
+            </div>
+            <div className="relative flex items-center justify-between border-t border-white/10 pt-3">
+              <span className="text-xs text-slate-300">🏏 🏸 🏓 ⚽ +9 sports</span>
+              <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-orange-400">
+                Launch <ArrowRight className="h-4 w-4" />
+              </span>
+            </div>
+          </MobileCard>
+        </button>
+
+        <MobileCard className="mt-3 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
               Open Match
