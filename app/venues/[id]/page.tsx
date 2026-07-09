@@ -162,6 +162,26 @@ export default function VenueDetailPage() {
                 </ul>
               </div>
             </section>
+
+            {/* Location / Live Map Section */}
+            {venue.address && (
+              <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
+                  <MapPin className="h-5 w-5 text-brand-500" /> Location &amp; Directions
+                </h2>
+                <p className="mt-2 text-sm text-slate-600 font-medium">{venue.address}</p>
+                
+                <div className="mt-4 w-full h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-sm relative bg-slate-50">
+                  <iframe
+                    title="Venue Location Map"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(venue.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    className="absolute inset-0 w-full h-full border-0"
+                    allowFullScreen
+                    loading="lazy"
+                  />
+                </div>
+              </section>
+            )}
           </div>
 
           {/* RIGHT — sticky booking card */}

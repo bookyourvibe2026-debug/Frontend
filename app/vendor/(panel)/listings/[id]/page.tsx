@@ -1,19 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Camera, ClipboardList, FileText, Pencil } from "lucide-react";
+import {
+  ArrowLeft, Camera, ClipboardList, FileText, Pencil,
+  LayoutGrid, Clock as ClockIcon, ChevronDown, X,
+  Ban, BookOpen, Pause, Clock3, CalendarDays, Phone, User, CalendarCheck,
+} from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
+import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { uploadVendorImage } from "@/lib/api/uploads";
 import { Listing } from "@/lib/types";
-import { getVendorListingById, updateVendorListing } from "@/lib/api/vendor";
+import {
+  getVendorListingById, updateVendorListing,
+  getVendorBookings, createVendorBooking,
+} from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
+import { Booking } from "@/lib/types";
 
-type Tab = "overview" | "registrations";
+type Tab = "overview" | "registrations" | "agenda";
 
 const TYPE_TONE: Record<Listing["type"], "info" | "success" | "pending"> = {
   Turf: "info",
@@ -87,6 +96,8 @@ export default function ListingDetailPage() {
 
         {tab === "overview" ? (
           <OverviewTab listing={listing} onEdit={() => setStudioOpen(true)} onReplaceImage={replaceImage} />
+        ) : tab === "agenda" ? (
+          <AgendaTab listing={listing} />
         ) : (
           <RegistrationsTab />
         )}
@@ -138,6 +149,15 @@ function StudioSidebar({
               active={tab === "overview"}
               onClick={() => onTabChange("overview")}
             />
+            {listing.type === "Turf" && (
+              <SidebarNavItem
+                icon={<CalendarCheck size={15} />}
+                label="Today's Agenda"
+                hint={tab === "agenda" ? "Current page" : "Slot booking management"}
+                active={tab === "agenda"}
+                onClick={() => onTabChange("agenda")}
+              />
+            )}
             <SidebarNavItem
               icon={<ClipboardList size={15} />}
               label="Registrations"
@@ -451,3 +471,449 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint: 
     </div>
   );
 }
+
+/* ─── AGENDA TAB COMPONENT ────────────────────────────────────── */
+type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+interface AgendaSlot {
+  startTime: string;
+  endTime: string;
+  label: string;
+  price: number;
+  status: SlotStatus;
+  bookingId?: string;
+  customerName?: string;
+}
+
+function AgendaTab({ listing }: { listing: Listing }) {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "clock">("grid");
+  const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
+  const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
+  const [groupedFilter, setGroupedFilter] = useState<SlotStatus | null>(null);
+  const [localListing, setLocalListing] = useState<Listing>(listing);
+
+  // Offline booking modal
+  const [offlineModal, setOfflineModal] = useState(false);
+  const [offlineName, setOfflineName] = useState("");
+  const [offlinePhone, setOfflinePhone] = useState("");
+  const [offlineSubmitting, setOfflineSubmitting] = useState(false);
+
+  useEffect(() => {
+    setLocalListing(listing);
+  }, [listing]);
+
+  useEffect(() => {
+    setLoading(true);
+    getVendorBookings({ limit: 500 })
+      .then((b) => {
+        setBookings(b.items as unknown as Booking[]);
+      })
+      .catch((e) => console.error(e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const dateOptions = useMemo(() => {
+    const list: Date[] = [];
+    const today = new Date();
+    for (let i = -3; i < 4; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      list.push(d);
+    }
+    return list;
+  }, []);
+
+  const resolvedSlots = useMemo<AgendaSlot[]>(() => {
+    const override = localListing.dateOverrides?.find((o) => o.date === selectedDate);
+    const base = override
+      ? override.isHoliday ? [] : (override.slots || [])
+      : (localListing.slotsList || []);
+
+    return base.map((slot) => {
+      const match = bookings.find((bk) => {
+        const bkDate = new Date(bk.dateTime).toISOString().slice(0, 10);
+        const bkTime = new Date(bk.dateTime).toLocaleTimeString("en-US", {
+          hour12: false, hour: "2-digit", minute: "2-digit",
+        });
+        return (bk.listing === localListing.id || (bk as any).listingId === localListing.id)
+          && bkDate === selectedDate
+          && bkTime === slot.startTime;
+      });
+
+      let status: SlotStatus = "Available";
+      let bookingId: string | undefined;
+      let customerName: string | undefined;
+
+      if (match) {
+        bookingId = match.orderId;
+        customerName = match.customer;
+        if (match.status === "Confirmed") status = "Booked";
+        else if (match.status === "Pending") status = "Part Paid";
+        else status = "Booked";
+      }
+
+      return {
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        label: slot.label,
+        price: slot.price,
+        status,
+        bookingId,
+        customerName,
+      };
+    });
+  }, [localListing, selectedDate, bookings]);
+
+  const stats = useMemo(() => {
+    const totalHrs = resolvedSlots.reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
+    const bookedHrs = resolvedSlots.filter(s => s.status === "Booked").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
+    const partPaidHrs = resolvedSlots.filter(s => s.status === "Part Paid").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
+    const availHrs = resolvedSlots.filter(s => s.status === "Available").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
+    return { totalHrs, bookedHrs, partPaidHrs, availHrs };
+  }, [resolvedSlots]);
+
+  const visibleSlots = useMemo(
+    () => daypart ? resolvedSlots.filter(s => s.label === daypart) : resolvedSlots,
+    [resolvedSlots, daypart]
+  );
+
+  const groupedSlots = useMemo(() => {
+    if (!groupedFilter) return [];
+    return resolvedSlots.filter(s => s.status === groupedFilter);
+  }, [resolvedSlots, groupedFilter]);
+
+  async function blockSlot(slot: AgendaSlot) {
+    try {
+      const overrides = [...(localListing.dateOverrides || [])];
+      const idx = overrides.findIndex(o => o.date === selectedDate);
+      const currentSlots = idx > -1
+        ? [...(overrides[idx].slots || [])]
+        : [...(localListing.slotsList || [])];
+      const next = currentSlots.filter(s => s.startTime !== slot.startTime);
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
+      const updated = { ...localListing, dateOverrides: overrides };
+      const saved = await updateVendorListing(localListing.id, mockListingToApiInput(updated));
+      setLocalListing(apiListingToMock(saved));
+      setActiveSlot(null);
+    } catch { alert("Failed to block slot"); }
+  }
+
+  async function holdSlot(slot: AgendaSlot) {
+    try {
+      const dt = new Date(`${selectedDate}T${slot.startTime}:00`);
+      await createVendorBooking({
+        listingId: localListing.id,
+        customerName: "Hold",
+        phone: "0000000000",
+        dateTime: dt.toISOString(),
+        totalAmount: slot.price,
+        payment: "Cash (Offline)",
+        status: "Pending",
+      });
+      const fresh = await getVendorBookings({ limit: 500 });
+      setBookings(fresh.items as unknown as Booking[]);
+      setActiveSlot(null);
+    } catch { alert("Failed to hold slot"); }
+  }
+
+  async function submitOfflineBooking() {
+    if (!activeSlot) return;
+    if (!offlineName || !offlinePhone) { alert("Please fill name and phone"); return; }
+    setOfflineSubmitting(true);
+    try {
+      const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
+      await createVendorBooking({
+        listingId: localListing.id,
+        customerName: offlineName,
+        phone: offlinePhone,
+        dateTime: dt.toISOString(),
+        totalAmount: activeSlot.price,
+        payment: "Cash (Offline)",
+        status: "Confirmed",
+      });
+      const fresh = await getVendorBookings({ limit: 500 });
+      setBookings(fresh.items as unknown as Booking[]);
+      setOfflineModal(false);
+      setActiveSlot(null);
+      setOfflineName("");
+      setOfflinePhone("");
+    } catch { alert("Failed to create offline booking"); }
+    setOfflineSubmitting(false);
+  }
+
+  const handleClockHour = async (hour: number) => {
+    const startStr = `${String(hour).padStart(2, "0")}:00`;
+    const slot = resolvedSlots.find(s => s.startTime === startStr);
+    if (slot) setActiveSlot(slot);
+  };
+
+  const cardH = cardSize === "S" ? "h-20" : cardSize === "M" ? "h-28" : "h-36";
+  const cardGrid = cardSize === "S" ? "grid-cols-4 sm:grid-cols-6" : cardSize === "M" ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
+
+  if (loading) return <div className="p-8 text-center text-xs text-ink-faint">Loading bookings...</div>;
+
+  return (
+    <div className="space-y-4">
+      {/* View controls header */}
+      <div className="flex items-center justify-between border-b border-surface-border pb-3">
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Today&apos;s Agenda</h2>
+          <p className="text-[11px] text-slate-400 mt-0.5">{new Date(selectedDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+            <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "grid" ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+              <LayoutGrid size={12} /> Grid
+            </button>
+            <button onClick={() => setViewMode("clock")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "clock" ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+              <ClockIcon size={12} /> Clock
+            </button>
+          </div>
+          {/* Card size */}
+          {viewMode === "grid" && (
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+              {(["S", "M", "L"] as const).map(s => (
+                <button key={s} onClick={() => setCardSize(s)} className={`px-2.5 py-1.5 text-[11px] font-bold transition ${cardSize === s ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{s}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Date slider */}
+      <div className="flex gap-2 py-1 overflow-x-auto scrollbar-none">
+        {dateOptions.map((d, i) => {
+          const iso = d.toISOString().slice(0, 10);
+          const isSel = iso === selectedDate;
+          return (
+            <button key={i} onClick={() => setSelectedDate(iso)}
+              className={`flex flex-col items-center min-w-[56px] py-1.5 rounded-xl border transition shrink-0 ${isSel ? "bg-slate-900 border-slate-900 text-white font-bold" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+            >
+              <span className="text-[9px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
+              <span className="text-lg font-extrabold leading-tight mt-0.5">{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Hours stats row */}
+      <div className="grid grid-cols-4 gap-2">
+        <button onClick={() => setGroupedFilter(null)} className={`rounded-xl border p-2 text-center transition ${!groupedFilter ? "border-slate-400 bg-slate-100" : "border-slate-200 bg-white"}`}>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Cap.</p>
+          <p className="text-lg font-extrabold text-slate-800">{stats.totalHrs}<span className="text-[9px] font-semibold text-slate-400 ml-0.5">h</span></p>
+        </button>
+        <button onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")} className={`rounded-xl border p-2 text-center transition ${groupedFilter === "Booked" ? "border-rose-400 bg-rose-50" : "border-rose-100 bg-rose-50/50"}`}>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Booked</p>
+          <p className="text-lg font-extrabold text-rose-600">{stats.bookedHrs}<span className="text-[9px] font-semibold text-rose-400 ml-0.5">h</span></p>
+        </button>
+        <button onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")} className={`rounded-xl border p-2 text-center transition ${groupedFilter === "Part Paid" ? "border-amber-400 bg-amber-50" : "border-amber-100 bg-amber-50/50"}`}>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
+          <p className="text-lg font-extrabold text-amber-600">{stats.partPaidHrs}<span className="text-[9px] font-semibold text-amber-400 ml-0.5">h</span></p>
+        </button>
+        <button onClick={() => setGroupedFilter(groupedFilter === "Available" ? null : "Available")} className={`rounded-xl border p-2 text-center transition ${groupedFilter === "Available" ? "border-emerald-400 bg-emerald-50" : "border-emerald-100 bg-emerald-50/50"}`}>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Available</p>
+          <p className="text-lg font-extrabold text-emerald-600">{stats.availHrs}<span className="text-[9px] font-semibold text-emerald-400 ml-0.5">h</span></p>
+        </button>
+      </div>
+
+      {/* Grouped view or main agenda */}
+      {groupedFilter ? (
+        <GroupedSlotsList slots={groupedSlots} filter={groupedFilter} onClose={() => setGroupedFilter(null)} />
+      ) : (
+        <>
+          {/* Dayparts tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+            {(["Morning", "Afternoon", "Night", "Mid Night"] as const).map(dp => (
+              <button key={dp} onClick={() => setDaypart(daypart === dp ? null : dp)}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold shrink-0 transition ${daypart === dp ? "bg-slate-900 text-white" : "bg-white text-slate-500 border border-slate-200"}`}>
+                {dp}
+              </button>
+            ))}
+          </div>
+
+          {viewMode === "grid" ? (
+            <AgendaGrid slots={visibleSlots} cardH={cardH} cardGrid={cardGrid} daypart={daypart} onSlotClick={setActiveSlot} />
+          ) : (
+            <div className="flex justify-center py-4 bg-white border border-slate-100 rounded-xl">
+              <ClockSlotsWidget slots={resolvedSlots.map(s => ({ ...s, status: s.status === "Available" ? "Available" : "Booked" }))} onSelectHour={handleClockHour} />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Bottom Floating "See Booking" buttons */}
+      {!groupedFilter && (
+        <div className="flex justify-center py-2">
+          <div className="relative group">
+            <button className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-lg hover:bg-slate-800 transition">
+              SEE BOOKINGS <ChevronDown size={12} />
+            </button>
+            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-100 min-w-[180px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+              {(["Booked", "Part Paid", "Available"] as SlotStatus[]).map(f => (
+                <button key={f} onClick={() => setGroupedFilter(f)}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-slate-50 border-b last:border-0">{f} ({resolvedSlots.filter(s => s.status === f).length})</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slot Modal */}
+      {activeSlot && !offlineModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-800">{activeSlot.status === "Available" ? "Available Segment" : activeSlot.status}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{to12h(activeSlot.startTime)} - {to12h(activeSlot.endTime)} · ₹{activeSlot.price}</p>
+              </div>
+              <button onClick={() => setActiveSlot(null)} className="p-1 rounded-full hover:bg-slate-100 text-slate-400"><X size={16} /></button>
+            </div>
+
+            {activeSlot.status === "Available" ? (
+              <div className="space-y-2">
+                <ActionRow icon={<Ban size={16} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance" onClick={() => blockSlot(activeSlot)} />
+                <ActionRow icon={<BookOpen size={16} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for walk-in guest" onClick={() => setOfflineModal(true)} />
+                <ActionRow icon={<Pause size={16} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot" onClick={() => holdSlot(activeSlot)} />
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1.5">
+                {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-400">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
+                <div className="flex justify-between"><span className="text-slate-400">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Offline Modal */}
+      {offlineModal && activeSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setOfflineModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-xs p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-extrabold text-slate-800 mb-3">Offline Booking</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">Name</label>
+                <input value={offlineName} onChange={e => setOfflineName(e.target.value)} placeholder="Rahul" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-vibe-violet" />
+              </div>
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">Phone</label>
+                <input value={offlinePhone} onChange={e => setOfflinePhone(e.target.value)} placeholder="9876543210" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-vibe-violet" />
+              </div>
+              <button onClick={submitOfflineBooking} disabled={offlineSubmitting} className="w-full rounded-lg bg-emerald-600 text-white py-2 text-xs font-bold hover:bg-emerald-700 transition disabled:opacity-60">
+                {offlineSubmitting ? "Booking…" : "Confirm Booking"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function to12h(t: string) {
+  if (!t) return "";
+  const [hStr, mStr] = t.split(":");
+  let h = Number(hStr);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
+}
+function t24m(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function durHrs(start: string, end: string) {
+  const d = t24m(end) - t24m(start);
+  return d > 0 ? +(d / 60).toFixed(1) : 0;
+}
+function fmtDur(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
+  slots: AgendaSlot[]; cardH: string; cardGrid: string; daypart: string | null; onSlotClick: (s: AgendaSlot) => void;
+}) {
+  const parts = daypart ? [daypart] : ["Morning", "Afternoon", "Evening", "Night", "Mid Night"];
+  return (
+    <div className="space-y-4">
+      {parts.map(part => {
+        const partSlots = slots.filter(s => s.label === part);
+        if (partSlots.length === 0) return null;
+        return (
+          <div key={part}>
+            <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">{part}</p>
+            <div className={`grid ${cardGrid} gap-2`}>
+              {partSlots.map((s, i) => {
+                const colors: Record<SlotStatus, string> = {
+                  Available: "bg-white border-slate-200 text-emerald-600",
+                  Booked: "bg-red-50 border-red-100 text-rose-600",
+                  "Part Paid": "bg-amber-50 border-amber-100 text-amber-600",
+                  "Offline Booked": "bg-orange-50 border-orange-100 text-orange-600",
+                  Blocked: "bg-slate-100 border-slate-200 text-slate-500",
+                  "On Hold": "bg-purple-50 border-purple-100 text-purple-600",
+                };
+                return (
+                  <button key={i} onClick={() => onSlotClick(s)} className={`flex flex-col items-center justify-center ${cardH} rounded-xl border ${colors[s.status] || ""} hover:shadow transition-shadow`}>
+                    <span className="text-xs font-bold font-mono">{s.startTime.slice(0, 5)}-{s.endTime.slice(0, 5)}</span>
+                    <span className="text-[9px] font-bold mt-1 uppercase tracking-wide">
+                      {s.status === "Available" ? `₹${s.price}` : s.status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; filter: SlotStatus; onClose: () => void }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-900" />
+        <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-800">{filter} Slots</h4>
+        <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-slate-100 text-slate-400"><X size={12} /></button>
+      </div>
+      {slots.length === 0 ? (
+        <p className="p-6 text-center text-xs text-slate-400">No {filter} slots</p>
+      ) : (
+        <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
+          {slots.map((s, i) => (
+            <div key={i} className="flex justify-between items-center px-4 py-2.5 text-xs">
+              <div>
+                <p className="text-[8px] font-bold text-slate-400 uppercase">{s.label}</p>
+                <p className="font-bold text-slate-800">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
+              </div>
+              <p className="font-extrabold text-slate-500">{durHrs(s.startTime, s.endTime)} hrs</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionRow({ icon, title, sub, onClick, color }: { icon: React.ReactNode; title: string; sub: string; onClick: () => void; color: string }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 rounded-xl border border-slate-100 p-3 hover:bg-slate-50 text-left transition">
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-${color}-50 shrink-0`}>{icon}</div>
+      <div>
+        <p className="text-xs font-bold text-slate-800">{title}</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>
+      </div>
+    </button>
+  );
+}
+

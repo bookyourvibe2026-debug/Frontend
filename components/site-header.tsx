@@ -32,8 +32,9 @@ export function SiteHeader() {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6">
+    <>
+      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6">
         <BrandLogo
           className="shrink-0"
           logoBoxClassName="h-11 w-11 rounded-xl sm:h-12 sm:w-12"
@@ -175,6 +176,8 @@ export function SiteHeader() {
         </div>
       )}
 
+    </header>
+
       {authView === "login" && (
         <LoginModal
           onClose={() => setAuthView(null)}
@@ -189,6 +192,6 @@ export function SiteHeader() {
           onSwitchToLogin={() => setAuthView("login")}
         />
       )}
-    </header>
+    </>
   );
 }

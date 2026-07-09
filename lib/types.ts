@@ -79,6 +79,23 @@ export interface Listing {
   availableFrom: string;
   availableTill: string;
   slotsPerDay: number;
+  slotsList?: TurfSlot[];
+  dailyRoutine?: boolean;
+  dateOverrides?: DateOverride[];
+}
+
+export interface TurfSlot {
+  startTime: string;
+  endTime: string;
+  label: string;
+  price: number;
+}
+
+export interface DateOverride {
+  date: string;
+  isHoliday: boolean;
+  holidayName: string;
+  slots: TurfSlot[];
 }
 
 export type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed";

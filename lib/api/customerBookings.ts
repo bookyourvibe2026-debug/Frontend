@@ -11,6 +11,7 @@ export interface CreateBookingInput {
   phone?: string;
   email?: string;
   payment: PaymentMethod;
+  durationMinutes?: number;
 }
 
 export function createMyBooking(input: CreateBookingInput) {

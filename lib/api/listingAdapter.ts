@@ -46,6 +46,9 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     availableFrom: listing.availableFrom,
     availableTill: listing.availableTill,
     slotsPerDay: listing.slotsPerDay,
+    slotsList: listing.slotsList,
+    dailyRoutine: listing.dailyRoutine,
+    dateOverrides: listing.dateOverrides,
   };
 }
 
