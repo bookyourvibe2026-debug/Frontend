@@ -13,9 +13,59 @@ try {
 } catch (e) {}
 `;
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const SITE_NAME = "Book Your Vibe";
+const SITE_DESCRIPTION =
+  "Book Your Vibe - Play. Book. Vibe. Book sports venues, join tournaments and challenges, connect with the community, and order food, all in one platform.";
+
 export const metadata: Metadata = {
-  title: "Book Your Vibe",
-  description: "Sports booking, community, food, and admin platform frontend.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "Book Your Vibe",
+    "sports venue booking",
+    "sports tournaments",
+    "sports challenges",
+    "venue booking app",
+    "sports community",
+    "food ordering",
+    "play book vibe",
+  ],
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    description: SITE_DESCRIPTION,
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export const viewport = {
