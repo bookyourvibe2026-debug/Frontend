@@ -23,6 +23,7 @@ const emptyDraft: CreateMembershipInput = {
   price: 0,
   durationDays: 30,
   sessionsIncluded: undefined,
+  turfDimensions: "",
 };
 
 const SUB_TONE: Record<SubscriptionStatus, "success" | "neutral" | "danger"> = {
@@ -144,6 +145,12 @@ export default function MembershipsPage() {
               placeholder="2500"
             />
             <Input
+              label="Turf Dimensions"
+              value={draft.turfDimensions ?? ""}
+              onChange={(v) => setDraft({ ...draft, turfDimensions: v })}
+              placeholder="e.g. 60ft x 30ft"
+            />
+            <Input
               label="Description"
               value={draft.description ?? ""}
               onChange={(v) => setDraft({ ...draft, description: v })}
@@ -172,6 +179,7 @@ export default function MembershipsPage() {
                   </div>
                   <Badge tone={m.status === "Active" ? "success" : "neutral"}>{m.status}</Badge>
                 </div>
+                {m.turfDimensions && <p className="text-xs text-ink-faint mt-1">Turf size: {m.turfDimensions}</p>}
                 {m.description && <p className="text-xs text-ink-soft mt-2">{m.description}</p>}
                 <p className="mt-2 font-display text-lg font-bold text-ink">₹{m.price.toLocaleString("en-IN")}</p>
                 <div className="mt-3 flex items-center gap-2">

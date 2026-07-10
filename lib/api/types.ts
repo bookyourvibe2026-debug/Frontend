@@ -525,6 +525,7 @@ export interface Membership {
   price: number;
   durationDays?: number;
   sessionsIncluded?: number;
+  turfDimensions?: string;
   status: "Active" | "Inactive";
   createdAt: string;
   updatedAt: string;

@@ -301,6 +301,7 @@ export interface CreateMembershipInput {
   price: number;
   durationDays?: number;
   sessionsIncluded?: number;
+  turfDimensions?: string;
 }
 
 export function createMembership(input: CreateMembershipInput) {
