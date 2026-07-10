@@ -113,6 +113,7 @@ export interface Booking {
   yourEarning: number;
   payment: "Cashfree (Online)" | "Cash (Offline)" | "UPI";
   status: BookingStatus;
+  createdAt?: string;
 }
 
 export interface SettledPayment {

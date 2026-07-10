@@ -1,12 +1,15 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
 
 export default function Topbar({
   onMenuClick,
+  onLogout,
   vendorName = "Book Your Vibes",
 }: {
   onMenuClick: () => void;
+  onLogout?: () => void;
   vendorName?: string;
 }) {
   return (
@@ -19,9 +22,22 @@ export default function Topbar({
         <Menu size={22} />
       </button>
       <span className="hidden lg:block" />
-      <p className="text-sm text-ink-soft">
-        Welcome, <span className="font-semibold text-ink">{vendorName}</span>
-      </p>
+      <div className="flex items-center gap-1 sm:gap-3">
+        <p className="text-sm text-ink-soft hidden sm:block">
+          Welcome, <span className="font-semibold text-ink">{vendorName}</span>
+        </p>
+        <NotificationBell />
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            aria-label="Logout"
+            title="Logout"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-vibe-coral/10 hover:text-vibe-coral transition"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
+      </div>
     </header>
   );
 }

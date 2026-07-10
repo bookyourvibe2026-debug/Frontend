@@ -59,6 +59,7 @@ export default function VendorPanelLayout({
         <div className="flex-1 min-w-0 flex flex-col">
           <Topbar
             onMenuClick={() => setSidebarOpen(true)}
+            onLogout={() => void handleLogout()}
             vendorName={isVendorOwner(session) ? session.businessName : session.holderName}
           />
           <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] w-full mx-auto">

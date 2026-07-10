@@ -638,7 +638,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
       await createVendorBooking({
         listingId: localListing.id,
         customerName: "Hold",
-        phone: "0000000000",
+        phone: "9000000000", // placeholder — must match backend's Indian mobile format (^[6-9]\d{9}$)
         dateTime: dt.toISOString(),
         totalAmount: slot.price,
         payment: "Cash (Offline)",

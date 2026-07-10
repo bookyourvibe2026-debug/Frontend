@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { LoginModal } from "@/components/home/modals/LoginModal";
+import { SignupModal } from "@/components/home/modals/SignupModal";
 
 const PRIMARY_TABS = [
   { label: "Home", href: "/", icon: Home },
@@ -37,6 +39,7 @@ export function BottomNav() {
   const pathname = usePathname();
   const { customer, status } = useCustomerAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
   const isLoggedIn = status === "authenticated";
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -66,21 +69,28 @@ export function BottomNav() {
               </Link>
             );
           })}
-          <Link
-            href="/profile"
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
-          >
-            {isLoggedIn ? (
+          {isLoggedIn ? (
+            <Link
+              href="/profile"
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
+            >
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[9px] font-bold text-brand-700">
                 {customer?.name?.charAt(0).toUpperCase() ?? "P"}
               </span>
-            ) : (
-              <UserRoundCog className={`h-5 w-5 ${isActive("/profile") ? "text-brand-600" : "text-slate-400"}`} />
-            )}
-            <span className={`text-[10px] font-semibold ${isActive("/profile") ? "text-brand-600" : "text-slate-400"}`}>
-              {isLoggedIn ? "Profile" : "Login"}
-            </span>
-          </Link>
+              <span className={`text-[10px] font-semibold ${isActive("/profile") ? "text-brand-600" : "text-slate-400"}`}>
+                Profile
+              </span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAuthView("login")}
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
+            >
+              <UserRoundCog className="h-5 w-5 text-slate-400" />
+              <span className="text-[10px] font-semibold text-slate-400">Login</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
@@ -140,6 +150,21 @@ export function BottomNav() {
             </div>
           </div>
         </>
+      )}
+
+      {authView === "login" && (
+        <LoginModal
+          onClose={() => setAuthView(null)}
+          onLoggedIn={() => setAuthView(null)}
+          onSwitchToSignup={() => setAuthView("signup")}
+        />
+      )}
+      {authView === "signup" && (
+        <SignupModal
+          onClose={() => setAuthView(null)}
+          onSignedUp={() => setAuthView(null)}
+          onSwitchToLogin={() => setAuthView("login")}
+        />
       )}
     </>
   );
