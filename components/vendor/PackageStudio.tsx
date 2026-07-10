@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Trophy, Ban } from "lucide-react";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -17,16 +17,18 @@ import {
   TurfSlot,
 } from "@/lib/types";
 import { ClockSlotsWidget } from "./ClockSlotsWidget";
-import { SPORT_CATEGORIES, subCategoriesForCategories } from "@/lib/taxonomy";
+import { SPORT_CATEGORIES, SportCategory, subCategoriesForCategories, venueOptionsFor, VenueSetting } from "@/lib/taxonomy";
+import { usePexelsImage } from "@/lib/pexels";
 
 type Audience = "admin" | "vendor";
 
 const STEPS = [
   { id: 1, label: "Images", hint: "Media uploads" },
   { id: 2, label: "Slots", hint: "Turf time slots" },
-  { id: 3, label: "Details & Location", hint: "Name, address, categories" },
-  { id: 4, label: "Pricing", hint: "Set prices per slot" },
-  { id: 5, label: "Publish", hint: "Review details & save" },
+  { id: 3, label: "Details", hint: "Name & games / categories" },
+  { id: 4, label: "Location", hint: "Venue address & map" },
+  { id: 5, label: "Pricing", hint: "Set prices per slot" },
+  { id: 6, label: "Publish", hint: "Review details & save" },
 ] as const;
 
 function formatListedOn(date: Date) {
@@ -418,7 +420,160 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 2 — LOCATION                                                  */
+/*  STEP 3 — DETAILS                                                   */
+/* ------------------------------------------------------------------ */
+
+function CategoryPhoto({ cat }: { cat: SportCategory }) {
+  const { url } = usePexelsImage(`${cat.label} sport court`);
+  const photo = url ?? cat.image;
+  if (photo) {
+    return <img src={photo} alt={cat.label} className="h-full w-full object-cover" />;
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-vibe-violet/20 to-vibe-lime/20">
+      <Trophy size={22} className="text-vibe-violet/60" />
+    </div>
+  );
+}
+
+function SubCategoryPhoto({ sub }: { sub: { id: string; label: string } }) {
+  const { url } = usePexelsImage(`${sub.label} sport`);
+  if (url) {
+    return <img src={url} alt={sub.label} className="h-full w-full object-cover" />;
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-vibe-lime/20 to-vibe-violet/20">
+      <Trophy size={16} className="text-vibe-limeDark/60" />
+    </div>
+  );
+}
+
+function DetailsStep({ draft, update }: StepProps) {
+  const gameVenue: VenueSetting = draft.gameVenue ?? "both";
+  const categoryOptions = draft.type === "Game" ? venueOptionsFor(gameVenue) : SPORT_CATEGORIES;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
+        <p className="text-xs text-ink-faint">Listing type &amp; category. Name always follows your business profile.</p>
+      </div>
+
+      {draft.type !== "Event" && (
+        <div>
+          <FieldLabel>Listing type *</FieldLabel>
+          <ToggleGroup
+            value={draft.type as "Turf" | "Game"}
+            options={[
+              { value: "Turf", label: "Turf" },
+              { value: "Game", label: "Game" },
+            ]}
+            onChange={(v) => update("type", v)}
+          />
+        </div>
+      )}
+
+      {draft.type === "Game" && (
+        <div>
+          <FieldLabel>Indoor / Outdoor *</FieldLabel>
+          <ToggleGroup
+            value={gameVenue}
+            options={[
+              { value: "indoor", label: "Indoor" },
+              { value: "outdoor", label: "Outdoor" },
+              { value: "both", label: "Both" },
+            ]}
+            onChange={(v) => update("gameVenue", v)}
+          />
+          <p className="mt-1.5 text-[11px] text-ink-faint">
+            Choose Indoor to only show indoor games, Outdoor for outdoor-only, or Both for the full list.
+          </p>
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>Category * (select all that apply)</FieldLabel>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {categoryOptions.map((cat) => {
+            const isSelected = draft.categories.includes(cat.id);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  const next = isSelected
+                    ? draft.categories.filter((c) => c !== cat.id)
+                    : [...draft.categories, cat.id];
+                  update("categories", next);
+                  const validSubIds = new Set(subCategoriesForCategories(next).map((s) => s.id));
+                  update("subCategories", draft.subCategories.filter((s) => validSubIds.has(s)));
+                }}
+                className={`group relative overflow-hidden rounded-xl border-2 text-left transition ${
+                  isSelected ? "border-vibe-violet" : "border-surface-border hover:border-vibe-violet/50"
+                }`}
+              >
+                <div className="h-20 w-full bg-cream-300">
+                  <CategoryPhoto cat={cat} />
+                </div>
+                <div className={`absolute inset-x-0 bottom-0 px-2 py-1.5 text-xs font-semibold ${isSelected ? "bg-vibe-violet text-white" : "bg-black/50 text-white"}`}>
+                  {cat.label}
+                </div>
+                {isSelected && (
+                  <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white">
+                    <Check size={12} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {draft.categories.length > 0 && (
+        <div>
+          <FieldLabel>Sub-Category (select all that apply)</FieldLabel>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {subCategoriesForCategories(draft.categories).map((sub) => {
+              const isSelected = draft.subCategories.includes(sub.id);
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "subCategories",
+                      isSelected
+                        ? draft.subCategories.filter((s) => s !== sub.id)
+                        : [...draft.subCategories, sub.id]
+                    )
+                  }
+                  className={`group relative overflow-hidden rounded-xl border-2 text-left transition ${
+                    isSelected ? "border-vibe-lime" : "border-surface-border hover:border-vibe-lime/50"
+                  }`}
+                >
+                  <div className="h-16 w-full bg-cream-300">
+                    <SubCategoryPhoto sub={sub} />
+                  </div>
+                  <div className={`absolute inset-x-0 bottom-0 px-2 py-1.5 text-xs font-semibold ${isSelected ? "bg-vibe-lime text-vibe-indigo" : "bg-black/50 text-white"}`}>
+                    {sub.label}
+                  </div>
+                  {isSelected && (
+                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-lime text-vibe-indigo">
+                      <Check size={12} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  STEP 4 — LOCATION                                                  */
 /* ------------------------------------------------------------------ */
 
 function LocationStep({ draft, update }: StepProps) {
@@ -464,7 +619,7 @@ function LocationStep({ draft, update }: StepProps) {
     const address = item.display_name;
     const lat = item.lat;
     const lon = item.lon;
-    
+
     update("address", address);
     setVenueInput(address);
     setCoords({ lat, lon });
@@ -497,7 +652,7 @@ function LocationStep({ draft, update }: StepProps) {
     setCityInput("");
   }
 
-  const mapEmbedUrl = coords 
+  const mapEmbedUrl = coords
     ? `https://maps.google.com/maps?q=${coords.lat},${coords.lon}&t=&z=16&ie=UTF8&iwloc=&output=embed`
     : draft.address
     ? `https://maps.google.com/maps?q=${encodeURIComponent(draft.address)}&t=&z=16&ie=UTF8&iwloc=&output=embed`
@@ -506,23 +661,9 @@ function LocationStep({ draft, update }: StepProps) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
-        <p className="text-xs text-ink-faint">Location &amp; category. Name always follows your business profile.</p>
+        <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Venue location</p>
+        <p className="text-xs text-ink-faint">Search for your venue to auto-fill coordinates, state, and city.</p>
       </div>
-
-      {draft.type !== "Event" && (
-        <div>
-          <FieldLabel>Listing type *</FieldLabel>
-          <ToggleGroup
-            value={draft.type as "Turf" | "Game"}
-            options={[
-              { value: "Turf", label: "Turf" },
-              { value: "Game", label: "Game" },
-            ]}
-            onChange={(v) => update("type", v)}
-          />
-        </div>
-      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <div className="relative">
@@ -629,15 +770,16 @@ function LocationStep({ draft, update }: StepProps) {
               </p>
             )}
           </div>
-          
+
           <div className="flex-1 w-full rounded-xl overflow-hidden min-h-[220px] bg-cream-300 relative border border-slate-200">
             {mapEmbedUrl ? (
               <iframe
+                key={mapEmbedUrl}
                 title="Live Map Preview"
                 src={mapEmbedUrl}
                 className="absolute inset-0 w-full h-full border-0"
                 allowFullScreen
-                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-xs text-ink-faint p-4 text-center">
@@ -648,74 +790,12 @@ function LocationStep({ draft, update }: StepProps) {
           </div>
         </div>
       </div>
-
-      <div>
-        <FieldLabel>Category * (select all that apply)</FieldLabel>
-        <div className="flex flex-wrap gap-2">
-          {SPORT_CATEGORIES.map((cat) => {
-            const isSelected = draft.categories.includes(cat.id);
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  const next = isSelected
-                    ? draft.categories.filter((c) => c !== cat.id)
-                    : [...draft.categories, cat.id];
-                  update("categories", next);
-                  const validSubIds = new Set(subCategoriesForCategories(next).map((s) => s.id));
-                  update("subCategories", draft.subCategories.filter((s) => validSubIds.has(s)));
-                }}
-                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                  isSelected
-                    ? "border-vibe-violet bg-vibe-violet text-white"
-                    : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet"
-                }`}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {draft.categories.length > 0 && (
-        <div>
-          <FieldLabel>Sub-Category (select all that apply)</FieldLabel>
-          <div className="flex flex-wrap gap-2">
-            {subCategoriesForCategories(draft.categories).map((sub) => {
-              const isSelected = draft.subCategories.includes(sub.id);
-              return (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() =>
-                    update(
-                      "subCategories",
-                      isSelected
-                        ? draft.subCategories.filter((s) => s !== sub.id)
-                        : [...draft.subCategories, sub.id]
-                    )
-                  }
-                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                    isSelected
-                      ? "border-vibe-lime bg-vibe-lime text-vibe-indigo"
-                      : "border-surface-border bg-white text-ink-soft hover:border-vibe-lime"
-                  }`}
-                >
-                  {sub.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 3 — BOOKING                                                   */
+/*  STEP 2 — SLOTS / BOOKING                                           */
 /* ------------------------------------------------------------------ */
 
 const BOOKING_TYPES: { value: BookingType; label: string; hint: string }[] = [
@@ -895,7 +975,7 @@ function BookingStep({ draft, update }: StepProps) {
 
   /* persist slots into draft */
   function save(nextSlots: TurfSlot[]) {
-    if (isDailyRoutine) {
+    if (isDailyRoutine && !selectedDate) {
       update("slotsList", nextSlots);
       update("slotsPerDay", nextSlots.length);
     } else {
@@ -1041,6 +1121,7 @@ function BookingStep({ draft, update }: StepProps) {
                       setSelectedDate(day.dateStr);
                       setIsHoliday(dayOverride?.isHoliday ?? false);
                       setHolidayName(dayOverride?.holidayName ?? day.festival ?? "");
+                      update("dailyRoutine", false);
                     }}
                     className={`flex flex-col justify-between items-start rounded-xl p-2 min-h-[75px] border text-left transition ${
                       isSel 
@@ -1372,8 +1453,48 @@ function BookingStep({ draft, update }: StepProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 4 — PRICING                                                   */
+/*  STEP 5 — PRICING                                                   */
 /* ------------------------------------------------------------------ */
+
+const DAY_PART_QUERIES: Record<string, string> = {
+  Morning: "sunrise sports court",
+  Afternoon: "bright sunny sports field",
+  Evening: "sunset sports field",
+  Night: "stadium lights night",
+  "Mid Night": "night sky stars",
+};
+
+const DAY_PART_ICONS: Record<string, typeof Sun> = {
+  Morning: Sunrise,
+  Afternoon: Sun,
+  Evening: Sunset,
+  Night: Moon,
+  "Mid Night": Moon,
+};
+
+function DayPartGroup({ part, children }: { part: string; children: React.ReactNode }) {
+  const { url } = usePexelsImage(DAY_PART_QUERIES[part] ?? part);
+  const Icon = DAY_PART_ICONS[part] ?? Sun;
+  return (
+    <div
+      className="rounded-xl p-3"
+      style={
+        url
+          ? {
+              backgroundImage: `linear-gradient(rgba(15,23,42,.6),rgba(15,23,42,.6)), url(${url})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : undefined
+      }
+    >
+      <p className={`mb-1.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${url ? "text-white" : "text-slate-400"}`}>
+        <Icon size={11} /> {part}
+      </p>
+      {children}
+    </div>
+  );
+}
 
 function PricingStep({ draft, update }: StepProps) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -1381,10 +1502,20 @@ function PricingStep({ draft, update }: StepProps) {
 
   const slots = draft.slotsList ?? [];
 
-  // Unpriced slots (price === 0)
-  const unpricedSlots = slots.filter((s) => s.price === 0);
-  // Priced slots (price > 0)
-  const pricedSlots = slots.filter((s) => s.price > 0);
+  // Blocked slots (unavailable — excluded from pricing entirely)
+  const blockedSlots = slots.filter((s) => s.blocked);
+  // Unpriced slots (price === 0, not blocked)
+  const unpricedSlots = slots.filter((s) => s.price === 0 && !s.blocked);
+  // Priced slots (price > 0, not blocked)
+  const pricedSlots = slots.filter((s) => s.price > 0 && !s.blocked);
+
+  function toggleBlockSlot(key: string, blocked: boolean) {
+    const nextSlots = slots.map((s) =>
+      `${s.startTime}-${s.endTime}` === key ? { ...s, blocked } : s
+    );
+    update("slotsList", nextSlots);
+    setSelectedKeys((prev) => prev.filter((k) => k !== key));
+  }
 
   function handleSetPrice() {
     if (selectedKeys.length === 0) return;
@@ -1497,25 +1628,34 @@ function PricingStep({ draft, update }: StepProps) {
                   if (partSlots.length === 0) return null;
 
                   return (
-                    <div key={part}>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">{part}</p>
+                    <DayPartGroup key={part} part={part}>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
                         {partSlots.map((s) => {
                           const key = `${s.startTime}-${s.endTime}`;
                           const isSelected = selectedKeys.includes(key);
                           return (
-                            <button key={key} type="button" onClick={() => toggleSelect(key)}
-                              className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition ${
-                                isSelected ? "border-vibe-violet bg-vibe-violet/5 font-extrabold shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <span className="text-xs font-bold text-slate-700 font-mono">{to12h(s.startTime)} - {to12h(s.endTime)}</span>
-                              <span className="text-[9px] text-slate-400 uppercase mt-1">{s.label}</span>
-                            </button>
+                            <div key={key} className="group relative">
+                              <button type="button" onClick={() => toggleSelect(key)}
+                                className={`flex w-full flex-col items-center justify-center p-3 rounded-xl border-2 transition ${
+                                  isSelected ? "border-vibe-violet bg-vibe-violet/5 font-extrabold shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
+                                }`}
+                              >
+                                <span className="text-xs font-bold text-slate-700 font-mono">{to12h(s.startTime)} - {to12h(s.endTime)}</span>
+                                <span className="text-[9px] text-slate-400 uppercase mt-1">{s.label}</span>
+                              </button>
+                              <button
+                                type="button"
+                                title="Block this slot"
+                                onClick={(e) => { e.stopPropagation(); toggleBlockSlot(key, true); }}
+                                className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-white opacity-0 transition group-hover:flex group-hover:opacity-100 hover:bg-vibe-coral"
+                              >
+                                <Ban size={11} />
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
-                    </div>
+                    </DayPartGroup>
                   );
                 })}
               </div>
@@ -1523,22 +1663,57 @@ function PricingStep({ draft, update }: StepProps) {
           </div>
 
           {/* List of Priced Slots */}
-          <div>
+          <div className="mb-6">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Priced Slots ({pricedSlots.length})</p>
             {pricedSlots.length === 0 ? (
               <p className="text-xs text-ink-faint italic rounded-xl bg-white p-4 border border-slate-100">No slot pricing set yet.</p>
             ) : (
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
+                  const partSlots = pricedSlots.filter((s) => s.label === part);
+                  if (partSlots.length === 0) return null;
+                  return (
+                    <DayPartGroup key={part} part={part}>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {partSlots.map((s) => {
+                          const key = `${s.startTime}-${s.endTime}`;
+                          return (
+                            <div key={key} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+                              <div>
+                                <p className="font-extrabold text-slate-800">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
+                                <p className="text-[9px] text-vibe-violet font-extrabold uppercase mt-0.5">₹{s.price} · {s.label}</p>
+                              </div>
+                              <button type="button" onClick={() => handleRemovePrice(key)} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-vibe-coral rounded-lg">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </DayPartGroup>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Blocked slots */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Blocked Slots ({blockedSlots.length})</p>
+            {blockedSlots.length === 0 ? (
+              <p className="text-xs text-ink-faint italic rounded-xl bg-white p-4 border border-slate-100">No slots blocked. Hover a slot above and tap the ban icon to block it.</p>
+            ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-[220px] overflow-y-auto pr-1">
-                {pricedSlots.map((s) => {
+                {blockedSlots.map((s) => {
                   const key = `${s.startTime}-${s.endTime}`;
                   return (
-                    <div key={key} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+                    <div key={key} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-100 text-xs">
                       <div>
-                        <p className="font-extrabold text-slate-800">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
-                        <p className="text-[9px] text-vibe-violet font-extrabold uppercase mt-0.5">₹{s.price} · {s.label}</p>
+                        <p className="font-extrabold text-slate-600">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase mt-0.5">Blocked · {s.label}</p>
                       </div>
-                      <button type="button" onClick={() => handleRemovePrice(key)} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-vibe-coral rounded-lg">
-                        <Trash2 size={13} />
+                      <button type="button" onClick={() => toggleBlockSlot(key, false)} className="rounded-lg px-2 py-1 text-[10px] font-bold text-vibe-violet hover:bg-vibe-violet/10">
+                        Unblock
                       </button>
                     </div>
                   );
@@ -1663,7 +1838,7 @@ function PricingStep({ draft, update }: StepProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  STEP 5 — LAUNCH                                                    */
+/*  STEP 6 — LAUNCH                                                    */
 /* ------------------------------------------------------------------ */
 
 function LaunchStep({ draft, update }: StepProps) {
@@ -1749,28 +1924,34 @@ function LaunchStep({ draft, update }: StepProps) {
         />
       </div>
 
+      <div>
+        <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Amenities</p>
+        <p className="mb-3 text-xs text-ink-faint">
+          {draft.type === "Event" ? "What's included in the package price, and what's not." : "What facilities you provide at the venue, and what you don't."}
+        </p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <TagField
+            label={draft.type === "Event" ? "Included" : "Amenities Provided"}
+            placeholder={draft.type === "Event" ? "e.g. Professional guide" : "e.g. Washrooms, Parking, Floodlights"}
+            values={draft.inclusions}
+            onChange={(v) => update("inclusions", v)}
+            tone="success"
+          />
+          <TagField
+            label={draft.type === "Event" ? "Excluded" : "Not Provided"}
+            placeholder={draft.type === "Event" ? "e.g. Personal expenses" : "e.g. Equipment rental, Cafeteria"}
+            values={draft.exclusions}
+            onChange={(v) => update("exclusions", v)}
+            tone="danger"
+          />
+        </div>
+      </div>
+
       {draft.type === "Event" && (
         <>
           <div className="grid gap-5 sm:grid-cols-2">
             <TagField label="Highlights" placeholder="e.g. Stunning Himalayan views" values={draft.highlights} onChange={(v) => update("highlights", v)} />
             <TagField label="Tags" placeholder="e.g. adventure, trekking, camping" values={draft.tags} onChange={(v) => update("tags", v)} />
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <TagField
-              label="Included"
-              placeholder="e.g. Professional guide"
-              values={draft.inclusions}
-              onChange={(v) => update("inclusions", v)}
-              tone="success"
-            />
-            <TagField
-              label="Excluded"
-              placeholder="e.g. Personal expenses"
-              values={draft.exclusions}
-              onChange={(v) => update("exclusions", v)}
-              tone="danger"
-            />
           </div>
 
           <div className="grid gap-5 lg:grid-cols-2">
@@ -1889,7 +2070,7 @@ export function PackageStudio({
   }
 
   function handlePrimary() {
-    if (step < 5) {
+    if (step < 6) {
       goTo(step + 1);
       return;
     }
@@ -1908,13 +2089,13 @@ export function PackageStudio({
 
     if (finalDraft.categories.length === 0) {
       setFormError("Select at least one category.");
-      goTo(3); // Details & Location step
+      goTo(3); // Details step
       return;
     }
     const hasCity = finalDraft.cityMode === "multiple" ? (finalDraft.cities?.length ?? 0) > 0 : finalDraft.city.trim().length > 0;
     if (!hasCity) {
       setFormError("Choose at least one city.");
-      goTo(3); // Details & Location step
+      goTo(4); // Location step
       return;
     }
     setFormError(null);
@@ -1972,9 +2153,10 @@ export function PackageStudio({
         <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel sm:p-6">
           {step === 1 && <PackageStep draft={draft} update={update} audience={audience} />}
           {step === 2 && <BookingStep draft={draft} update={update} />}
-          {step === 3 && <LocationStep draft={draft} update={update} />}
-          {step === 4 && <PricingStep draft={draft} update={update} />}
-          {step === 5 && <LaunchStep draft={draft} update={update} />}
+          {step === 3 && <DetailsStep draft={draft} update={update} />}
+          {step === 4 && <LocationStep draft={draft} update={update} />}
+          {step === 5 && <PricingStep draft={draft} update={update} />}
+          {step === 6 && <LaunchStep draft={draft} update={update} />}
         </div>
       </div>
 

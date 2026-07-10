@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Camera, ClipboardList, FileText, Pencil,
   LayoutGrid, Clock as ClockIcon, ChevronDown, X,
-  Ban, BookOpen, Pause, Clock3, CalendarDays, Phone, User, CalendarCheck,
+  Ban, BookOpen, Pause, Clock3, CalendarDays, Phone, User, CalendarCheck, Check,
 } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
@@ -475,6 +475,22 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint: 
 
 /* ─── AGENDA TAB COMPONENT ────────────────────────────────────── */
 type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+
+function SeeBookingsButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
+  return (
+    <div className="relative group">
+      <button className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-lg hover:bg-slate-800 transition">
+        SEE BOOKINGS <ChevronDown size={12} />
+      </button>
+      <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-100 min-w-[180px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+        {(["Booked", "Part Paid", "Available"] as SlotStatus[]).map(f => (
+          <button key={f} onClick={() => onPick(f)}
+            className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-slate-50 border-b last:border-0">{f} ({resolvedSlots.filter(s => s.status === f).length})</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 interface AgendaSlot {
   startTime: string;
   endTime: string;
@@ -534,6 +550,16 @@ function AgendaTab({ listing }: { listing: Listing }) {
       : (localListing.slotsList || []);
 
     return base.map((slot) => {
+      if (slot.blocked) {
+        return {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          label: slot.label,
+          price: slot.price,
+          status: "Blocked" as SlotStatus,
+        };
+      }
+
       const match = bookings.find((bk) => {
         const bkDate = new Date(bk.dateTime).toISOString().slice(0, 10);
         const bkTime = new Date(bk.dateTime).toLocaleTimeString("en-US", {
@@ -551,8 +577,11 @@ function AgendaTab({ listing }: { listing: Listing }) {
       if (match) {
         bookingId = match.orderId;
         customerName = match.customer;
-        if (match.status === "Confirmed") status = "Booked";
+        const isOffline = match.payment === "Cash (Offline)";
+        const isHold = match.customer === "Hold";
+        if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
+        else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
         else status = "Booked";
       }
 
@@ -586,21 +615,21 @@ function AgendaTab({ listing }: { listing: Listing }) {
     return resolvedSlots.filter(s => s.status === groupedFilter);
   }, [resolvedSlots, groupedFilter]);
 
-  async function blockSlot(slot: AgendaSlot) {
+  async function setSlotBlocked(slot: AgendaSlot, blocked: boolean) {
     try {
       const overrides = [...(localListing.dateOverrides || [])];
       const idx = overrides.findIndex(o => o.date === selectedDate);
       const currentSlots = idx > -1
         ? [...(overrides[idx].slots || [])]
         : [...(localListing.slotsList || [])];
-      const next = currentSlots.filter(s => s.startTime !== slot.startTime);
+      const next = currentSlots.map(s => s.startTime === slot.startTime ? { ...s, blocked } : s);
       const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
       if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
       const updated = { ...localListing, dateOverrides: overrides };
       const saved = await updateVendorListing(localListing.id, mockListingToApiInput(updated));
       setLocalListing(apiListingToMock(saved));
       setActiveSlot(null);
-    } catch { alert("Failed to block slot"); }
+    } catch { alert(`Failed to ${blocked ? "block" : "unblock"} slot`); }
   }
 
   async function holdSlot(slot: AgendaSlot) {
@@ -742,26 +771,20 @@ function AgendaTab({ listing }: { listing: Listing }) {
             <AgendaGrid slots={visibleSlots} cardH={cardH} cardGrid={cardGrid} daypart={daypart} onSlotClick={setActiveSlot} />
           ) : (
             <div className="flex justify-center py-4 bg-white border border-slate-100 rounded-xl">
-              <ClockSlotsWidget slots={resolvedSlots.map(s => ({ ...s, status: s.status === "Available" ? "Available" : "Booked" }))} onSelectHour={handleClockHour} />
+              <ClockSlotsWidget
+                slots={resolvedSlots}
+                onSelectHour={handleClockHour}
+                renderSeeBooking={() => <SeeBookingsButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
+              />
             </div>
           )}
         </>
       )}
 
-      {/* Bottom Floating "See Booking" buttons */}
-      {!groupedFilter && (
+      {/* Bottom Floating "See Booking" button (grid mode only — clock mode has its own inline button) */}
+      {!groupedFilter && viewMode !== "clock" && (
         <div className="flex justify-center py-2">
-          <div className="relative group">
-            <button className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-lg hover:bg-slate-800 transition">
-              SEE BOOKINGS <ChevronDown size={12} />
-            </button>
-            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-100 min-w-[180px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-              {(["Booked", "Part Paid", "Available"] as SlotStatus[]).map(f => (
-                <button key={f} onClick={() => setGroupedFilter(f)}
-                  className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-slate-50 border-b last:border-0">{f} ({resolvedSlots.filter(s => s.status === f).length})</button>
-              ))}
-            </div>
-          </div>
+          <SeeBookingsButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />
         </div>
       )}
 
@@ -779,15 +802,20 @@ function AgendaTab({ listing }: { listing: Listing }) {
 
             {activeSlot.status === "Available" ? (
               <div className="space-y-2">
-                <ActionRow icon={<Ban size={16} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance" onClick={() => blockSlot(activeSlot)} />
+                <ActionRow icon={<Ban size={16} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance" onClick={() => setSlotBlocked(activeSlot, true)} />
                 <ActionRow icon={<BookOpen size={16} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for walk-in guest" onClick={() => setOfflineModal(true)} />
                 <ActionRow icon={<Pause size={16} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot" onClick={() => holdSlot(activeSlot)} />
               </div>
             ) : (
-              <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1.5">
-                {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-400">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
-                <div className="flex justify-between"><span className="text-slate-400">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+              <div className="space-y-2">
+                <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1.5">
+                  {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-400">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
+                  <div className="flex justify-between"><span className="text-slate-400">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+                </div>
+                {activeSlot.status === "Blocked" && (
+                  <ActionRow icon={<Check size={16} className="text-emerald-600" />} color="emerald" title="Unblock Slot" sub="Make this slot available again" onClick={() => setSlotBlocked(activeSlot, false)} />
+                )}
               </div>
             )}
           </div>

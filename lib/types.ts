@@ -43,6 +43,7 @@ export interface Listing {
   id: string;
   title: string;
   type: ListingType;
+  gameVenue?: "indoor" | "outdoor" | "both";
   categories: string[];
   subCategories: string[];
   price: number;
@@ -89,6 +90,7 @@ export interface TurfSlot {
   endTime: string;
   label: string;
   price: number;
+  blocked?: boolean;
 }
 
 export interface DateOverride {

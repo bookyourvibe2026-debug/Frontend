@@ -25,6 +25,7 @@ import {
   ChevronDown,
   User,
   Phone,
+  Check,
 } from "lucide-react";
 import { PageHero, SectionCard, Badge } from "@/components/vendor/ui";
 import StatCard from "@/components/vendor/StatCard";
@@ -67,6 +68,16 @@ function dayPart(t: string) {
 }
 
 type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+
+const STAT_TONE = {
+  emerald: { idle: "border-emerald-100 bg-emerald-50/50", active: "border-emerald-400 ring-1 ring-emerald-300 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700", pct: "text-emerald-400" },
+  rose: { idle: "border-rose-100 bg-rose-50/50", active: "border-rose-400 ring-1 ring-rose-300 bg-rose-50", label: "text-rose-600", value: "text-rose-700", pct: "text-rose-400" },
+  amber: { idle: "border-amber-100 bg-amber-50/50", active: "border-amber-400 ring-1 ring-amber-300 bg-amber-50", label: "text-amber-600", value: "text-amber-700", pct: "text-amber-400" },
+  orange: { idle: "border-orange-100 bg-orange-50/50", active: "border-orange-400 ring-1 ring-orange-300 bg-orange-50", label: "text-orange-600", value: "text-orange-700", pct: "text-orange-400" },
+  purple: { idle: "border-purple-100 bg-purple-50/50", active: "border-purple-400 ring-1 ring-purple-300 bg-purple-50", label: "text-purple-600", value: "text-purple-700", pct: "text-purple-400" },
+  slate: { idle: "border-slate-200 bg-slate-50", active: "border-slate-400 ring-1 ring-slate-300 bg-slate-100", label: "text-slate-600", value: "text-slate-700", pct: "text-slate-400" },
+} as const;
+
 interface AgendaSlot {
   startTime: string;
   endTime: string;
@@ -89,9 +100,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   // Agenda state
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedDate, setSelectedDate] = useState(todayIso);
   const [selectedTurfId, setSelectedTurfId] = useState("");
   const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>(null);
+
+  // Live clock tick — drives "running now" / "already passed" slot styling
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const isToday = selectedDate === todayIso;
   const [viewMode, setViewMode] = useState<"grid" | "clock">("grid");
   const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
 
@@ -133,15 +153,30 @@ export default function DashboardPage() {
   );
   const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
 
-  /* ── 7-day date slider centred on today ── */
+  /* ── Scrollable date queue: today onwards, grouped by month ── */
   const agendaDates = useMemo(() => {
-    const today = new Date();
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i - 3);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return Array.from({ length: 60 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
       return d;
     });
   }, []);
+
+  const agendaMonthGroups = useMemo(() => {
+    const groups: { key: string; label: string; dates: Date[] }[] = [];
+    for (const d of agendaDates) {
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) {
+        last.dates.push(d);
+      } else {
+        groups.push({ key, label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }), dates: [d] });
+      }
+    }
+    return groups;
+  }, [agendaDates]);
 
   /* ── Resolve slots for selected date ── */
   const resolvedSlots = useMemo<AgendaSlot[]>(() => {
@@ -152,6 +187,16 @@ export default function DashboardPage() {
       : (selectedTurf.slotsList || []);
 
     return base.map((slot) => {
+      if (slot.blocked) {
+        return {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          label: slot.label,
+          price: slot.price,
+          status: "Blocked" as SlotStatus,
+        };
+      }
+
       // Find bookings on this date + turf that match the start time
       const match = bookings.find((bk) => {
         const bkDate = new Date(bk.dateTime).toISOString().slice(0, 10);
@@ -170,8 +215,11 @@ export default function DashboardPage() {
       if (match) {
         bookingId = match.orderId;
         customerName = match.customer;
-        if (match.status === "Confirmed") status = "Booked";
+        const isOffline = match.payment === "Cash (Offline)";
+        const isHold = match.customer === "Hold";
+        if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
+        else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
         else status = "Booked";
       }
 
@@ -189,12 +237,18 @@ export default function DashboardPage() {
 
   /* ── Stats (in hours) ── */
   const stats = useMemo(() => {
+    const hrsFor = (status: SlotStatus) =>
+      resolvedSlots.filter(s => s.status === status).reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
     const totalHrs = resolvedSlots.reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const bookedHrs = resolvedSlots.filter(s => s.status === "Booked").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const partPaidHrs = resolvedSlots.filter(s => s.status === "Part Paid").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const offlineHrs = resolvedSlots.filter(s => s.status === "Offline Booked").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const availHrs = resolvedSlots.filter(s => s.status === "Available").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    return { totalHrs, bookedHrs, partPaidHrs, offlineHrs, availHrs };
+    return {
+      totalHrs,
+      bookedHrs: hrsFor("Booked"),
+      partPaidHrs: hrsFor("Part Paid"),
+      offlineHrs: hrsFor("Offline Booked"),
+      blockedHrs: hrsFor("Blocked"),
+      onHoldHrs: hrsFor("On Hold"),
+      availHrs: hrsFor("Available"),
+    };
   }, [resolvedSlots]);
 
   /* ── Filter by daypart tab ── */
@@ -210,23 +264,22 @@ export default function DashboardPage() {
   }, [resolvedSlots, groupedFilter]);
 
   /* ── Actions on available slot ── */
-  async function blockSlot(slot: AgendaSlot) {
+  async function setSlotBlocked(slot: AgendaSlot, blocked: boolean) {
     if (!selectedTurf) return;
     try {
-      // Save an override removing this slot from the active slots list
       const overrides = [...(selectedTurf.dateOverrides || [])];
       const idx = overrides.findIndex(o => o.date === selectedDate);
       const currentSlots = idx > -1
         ? [...(overrides[idx].slots || [])]
         : [...(selectedTurf.slotsList || [])];
-      const next = currentSlots.filter(s => s.startTime !== slot.startTime);
+      const next = currentSlots.map(s => s.startTime === slot.startTime ? { ...s, blocked } : s);
       const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
       if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
       const updated = { ...selectedTurf, dateOverrides: overrides };
       const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
       setListings(l => l.map(x => x.id === selectedTurf.id ? apiListingToMock(saved) : x));
       setActiveSlot(null);
-    } catch { alert("Failed to block slot"); }
+    } catch { alert(`Failed to ${blocked ? "block" : "unblock"} slot`); }
   }
 
   async function startOfflineBooking(slot: AgendaSlot) {
@@ -348,45 +401,65 @@ export default function DashboardPage() {
 
       <div className="px-4 md:px-6 pb-28">
 
-        {/* ── DATE SLIDER ── */}
-        <div className="flex gap-4 py-3 overflow-x-auto scrollbar-none">
-          {agendaDates.map((d, i) => {
-            const iso = d.toISOString().slice(0, 10);
-            const isSel = iso === selectedDate;
-            return (
-              <button key={i} onClick={() => setSelectedDate(iso)}
-                className={`flex flex-col items-center min-w-[56px] py-2 rounded-xl transition shrink-0 ${isSel ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-              >
-                <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                <span className={`text-2xl font-extrabold leading-tight ${isSel ? "text-white" : "text-slate-800"}`}>{d.getDate()}</span>
-              </button>
-            );
-          })}
+        {/* ── DATE QUEUE (scrollable, grouped by month, today onwards only) ── */}
+        <div className="flex items-center justify-between pt-3">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
+            {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </p>
+          {selectedDate !== todayIso && (
+            <button onClick={() => setSelectedDate(todayIso)} className="text-[10px] font-bold text-vibe-violet hover:underline">
+              Jump to Today
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1 py-3 overflow-x-auto scrollbar-none">
+          {agendaMonthGroups.map((group, gi) => (
+            <div key={group.key} className="flex items-center gap-1 shrink-0">
+              {gi > 0 && <span className="mx-2 h-8 w-px shrink-0 bg-slate-200" />}
+              <span className="mr-1 shrink-0 rounded-md bg-slate-100 px-1.5 py-3 text-[9px] font-extrabold uppercase tracking-wide text-slate-400">
+                {group.label}
+              </span>
+              {group.dates.map((d) => {
+                const iso = d.toISOString().slice(0, 10);
+                const isSel = iso === selectedDate;
+                return (
+                  <button key={iso} onClick={() => setSelectedDate(iso)}
+                    className={`flex flex-col items-center min-w-[56px] py-2 rounded-xl transition shrink-0 ${isSel ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}
+                  >
+                    <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
+                    <span className={`text-2xl font-extrabold leading-tight ${isSel ? "text-white" : "text-slate-800"}`}>{d.getDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {/* ── STATS ROW ── */}
         {selectedTurf && (
-          <div className="grid grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-3">
             <button onClick={() => setGroupedFilter(null)}
               className={`rounded-xl border p-3 text-center transition ${!groupedFilter ? "border-slate-400 bg-slate-100 ring-1 ring-slate-300" : "border-slate-200 bg-white"}`}>
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total Cap.</p>
               <p className="text-xl font-extrabold text-slate-800">{stats.totalHrs}<span className="text-[10px] font-semibold text-slate-400 ml-0.5">hrs</span></p>
             </button>
-            <button onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")}
-              className={`rounded-xl border p-3 text-center transition ${groupedFilter === "Booked" ? "border-rose-400 ring-1 ring-rose-300 bg-rose-50" : "border-rose-100 bg-rose-50/50"}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Booked</p>
-              <p className="text-xl font-extrabold text-rose-600">{stats.bookedHrs}<span className="text-[10px] font-semibold text-rose-400 ml-0.5">hrs</span></p>
-            </button>
-            <button onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")}
-              className={`rounded-xl border p-3 text-center transition ${groupedFilter === "Part Paid" ? "border-amber-400 ring-1 ring-amber-300 bg-amber-50" : "border-amber-100 bg-amber-50/50"}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
-              <p className="text-xl font-extrabold text-amber-600">{stats.partPaidHrs}<span className="text-[10px] font-semibold text-amber-400 ml-0.5">hrs</span></p>
-            </button>
-            <button onClick={() => setGroupedFilter(groupedFilter === "Available" ? null : "Available")}
-              className={`rounded-xl border p-3 text-center transition ${groupedFilter === "Available" ? "border-emerald-400 ring-1 ring-emerald-300 bg-emerald-50" : "border-emerald-100 bg-emerald-50/50"}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Available</p>
-              <p className="text-xl font-extrabold text-emerald-600">{stats.availHrs}<span className="text-[10px] font-semibold text-emerald-400 ml-0.5">hrs</span></p>
-            </button>
+            {(
+              [
+                { status: "Available", hrs: stats.availHrs, cls: STAT_TONE.emerald },
+                { status: "Booked", hrs: stats.bookedHrs, cls: STAT_TONE.rose },
+                { status: "Part Paid", hrs: stats.partPaidHrs, cls: STAT_TONE.amber },
+                { status: "Offline Booked", hrs: stats.offlineHrs, cls: STAT_TONE.orange },
+                { status: "On Hold", hrs: stats.onHoldHrs, cls: STAT_TONE.purple },
+                { status: "Blocked", hrs: stats.blockedHrs, cls: STAT_TONE.slate },
+              ] as const
+            ).map(({ status, hrs, cls }) => (
+              <button key={status} onClick={() => setGroupedFilter(groupedFilter === status ? null : status)}
+                className={`rounded-xl border p-3 text-center transition ${groupedFilter === status ? cls.active : cls.idle}`}>
+                <p className={`text-[9px] font-bold uppercase tracking-wider ${cls.label}`}>{status === "Offline Booked" ? "Offline" : status}</p>
+                <p className={`text-xl font-extrabold ${cls.value}`}>{hrs}<span className={`text-[10px] font-semibold ${cls.pct} ml-0.5`}>hrs</span></p>
+                <p className={`text-[9px] font-bold ${cls.pct}`}>{stats.totalHrs ? Math.round((hrs / stats.totalHrs) * 100) : 0}%</p>
+              </button>
+            ))}
           </div>
         )}
 
@@ -427,13 +500,16 @@ export default function DashboardPage() {
                 cardGrid={cardGrid}
                 daypart={daypart}
                 onSlotClick={setActiveSlot}
+                now={now}
+                isToday={isToday}
               />
             )}
             {viewMode === "clock" && (
               <div className="flex justify-center py-4">
                 <ClockSlotsWidget
-                  slots={resolvedSlots.map(s => ({ ...s, status: s.status === "Available" ? "Available" : "Booked" }))}
+                  slots={resolvedSlots}
                   onSelectHour={handleClockHour}
+                  renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
                 />
               </div>
             )}
@@ -441,24 +517,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── BOTTOM "SEE BOOKING" BUTTON ── */}
-      {selectedTurf && !groupedFilter && (
+      {/* ── BOTTOM "SEE BOOKING" BUTTON (grid mode only — clock mode has its own inline button) ── */}
+      {selectedTurf && !groupedFilter && viewMode !== "clock" && (
         <div className="fixed bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
           <div className="pointer-events-auto">
-            <div className="relative group">
-              <button className="flex items-center gap-2 bg-slate-900 text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-slate-800 transition">
-                SEE BOOKING <ChevronDown size={14} />
-              </button>
-              {/* Dropdown */}
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[220px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-                {(["Booked", "Part Paid", "Offline Booked", "Blocked", "Available"] as SlotStatus[]).map(f => (
-                  <button key={f} onClick={() => setGroupedFilter(f)}
-                    className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                    {f} ({resolvedSlots.filter(s => s.status === f).length})
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />
           </div>
         </div>
       )}
@@ -504,16 +567,21 @@ export default function DashboardPage() {
 
             {activeSlot.status === "Available" ? (
               <div className="space-y-2">
-                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => blockSlot(activeSlot)} />
+                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setSlotBlocked(activeSlot, true)} />
                 <ActionRow icon={<BookOpen size={18} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for a walk-in or phone customer" onClick={() => startOfflineBooking(activeSlot)} />
                 <ActionRow icon={<Pause size={18} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot without full payment" onClick={() => holdSlot(activeSlot)} />
               </div>
             ) : (
-              <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
-                <div className="flex justify-between"><span className="text-slate-500">Status</span><SlotBadge status={activeSlot.status} /></div>
-                {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
-                <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+              <div className="space-y-3">
+                <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
+                  <div className="flex justify-between"><span className="text-slate-500">Status</span><SlotBadge status={activeSlot.status} /></div>
+                  {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
+                  <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+                </div>
+                {activeSlot.status === "Blocked" && (
+                  <ActionRow icon={<Check size={18} className="text-emerald-600" />} color="emerald" title="Unblock Slot" sub="Make this slot available again" onClick={() => setSlotBlocked(activeSlot, false)} />
+                )}
               </div>
             )}
           </div>
@@ -561,12 +629,14 @@ export default function DashboardPage() {
 }
 
 /* ─── AGENDA GRID ─────────────────────────────────────────────── */
-function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
+function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick, now, isToday }: {
   slots: AgendaSlot[];
   cardH: string;
   cardGrid: string;
   daypart: string | null;
   onSlotClick: (s: AgendaSlot) => void;
+  now: Date;
+  isToday: boolean;
 }) {
   const parts = daypart
     ? [daypart]
@@ -581,7 +651,9 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
           <div key={part}>
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">{part}</p>
             <div className={`grid ${cardGrid} gap-2`}>
-              {partSlots.map((s, i) => <SlotCard key={i} slot={s} cardH={cardH} onClick={() => onSlotClick(s)} />)}
+              {partSlots.map((s, i) => (
+                <SlotCard key={i} slot={s} cardH={cardH} onClick={() => onSlotClick(s)} now={now} isToday={isToday} />
+              ))}
             </div>
           </div>
         );
@@ -596,7 +668,9 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
 }
 
 /* ─── SLOT CARD ────────────────────────────────────────────────── */
-function SlotCard({ slot, cardH, onClick }: { slot: AgendaSlot; cardH: string; onClick: () => void }) {
+function SlotCard({ slot, cardH, onClick, now, isToday }: {
+  slot: AgendaSlot; cardH: string; onClick: () => void; now: Date; isToday: boolean;
+}) {
   const cfg: Record<SlotStatus, { bg: string; dot: string; text: string }> = {
     Available:        { bg: "bg-white border-slate-200", dot: "bg-emerald-400", text: "text-emerald-600" },
     Booked:           { bg: "bg-red-50/60 border-red-100", dot: "bg-rose-500", text: "text-rose-600" },
@@ -607,20 +681,64 @@ function SlotCard({ slot, cardH, onClick }: { slot: AgendaSlot; cardH: string; o
   };
   const c = cfg[slot.status] || cfg["Available"];
 
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const startMin = t24m(slot.startTime);
+  const endMin = t24m(slot.endTime);
+  const isRunning = isToday && nowMin >= startMin && nowMin < endMin;
+  const isPast = isToday && nowMin >= endMin;
+
   return (
-    <button onClick={onClick}
-      className={`flex flex-col items-center justify-center ${cardH} rounded-xl border ${c.bg} relative cursor-pointer hover:shadow-md transition-shadow`}>
-      <span className={`text-sm font-bold ${c.text} font-mono`}>
-        {slot.startTime.slice(0, 5)}-{slot.endTime.slice(0, 5).replace(":", "·").slice(0, 5)}
-      </span>
-      <span className={`mt-1 text-[10px] font-bold uppercase flex items-center gap-1 ${c.text}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-        {slot.status === "Available" ? `₹${slot.price}` : slot.status}
-      </span>
-      {slot.customerName && (
-        <span className="text-[9px] text-slate-400 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
-      )}
-    </button>
+    <div className="group relative">
+      <button onClick={onClick}
+        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-xl border ${c.bg} relative cursor-pointer hover:shadow-md transition-shadow ${
+          isPast ? "opacity-45 saturate-50" : ""
+        } ${isRunning ? "ring-2 ring-vibe-violet ring-offset-1" : ""}`}>
+        {isRunning && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vibe-violet opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-vibe-violet" />
+          </span>
+        )}
+        <span className={`text-sm font-bold ${c.text} font-mono`}>
+          {slot.startTime.slice(0, 5)}-{slot.endTime.slice(0, 5).replace(":", "·").slice(0, 5)}
+        </span>
+        <span className={`mt-1 text-[10px] font-bold uppercase flex items-center gap-1 ${c.text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+          {slot.status === "Available" ? `₹${slot.price}` : slot.status}
+        </span>
+        {slot.customerName && (
+          <span className="text-[9px] text-slate-400 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
+        )}
+      </button>
+
+      {/* Hover tooltip */}
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 flex-col gap-0.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-lg group-hover:flex whitespace-nowrap">
+        <p className="font-bold text-vibe-lime">{to12h(slot.startTime)} - {to12h(slot.endTime)} · {durHrs(slot.startTime, slot.endTime)}h</p>
+        <p className="text-[10px] text-slate-300">{slot.label} · {isRunning ? "Live now" : isPast ? "Already passed" : "Upcoming"}</p>
+        <p className="text-[11px] text-slate-200 font-bold">₹{slot.price}</p>
+        {slot.customerName && <p className="text-[10px] text-slate-300">Customer: {slot.customerName}</p>}
+        <span className="self-start rounded bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">{slot.status}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SEE BOOKING BUTTON + DROPDOWN ────────────────────────────── */
+function SeeBookingButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
+  return (
+    <div className="relative group">
+      <button className="flex items-center gap-2 bg-slate-900 text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-slate-800 transition">
+        SEE BOOKING <ChevronDown size={14} />
+      </button>
+      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[220px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+        {(["Booked", "Part Paid", "Offline Booked", "Blocked", "Available"] as SlotStatus[]).map(f => (
+          <button key={f} onClick={() => onPick(f)}
+            className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+            {f} ({resolvedSlots.filter(s => s.status === f).length})
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
