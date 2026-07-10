@@ -3,6 +3,7 @@ import { WhatsAppWidget } from "@/components/WhatsAppWidget";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CustomerAuthProvider } from "@/components/providers/CustomerAuthProvider";
 import { GoogleAuthProvider } from "@/components/providers/GoogleAuthProvider";
+import { BottomNav } from "@/components/mobile/BottomNav";
 import "./globals.css";
 
 const THEME_INIT_SCRIPT = `
@@ -43,6 +44,7 @@ export default function RootLayout({
             <CustomerAuthProvider>
               {children}
               <WhatsAppWidget />
+              <BottomNav />
             </CustomerAuthProvider>
           </GoogleAuthProvider>
         </ThemeProvider>

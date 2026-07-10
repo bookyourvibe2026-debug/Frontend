@@ -343,7 +343,7 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
       {step === "review" && (
         <ReviewStep
           listing={listing}
@@ -474,7 +474,7 @@ function ReviewStep(props: {
   };
 
   return (
-    <div className="relative w-full max-w-4xl rounded-3xl bg-slate-50 shadow-2xl">
+    <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-3xl bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl">
       {/* Close button */}
       <button
         type="button"
@@ -485,7 +485,7 @@ function ReviewStep(props: {
         <X className="h-4 w-4" />
       </button>
 
-      <div className="p-4 sm:p-5">
+      <div className="overflow-y-auto p-4 pb-6 sm:p-5">
         <h2 className="text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>
 
         <div className="mt-3 flex flex-col gap-3 lg:flex-row">

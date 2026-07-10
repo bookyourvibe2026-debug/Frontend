@@ -45,7 +45,7 @@ export function WhatsAppWidget() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Enquire on WhatsApp"
-        className="fixed bottom-5 right-5 z-[90] flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-xl shadow-emerald-500/40 transition hover:scale-105 hover:bg-emerald-600"
+        className="fixed bottom-24 right-5 z-[90] flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-xl shadow-emerald-500/40 transition hover:scale-105 hover:bg-emerald-600 sm:bottom-5"
       >
         <WhatsAppIcon className="h-7 w-7" />
       </button>

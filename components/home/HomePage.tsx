@@ -23,6 +23,7 @@ import { Testimonials } from "./Testimonials";
 import { AppDownloadCTA } from "./AppDownloadCTA";
 import { Footer } from "./Footer";
 import { FiltersModal } from "./modals/FiltersModal";
+import { SignupModal } from "./modals/SignupModal";
 import { MobileHome } from "./mobile/MobileHome";
 import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
@@ -30,7 +31,7 @@ import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
 
 export default function HomePage() {
   const router = useRouter();
-  const { customer } = useCustomerAuth();
+  const { customer, status } = useCustomerAuth();
   const userName = customer?.name.split(" ")[0] ?? "Guest";
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -38,7 +39,14 @@ export default function HomePage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [challengeOpen, setChallengeOpen] = useState(false);
+  const [joinInviteOpen, setJoinInviteOpen] = useState(false);
   const filters = useVenueFilters(venues, search);
+
+  useEffect(() => {
+    if (status === "guest" && new URLSearchParams(window.location.search).get("join") === "player") {
+      setJoinInviteOpen(true);
+    }
+  }, [status]);
 
   useEffect(() => {
     browseVenues({ limit: 12 })
@@ -191,6 +199,13 @@ export default function HomePage() {
         />
       )}
       {challengeOpen && <ChallengeFlow onClose={() => setChallengeOpen(false)} />}
+      {joinInviteOpen && (
+        <SignupModal
+          onClose={() => setJoinInviteOpen(false)}
+          onSignedUp={() => setJoinInviteOpen(false)}
+          onSwitchToLogin={() => setJoinInviteOpen(false)}
+        />
+      )}
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-xl">

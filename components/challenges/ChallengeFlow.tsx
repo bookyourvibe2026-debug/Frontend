@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { toPng } from "html-to-image";
 import {
   ArrowLeft,
   Check,
@@ -35,12 +36,7 @@ import {
 type Step = "opponent" | "sport" | "details" | "stakes" | "poster" | "share";
 type Opponent = ChallengePlayer & { isInvite?: boolean };
 
-const FALLBACK_PLAYERS: Opponent[] = [
-  { id: "mock-lakshyaraj", name: "Lakshyaraj", initials: "LR", relation: "Active Playpal", phone: "9876543210" },
-  { id: "invite-kanishk", name: "Kanishk", initials: "K", relation: "Not on BYV yet", phone: "9876501234", isInvite: true },
-  { id: "mock-yashwardhan", name: "Yashwardhan", initials: "Y", relation: "Active Playpal", phone: "9876512345" },
-  { id: "mock-devendra", name: "Devendra", initials: "D", relation: "Active Playpal", phone: "9876523456" },
-];
+const NO_PLAYERS: Opponent[] = [];
 
 const SPORTS = [
   { label: "Cricket", image: "/bat.png" },
@@ -136,9 +132,10 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const { customer, status } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("opponent");
-  const [players, setPlayers] = useState<Opponent[]>(FALLBACK_PLAYERS);
+  const [players, setPlayers] = useState<Opponent[]>(NO_PLAYERS);
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [search, setSearch] = useState("");
-  const [opponent, setOpponent] = useState<Opponent>(FALLBACK_PLAYERS[0]);
+  const [opponent, setOpponent] = useState<Opponent | null>(null);
   const [sport, setSport] = useState("Other Match");
   const [venueName, setVenueName] = useState(DETAILS.venues[0]);
   const [dateLabel, setDateLabel] = useState(DETAILS.dates[0]);
@@ -152,21 +149,35 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const posterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
     listChallengePlayers({ search, limit: 20 })
       .then((items) => {
-        if (!cancelled && items.length > 0) setPlayers([...items, FALLBACK_PLAYERS[1]]);
+        if (cancelled) return;
+        setPlayers(items);
+        setOpponent((current) => current ?? items[0] ?? null);
       })
       .catch(() => {
-        if (!cancelled) setPlayers(FALLBACK_PLAYERS);
+        if (!cancelled) setPlayers(NO_PLAYERS);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPlayers(false);
       });
     return () => {
       cancelled = true;
     };
   }, [search, status]);
+
+  const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : "https://bookyourvibe.com"}/?join=player`;
+  const inviteMessage = `Hey! Join me on Book Your Vibe — sign up as a player and let's set up a match: ${inviteUrl}`;
+
+  function shareInviteOnWhatsApp() {
+    window.open(`https://wa.me/?text=${encodeURIComponent(inviteMessage)}`, "_blank", "noopener,noreferrer");
+  }
 
   const filteredPlayers = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -194,6 +205,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const challengerName = customer?.name ?? "BYV Player";
 
   async function generatePoster() {
+    if (!opponent) return;
     setSubmitting(true);
     setNotice("");
     try {
@@ -247,6 +259,27 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     setNotice("Challenge link copied.");
   }
 
+  async function downloadPoster() {
+    if (downloading || !posterRef.current || !challenge) return;
+    setDownloading(true);
+    setNotice("");
+    try {
+      const dataUrl = await toPng(posterRef.current, {
+        backgroundColor: "#090f19",
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      const link = document.createElement("a");
+      link.download = `byv-challenge-${challenge.code}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      setNotice("Couldn't generate the poster image. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   function goBack() {
     const order: Step[] = ["opponent", "sport", "details", "stakes", "poster", "share"];
     const index = order.indexOf(step);
@@ -273,24 +306,44 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
 
           {step === "opponent" && (
             <StepShell eyebrow="Step 01 / Select duel partner" title="Who are you challenging?" subtitle="Select an opponent from BYV players or invite them via WhatsApp.">
-              <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 bg-white/7 p-1">
-                {["Friends", "Recent", "Contacts", "Search"].map((tab, index) => (
-                  <button key={tab} type="button" className={`rounded-xl py-3 text-[10px] font-extrabold uppercase ${index === 0 ? "bg-orange-500 text-white" : "text-slate-400"}`}>
-                    {tab}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/10 bg-white/7 px-4 py-3.5">
+                  <Search className="h-5 w-5 text-slate-500" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search username, name, or phone..." className="w-full bg-transparent text-sm font-semibold text-slate-200 outline-none placeholder:text-slate-500" />
+                </div>
+                <button
+                  type="button"
+                  onClick={shareInviteOnWhatsApp}
+                  aria-label="Invite friends via WhatsApp"
+                  title="Invite friends via WhatsApp"
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition active:scale-95"
+                >
+                  <Share2 className="h-5 w-5" />
+                </button>
               </div>
-              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/7 px-4 py-3.5">
-                <Search className="h-5 w-5 text-slate-500" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search username, name, or phone..." className="w-full bg-transparent text-sm font-semibold text-slate-200 outline-none placeholder:text-slate-500" />
+              <div className="mt-7 flex items-center justify-between">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-orange-400">Suggested opponents</p>
+                <button type="button" onClick={shareInviteOnWhatsApp} className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-emerald-400">
+                  <Share2 className="h-3.5 w-3.5" /> Invite on WhatsApp
+                </button>
               </div>
-              <p className="mt-7 text-[11px] font-extrabold uppercase tracking-[0.22em] text-orange-400">Suggested opponents</p>
               <div className="mt-3 flex flex-col gap-3">
-                {filteredPlayers.map((player) => (
-                  <OpponentRow key={player.id} player={player} selected={opponent.id === player.id} onSelect={() => setOpponent(player)} />
-                ))}
+                {loadingPlayers ? (
+                  <p className="py-6 text-center text-xs font-semibold text-slate-500">Loading BYV players...</p>
+                ) : filteredPlayers.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-center">
+                    <p className="text-xs font-semibold text-slate-400">No players found{search ? ` for "${search}"` : " yet"}.</p>
+                    <button type="button" onClick={shareInviteOnWhatsApp} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[11px] font-extrabold uppercase text-white">
+                      <Share2 className="h-3.5 w-3.5" /> Invite a friend on WhatsApp
+                    </button>
+                  </div>
+                ) : (
+                  filteredPlayers.map((player) => (
+                    <OpponentRow key={player.id} player={player} selected={opponent?.id === player.id} onSelect={() => setOpponent(player)} />
+                  ))
+                )}
               </div>
-              <BottomBar label="Selected opponent" value={opponent.name} onNext={() => setStep("sport")} />
+              <BottomBar label="Selected opponent" value={opponent?.name ?? "None selected"} onNext={() => setStep("sport")} disabled={!opponent} />
             </StepShell>
           )}
 
@@ -352,8 +405,23 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
           )}
 
           {(step === "poster" || step === "share") && challenge && (
-            <StepShell eyebrow={step === "poster" ? "Final review" : "Deep link ready"} title={step === "poster" ? "Your cinematic poster" : "The gauntlet is thrown!"} subtitle={step === "poster" ? "Review your generated duel flyer." : `Share the challenge with ${opponent.name} on WhatsApp.`}>
-              {step === "poster" ? <Poster challenge={challenge} /> : <SharePanel challenge={challenge} onWhatsApp={shareOnWhatsApp} onCopy={copyLink} />}
+            <StepShell eyebrow={step === "poster" ? "Final review" : "Deep link ready"} title={step === "poster" ? "Your cinematic poster" : "The gauntlet is thrown!"} subtitle={step === "poster" ? "Review your generated duel flyer." : `Share the challenge with ${opponent?.name ?? "your opponent"} on WhatsApp.`}>
+              <div ref={posterRef} className={step === "poster" ? "" : "pointer-events-none fixed left-[-9999px] top-0"}>
+                <Poster challenge={challenge} />
+              </div>
+              {step === "poster" && (
+                <button
+                  type="button"
+                  onClick={downloadPoster}
+                  disabled={downloading}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-3.5 text-xs font-black uppercase tracking-wide text-slate-200 disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download poster"}
+                </button>
+              )}
+              {step === "share" && (
+                <SharePanel challenge={challenge} onWhatsApp={shareOnWhatsApp} onCopy={copyLink} onDownload={downloadPoster} downloading={downloading} />
+              )}
               {notice && <p className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-semibold text-emerald-300">{notice}</p>}
               {step === "poster" ? (
                 <BottomBar label="Invite link" value={challenge.code} actionLabel="Issue challenge" onNext={() => setStep("share")} />
@@ -529,7 +597,19 @@ function PlayerBadge({ initials, name, label, tone }: { initials: string; name: 
   );
 }
 
-function SharePanel({ challenge, onWhatsApp, onCopy }: { challenge: Challenge; onWhatsApp: () => void; onCopy: () => void }) {
+function SharePanel({
+  challenge,
+  onWhatsApp,
+  onCopy,
+  onDownload,
+  downloading,
+}: {
+  challenge: Challenge;
+  onWhatsApp: () => void;
+  onCopy: () => void;
+  onDownload: () => void;
+  downloading: boolean;
+}) {
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-white/7 p-4">
@@ -546,8 +626,13 @@ function SharePanel({ challenge, onWhatsApp, onCopy }: { challenge: Challenge; o
         <button type="button" onClick={onCopy} className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200">
           <Clipboard className="h-4 w-4" /> Copy link
         </button>
-        <button type="button" onClick={() => window.print()} className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200">
-          <Download className="h-4 w-4" /> Download
+        <button
+          type="button"
+          onClick={onDownload}
+          disabled={downloading}
+          className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200 disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download"}
         </button>
         <button type="button" onClick={onWhatsApp} className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200">
           <Send className="h-4 w-4" /> IG Story

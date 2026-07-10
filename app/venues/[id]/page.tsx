@@ -10,7 +10,36 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, MapPin, Share2, ArrowLeft, Building2, UserRoundCog, Store } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  MapPin,
+  Share2,
+  ArrowLeft,
+  Building2,
+  UserRoundCog,
+  Store,
+  Heart,
+  Star,
+  Navigation,
+  Download,
+  Clock,
+  ParkingCircle,
+  Droplets,
+  Wifi,
+  Utensils,
+  ShowerHead,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  CloudFog,
+  MessageSquareText,
+  Ruler,
+  Lightbulb,
+  Layers,
+} from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
 import { getVenueById } from "@/lib/api/venues";
@@ -78,9 +107,21 @@ export default function VenueDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <SiteHeader />
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="sm:hidden">
+        <MobileVenueDetail
+          venue={venue}
+          highlights={highlights}
+          inclusions={inclusions}
+          categoryText={categoryText}
+          onBook={() => setBooking(true)}
+        />
+      </div>
+
+      <main className="mx-auto hidden max-w-7xl px-4 py-6 sm:block sm:px-6 sm:py-8">
         <div className="mb-4 flex items-center justify-between">
           <Link
             href="/venues"
@@ -251,6 +292,339 @@ export default function VenueDetailPage() {
       </main>
 
       {booking && <BookingFlow listing={venue} onClose={() => setBooking(false)} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  MOBILE — app-shell style venue detail view                         */
+/* ------------------------------------------------------------------ */
+
+interface WeatherDay {
+  label: string;
+  tempMax: number;
+  code: number;
+}
+
+interface WeatherState {
+  loading: boolean;
+  error: boolean;
+  current?: { temp: number; code: number };
+  days: WeatherDay[];
+}
+
+const SPEC_ICONS = [Ruler, Lightbulb, Layers, CheckCircle2];
+
+const AMENITY_ICON_RULES: { keywords: string[]; icon: typeof ParkingCircle; label: string }[] = [
+  { keywords: ["park"], icon: ParkingCircle, label: "Parking" },
+  { keywords: ["restroom", "washroom", "toilet"], icon: ShowerHead, label: "Restrooms" },
+  { keywords: ["water"], icon: Droplets, label: "Drinking Water" },
+  { keywords: ["shower"], icon: ShowerHead, label: "Showers" },
+  { keywords: ["wifi"], icon: Wifi, label: "WiFi" },
+  { keywords: ["food", "cafe", "canteen", "snack"], icon: Utensils, label: "Food & Snacks" },
+];
+
+function weatherIcon(code: number, className = "h-7 w-7") {
+  if (code === 0) return <Sun className={className} />;
+  if (code <= 3) return <Cloud className={className} />;
+  if (code === 45 || code === 48) return <CloudFog className={className} />;
+  if (code >= 95) return <CloudLightning className={className} />;
+  if (code >= 71 && code <= 86 && ![80, 81, 82].includes(code)) return <CloudSnow className={className} />;
+  return <CloudRain className={className} />;
+}
+
+function weatherLabel(code: number) {
+  if (code === 0) return "Sunny, Clear";
+  if (code <= 3) return "Cloudy";
+  if (code === 45 || code === 48) return "Foggy";
+  if (code >= 95) return "Thunderstorm";
+  if (code >= 71 && code <= 86 && ![80, 81, 82].includes(code)) return "Snowy";
+  return "Rainy";
+}
+
+function useCityWeather(city: string) {
+  const [weather, setWeather] = useState<WeatherState>(() =>
+    city ? { loading: true, error: false, days: [] } : { loading: false, error: true, days: [] }
+  );
+
+  useEffect(() => {
+    if (!city) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const geoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`
+        );
+        const geo = await geoRes.json();
+        const place = geo?.results?.[0];
+        if (!place) throw new Error("no geocoding match");
+
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max&timezone=auto&forecast_days=4`
+        );
+        const data = await weatherRes.json();
+        if (cancelled) return;
+        setWeather({
+          loading: false,
+          error: false,
+          current: { temp: Math.round(data.current.temperature_2m), code: data.current.weather_code },
+          days: (data.daily.time as string[]).slice(1, 4).map((iso, i) => ({
+            label: new Date(iso).toLocaleDateString("en-US", { weekday: "short" }),
+            tempMax: Math.round(data.daily.temperature_2m_max[i + 1]),
+            code: data.daily.weather_code[i + 1],
+          })),
+        });
+      } catch {
+        if (!cancelled) setWeather({ loading: false, error: true, days: [] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [city]);
+
+  return weather;
+}
+
+function MobileVenueDetail({
+  venue,
+  highlights,
+  inclusions,
+  categoryText,
+  onBook,
+}: {
+  venue: Listing;
+  highlights: string[];
+  inclusions: string[];
+  categoryText: string;
+  onBook: () => void;
+}) {
+  const [favorite, setFavorite] = useState(false);
+  const weather = useCityWeather(venue.city);
+
+  const amenities = inclusions.map((item) => {
+    const match = AMENITY_ICON_RULES.find((rule) => rule.keywords.some((k) => item.toLowerCase().includes(k)));
+    return { label: item, Icon: match?.icon ?? Layers };
+  });
+
+  const mapsQuery = encodeURIComponent(venue.address || venue.city);
+
+  return (
+    <div className="pb-24">
+      {/* Hero image with floating header */}
+      <div className="relative h-72 w-full bg-slate-900">
+        {venue.coverImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={venue.coverImage} alt={venue.title} className="h-full w-full object-cover" />
+        )}
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
+          <Link
+            href="/venues"
+            aria-label="Back"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFavorite((v) => !v)}
+              aria-label="Toggle favorite"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+            >
+              <Heart className={`h-4 w-4 ${favorite ? "fill-accent-500 text-accent-500" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(window.location.href).catch(() => {})}
+              aria-label="Share venue"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="absolute bottom-3 left-4 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+          {categoryText}
+        </div>
+      </div>
+
+      <div className="rounded-t-3xl -mt-5 relative bg-slate-50 px-4 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> 4.8
+          </span>
+        </div>
+        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+          <MapPin className="h-3.5 w-3.5 shrink-0" /> {venue.city}
+          {venue.address ? ` · ${venue.address}` : ""}
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${mapsQuery}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-xs font-bold uppercase tracking-wide text-white"
+          >
+            <Navigation className="h-4 w-4" /> Directions
+          </a>
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-xs font-bold uppercase tracking-wide text-slate-700"
+          >
+            <Download className="h-4 w-4" /> Export Schedule
+          </a>
+        </div>
+
+        {venue.address && (
+          <div className="mt-4 space-y-2">
+            <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" /> {venue.address}
+            </p>
+            <div className="relative h-40 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+              <iframe
+                title="Venue Location Map"
+                src={`https://maps.google.com/maps?q=${mapsQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                className="absolute inset-0 h-full w-full border-0"
+                loading="lazy"
+              />
+              <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold uppercase text-white">
+                Satellite View
+              </span>
+            </div>
+          </div>
+        )}
+
+        {(venue.reportingStartTime || venue.reportingEndTime) && (
+          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+            <Clock className="h-4 w-4 text-brand-500" />
+            <span className="text-xs font-bold text-slate-700">
+              Open Today · {venue.reportingStartTime ?? "—"} - {venue.reportingEndTime ?? "—"}
+            </span>
+            <span className="ml-auto rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-emerald-600">
+              Open
+            </span>
+          </div>
+        )}
+
+        {/* Technical / venue highlights */}
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Technical Specifications</h2>
+          <div className="mt-3 grid grid-cols-1 gap-2.5">
+            {highlights.map((h, i) => {
+              const Icon = SPEC_ICONS[i % SPEC_ICONS.length];
+              return (
+                <div key={h} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <p className="text-xs font-semibold text-slate-700">{h}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Local weather */}
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Local Weather</h2>
+          {weather.loading ? (
+            <div className="mt-3 h-24 animate-pulse rounded-2xl bg-slate-100" />
+          ) : weather.error || !weather.current ? null : (
+            <div className="mt-3 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 text-white shadow-lg shadow-brand-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-3xl font-black">{weather.current.temp}°</p>
+                  <p className="text-xs font-semibold text-white/80">{weatherLabel(weather.current.code)}</p>
+                </div>
+                {weatherIcon(weather.current.code, "h-10 w-10")}
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/20 pt-3">
+                {weather.days.map((d) => (
+                  <div key={d.label} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-bold uppercase text-white/80">{d.label}</span>
+                    {weatherIcon(d.code, "h-4 w-4")}
+                    <span className="text-xs font-bold">{d.tempMax}°</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Sports available */}
+        {venue.categories.length > 0 && (
+          <section className="mt-5">
+            <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {venue.categories.map((catId) => (
+                <div key={catId} className="flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                    <Layers className="h-4 w-4" />
+                  </span>
+                  <span className="truncate text-xs font-bold text-slate-700">{categoryLabel(catId)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Amenities */}
+        {amenities.length > 0 && (
+          <section className="mt-5">
+            <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {amenities.map(({ label, Icon }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+                >
+                  <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Description */}
+        <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
+        </section>
+
+        {/* Player reviews */}
+        <section className="mt-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900">Player Reviews</h2>
+            <span className="text-xs font-semibold text-brand-600">View All</span>
+          </div>
+          <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+            <MessageSquareText className="mx-auto h-6 w-6 text-slate-300" />
+            <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
+          </div>
+        </section>
+      </div>
+
+      {/* Sticky book bar — sits above the mobile bottom nav */}
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-black text-slate-900">₹{venue.price.toLocaleString("en-IN")}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
+          </div>
+          <button
+            type="button"
+            onClick={onBook}
+            className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
+          >
+            Book Now
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
