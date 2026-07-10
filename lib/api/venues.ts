@@ -4,10 +4,23 @@ import type { Listing, ListingType } from "./types";
 export interface BrowseVenuesParams {
   city?: string;
   category?: string;
+  subCategory?: string;
   type?: ListingType;
+  vendorId?: string;
   search?: string;
   page?: number;
   limit?: number;
+}
+
+export interface VendorPublicProfile {
+  _id: string;
+  businessName: string;
+  ownerName: string;
+  logo?: string;
+  banner?: string;
+  poster?: string;
+  city?: string;
+  state: string;
 }
 
 // The admin/vendor package studio only ever saves uploads into `images`
@@ -25,4 +38,11 @@ export async function browseVenues(params: BrowseVenuesParams = {}) {
 export async function getVenueById(id: string) {
   const listing = await apiRequest<Listing>(`/venues/${id}`);
   return withCoverImage(listing);
+}
+
+export async function getVendorProfile(vendorId: string) {
+  const result = await apiRequest<{ vendor: VendorPublicProfile; listings: Listing[] }>(
+    `/venues/vendors/${vendorId}`
+  );
+  return { ...result, listings: result.listings.map(withCoverImage) };
 }

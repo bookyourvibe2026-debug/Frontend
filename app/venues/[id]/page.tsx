@@ -10,12 +10,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, MapPin, Share2, ArrowLeft, Building2, UserRoundCog } from "lucide-react";
+import { CheckCircle2, XCircle, MapPin, Share2, ArrowLeft, Building2, UserRoundCog, Store } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
 import { getVenueById } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
+import { categoryLabel } from "@/lib/taxonomy";
 
 const DEFAULT_HIGHLIGHTS = ["Well-maintained facility", "Floodlit for evening play", "Easy online booking"];
 const DEFAULT_INCLUSIONS = ["Venue access", "Drinking water", "Changing room"];
@@ -69,9 +70,11 @@ export default function VenueDetailPage() {
     );
   }
 
+  const isEvent = venue.type === "Event";
   const highlights = venue.highlights.length > 0 ? venue.highlights : DEFAULT_HIGHLIGHTS;
   const inclusions = venue.inclusions.length > 0 ? venue.inclusions : DEFAULT_INCLUSIONS;
   const exclusions = venue.exclusions.length > 0 ? venue.exclusions : DEFAULT_EXCLUSIONS;
+  const categoryText = venue.categories.map(categoryLabel).join(", ") || "General";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -107,7 +110,7 @@ export default function VenueDetailPage() {
               )}
               <div className="absolute bottom-4 left-4 flex items-center gap-2">
                 <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  {venue.category}
+                  {categoryText}
                 </span>
               </div>
             </div>
@@ -118,50 +121,54 @@ export default function VenueDetailPage() {
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{venue.description}</p>
             </section>
 
-            {/* Highlights */}
-            <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-                <CheckCircle2 className="h-5 w-5 text-brand-500" /> Highlights
-              </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {highlights.map((h) => (
-                  <div key={h} className="flex items-center gap-2 text-sm text-slate-700">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-500" />
-                    {h}
+            {isEvent && (
+              <>
+                {/* Highlights */}
+                <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                  <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
+                    <CheckCircle2 className="h-5 w-5 text-brand-500" /> Highlights
+                  </h2>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {highlights.map((h) => (
+                      <div key={h} className="flex items-center gap-2 text-sm text-slate-700">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-500" />
+                        {h}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </section>
+                </section>
 
-            {/* Inclusions / exclusions */}
-            <section className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                <h3 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" /> What&apos;s Included
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {inclusions.map((i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-slate-700">
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                      {i}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                <h3 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
-                  <XCircle className="h-5 w-5 text-accent-500" /> What&apos;s Not Included
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {exclusions.map((e) => (
-                    <li key={e} className="flex items-center gap-2 text-sm text-slate-700">
-                      <XCircle className="h-4 w-4 shrink-0 text-accent-400" />
-                      {e}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
+                {/* Inclusions / exclusions */}
+                <section className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                    <h3 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" /> What&apos;s Included
+                    </h3>
+                    <ul className="mt-3 space-y-2">
+                      {inclusions.map((i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm text-slate-700">
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                          {i}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                    <h3 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                      <XCircle className="h-5 w-5 text-accent-500" /> What&apos;s Not Included
+                    </h3>
+                    <ul className="mt-3 space-y-2">
+                      {exclusions.map((e) => (
+                        <li key={e} className="flex items-center gap-2 text-sm text-slate-700">
+                          <XCircle className="h-4 w-4 shrink-0 text-accent-400" />
+                          {e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+              </>
+            )}
 
             {/* Location / Live Map Section */}
             {venue.address && (
@@ -189,7 +196,7 @@ export default function VenueDetailPage() {
             <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-lg">
               <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
               <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-brand-600">
-                {venue.category} · {venue.city}
+                {categoryText} · {venue.city}
               </p>
 
               <p className="mt-4 text-2xl font-black text-slate-900">
@@ -211,6 +218,21 @@ export default function VenueDetailPage() {
                 Book Now
               </button>
             </div>
+
+            {venue.vendorId && (
+              <Link
+                href={`/venues/vendor/${venue.vendorId}`}
+                className="mt-4 flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+                  <Store className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-slate-900">View vendor profile</span>
+                  <span className="block text-xs text-slate-500">See all turfs &amp; games from this vendor</span>
+                </span>
+              </Link>
+            )}
 
             <Link
               href="/coaches"

@@ -9,6 +9,7 @@ import { Listing } from "@/lib/types";
 import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
+import { categoryLabel } from "@/lib/taxonomy";
 
 const TABS = ["All", "Turf", "Game", "Event"] as const;
 
@@ -193,7 +194,7 @@ function ListingCard({
           </Badge>
         </div>
         <p className="text-white/80 text-[11px] font-semibold tracking-wide uppercase">
-          {listing.category}
+          {listing.categories.map(categoryLabel).join(", ") || "Uncategorized"}
         </p>
       </div>
       <div className="p-4 flex-1 flex flex-col">

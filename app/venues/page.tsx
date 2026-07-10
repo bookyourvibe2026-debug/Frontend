@@ -1,22 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { browseVenues } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
+import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
 
-export default function VenuesPage() {
+function VenuesPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const category = searchParams.get("category") ?? "";
   const [venues, setVenues] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    browseVenues({ limit: 24 })
+    setLoading(true);
+    browseVenues({ limit: 24, category: category || undefined })
       .then((result) => setVenues(result.items))
       .finally(() => setLoading(false));
-  }, []);
+  }, [category]);
+
+  function setCategory(next: string) {
+    router.push(next ? `/venues?category=${next}` : "/venues");
+  }
+
+  const categoryChips = (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => setCategory("")}
+        className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+          category === "" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+        }`}
+      >
+        All sports
+      </button>
+      {SPORT_CATEGORIES.map((cat) => (
+        <button
+          key={cat.id}
+          type="button"
+          onClick={() => setCategory(cat.id)}
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+            category === cat.id ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          {cat.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#eef2ff_45%,_#ffffff_82%)]">
@@ -39,6 +75,8 @@ export default function VenuesPage() {
             </p>
           </div>
 
+          <div className="-mx-4 overflow-x-auto px-4 pb-1">{categoryChips}</div>
+
           <div className="flex flex-col gap-3">
             {venues.map((venue) => (
               <MobileCard key={venue._id} className="!p-4">
@@ -48,7 +86,7 @@ export default function VenuesPage() {
                     <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
                   )}
                   <div className="relative">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.category}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
                     <h2 className="mt-1 text-lg font-extrabold">{venue.title}</h2>
                   </div>
                 </div>
@@ -99,7 +137,9 @@ export default function VenuesPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section className="mt-6">{categoryChips}</section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {venues.map((venue, index) => (
             <article
               key={venue._id}
@@ -113,7 +153,7 @@ export default function VenuesPage() {
                   <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
                 )}
                 <div className="relative">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{venue.category}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
                   <h2 className="mt-2 text-2xl font-black">{venue.title}</h2>
                 </div>
               </div>
@@ -166,5 +206,13 @@ export default function VenuesPage() {
         </section>
       </main>
     </div>
+  );
+}
+
+export default function VenuesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <VenuesPageInner />
+    </Suspense>
   );
 }

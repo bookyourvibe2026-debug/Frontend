@@ -69,7 +69,7 @@ export function HostEventForm({ onClose, onSaved }: Props) {
       const created = await createVendorListing({
         title: form.title.trim(),
         type: "Event",
-        category: form.category.trim(),
+        categories: [form.category.trim()],
         description: form.description.trim(),
         city: form.city.trim(),
         state: form.state.trim(),

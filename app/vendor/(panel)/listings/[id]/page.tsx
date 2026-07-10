@@ -21,6 +21,7 @@ import {
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Booking } from "@/lib/types";
+import { categoryLabel } from "@/lib/taxonomy";
 
 type Tab = "overview" | "registrations" | "agenda";
 
@@ -240,7 +241,7 @@ function OverviewTab({
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Basic Information</p>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <InfoField label="Category">
-              <span className="font-medium text-ink">{listing.category}</span>
+              <span className="font-medium text-ink">{listing.categories.map(categoryLabel).join(", ") || "—"}</span>
             </InfoField>
             <InfoField label="Type">
               <Badge tone={TYPE_TONE[listing.type]}>{listing.type}</Badge>

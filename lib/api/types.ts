@@ -42,8 +42,8 @@ export interface Listing {
   _id: string;
   title: string;
   type: ListingType;
-  category: string;
-  subCategory?: string;
+  categories: string[];
+  subCategories: string[];
   price: number;
   /** Ticket cap for type: "Event" listings — unused for Turf/Game. */
   capacity?: number;

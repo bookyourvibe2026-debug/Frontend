@@ -2,21 +2,28 @@ import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
+import { SPORT_CATEGORIES } from "@/lib/taxonomy";
 
 export const metadata = {
   title: "Find Your Games | Book Your Vibe",
   description: "Explore sports categories and discover nearby venues.",
 };
 
-const SPORTS = [
-  { id: "box-cricket", label: "Box Cricket", image: "/bat.png", note: "Fast bookings, turf-friendly" },
-  { id: "football", label: "Football", image: "/football.png", note: "Turf matches and friendly kickoffs" },
-  { id: "badminton", label: "Badminton", image: "/badminton.png", note: "Indoor courts, live availability" },
-  { id: "pickleball", label: "Pickleball", image: "/pickball.png", note: "Trending now with limited slots" },
-  { id: "cricket-nets", label: "Cricket Nets", image: "/nets.png", note: "Practice sessions and coaching" },
-  { id: "tennis", label: "Tennis", image: "/tennis.png", note: "Singles, doubles, and coaching" },
-  { id: "table-tennis", label: "Table Tennis", image: "/tabletennis.png", note: "Quick rallies, fun evenings" },
-];
+const NOTES: Record<string, string> = {
+  cricket: "Fast bookings, turf-friendly",
+  football: "Turf matches and friendly kickoffs",
+  badminton: "Indoor courts, live availability",
+  pickleball: "Trending now with limited slots",
+  tennis: "Singles, doubles, and coaching",
+  "table-tennis": "Quick rallies, fun evenings",
+};
+
+const SPORTS = SPORT_CATEGORIES.map((cat) => ({
+  id: cat.id,
+  label: cat.label,
+  image: cat.image ?? "/bat.png",
+  note: NOTES[cat.id] ?? "Live availability, easy booking",
+}));
 
 export default function GamesPage() {
   return (
@@ -44,7 +51,7 @@ export default function GamesPage() {
 
           <div className="flex flex-col gap-3">
             {SPORTS.map((sport) => (
-              <Link key={sport.id} href="/venues">
+              <Link key={sport.id} href={`/venues?category=${sport.id}`}>
                 <MobileCard className="flex items-center gap-4">
                   <div className="relative h-16 w-16 shrink-0 rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
                     <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
@@ -77,7 +84,7 @@ export default function GamesPage() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <span className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
-                  7 sports ready
+                  {SPORTS.length} sports ready
                 </span>
                 <span className="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700">
                   Live availability
@@ -134,7 +141,7 @@ export default function GamesPage() {
             {SPORTS.map((sport, index) => (
               <Link
                 key={sport.id}
-                href="/venues"
+                href={`/venues?category=${sport.id}`}
                 className={`group overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
                   index === 0 ? "sm:col-span-2 xl:col-span-2" : ""
                 }`}

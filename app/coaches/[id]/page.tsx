@@ -75,8 +75,8 @@ export default function CoachDetailPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-slate-400">
-                      <UserRoundCog className="h-9 w-9" />
+                    <span className="flex h-full w-full items-center justify-center text-lg font-bold text-slate-500">
+                      {coach.name.charAt(0).toUpperCase()}
                     </span>
                   )}
                 </div>

@@ -10,6 +10,7 @@ import { Listing, ListingType } from "@/lib/types";
 import { getAdminListings, createAdminListing, updateAdminListing, deleteAdminListing } from "@/lib/api/admin";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
+import { categoryLabel } from "@/lib/taxonomy";
 
 type OwnerTab = "all" | "admin" | "vendor";
 
@@ -37,7 +38,10 @@ export default function AdminListingsPage() {
     refresh();
   }, [refresh]);
 
-  const categories = useMemo(() => ["All Categories", ...Array.from(new Set(listings.map((l) => l.category)))], [listings]);
+  const categories = useMemo(
+    () => ["All Categories", ...Array.from(new Set(listings.flatMap((l) => l.categories)))],
+    [listings]
+  );
   const cities = useMemo(() => ["All Cities", ...Array.from(new Set(listings.map((l) => l.city)))], [listings]);
 
   const filtered = useMemo(() => {
@@ -48,7 +52,7 @@ export default function AdminListingsPage() {
         l.address.toLowerCase().includes(query.toLowerCase());
       const matchesStatus = l.status === statusFilter;
       const matchesOwner = ownerTab === "all" || (ownerTab === "vendor" ? !!l.ownerName : !l.ownerName);
-      const matchesCategory = category === "All Categories" || l.category === category;
+      const matchesCategory = category === "All Categories" || l.categories.includes(category);
       const matchesCity = city === "All Cities" || l.city === city;
       return matchesQuery && matchesStatus && matchesOwner && matchesCategory && matchesCity;
     });
@@ -191,7 +195,7 @@ export default function AdminListingsPage() {
             className="rounded-xl border border-surface-border bg-white px-3 py-2 text-xs font-semibold text-ink-soft"
           >
             {categories.map((c) => (
-              <option key={c}>{c}</option>
+              <option key={c} value={c}>{c === "All Categories" ? c : categoryLabel(c)}</option>
             ))}
           </select>
           <select
@@ -228,7 +232,7 @@ export default function AdminListingsPage() {
                 <td className="px-4 py-3 text-ink-faint">{(page - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3 font-semibold text-ink">{l.title}</td>
                 <td className="px-4 py-3 text-ink-soft">{l.ownerName ?? "Book Your Vibe (Admin)"}</td>
-                <td className="px-4 py-3 text-ink-soft">{l.category}</td>
+                <td className="px-4 py-3 text-ink-soft">{l.categories.map(categoryLabel).join(", ") || "—"}</td>
                 <td className="px-4 py-3 text-ink-soft">
                   {l.city}, {l.state}
                 </td>

@@ -44,8 +44,8 @@ export default function CoachesPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center text-slate-400">
-                        <UserRoundCog className="h-7 w-7" />
+                      <span className="flex h-full w-full items-center justify-center text-base font-bold text-slate-500">
+                        {coach.name.charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -94,8 +94,8 @@ export default function CoachesPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-slate-400">
-                      <UserRoundCog className="h-7 w-7" />
+                    <span className="flex h-full w-full items-center justify-center text-base font-bold text-slate-500">
+                      {coach.name.charAt(0).toUpperCase()}
                     </span>
                   )}
                 </div>

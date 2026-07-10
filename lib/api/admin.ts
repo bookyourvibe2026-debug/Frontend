@@ -115,7 +115,7 @@ export function deleteAdminSubUser(id: string) {
 export type AdminListingInput = Partial<Omit<Listing, "_id" | "createdAt" | "updatedAt">> & {
   title: string;
   type: ListingType;
-  category: string;
+  categories: string[];
   price: number;
   city: string;
   state: string;

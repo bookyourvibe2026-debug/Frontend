@@ -47,7 +47,7 @@ export default function EventsPage() {
                       <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
                     )}
                     <div className="relative">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.category}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
                       <h2 className="mt-1 text-lg font-extrabold">{event.title}</h2>
                     </div>
                   </div>
@@ -103,7 +103,7 @@ export default function EventsPage() {
                   <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
                 )}
                 <div className="relative">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{event.category}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
                   <h2 className="mt-2 text-2xl font-black">{event.title}</h2>
                 </div>
               </div>

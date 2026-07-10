@@ -8,6 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 import type { Listing } from "./api/types";
+import { categoryLabel } from "./taxonomy";
 
 export type Venue = {
   id: string;
@@ -30,7 +31,7 @@ export function listingToVenue(listing: Listing): Venue {
     rating: 4.5,
     pricePerHour: listing.price,
     status: "Available",
-    sport: listing.category,
+    sport: listing.categories.map(categoryLabel).join(", ") || "General",
     image: listing.coverImage ?? "",
   };
 }

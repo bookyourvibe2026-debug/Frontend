@@ -12,6 +12,7 @@ import { getAdminListingById, createAdminListing, updateAdminListing, getAdminBo
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import type { Booking as ApiBooking } from "@/lib/api/types";
+import { categoryLabel, subCategoryLabel } from "@/lib/taxonomy";
 
 const SUB_PAGES = [
   { id: "overview", label: "Package Overview", comingSoon: false },
@@ -181,7 +182,7 @@ export default function AdminListingDetailPage() {
                 <div className="absolute left-4 top-4 flex gap-2">
                   <Badge tone={listing.status === "Active" ? "success" : "neutral"}>{listing.status}</Badge>
                   {listing.trending && <Badge tone="pending">Trending</Badge>}
-                  <Badge tone="info">{listing.category}</Badge>
+                  <Badge tone="info">{listing.categories.map(categoryLabel).join(", ") || listing.type}</Badge>
                 </div>
                 <div className="absolute bottom-4 left-4 right-4">
                   <h1 className="text-xl font-bold text-white sm:text-2xl">{listing.title}</h1>
@@ -236,8 +237,8 @@ export default function AdminListingDetailPage() {
                   <InfoField label="Owner Type">{listing.ownerName ?? "Book Your Vibe (Admin)"}</InfoField>
                   <InfoField label="Shared With Vendors">{listing.sharedWithVendors ? "Yes" : "No"}</InfoField>
                   <InfoField label="Admin Name">{listing.ownerName ?? "Book Your Vibe"}</InfoField>
-                  <InfoField label="Category">{listing.category}</InfoField>
-                  <InfoField label="Sub-Category">{listing.subCategory ?? "—"}</InfoField>
+                  <InfoField label="Category">{listing.categories.map(categoryLabel).join(", ") || "—"}</InfoField>
+                  <InfoField label="Sub-Category">{listing.subCategories.map(subCategoryLabel).join(", ") || "—"}</InfoField>
                   <InfoField label="Destination">{listing.address}</InfoField>
                 </div>
               </div>

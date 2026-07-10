@@ -109,7 +109,7 @@ export type ListingInput = Partial<
 > & {
   title: string;
   type: ListingType;
-  category: string;
+  categories: string[];
   price: number;
   city: string;
   state: string;

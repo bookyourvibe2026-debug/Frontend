@@ -17,6 +17,7 @@ import {
   TurfSlot,
 } from "@/lib/types";
 import { ClockSlotsWidget } from "./ClockSlotsWidget";
+import { SPORT_CATEGORIES, subCategoriesForCategories } from "@/lib/taxonomy";
 
 type Audience = "admin" | "vendor";
 
@@ -47,8 +48,8 @@ function emptyListing(type: ListingType): Listing {
     id: `byv-${now.getTime()}`,
     title: "",
     type,
-    category: "",
-    subCategory: "",
+    categories: [],
+    subCategories: [],
     price: 0,
     listedOn: formatListedOn(now),
     status: "Inactive",
@@ -506,13 +507,22 @@ function LocationStep({ draft, update }: StepProps) {
     <div className="space-y-5">
       <div>
         <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
-        <p className="text-xs text-ink-faint">Name, location &amp; category</p>
+        <p className="text-xs text-ink-faint">Location &amp; category. Name always follows your business profile.</p>
       </div>
 
-      <div>
-        <FieldLabel>{draft.type} name (Optional)</FieldLabel>
-        <input value={draft.title} onChange={(e) => update("title", e.target.value)} className={inputClass} placeholder="Defaults to your business profile name" />
-      </div>
+      {draft.type !== "Event" && (
+        <div>
+          <FieldLabel>Listing type *</FieldLabel>
+          <ToggleGroup
+            value={draft.type as "Turf" | "Game"}
+            options={[
+              { value: "Turf", label: "Turf" },
+              { value: "Game", label: "Game" },
+            ]}
+            onChange={(v) => update("type", v)}
+          />
+        </div>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <div className="relative">
@@ -639,21 +649,67 @@ function LocationStep({ draft, update }: StepProps) {
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <FieldLabel>Category *</FieldLabel>
-          <input value={draft.category} onChange={(e) => update("category", e.target.value)} className={inputClass} placeholder="e.g. Water Adventures" />
-        </div>
-        <div>
-          <FieldLabel>Sub-Category *</FieldLabel>
-          <input
-            value={draft.subCategory ?? ""}
-            onChange={(e) => update("subCategory", e.target.value)}
-            className={inputClass}
-            placeholder="e.g. Surfing"
-          />
+      <div>
+        <FieldLabel>Category * (select all that apply)</FieldLabel>
+        <div className="flex flex-wrap gap-2">
+          {SPORT_CATEGORIES.map((cat) => {
+            const isSelected = draft.categories.includes(cat.id);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  const next = isSelected
+                    ? draft.categories.filter((c) => c !== cat.id)
+                    : [...draft.categories, cat.id];
+                  update("categories", next);
+                  const validSubIds = new Set(subCategoriesForCategories(next).map((s) => s.id));
+                  update("subCategories", draft.subCategories.filter((s) => validSubIds.has(s)));
+                }}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                  isSelected
+                    ? "border-vibe-violet bg-vibe-violet text-white"
+                    : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet"
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {draft.categories.length > 0 && (
+        <div>
+          <FieldLabel>Sub-Category (select all that apply)</FieldLabel>
+          <div className="flex flex-wrap gap-2">
+            {subCategoriesForCategories(draft.categories).map((sub) => {
+              const isSelected = draft.subCategories.includes(sub.id);
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "subCategories",
+                      isSelected
+                        ? draft.subCategories.filter((s) => s !== sub.id)
+                        : [...draft.subCategories, sub.id]
+                    )
+                  }
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                    isSelected
+                      ? "border-vibe-lime bg-vibe-lime text-vibe-indigo"
+                      : "border-surface-border bg-white text-ink-soft hover:border-vibe-lime"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -901,7 +957,7 @@ function BookingStep({ draft, update }: StepProps) {
 
   const selectedOverrideDate = selectedDate;
 
-  if (draft.type !== "Turf") {
+  if (draft.type === "Event") {
     return (
       <div>
         <div className="mb-5">
@@ -959,6 +1015,7 @@ function BookingStep({ draft, update }: StepProps) {
                 </button>
               </div>
             </div>
+          </div>
 
             {/* Weekdays row */}
             <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -992,8 +1049,10 @@ function BookingStep({ draft, update }: StepProps) {
                         ? "border-rose-300 bg-rose-50 hover:bg-rose-100"
                         : hasOvr
                         ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300"
-                        : (day.isSunday || day.festival)
+                        : day.festival
                         ? "border-rose-100 bg-rose-50/30 hover:border-rose-200 text-rose-900"
+                        : day.isSunday
+                        ? "border-amber-200 bg-amber-50/40 hover:border-amber-300 text-amber-900"
                         : "border-slate-100 bg-white hover:border-slate-300"
                     }`}
                   >
@@ -1011,6 +1070,11 @@ function BookingStep({ draft, update }: StepProps) {
                       {day.festival && !isSel && (
                         <span className="text-[7px] truncate font-bold text-rose-500 bg-rose-100/50 px-1 py-0.5 rounded uppercase leading-none">
                           {day.festival}
+                        </span>
+                      )}
+                      {!day.festival && day.isSunday && !isSel && (
+                        <span className="text-[7px] truncate font-bold text-amber-600 bg-amber-100/60 px-1 py-0.5 rounded uppercase leading-none">
+                          Sunday
                         </span>
                       )}
                       <span className="text-[8px] truncate uppercase font-semibold leading-tight tracking-tight">
@@ -1281,7 +1345,6 @@ function BookingStep({ draft, update }: StepProps) {
               </div>
             )}
           </div>
-        </div>
       </div>
 
       {/* ── RIGHT PANEL: CLOCK ─────────────────────────────── */}
@@ -1396,7 +1459,7 @@ function PricingStep({ draft, update }: StepProps) {
   return (
     <div className="space-y-6">
       {/* ── TURF SLOT PRICING SELECTOR ── */}
-      {draft.type === "Turf" && (
+      {draft.type !== "Event" && (
         <div className="rounded-xl border border-surface-border bg-cream-200/25 p-5">
           <p className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-1">Slot-by-Slot Pricing</p>
           <p className="text-xs text-ink-faint mb-4">Click to select one or multiple slots below, set their price, and apply. Priced slots will move to the list below.</p>
@@ -1487,7 +1550,7 @@ function PricingStep({ draft, update }: StepProps) {
       )}
 
       {/* Participant tiers */}
-      {draft.type !== "Turf" && (
+      {draft.type === "Event" && (
         <div>
           <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Pricing</p>
           <p className="mb-4 text-xs text-ink-faint">Set participant-wise pricing</p>
@@ -1646,28 +1709,32 @@ function LaunchStep({ draft, update }: StepProps) {
               onChange={(v) => update("status", v)}
             />
           </div>
-          <div>
-            <p className="mb-1 text-[10px] font-semibold tracking-wider text-ink-faint uppercase">Trending</p>
-            <ToggleGroup
-              value={draft.trending ? "On" : "Off"}
-              options={[
-                { value: "Off", label: "Off" },
-                { value: "On", label: "On" },
-              ]}
-              onChange={(v) => update("trending", v === "On")}
-            />
-          </div>
-          <div>
-            <p className="mb-1 text-[10px] font-semibold tracking-wider text-ink-faint uppercase">Private</p>
-            <ToggleGroup
-              value={draft.isPrivate ? "On" : "Off"}
-              options={[
-                { value: "Off", label: "Off" },
-                { value: "On", label: "On" },
-              ]}
-              onChange={(v) => update("isPrivate", v === "On")}
-            />
-          </div>
+          {draft.type === "Event" && (
+            <>
+              <div>
+                <p className="mb-1 text-[10px] font-semibold tracking-wider text-ink-faint uppercase">Trending</p>
+                <ToggleGroup
+                  value={draft.trending ? "On" : "Off"}
+                  options={[
+                    { value: "Off", label: "Off" },
+                    { value: "On", label: "On" },
+                  ]}
+                  onChange={(v) => update("trending", v === "On")}
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-semibold tracking-wider text-ink-faint uppercase">Private</p>
+                <ToggleGroup
+                  value={draft.isPrivate ? "On" : "Off"}
+                  options={[
+                    { value: "Off", label: "Off" },
+                    { value: "On", label: "On" },
+                  ]}
+                  onChange={(v) => update("isPrivate", v === "On")}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1682,81 +1749,85 @@ function LaunchStep({ draft, update }: StepProps) {
         />
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <TagField label="Highlights" placeholder="e.g. Stunning Himalayan views" values={draft.highlights} onChange={(v) => update("highlights", v)} />
-        <TagField label="Tags" placeholder="e.g. adventure, trekking, camping" values={draft.tags} onChange={(v) => update("tags", v)} />
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <TagField
-          label="Included"
-          placeholder="e.g. Professional guide"
-          values={draft.inclusions}
-          onChange={(v) => update("inclusions", v)}
-          tone="success"
-        />
-        <TagField
-          label="Excluded"
-          placeholder="e.g. Personal expenses"
-          values={draft.exclusions}
-          onChange={(v) => update("exclusions", v)}
-          tone="danger"
-        />
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-xl2 border border-surface-border p-5">
-          <p className="text-sm font-semibold text-ink">FAQs *</p>
-          <p className="mb-4 text-xs text-ink-faint">Common questions &amp; answers</p>
-          <div className="space-y-4">
-            {draft.faqs.map((f, i) => (
-              <div key={i} className="rounded-lg border border-surface-border p-3">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <FieldLabel>Question</FieldLabel>
-                  <button onClick={() => removeFaq(i)} className="text-ink-faint hover:text-vibe-coral">
-                    <X size={14} />
-                  </button>
-                </div>
-                <input value={f.question} onChange={(e) => updateFaq(i, { question: e.target.value })} className={`${inputClass} mb-2`} />
-                <FieldLabel>Answer</FieldLabel>
-                <input value={f.answer} onChange={(e) => updateFaq(i, { answer: e.target.value })} className={inputClass} />
-              </div>
-            ))}
+      {draft.type === "Event" && (
+        <>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <TagField label="Highlights" placeholder="e.g. Stunning Himalayan views" values={draft.highlights} onChange={(v) => update("highlights", v)} />
+            <TagField label="Tags" placeholder="e.g. adventure, trekking, camping" values={draft.tags} onChange={(v) => update("tags", v)} />
           </div>
-          <button onClick={addFaq} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
-            <Plus size={13} /> Add FAQ
-          </button>
-        </div>
 
-        <div className="rounded-xl2 border border-surface-border p-5">
-          <p className="text-sm font-semibold text-ink">Itinerary</p>
-          <p className="mb-4 text-xs text-ink-faint">Day-by-day plan</p>
-          <div className="space-y-4">
-            {draft.itinerary.map((s, i) => (
-              <div key={i} className="rounded-lg border border-surface-border p-3">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-ink">Day {s.day}</p>
-                  <button onClick={() => removeDay(i)} className="text-ink-faint hover:text-vibe-coral">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <FieldLabel>Day Title</FieldLabel>
-                <input
-                  value={s.title}
-                  onChange={(e) => updateDay(i, { title: e.target.value })}
-                  placeholder={`Day ${s.day}: Introduction`}
-                  className={`${inputClass} mb-2`}
-                />
-                <FieldLabel>Description</FieldLabel>
-                <textarea rows={2} value={s.description} onChange={(e) => updateDay(i, { description: e.target.value })} className={inputClass} />
-              </div>
-            ))}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <TagField
+              label="Included"
+              placeholder="e.g. Professional guide"
+              values={draft.inclusions}
+              onChange={(v) => update("inclusions", v)}
+              tone="success"
+            />
+            <TagField
+              label="Excluded"
+              placeholder="e.g. Personal expenses"
+              values={draft.exclusions}
+              onChange={(v) => update("exclusions", v)}
+              tone="danger"
+            />
           </div>
-          <button onClick={addDay} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
-            <Plus size={13} /> Add day
-          </button>
-        </div>
-      </div>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-xl2 border border-surface-border p-5">
+              <p className="text-sm font-semibold text-ink">FAQs *</p>
+              <p className="mb-4 text-xs text-ink-faint">Common questions &amp; answers</p>
+              <div className="space-y-4">
+                {draft.faqs.map((f, i) => (
+                  <div key={i} className="rounded-lg border border-surface-border p-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <FieldLabel>Question</FieldLabel>
+                      <button onClick={() => removeFaq(i)} className="text-ink-faint hover:text-vibe-coral">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <input value={f.question} onChange={(e) => updateFaq(i, { question: e.target.value })} className={`${inputClass} mb-2`} />
+                    <FieldLabel>Answer</FieldLabel>
+                    <input value={f.answer} onChange={(e) => updateFaq(i, { answer: e.target.value })} className={inputClass} />
+                  </div>
+                ))}
+              </div>
+              <button onClick={addFaq} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
+                <Plus size={13} /> Add FAQ
+              </button>
+            </div>
+
+            <div className="rounded-xl2 border border-surface-border p-5">
+              <p className="text-sm font-semibold text-ink">Itinerary</p>
+              <p className="mb-4 text-xs text-ink-faint">Day-by-day plan</p>
+              <div className="space-y-4">
+                {draft.itinerary.map((s, i) => (
+                  <div key={i} className="rounded-lg border border-surface-border p-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-ink">Day {s.day}</p>
+                      <button onClick={() => removeDay(i)} className="text-ink-faint hover:text-vibe-coral">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <FieldLabel>Day Title</FieldLabel>
+                    <input
+                      value={s.title}
+                      onChange={(e) => updateDay(i, { title: e.target.value })}
+                      placeholder={`Day ${s.day}: Introduction`}
+                      className={`${inputClass} mb-2`}
+                    />
+                    <FieldLabel>Description</FieldLabel>
+                    <textarea rows={2} value={s.description} onChange={(e) => updateDay(i, { description: e.target.value })} className={inputClass} />
+                  </div>
+                ))}
+              </div>
+              <button onClick={addDay} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
+                <Plus size={13} /> Add day
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1781,13 +1852,6 @@ export function PackageStudio({
   onSave: (listing: Listing) => void;
 }) {
   const [draft, setDraft] = useState<Listing>(() => initialListing ?? emptyListing(initialType));
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(
-    () => initialListing ? initialListing.availableFrom : null
-  );
-
-  // Month navigation states
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
   const [step, setStep] = useState(1);
   const [maxStep, setMaxStep] = useState(1);
@@ -1842,8 +1906,8 @@ export function PackageStudio({
     const finalTitle = draft.title.trim() || profileName || `Udaipur ${draft.type} Club`;
     const finalDraft = { ...draft, title: finalTitle };
 
-    if (!finalDraft.category.trim()) {
-      setFormError("Category is required.");
+    if (finalDraft.categories.length === 0) {
+      setFormError("Select at least one category.");
       goTo(3); // Details & Location step
       return;
     }
@@ -1855,113 +1919,6 @@ export function PackageStudio({
     }
     setFormError(null);
     onSave(finalDraft);
-  }
-
-  // Monthly Calendar navigation
-  const prevMonth = () => {
-    if (calMonth === 0) {
-      setCalMonth(11);
-      setCalYear((y) => y - 1);
-    } else {
-      setCalMonth((m) => m - 1);
-    }
-  };
-  const nextMonth = () => {
-    if (calMonth === 11) {
-      setCalMonth(0);
-      setCalYear((y) => y + 1);
-    } else {
-      setCalMonth((m) => m + 1);
-    }
-  };
-
-  const calendarDays = useMemo(() => {
-    const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
-    const lastDay = new Date(calYear, calMonth + 1, 0).getDate();
-    const days = [];
-
-    // empty slots for padding
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push(null);
-    }
-    // actual days of the month
-    for (let i = 1; i <= lastDay; i++) {
-      const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
-      const festival = INDIAN_HOLIDAYS[dateStr] || null;
-      days.push({ dayNumber: i, dateStr, festival });
-    }
-    return days;
-  }, [calYear, calMonth]);
-
-  // If in create mode and no date selected, show full calendar view first
-  if (mode === "create" && !selectedCalendarDate) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-cream-200">
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-gradient-to-r from-vibe-indigo via-vibe-violet to-vibe-violetSoft px-4 py-4 text-white shadow-pop sm:px-8">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">Step 1 · Calendar Selection</p>
-            <h2 className="font-display text-lg font-semibold sm:text-xl">Choose Package Start Date</h2>
-          </div>
-          <button type="button" onClick={onClose}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm font-semibold hover:bg-white/20">
-            <X size={15} /> Close
-          </button>
-        </div>
-
-        <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
-          <div className="bg-white border border-surface-border rounded-2xl p-6 shadow-panel">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-display text-lg font-bold text-slate-800">
-                {new Date(calYear, calMonth).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-              </h3>
-              <div className="flex gap-2">
-                <button type="button" onClick={prevMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition">
-                  <ChevronLeft size={16} />
-                </button>
-                <button type="button" onClick={nextMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* Weekdays */}
-            <div className="grid grid-cols-7 gap-2 mb-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-1">{day}</div>)}
-            </div>
-
-            {/* Grid of days */}
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day, idx) => {
-                if (!day) return <div key={idx} className="bg-slate-50/20 rounded-xl min-h-[85px] border border-transparent" />;
-
-                const isToday = new Date().toISOString().slice(0, 10) === day.dateStr;
-
-                return (
-                  <button key={idx} type="button"
-                    onClick={() => {
-                      setSelectedCalendarDate(day.dateStr);
-                      update("availableFrom", day.dateStr);
-                      update("availableTill", day.dateStr);
-                    }}
-                    className={`flex flex-col justify-between items-start rounded-xl p-3 min-h-[90px] border text-left transition hover:border-vibe-violet hover:shadow-md ${
-                      isToday ? "bg-vibe-violet/5 border-vibe-violet/40" : "bg-white border-slate-100"
-                    }`}
-                  >
-                    <span className="text-sm font-extrabold text-slate-800">{day.dayNumber}</span>
-                    {day.festival && (
-                      <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold mt-1 block truncate w-full">
-                        🎉 {day.festival}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
