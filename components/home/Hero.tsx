@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Hand, Search, Settings, Star } from "lucide-react";
-import { HERO_IMAGES, HERO_SLIDE_DURATION_MS, HERO_STATS } from "./data";
+import { HERO_IMAGES, HERO_SLIDE_DURATION_MS } from "./data";
 import { PrimaryButton } from "./ui";
 
 export function Hero({
@@ -149,25 +149,7 @@ export function Hero({
           </div>
         </div>
 
-        {/* Stats strip, overlapping the bottom edge of the hero */}
-        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="grid translate-y-8 grid-cols-2 gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-xl sm:translate-y-12 sm:grid-cols-4 sm:gap-4 sm:p-6">
-            {HERO_STATS.map((s) => (
-              <div key={s.id} className="flex flex-col items-center gap-1 text-center sm:flex-row sm:items-center sm:gap-3 sm:text-left">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
-                  <s.icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-lg font-extrabold text-slate-900 sm:text-xl">{s.value}</p>
-                  <p className="text-[11px] font-semibold text-slate-500 sm:text-xs">{s.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
-      {/* spacer to absorb the stats-strip overlap */}
-      <div className="h-14 bg-slate-50 sm:h-16" />
     </section>
   );
 }

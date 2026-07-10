@@ -11,8 +11,7 @@ import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
 import { HowItWorks } from "./HowItWorks";
 import { PlatformSystemsSection } from "./PlatformSystemsSection";
-import { SectionHeading } from "./ui";
-import { UpcomingBookingCard, WalletCard, FitnessSnapshotCard } from "./SnapshotCards";
+import { AdBanner } from "./AdBanner";
 import { CommunityMatches } from "./CommunityMatches";
 import { EventsAndOffers } from "./EventsAndOffers";
 import { CommerceSection } from "./CommerceSection";
@@ -72,14 +71,12 @@ export default function HomePage() {
   const handleQuickAction = useCallback(
     (id: string) => {
       const routes: Record<string, string> = {
-        book: "/venues",
-        players: "/community",
-        tournaments: "/tournaments",
-        near: "/venues",
         food: "/food",
-        offers: "/offers",
+        tournaments: "/tournaments",
+        events: "/tournaments",
+        challenge: "/community",
       };
-      router.push(routes[id] ?? "/games");
+      router.push(routes[id] ?? "/venues");
     },
     [router]
   );
@@ -136,11 +133,6 @@ export default function HomePage() {
           </p>
         )}
 
-        <QuickActionsSection
-          onQuickAction={handleQuickAction}
-          onViewAllQuickActions={() => router.push("/games")}
-        />
-
         <FindYourGames onSelectSport={handleSelectSport} />
 
         <TrendingVenues
@@ -152,22 +144,16 @@ export default function HomePage() {
           onViewAll={() => router.push("/venues")}
         />
 
+        <QuickActionsSection
+          onQuickAction={handleQuickAction}
+          onViewAllQuickActions={() => router.push("/games")}
+        />
+
+        <AdBanner />
+
         <HowItWorks />
 
         <PlatformSystemsSection />
-
-        <section id="book" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
-          <SectionHeading
-            eyebrow="Your snapshot"
-            title="Your Bookings, Wallet & Activity"
-            subtitle="Everything you need before you walk out the door."
-          />
-          <div className="grid gap-4 lg:grid-cols-3">
-            <UpcomingBookingCard />
-            <WalletCard />
-            <FitnessSnapshotCard />
-          </div>
-        </section>
 
         <CommunityMatches
           onJoin={() => showToast("Joining Badminton Doubles match…")}

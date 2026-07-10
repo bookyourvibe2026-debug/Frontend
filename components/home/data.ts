@@ -249,12 +249,10 @@ export const EXTENSION_CARDS = [
 ];
 
 export const QUICK_ACTIONS = [
-  { id: "book", label: "Book Now", icon: Zap },
-  { id: "players", label: "Find Players", icon: Users },
-  { id: "tournaments", label: "Tournaments", icon: Trophy },
-  { id: "near", label: "Near Me", icon: MapPin },
   { id: "food", label: "Food & Beverages", icon: CupSoda },
-  { id: "offers", label: "Offers", icon: Tag },
+  { id: "tournaments", label: "Tournaments", icon: Trophy },
+  { id: "events", label: "Events", icon: Calendar },
+  { id: "challenge", label: "Challenge a Player", icon: Users },
 ];
 
 export const HERO_IMAGES = ["/hero1.png", "/hero2.png", "/hero3.png"];
