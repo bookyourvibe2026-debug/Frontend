@@ -46,19 +46,30 @@ interface ApiErrorBody {
   details?: unknown;
 }
 
-/** In-memory access tokens, one per audience. Never persisted to storage — reacquired via the httpOnly refresh cookie on load. */
+/** Access tokens cache, initialized from localStorage on client-side if available. */
 const tokens: Record<Audience, string | null> = {
-  customer: null,
-  vendor: null,
-  admin: null,
+  customer: typeof window !== "undefined" ? localStorage.getItem("byv_customer_token") : null,
+  vendor: typeof window !== "undefined" ? localStorage.getItem("byv_vendor_token") : null,
+  admin: typeof window !== "undefined" ? localStorage.getItem("byv_admin_token") : null,
 };
 
 export function getAccessToken(audience: Audience): string | null {
+  // Safe fallback to localStorage if in-memory value is empty but present in client storage
+  if (!tokens[audience] && typeof window !== "undefined") {
+    tokens[audience] = localStorage.getItem(`byv_${audience}_token`);
+  }
   return tokens[audience];
 }
 
 export function setAccessToken(audience: Audience, token: string | null) {
   tokens[audience] = token;
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem(`byv_${audience}_token`, token);
+    } else {
+      localStorage.removeItem(`byv_${audience}_token`);
+    }
+  }
 }
 
 /** De-dupes concurrent refresh attempts for the same audience. */
@@ -169,6 +180,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
 /** Attempts a silent session restore for the given audience using the refresh cookie. Returns the new token, or null if there's no valid session. */
 export async function restoreSession(audience: Audience): Promise<string | null> {
+  // If we already have a valid access token in memory or localStorage, reuse it.
+  // This prevents unnecessary /refresh calls that can clear active sessions due to cross-site cookie blocking.
+  const existingToken = getAccessToken(audience);
+  if (existingToken) return existingToken;
   return refreshAccessToken(audience);
 }
 
