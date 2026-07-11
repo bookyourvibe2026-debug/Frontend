@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Flame, Heart, MapPin } from "lucide-react";
+import { Flame, Heart, MapPin } from "lucide-react";
 import { type Venue } from "@/lib/venues";
 import { PrimaryButton, SectionHeading, StarRating, StatusPill } from "./ui";
 
@@ -90,23 +90,15 @@ export function TrendingVenues({
   if (venues.length === 0) return null;
 
   return (
-    <section id="venues" className="mx-auto mt-8 max-w-7xl px-4 sm:px-6">
-      <div className="mb-4 flex items-end justify-between">
-        <div className="max-w-xl">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">Booked the most this week</p>
-          <h2 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900 sm:text-lg">
-            Trending Venues
-            <Flame className="h-4 w-4 text-brand-500" aria-hidden />
-          </h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">Hand-picked from real booking volume across Udaipur — updated daily.</p>
-        </div>
-        <button
-          onClick={onViewAll}
-          className="inline-flex items-center gap-0.5 whitespace-nowrap text-xs font-semibold text-brand-600 hover:text-brand-700"
-        >
-          View All Venues <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+    <section id="venues" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
+      <SectionHeading
+        eyebrow="Booked the most this week"
+        title="Trending Venues"
+        subtitle="Hand-picked from real booking volume across Udaipur — updated daily."
+        icon={Flame}
+        actionLabel="View All Venues"
+        onAction={onViewAll}
+      />
       <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4">
         {venues.slice(0, 4).map((v) => (
           <VenueCard

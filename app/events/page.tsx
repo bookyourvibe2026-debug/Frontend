@@ -74,20 +74,16 @@ export default function EventsPage() {
       </div>
 
       <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
-        <section className="rounded-[2rem] bg-slate-950 px-6 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,0.22)] sm:px-10">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Events</p>
-          <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-                Any event a venue hosts — RSVP the same way you book a slot.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Marathons, tournaments, workshops, corporate offsites — hosted through the same booking
-                engine as turf time, with the same QR check-in.
-              </p>
-            </div>
-          </div>
-        </section>
+        <div className="max-w-2xl">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-600">Events</p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+            Any event a venue hosts — RSVP the same way you book a slot.
+          </h1>
+          <p className="mt-4 text-sm leading-7 text-slate-500 sm:text-base">
+            Marathons, tournaments, workshops, corporate offsites — hosted through the same booking
+            engine as turf time, with the same QR check-in.
+          </p>
+        </div>
 
         <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {events.map((event, index) => (

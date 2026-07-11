@@ -2,16 +2,15 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { browseVenues } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
-import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
+import { categoryLabel } from "@/lib/taxonomy";
 
 function VenuesPageInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const category = searchParams.get("category") ?? "";
   const [venues, setVenues] = useState<Listing[]>([]);
@@ -23,36 +22,6 @@ function VenuesPageInner() {
       .then((result) => setVenues(result.items))
       .finally(() => setLoading(false));
   }, [category]);
-
-  function setCategory(next: string) {
-    router.push(next ? `/venues?category=${next}` : "/venues");
-  }
-
-  const categoryChips = (
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => setCategory("")}
-        className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
-          category === "" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-        }`}
-      >
-        All sports
-      </button>
-      {SPORT_CATEGORIES.map((cat) => (
-        <button
-          key={cat.id}
-          type="button"
-          onClick={() => setCategory(cat.id)}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
-            category === cat.id ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-          }`}
-        >
-          {cat.label}
-        </button>
-      ))}
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#eef2ff_45%,_#ffffff_82%)]">
@@ -66,16 +35,14 @@ function VenuesPageInner() {
         </div>
         <main className="flex flex-col gap-5 px-4 py-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Venues</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Sports</p>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
-              Choose a venue that feels easy to book.
+              Venues and events, all in one place.
             </h1>
             <p className="mt-2 text-sm text-slate-500">
               Location, sport, and price — at a glance.
             </p>
           </div>
-
-          <div className="-mx-4 overflow-x-auto px-4 pb-1">{categoryChips}</div>
 
           <div className="flex flex-col gap-3">
             {venues.map((venue) => (
@@ -117,11 +84,11 @@ function VenuesPageInner() {
 
       <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="rounded-[2rem] bg-slate-950 px-6 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,0.22)] sm:px-10">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Venues</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Sports</p>
           <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
               <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-                Choose a venue that feels easy to book and good to play in.
+                Venues and events, all in one place.
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
                 Each card is built to surface the details people actually care about: location,
@@ -136,8 +103,6 @@ function VenuesPageInner() {
             </Link>
           </div>
         </section>
-
-        <section className="mt-6">{categoryChips}</section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {venues.map((venue, index) => (

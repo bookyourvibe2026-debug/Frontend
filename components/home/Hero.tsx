@@ -99,7 +99,7 @@ export function Hero({
               <input
                 value={searchValue}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search turf, badminton, pickleball..."
+                placeholder="Let's find your vibe"
                 className="w-full flex-1 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 sm:bg-transparent sm:px-0 sm:py-2"
               />
               <div className="flex items-center gap-2">

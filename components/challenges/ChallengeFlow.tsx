@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
-  ChevronRight,
   Clipboard,
   Download,
   Eye,
@@ -33,7 +32,7 @@ import {
   type ChallengeStakeType,
 } from "@/lib/api/challenges";
 
-type Step = "opponent" | "sport" | "details" | "stakes" | "poster" | "share";
+type Step = "ground" | "opponent" | "sport" | "details" | "stakes" | "poster" | "share";
 type Opponent = ChallengePlayer & { isInvite?: boolean };
 
 const NO_PLAYERS: Opponent[] = [];
@@ -49,6 +48,22 @@ const SPORTS = [
   { label: "Gaming", emoji: "🎮" },
   { label: "Other Match", emoji: "+" },
 ] as const;
+
+// Player count auto-set from the chosen sport (e.g. Football -> team, Badminton -> 1v1).
+const GAME_PLAYER_COUNTS: Record<string, ChallengePlayersCount> = {
+  Cricket: "team",
+  Badminton: "1v1",
+  "Table Tennis": "1v1",
+  Pickleball: "2v2",
+  Football: "team",
+  Basketball: "team",
+  Pool: "1v1",
+  Gaming: "1v1",
+  "Other Match": "1v1",
+};
+
+// Best-of series only makes sense for game-based sports, not single-match team sports.
+const GAME_SUPPORTS_SERIES = new Set(["Cricket", "Badminton", "Table Tennis", "Pickleball", "Pool"]);
 
 const STAKES: { type: ChallengeStakeType; label: string; icon: string; copy: string }[] = [
   { type: "Pizza", label: "Pizza", icon: "🍕", copy: "Loser buys pizza" },
@@ -71,6 +86,19 @@ const DETAILS = {
   styles: ["friendly", "competitive", "tournament"] as ChallengeMatchStyle[],
   fees: [0, 100, 250, 500],
 };
+
+const RECENT_CHALLENGES_KEY = "byv_recent_challenges";
+
+function saveRecentChallenge(challenge: Challenge) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing: Challenge[] = JSON.parse(window.localStorage.getItem(RECENT_CHALLENGES_KEY) ?? "[]");
+    const next = [challenge, ...existing.filter((c) => c.code !== challenge.code)].slice(0, 20);
+    window.localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(next));
+  } catch {
+    // localStorage unavailable — skip persistence silently.
+  }
+}
 
 function initials(name: string) {
   return name
@@ -131,7 +159,7 @@ function localChallenge(input: {
 export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const { customer, status } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
-  const [step, setStep] = useState<Step>("opponent");
+  const [step, setStep] = useState<Step>("ground");
   const [players, setPlayers] = useState<Opponent[]>(NO_PLAYERS);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [search, setSearch] = useState("");
@@ -150,6 +178,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [sharingToIG, setSharingToIG] = useState(false);
   const posterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -171,6 +200,13 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
       cancelled = true;
     };
   }, [search, status]);
+
+  function selectSport(label: string) {
+    setSport(label);
+    const autoCount = GAME_PLAYER_COUNTS[label];
+    if (autoCount) setPlayersCount(autoCount);
+    if (!GAME_SUPPORTS_SERIES.has(label)) setSeries("BO1");
+  }
 
   const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : "https://bookyourvibe.com"}/?join=player`;
   const inviteMessage = `Hey! Join me on Book Your Vibe — sign up as a player and let's set up a match: ${inviteUrl}`;
@@ -225,22 +261,23 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
         inviteBaseUrl: window.location.origin,
       });
       setChallenge(created);
+      saveRecentChallenge(created);
     } catch {
-      setChallenge(
-        localChallenge({
-          challengerName,
-          opponent,
-          sport,
-          venueName,
-          scheduleLabel,
-          playersCount,
-          series,
-          matchStyle,
-          entryFee,
-          stakeType,
-          stakeText,
-        })
-      );
+      const fallback = localChallenge({
+        challengerName,
+        opponent,
+        sport,
+        venueName,
+        scheduleLabel,
+        playersCount,
+        series,
+        matchStyle,
+        entryFee,
+        stakeType,
+        stakeText,
+      });
+      setChallenge(fallback);
+      saveRecentChallenge(fallback);
       setNotice("Challenge poster ready in preview mode. Backend save can happen after API deploy.");
     } finally {
       setSubmitting(false);
@@ -280,8 +317,44 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function shareToInstagramStory() {
+    if (sharingToIG || !posterRef.current || !challenge) return;
+    setSharingToIG(true);
+    setNotice("");
+    try {
+      const dataUrl = await toPng(posterRef.current, {
+        backgroundColor: "#090f19",
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `byv-challenge-${challenge.code}.png`, { type: "image/png" });
+
+      if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "BYV Vibe Challenge",
+          text: "I just threw a Vibe Challenge — check it out!",
+        });
+        setNotice("Poster shared — pick Instagram in the share sheet and add it to your Story.");
+      } else {
+        const link = document.createElement("a");
+        link.download = file.name;
+        link.href = dataUrl;
+        link.click();
+        setNotice("Poster saved to your device — open Instagram, tap + for a new Story, and pick this image from your gallery.");
+      }
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        setNotice("Couldn't prepare the poster for Instagram. Please try again.");
+      }
+    } finally {
+      setSharingToIG(false);
+    }
+  }
+
   function goBack() {
-    const order: Step[] = ["opponent", "sport", "details", "stakes", "poster", "share"];
+    const order: Step[] = ["ground", "sport", "opponent", "details", "stakes", "poster", "share"];
     const index = order.indexOf(step);
     if (index <= 0) onClose();
     else setStep(order[index - 1]);
@@ -304,8 +377,34 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
+          {step === "ground" && (
+            <StepShell eyebrow="Step 01 / Pick your arena" title="Choose the ground" subtitle="Select the venue or turf where the challenge will happen.">
+              <SelectBlock label="Select venue / turf" value={venueName} options={DETAILS.venues} onChange={setVenueName} />
+              <BottomBar label="Selected ground" value={venueName} onNext={() => setStep("sport")} />
+            </StepShell>
+          )}
+
+          {step === "sport" && (
+            <StepShell eyebrow="Step 02 / Match format" title="Choose the battle type" subtitle="Pick the sport or keep it as a custom vibe challenge.">
+              <div className="grid grid-cols-2 gap-3">
+                {SPORTS.map((item) => (
+                  <button key={item.label} type="button" onClick={() => selectSport(item.label)} className={`relative flex aspect-square flex-col items-center justify-center gap-3 rounded-[1.6rem] border text-center transition ${sport === item.label ? "border-orange-500 bg-orange-500/10 text-white" : "border-white/10 bg-white/7 text-slate-300"}`}>
+                    {sport === item.label && <Check className="absolute right-4 top-4 h-5 w-5 rounded-full bg-orange-500 p-1 text-slate-950" />}
+                    {"image" in item ? (
+                      <Image src={item.image} alt={item.label} width={48} height={48} unoptimized className="h-12 w-12 object-contain" />
+                    ) : (
+                      <span className={`flex h-12 w-12 items-center justify-center text-4xl font-black ${item.emoji === "8" ? "rounded-full bg-slate-200 text-slate-900 text-xl" : ""}`}>{item.emoji}</span>
+                    )}
+                    <span className="text-xs font-extrabold uppercase tracking-wide">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+              <BottomBar label="Selected match" value={sport} onNext={() => setStep("opponent")} />
+            </StepShell>
+          )}
+
           {step === "opponent" && (
-            <StepShell eyebrow="Step 01 / Select duel partner" title="Who are you challenging?" subtitle="Select an opponent from BYV players or invite them via WhatsApp.">
+            <StepShell eyebrow="Step 03 / Select duel partner" title="Who are you challenging?" subtitle="Select an opponent from BYV players or invite them via WhatsApp.">
               <div className="flex items-center gap-2">
                 <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/10 bg-white/7 px-4 py-3.5">
                   <Search className="h-5 w-5 text-slate-500" />
@@ -327,11 +426,11 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   <Share2 className="h-3.5 w-3.5" /> Invite on WhatsApp
                 </button>
               </div>
-              <div className="mt-3 flex flex-col gap-3">
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 {loadingPlayers ? (
-                  <p className="py-6 text-center text-xs font-semibold text-slate-500">Loading BYV players...</p>
+                  <p className="col-span-2 py-6 text-center text-xs font-semibold text-slate-500">Loading BYV players...</p>
                 ) : filteredPlayers.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-center">
+                  <div className="col-span-2 rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-center">
                     <p className="text-xs font-semibold text-slate-400">No players found{search ? ` for "${search}"` : " yet"}.</p>
                     <button type="button" onClick={shareInviteOnWhatsApp} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[11px] font-extrabold uppercase text-white">
                       <Share2 className="h-3.5 w-3.5" /> Invite a friend on WhatsApp
@@ -339,42 +438,24 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : (
                   filteredPlayers.map((player) => (
-                    <OpponentRow key={player.id} player={player} selected={opponent?.id === player.id} onSelect={() => setOpponent(player)} />
+                    <PlayerCard key={player.id} player={player} selected={opponent?.id === player.id} onSelect={() => setOpponent(player)} />
                   ))
                 )}
               </div>
-              <BottomBar label="Selected opponent" value={opponent?.name ?? "None selected"} onNext={() => setStep("sport")} disabled={!opponent} />
-            </StepShell>
-          )}
-
-          {step === "sport" && (
-            <StepShell eyebrow="Step 02 / Match format" title="Choose the battle type" subtitle="Pick the sport or keep it as a custom vibe challenge.">
-              <div className="grid grid-cols-2 gap-3">
-                {SPORTS.map((item) => (
-                  <button key={item.label} type="button" onClick={() => setSport(item.label)} className={`relative flex aspect-square flex-col items-center justify-center gap-3 rounded-[1.6rem] border text-center transition ${sport === item.label ? "border-orange-500 bg-orange-500/10 text-white" : "border-white/10 bg-white/7 text-slate-300"}`}>
-                    {sport === item.label && <Check className="absolute right-4 top-4 h-5 w-5 rounded-full bg-orange-500 p-1 text-slate-950" />}
-                    {"image" in item ? (
-                      <Image src={item.image} alt={item.label} width={48} height={48} unoptimized className="h-12 w-12 object-contain" />
-                    ) : (
-                      <span className={`flex h-12 w-12 items-center justify-center text-4xl font-black ${item.emoji === "8" ? "rounded-full bg-slate-200 text-slate-900 text-xl" : ""}`}>{item.emoji}</span>
-                    )}
-                    <span className="text-xs font-extrabold uppercase tracking-wide">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-              <BottomBar label="Selected match" value={sport} onNext={() => setStep("details")} />
+              <BottomBar label="Selected opponent" value={opponent?.name ?? "None selected"} onNext={() => setStep("details")} disabled={!opponent} />
             </StepShell>
           )}
 
           {step === "details" && (
-            <StepShell eyebrow="Step 03 / Match metrics" title="Set challenge details" subtitle="Lock down the arena, time, and rules for the match.">
-              <SelectBlock label="Select venue / turf" value={venueName} options={DETAILS.venues} onChange={setVenueName} />
+            <StepShell eyebrow="Step 04 / Match metrics" title="Set challenge details" subtitle="Lock down the time and rules for the match.">
               <div className="grid grid-cols-2 gap-4">
                 <SelectBlock label="Date" value={dateLabel} options={DETAILS.dates} onChange={setDateLabel} />
                 <SelectBlock label="Start time" value={timeLabel} options={DETAILS.times} onChange={setTimeLabel} />
               </div>
-              <Segmented label="Players count" value={playersCount} options={DETAILS.playerCounts} onChange={setPlayersCount} />
-              <Segmented label="Best of series" value={series} options={DETAILS.series} onChange={setSeries} />
+              <Segmented label={`Players count (auto for ${sport})`} value={playersCount} options={DETAILS.playerCounts} onChange={setPlayersCount} />
+              {GAME_SUPPORTS_SERIES.has(sport) && (
+                <Segmented label="Best of series" value={series} options={DETAILS.series} onChange={setSeries} />
+              )}
               <Segmented label="Match styling" value={matchStyle} options={DETAILS.styles} onChange={setMatchStyle} wide />
               <Segmented label="Optional entry fee / co-pay" value={entryFee} options={DETAILS.fees} onChange={setEntryFee} formatter={(value) => (value === 0 ? "Free" : `₹${value}`)} wide />
               <BottomBar label="Schedule" value={scheduleLabel} onNext={() => setStep("stakes")} />
@@ -382,7 +463,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
           )}
 
           {step === "stakes" && (
-            <StepShell eyebrow="Step 04 / Stakes & bet" title="What happens if you lose?" subtitle="Lock down the food treat or punishment for bragging rights.">
+            <StepShell eyebrow="Step 05 / Stakes & bet" title="What happens if you lose?" subtitle="Lock down the food treat or punishment for bragging rights.">
               <div className="grid grid-cols-3 gap-3">
                 {STAKES.map((item) => (
                   <button key={item.type} type="button" onClick={() => { setStakeType(item.type); setStakeText(item.copy); }} className={`rounded-[1.4rem] border p-4 text-center transition ${stakeType === item.type ? "border-orange-500 bg-orange-500/10" : "border-white/10 bg-white/7"}`}>
@@ -420,7 +501,15 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                 </button>
               )}
               {step === "share" && (
-                <SharePanel challenge={challenge} onWhatsApp={shareOnWhatsApp} onCopy={copyLink} onDownload={downloadPoster} downloading={downloading} />
+                <SharePanel
+                  challenge={challenge}
+                  onWhatsApp={shareOnWhatsApp}
+                  onCopy={copyLink}
+                  onDownload={downloadPoster}
+                  downloading={downloading}
+                  onShareInstagram={shareToInstagramStory}
+                  sharingToIG={sharingToIG}
+                />
               )}
               {notice && <p className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-semibold text-emerald-300">{notice}</p>}
               {step === "poster" ? (
@@ -454,30 +543,36 @@ function StepShell({ eyebrow, title, subtitle, children }: { eyebrow: string; ti
   );
 }
 
-function OpponentRow({ player, selected, onSelect }: { player: Opponent; selected: boolean; onSelect: () => void }) {
+function PlayerCard({ player, selected, onSelect }: { player: Opponent; selected: boolean; onSelect: () => void }) {
   const isActive = !player.isInvite;
   return (
-    <button type="button" onClick={onSelect} className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${selected ? "border-orange-500 bg-orange-500/10" : "border-white/10 bg-white/[0.07]"}`}>
-      <span className="flex min-w-0 items-center gap-3">
-        {/* Avatar with optional BYV badge */}
-        <span className="relative shrink-0">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500/60 to-slate-700 text-sm font-black text-white">{player.initials}</span>
-          {isActive && (
-            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[7px] font-black text-white ring-2 ring-[#071018]">BYV</span>
-          )}
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative flex w-full flex-col items-center gap-2.5 rounded-2xl border p-4 text-center transition ${
+        selected ? "border-orange-500 bg-orange-500/10" : "border-white/10 bg-white/[0.07]"
+      }`}
+    >
+      {selected && <Check className="absolute right-3 top-3 h-4 w-4 rounded-full bg-orange-500 p-0.5 text-slate-950" />}
+      <span className="relative">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/60 to-slate-700 text-lg font-black text-white">
+          {player.initials}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-extrabold text-white">{player.name}</span>
-          <span className={`block truncate text-xs font-semibold ${isActive ? "text-slate-400" : "text-slate-500"}`}>{player.relation}</span>
-        </span>
+        {isActive && (
+          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[7px] font-black text-white ring-2 ring-[#071018]">BYV</span>
+        )}
+      </span>
+      <span className="w-full min-w-0">
+        <span className="block truncate text-sm font-extrabold text-white">{player.name}</span>
+        <span className={`block truncate text-xs font-semibold ${isActive ? "text-slate-400" : "text-slate-500"}`}>{player.relation}</span>
       </span>
       {player.isInvite ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-[11px] font-extrabold uppercase text-white">
-          <Share2 className="h-3.5 w-3.5" /> Invite
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-[10px] font-extrabold uppercase text-white">
+          <Share2 className="h-3 w-3" /> Invite
         </span>
       ) : (
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-extrabold uppercase text-orange-400">
-          Select <ChevronRight className="h-4 w-4" />
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-extrabold uppercase text-orange-400">
+          {selected ? "Selected" : "Select"}
         </span>
       )}
     </button>
@@ -603,12 +698,16 @@ function SharePanel({
   onCopy,
   onDownload,
   downloading,
+  onShareInstagram,
+  sharingToIG,
 }: {
   challenge: Challenge;
   onWhatsApp: () => void;
   onCopy: () => void;
   onDownload: () => void;
   downloading: boolean;
+  onShareInstagram: () => void;
+  sharingToIG: boolean;
 }) {
   return (
     <div>
@@ -634,8 +733,13 @@ function SharePanel({
         >
           <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download"}
         </button>
-        <button type="button" onClick={onWhatsApp} className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200">
-          <Send className="h-4 w-4" /> IG Story
+        <button
+          type="button"
+          onClick={onShareInstagram}
+          disabled={sharingToIG}
+          className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200 disabled:opacity-50"
+        >
+          <Send className="h-4 w-4" /> {sharingToIG ? "Preparing..." : "IG Story"}
         </button>
         <a href={challenge.inviteUrl} className="flex items-center justify-center gap-2 rounded-2xl border border-orange-500/35 bg-orange-500/10 py-4 text-xs font-black uppercase tracking-wide text-orange-400">
           <Eye className="h-4 w-4" /> View Landing

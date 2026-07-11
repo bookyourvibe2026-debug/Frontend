@@ -13,13 +13,14 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, MapPin, ShieldCheck, X, AlertTriangle, Plus } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Share2, ShieldCheck, Users, X, AlertTriangle, Plus } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
 import { createMyBooking } from "@/lib/api/customerBookings";
 import { ApiError } from "@/lib/api/client";
 import { categoryLabel } from "@/lib/taxonomy";
+import { downloadBookingTicket } from "@/lib/ticket";
 import type { Booking, Listing, PaymentMethod } from "@/lib/api/types";
 
 type Step = "review" | "confirmed";
@@ -79,8 +80,11 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
   const [durationMin, setDurationMin] = useState(120); // Default 2 hours (120 mins)
   const [activeDaypart, setActiveDaypart] = useState<string>("Morning");
   const [time, setTime] = useState(START_TIMES[6]);
+  const [endTime, setEndTime] = useState(START_TIMES[8]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(-1);
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitCount, setSplitCount] = useState(2);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -351,8 +355,14 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
           setDate={setDate}
           time={time}
           setTime={setTime}
+          endTime={endTime}
+          setEndTime={setEndTime}
           payment={payment}
           setPayment={setPayment}
+          splitEnabled={splitEnabled}
+          setSplitEnabled={setSplitEnabled}
+          splitCount={splitCount}
+          setSplitCount={setSplitCount}
           agreed={agreed}
           setAgreed={setAgreed}
           canPay={canPay}
@@ -399,8 +409,14 @@ function ReviewStep(props: {
   setDate: (v: string) => void;
   time: string;
   setTime: (v: string) => void;
+  endTime: string;
+  setEndTime: (v: string) => void;
   payment: PaymentMethod;
   setPayment: (v: PaymentMethod) => void;
+  splitEnabled: boolean;
+  setSplitEnabled: (v: boolean) => void;
+  splitCount: number;
+  setSplitCount: (v: number) => void;
   agreed: boolean;
   setAgreed: (v: boolean) => void;
   canPay: boolean;
@@ -434,8 +450,14 @@ function ReviewStep(props: {
     setDate,
     time,
     setTime,
+    endTime,
+    setEndTime,
     payment,
     setPayment,
+    splitEnabled,
+    setSplitEnabled,
+    splitCount,
+    setSplitCount,
     agreed,
     setAgreed,
     canPay,
@@ -726,6 +748,13 @@ function ReviewStep(props: {
                         </button>
                       </div>
 
+                      {selectedSlotIndex !== -1 && generatedSlots[selectedSlotIndex] && (
+                        <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
+                          <span>Start Time: <span className="font-bold text-slate-900">{generatedSlots[selectedSlotIndex].startTime12}</span></span>
+                          <span>End Time: <span className="font-bold text-slate-900">{generatedSlots[selectedSlotIndex].endTime12}</span></span>
+                        </div>
+                      )}
+
                       {/* Duration slider */}
                       <div className="mt-3 border-t border-slate-100 pt-3">
                         <div className="flex items-center justify-between mb-1.5">
@@ -752,17 +781,30 @@ function ReviewStep(props: {
                   )}
                 </>
               ) : (
-                <>
-                  <label className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Reporting Time *</label>
-                  <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                    <Clock className="h-4 w-4 text-brand-500 shrink-0" />
-                    <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none">
-                      {START_TIMES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500">Start Time *</label>
+                    <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <Clock className="h-4 w-4 text-brand-500 shrink-0" />
+                      <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none">
+                        {START_TIMES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500">End Time *</label>
+                    <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <Clock className="h-4 w-4 text-brand-500 shrink-0" />
+                      <select value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none">
+                        {START_TIMES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -776,6 +818,15 @@ function ReviewStep(props: {
                 <span className="font-bold text-brand-600 text-sm">Total</span>
                 <span className="font-extrabold text-brand-600 text-sm">₹{activePrice.toLocaleString("en-IN")}</span>
               </div>
+            </div>
+
+            {/* Insurance — mandatory */}
+            <div className="flex items-start gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-left text-[11px] text-emerald-800">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>
+                <span className="font-bold">✅ Insurance Mandatory</span> — every booking includes player
+                insurance coverage by default. This cannot be opted out of.
+              </span>
             </div>
 
             {/* Payment */}
@@ -795,6 +846,35 @@ function ReviewStep(props: {
                   </button>
                 ))}
               </div>
+
+              <label className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={splitEnabled}
+                  onChange={(e) => setSplitEnabled(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-brand-600"
+                />
+                <Users className="h-3.5 w-3.5 text-slate-400" /> Split Payment with friends
+              </label>
+              {splitEnabled && (
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                  <span className="flex items-center gap-2">
+                    Split between
+                    <select
+                      value={splitCount}
+                      onChange={(e) => setSplitCount(Number(e.target.value))}
+                      className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-semibold outline-none"
+                    >
+                      {[2, 3, 4, 5, 6].map((n) => (
+                        <option key={n} value={n}>{n} players</option>
+                      ))}
+                    </select>
+                  </span>
+                  <span className="font-bold text-brand-600">
+                    ₹{Math.ceil(activePrice / splitCount).toLocaleString("en-IN")} / player
+                  </span>
+                </div>
+              )}
 
               {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
 
@@ -828,6 +908,31 @@ function ReviewStep(props: {
 /* ------------------------------------------------------------------ */
 
 function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; booking: Booking; onClose: () => void }) {
+  const [downloading, setDownloading] = useState(false);
+
+  function shareNow() {
+    const message = [
+      "My booking is confirmed on Book Your Vibe!",
+      `${listing.title} — ${new Date(booking.dateTime).toLocaleString("en-GB")}`,
+      `Order ID: ${booking.orderId}`,
+    ].join("\n");
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ title: "My BYV Booking", text: message }).catch(() => {});
+    } else {
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  async function downloadTicket() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadBookingTicket(booking);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="relative w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -853,10 +958,28 @@ function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; bookin
         </span>
       </div>
 
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={shareNow}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+        >
+          <Share2 className="h-3.5 w-3.5" /> Share Now
+        </button>
+        <button
+          type="button"
+          onClick={downloadTicket}
+          disabled={downloading}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" /> {downloading ? "Saving..." : "Download"}
+        </button>
+      </div>
+
       <button
         type="button"
         onClick={onClose}
-        className="mt-4 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
+        className="mt-2 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
       >
         Done
       </button>

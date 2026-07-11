@@ -7,6 +7,7 @@ import { browseVenues } from "@/lib/api/venues";
 import { SiteHeader } from "@/components/site-header";
 import { Hero } from "./Hero";
 import { QuickActionsSection } from "./QuickActionsSection";
+import { FoodAndBeverages } from "./FoodAndBeverages";
 import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
 import { HowItWorks } from "./HowItWorks";
@@ -77,14 +78,14 @@ export default function HomePage() {
   }, []);
 
   const handleQuickAction = useCallback(
-    (id: string) => {
+    (taskId: string, gameId: string) => {
       const routes: Record<string, string> = {
+        venue: `/venues?category=${gameId}`,
         food: "/food",
         tournaments: "/tournaments",
-        events: "/tournaments",
         challenge: "/community",
       };
-      router.push(routes[id] ?? "/venues");
+      router.push(routes[taskId] ?? "/venues");
     },
     [router]
   );
@@ -156,6 +157,8 @@ export default function HomePage() {
           onQuickAction={handleQuickAction}
           onViewAllQuickActions={() => router.push("/games")}
         />
+
+        <FoodAndBeverages onViewAll={() => router.push("/food")} />
 
         <AdBanner />
 

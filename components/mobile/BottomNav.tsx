@@ -31,6 +31,7 @@ const MORE_LINKS = [
   { label: "Events", href: "/events" },
   { label: "Coaches", href: "/coaches" },
   { label: "Tournaments", href: "/tournaments" },
+  { label: "View Challenges", href: "/challenges" },
   { label: "Blog", href: "/blogs" },
 ];
 

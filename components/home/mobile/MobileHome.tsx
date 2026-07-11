@@ -4,16 +4,19 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  ArrowLeft,
   ArrowRight,
   Building2,
+  Calendar,
+  CupSoda,
   Feather,
-  Flame,
   Heart,
   LayoutGrid,
   MapPin,
   Search,
   SlidersHorizontal,
   Star,
+  Swords,
   Tag,
   Trophy,
   Users,
@@ -21,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { type Venue } from "@/lib/venues";
-import { QUICK_ACTIONS } from "../data";
+import { QUICK_ACTION_GAMES, QUICK_ACTION_TASKS } from "../data";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 
@@ -132,7 +135,7 @@ export function MobileHome({
   onViewVenue: (v: Venue) => void;
   onBookVenue: (v: Venue) => void;
   onViewAllVenues: () => void;
-  onQuickAction: (id: string) => void;
+  onQuickAction: (taskId: string, gameId: string) => void;
   onViewAllQuickActions: () => void;
   onChooseGame: () => void;
   onJoinCommunity: () => void;
@@ -141,6 +144,7 @@ export function MobileHome({
   onViewAllOffers: () => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
+  const [quickActionGame, setQuickActionGame] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const {
     sportOptions,
@@ -190,29 +194,65 @@ export function MobileHome({
         <input
           value={searchValue}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search turf, badminton, pickleball..."
+          placeholder="Let's find your vibe"
           className="w-full flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
         />
         <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       </div>
 
       <section>
-        <MobileSectionRow title="Quick Actions" actionLabel="View All" onAction={onViewAllQuickActions} />
-        <div className="grid grid-cols-6 gap-1">
-          {QUICK_ACTIONS.map((a) => (
+        <MobileSectionRow
+          title="Quick Actions"
+          actionLabel="View All"
+          onAction={onViewAllQuickActions}
+        />
+        {!quickActionGame ? (
+          <div className="grid grid-cols-6 gap-1">
+            {QUICK_ACTION_GAMES.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => setQuickActionGame(g.id)}
+                className="flex flex-col items-center gap-1.5 text-center"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
+                  {"image" in g && g.image ? (
+                    <Image src={g.image} alt={g.label} width={22} height={22} unoptimized className="h-[22px] w-[22px] object-contain" />
+                  ) : "icon" in g && g.icon ? (
+                    <g.icon className="h-5 w-5" />
+                  ) : null}
+                </span>
+                <span className="text-[9px] font-semibold leading-tight text-brand-600">{g.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-6 gap-1">
             <button
-              key={a.id}
               type="button"
-              onClick={() => onQuickAction(a.id)}
+              onClick={() => setQuickActionGame(null)}
               className="flex flex-col items-center gap-1.5 text-center"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
-                <a.icon className="h-5 w-5" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-md shadow-slate-200">
+                <ArrowLeft className="h-5 w-5" />
               </span>
-              <span className="text-[9px] font-semibold leading-tight text-brand-600">{a.label}</span>
+              <span className="text-[9px] font-semibold leading-tight text-slate-500">Change</span>
             </button>
-          ))}
-        </div>
+            {QUICK_ACTION_TASKS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => onQuickAction(a.id, quickActionGame)}
+                className="flex flex-col items-center gap-1.5 text-center"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
+                  <a.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[9px] font-semibold leading-tight text-brand-600">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
@@ -235,6 +275,23 @@ export function MobileHome({
             ))}
           </div>
         )}
+      </section>
+
+      <section>
+        <MobileSectionRow title="Food & Beverages" />
+        <Link
+          href="/food"
+          className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
+            <CupSoda className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-900">Hungry between games?</p>
+            <p className="text-xs text-slate-500">Order courtside snacks & drinks</p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-brand-500" />
+        </Link>
       </section>
 
       <section>
@@ -325,30 +382,30 @@ export function MobileHome({
       </section>
 
       <section>
-        <MobileSectionRow title="Live Challenge" actionLabel="View All" onAction={onViewAllCommunity} />
-        <button type="button" onClick={onJoinCommunity} className="w-full text-left">
+        <MobileSectionRow title="Community" actionLabel="View All" onAction={onViewAllCommunity} />
+        <Link href="/profile" className="w-full text-left">
           <MobileCard className="relative flex flex-col gap-4 overflow-hidden !bg-slate-950 !p-5 text-white">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(249,115,22,0.34),transparent_34%),radial-gradient(circle_at_84%_100%,rgba(16,185,129,0.2),transparent_38%)]" />
             <div className="relative flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/35 bg-orange-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-orange-300">
-                <Flame className="h-3.5 w-3.5" /> Live Challenge
+                <Calendar className="h-3.5 w-3.5" /> Upcoming Booking
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-300">New</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-300">May 27</span>
             </div>
             <div className="relative">
-              <p className="text-xl font-black uppercase leading-tight">Vibe Challenge</p>
+              <p className="text-xl font-black uppercase leading-tight">Cricket Arena</p>
               <p className="mt-2 max-w-[260px] text-xs font-medium leading-relaxed text-slate-400">
-                Challenge your friend, generate match posters, add food stakes, and share on WhatsApp.
+                7:00 – 9:00 PM · 2 Courts booked · 10 players confirmed.
               </p>
             </div>
             <div className="relative flex items-center justify-between border-t border-white/10 pt-3">
-              <span className="text-xs text-slate-300">🏏 🏸 🏓 ⚽ +9 sports</span>
+              <span className="text-xs text-slate-300">🏏 2 Courts · 10 Players</span>
               <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-orange-400">
-                Launch <ArrowRight className="h-4 w-4" />
+                View Details <ArrowRight className="h-4 w-4" />
               </span>
             </div>
           </MobileCard>
-        </button>
+        </Link>
 
         <MobileCard className="mt-3 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
@@ -388,6 +445,13 @@ export function MobileHome({
             className="w-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm"
           >
             Join Now
+          </button>
+          <button
+            type="button"
+            onClick={onJoinCommunity}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 py-2 text-xs font-bold text-slate-600"
+          >
+            <Swords className="h-3.5 w-3.5" /> Or Challenge a Player
           </button>
         </MobileCard>
       </section>

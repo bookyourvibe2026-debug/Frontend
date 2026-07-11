@@ -248,10 +248,21 @@ export const EXTENSION_CARDS = [
   { title: "Venue kiosk", desc: "Self-service check-in and walk-in ticketing." },
 ];
 
-export const QUICK_ACTIONS = [
+// Step 1 of Quick Actions: user picks a game first.
+export const QUICK_ACTION_GAMES = [
+  { id: "box-cricket", label: "Cricket", image: "/bat.png" },
+  { id: "football", label: "Football", image: "/football.png" },
+  { id: "badminton", label: "Badminton", image: "/badminton.png" },
+  { id: "pickleball", label: "Pickleball", image: "/pickball.png" },
+  { id: "tennis", label: "Tennis", image: "/tennis.png" },
+  { id: "running", label: "Running", icon: Footprints },
+];
+
+// Step 2 of Quick Actions: action to take for the chosen game.
+export const QUICK_ACTION_TASKS = [
+  { id: "venue", label: "Book a Venue", icon: Compass },
   { id: "food", label: "Food & Beverages", icon: CupSoda },
   { id: "tournaments", label: "Tournaments", icon: Trophy },
-  { id: "events", label: "Events", icon: Calendar },
   { id: "challenge", label: "Challenge a Player", icon: Users },
 ];
 

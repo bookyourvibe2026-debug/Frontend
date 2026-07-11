@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  Calendar,
   Clock,
   Dumbbell,
   Heart,
@@ -19,7 +18,8 @@ import {
   Gift,
   Percent,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { SectionHeading } from "./ui";
 
 const AD_CARDS = [
   {
@@ -106,19 +106,74 @@ const AD_CARDS = [
     offer_tag: "Unlimited referrals • Credits never expire",
     bgImage: "/hero3.png",
   },
+  {
+    id: "ad-fnb",
+    title: "Order Courtside Food & Beverages",
+    subtitle: "Fresh snacks and drinks delivered straight to your court between games",
+    gradient: "from-amber-600 via-orange-500 to-rose-600",
+    imageLabel: "F&B",
+    rating: 4.7,
+    reviews: 960,
+    location: "All Partner Venues",
+    distance: "Near You",
+    date: "Ongoing",
+    time: "Open Slots",
+    category: "Food & Beverages",
+    cta: "Order Now",
+    highlights: [
+      { icon: Percent, label: "Combo Deals" },
+      { icon: Clock, label: "10 Min Delivery" },
+      { icon: Gift, label: "Free 1st Order" },
+    ],
+    amenities: [
+      { icon: Utensils, label: "Cafeteria" },
+      { icon: Wifi, label: "Free WiFi" },
+      { icon: Car, label: "Parking" },
+      { icon: ShowerHead, label: "Showers" },
+    ],
+    offer_tag: "Order from the Food & Beverages tab in Quick Actions",
+    bgImage: "/hero1.png",
+  },
+  {
+    id: "ad-coach",
+    title: "Book a Verified Coach",
+    subtitle: "Train with certified coaches across cricket, badminton, tennis & more",
+    gradient: "from-sky-700 via-blue-600 to-indigo-800",
+    imageLabel: "COACH",
+    rating: 4.9,
+    reviews: 540,
+    location: "Multiple Venues",
+    distance: "Udaipur",
+    date: "Slots Daily",
+    time: "6:00 AM - 9:00 PM",
+    category: "Coaching",
+    cta: "Find a Coach",
+    highlights: [
+      { icon: Users, label: "1-on-1 & Group" },
+      { icon: Star, label: "Verified Coaches" },
+      { icon: Ticket, label: "Trial Session" },
+    ],
+    amenities: [
+      { icon: Dumbbell, label: "Fitness Gear" },
+      { icon: Wifi, label: "Free WiFi" },
+      { icon: Car, label: "Parking" },
+      { icon: Camera, label: "Session Recording" },
+    ],
+    offer_tag: "First trial session at flat ₹199",
+    bgImage: "/hero2.png",
+  },
 ];
 
 export function AdBanner() {
-  const [visibleAds, setVisibleAds] = useState<Set<string>>(new Set(AD_CARDS.map((a) => a.id)));
+  const [index, setIndex] = useState(0);
   const [favoriteAds, setFavoriteAds] = useState<Set<string>>(new Set());
 
-  const dismissAd = (id: string) => {
-    setVisibleAds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % AD_CARDS.length);
+    }, 4500);
+    return () => clearInterval(id);
+  }, []);
 
   const toggleFavorite = (id: string) => {
     setFavoriteAds((prev) => {
@@ -129,33 +184,23 @@ export function AdBanner() {
     });
   };
 
-  const visible = AD_CARDS.filter((a) => visibleAds.has(a.id));
-  if (visible.length === 0) return null;
-
   return (
     <section className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
-      <div className="mb-6 max-w-xl">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">
-          EXCLUSIVE
-        </p>
-        <h2 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900 sm:text-lg">
-          Hot Offers & Events
-          <Ticket className="h-4 w-4 text-amber-500" aria-hidden />
-        </h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">
-          Limited-time deals, tournaments, and referral bonuses — handpicked for you.
-        </p>
-      </div>
+      <SectionHeading eyebrow="Exclusive" title="Hot Offers & Events" subtitle="Limited-time deals, tournaments, and referral bonuses — handpicked for you." icon={Ticket} />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {visible.map((ad) => (
+      <div className="relative overflow-hidden">
+        <div
+          className="flex transition-transform duration-700 ease-in-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {AD_CARDS.map((ad) => (
           <div
             key={ad.id}
-            className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+            className="group relative flex w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm sm:flex-row"
           >
             {/* ----- Image / Gradient Header ----- */}
             <div
-              className="relative h-44 w-full overflow-hidden"
+              className="relative h-44 w-full shrink-0 overflow-hidden sm:h-auto sm:w-72"
               style={
                 ad.bgImage
                   ? {
@@ -285,7 +330,22 @@ export function AdBanner() {
               </button>
             </div>
           </div>
-        ))}
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center justify-center gap-2">
+          {AD_CARDS.map((ad, i) => (
+            <button
+              key={ad.id}
+              type="button"
+              aria-label={`Show banner ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                i === index ? "w-7 bg-brand-500" : "w-1.5 bg-slate-200 hover:bg-slate-300"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
