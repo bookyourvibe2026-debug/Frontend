@@ -12,7 +12,7 @@
 /*  quantity or markup concept yet, so we don't pretend it does.       */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MutableRefObject } from "react";
 import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Share2, ShieldCheck, Users, X, AlertTriangle, Plus } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
@@ -68,7 +68,21 @@ function minutesToTime24(totalMinutes: number) {
 
 /* ------------------------------------------------------------------ */
 
-export default function BookingFlow({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+export default function BookingFlow({
+  listing,
+  onClose,
+  embedded = false,
+  onStateChange,
+  payTriggerRef,
+}: {
+  listing: Listing;
+  onClose: () => void;
+  /** Render inline (no modal chrome, no duplicate submit button) so a parent page can embed this flow directly. */
+  embedded?: boolean;
+  onStateChange?: (state: { canPay: boolean; submitting: boolean; confirmed: boolean }) => void;
+  /** Lets an embedding parent trigger the actual booking submit from its own button. */
+  payTriggerRef?: MutableRefObject<(() => void) | null>;
+}) {
   const { status } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
@@ -303,8 +317,19 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
       : selectedSlotIndex !== -1 && !isDateHoliday && generatedSlots[selectedSlotIndex]?.status === "Available"
   );
 
+  useEffect(() => {
+    onStateChange?.({ canPay, submitting, confirmed: step === "confirmed" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPay, submitting, step]);
+
+  useEffect(() => {
+    if (payTriggerRef) payTriggerRef.current = handlePay;
+  });
+
   if (status === "loading") {
-    return (
+    return embedded ? (
+      <p className="py-6 text-center text-sm font-semibold text-slate-500">Loading...</p>
+    ) : (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div className="rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-slate-600">Loading...</div>
       </div>
@@ -346,10 +371,11 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
+  const content = (
+    <>
       {step === "review" && (
         <ReviewStep
+          embedded={embedded}
           listing={listing}
           date={date}
           setDate={setDate}
@@ -393,8 +419,16 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
       )}
 
       {step === "confirmed" && booking && (
-        <ConfirmedStep listing={listing} booking={booking} onClose={onClose} />
+        <ConfirmedStep listing={listing} booking={booking} onClose={onClose} embedded={embedded} />
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
+      {content}
     </div>
   );
 }
@@ -404,6 +438,7 @@ export default function BookingFlow({ listing, onClose }: { listing: Listing; on
 /* ------------------------------------------------------------------ */
 
 function ReviewStep(props: {
+  embedded: boolean;
   listing: Listing;
   date: string;
   setDate: (v: string) => void;
@@ -445,6 +480,7 @@ function ReviewStep(props: {
   setVisibleYear: (v: number | ((n: number) => number)) => void;
 }) {
   const {
+    embedded,
     listing,
     date,
     setDate,
@@ -496,19 +532,26 @@ function ReviewStep(props: {
   };
 
   return (
-    <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-3xl bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl">
-      {/* Close button */}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow"
-      >
-        <X className="h-4 w-4" />
-      </button>
+    <div
+      className={
+        embedded
+          ? "w-full"
+          : "relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-3xl bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
+      }
+    >
+      {!embedded && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
 
-      <div className="overflow-y-auto p-4 pb-6 sm:p-5">
-        <h2 className="text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>
+      <div className={embedded ? "" : "overflow-y-auto p-4 pb-6 sm:p-5"}>
+        {!embedded && <h2 className="text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>}
 
         <div className="mt-3 flex flex-col gap-3 lg:flex-row">
           {/* LEFT COLUMN */}
@@ -884,18 +927,25 @@ function ReviewStep(props: {
               </label>
             </div>
 
-            <button
-              type="button"
-              disabled={!canPay || submitting}
-              onClick={onPay}
-              className={`w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition ${
-                canPay && !submitting
-                  ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
-                  : "cursor-not-allowed bg-slate-300 text-white"
-              }`}
-            >
-              {submitting ? "Booking..." : "Confirm Booking"}
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                disabled={!canPay || submitting}
+                onClick={onPay}
+                className={`w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition ${
+                  canPay && !submitting
+                    ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
+                    : "cursor-not-allowed bg-slate-300 text-white"
+                }`}
+              >
+                {submitting ? "Booking..." : "Confirm Booking"}
+              </button>
+            )}
+            {embedded && (
+              <p className="text-center text-[11px] font-semibold text-slate-500">
+                {canPay ? "All set — tap Book Now above to confirm." : "Complete the steps above, then Book Now activates."}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -907,7 +957,7 @@ function ReviewStep(props: {
 /*  STEP — CONFIRMATION                                                */
 /* ------------------------------------------------------------------ */
 
-function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; booking: Booking; onClose: () => void }) {
+function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listing: Listing; booking: Booking; onClose: () => void; embedded?: boolean }) {
   const [downloading, setDownloading] = useState(false);
 
   function shareNow() {
@@ -934,7 +984,7 @@ function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; bookin
   }
 
   return (
-    <div className="relative w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
+    <div className={embedded ? "w-full text-center" : "relative w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl"}>
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
         <Check className="h-7 w-7" strokeWidth={3} />
       </div>
@@ -976,13 +1026,15 @@ function ConfirmedStep({ listing, booking, onClose }: { listing: Listing; bookin
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={onClose}
-        className="mt-2 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
-      >
-        Done
-      </button>
+      {!embedded && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-2 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
+        >
+          Done
+        </button>
+      )}
     </div>
   );
 }

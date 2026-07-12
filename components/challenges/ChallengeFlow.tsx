@@ -49,17 +49,17 @@ const SPORTS = [
   { label: "Other Match", emoji: "+" },
 ] as const;
 
-// Player count auto-set from the chosen sport (e.g. Football -> team, Badminton -> 1v1).
-const GAME_PLAYER_COUNTS: Record<string, ChallengePlayersCount> = {
-  Cricket: "team",
-  Badminton: "1v1",
-  "Table Tennis": "1v1",
-  Pickleball: "2v2",
-  Football: "team",
-  Basketball: "team",
-  Pool: "1v1",
-  Gaming: "1v1",
-  "Other Match": "1v1",
+// Valid player-count options for each sport — only these show up, and the first is the default.
+const GAME_PLAYER_COUNT_OPTIONS: Record<string, ChallengePlayersCount[]> = {
+  Cricket: ["team"],
+  Badminton: ["1v1", "2v2"],
+  "Table Tennis": ["1v1", "2v2"],
+  Pickleball: ["1v1", "2v2"],
+  Football: ["team"],
+  Basketball: ["team"],
+  Pool: ["1v1"],
+  Gaming: ["1v1", "2v2", "team"],
+  "Other Match": ["1v1", "2v2", "team"],
 };
 
 // Best-of series only makes sense for game-based sports, not single-match team sports.
@@ -203,8 +203,8 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
 
   function selectSport(label: string) {
     setSport(label);
-    const autoCount = GAME_PLAYER_COUNTS[label];
-    if (autoCount) setPlayersCount(autoCount);
+    const options = GAME_PLAYER_COUNT_OPTIONS[label];
+    if (options?.length) setPlayersCount(options[0]);
     if (!GAME_SUPPORTS_SERIES.has(label)) setSeries("BO1");
   }
 
@@ -452,7 +452,12 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                 <SelectBlock label="Date" value={dateLabel} options={DETAILS.dates} onChange={setDateLabel} />
                 <SelectBlock label="Start time" value={timeLabel} options={DETAILS.times} onChange={setTimeLabel} />
               </div>
-              <Segmented label={`Players count (auto for ${sport})`} value={playersCount} options={DETAILS.playerCounts} onChange={setPlayersCount} />
+              <Segmented
+                label={`Players count (for ${sport})`}
+                value={playersCount}
+                options={GAME_PLAYER_COUNT_OPTIONS[sport] ?? DETAILS.playerCounts}
+                onChange={setPlayersCount}
+              />
               {GAME_SUPPORTS_SERIES.has(sport) && (
                 <Segmented label="Best of series" value={series} options={DETAILS.series} onChange={setSeries} />
               )}
@@ -598,10 +603,12 @@ function SelectBlock({ label, value, options, onChange }: { label: string; value
 }
 
 function Segmented<T extends string | number>({ label, value, options, onChange, formatter, wide }: { label: string; value: T; options: readonly T[]; onChange: (value: T) => void; formatter?: (value: T) => string; wide?: boolean }) {
+  const cols = wide ? 3 : Math.min(Math.max(options.length, 1), 3);
+  const gridColsClass = cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-2" : "grid-cols-3";
   return (
     <div className="mb-5">
       <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">{label}</p>
-      <div className={`grid gap-2 ${wide ? "grid-cols-3" : "grid-cols-3"}`}>
+      <div className={`grid gap-2 ${gridColsClass}`}>
         {options.map((option) => (
           <button key={String(option)} type="button" onClick={() => onChange(option)} className={`rounded-xl px-3 py-3 text-xs font-extrabold uppercase transition ${value === option ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-white/7 text-slate-400"}`}>
             {formatter ? formatter(option) : String(option)}

@@ -80,9 +80,9 @@ export default function GamesPage() {
             ))}
           </div>
 
-          {events.length > 0 && (
-            <div>
-              <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Events</p>
+          <div>
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Events</p>
+            {events.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {events.map((event) => (
                   <Link key={event._id} href={`/venues/${event._id}`}>
@@ -101,8 +101,14 @@ export default function GamesPage() {
                   </Link>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              !loading && (
+                <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                  No events hosted yet. Check back soon.
+                </p>
+              )
+            )}
+          </div>
 
           <div>
             <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Venues</p>
@@ -208,12 +214,12 @@ export default function GamesPage() {
           </div>
         </section>
 
-        {events.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-5">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">Events</p>
-              <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Beyond just booking a slot</h2>
-            </div>
+        <section className="mt-8">
+          <div className="mb-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">Events</p>
+            <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Beyond just booking a slot</h2>
+          </div>
+          {events.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {events.map((event) => (
                 <Link
@@ -237,8 +243,14 @@ export default function GamesPage() {
                 </Link>
               ))}
             </div>
-          </section>
-        )}
+          ) : (
+            !loading && (
+              <p className="rounded-[1.75rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                No events hosted yet. Check back soon.
+              </p>
+            )
+          )}
+        </section>
 
         <section className="mt-8">
           <div className="mb-5 flex items-end justify-between gap-4">

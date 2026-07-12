@@ -7,7 +7,7 @@
 /*  Its "Book Now" launches the real booking flow (review -> confirm). */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -37,11 +37,8 @@ import {
   Ruler,
   Lightbulb,
   Layers,
-  ShieldCheck,
   Users2,
-  Tag,
   GraduationCap,
-  FileText,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
@@ -120,7 +117,6 @@ export default function VenueDetailPage() {
           highlights={highlights}
           inclusions={inclusions}
           categoryText={categoryText}
-          onBook={() => setBooking(true)}
         />
       </div>
 
@@ -394,16 +390,16 @@ function MobileVenueDetail({
   highlights,
   inclusions,
   categoryText,
-  onBook,
 }: {
   venue: Listing;
   highlights: string[];
   inclusions: string[];
   categoryText: string;
-  onBook: () => void;
 }) {
   const [favorite, setFavorite] = useState(false);
-  const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy" | "book">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy">("home");
+  const [bookingState, setBookingState] = useState({ canPay: false, submitting: false, confirmed: false });
+  const payTriggerRef = useRef<(() => void) | null>(null);
   const weather = useCityWeather(venue.city);
 
   const amenities = inclusions.map((item) => {
@@ -413,11 +409,10 @@ function MobileVenueDetail({
 
   const mapsQuery = encodeURIComponent(venue.address || venue.city);
 
-  const TABS: { id: "home" | "booking" | "academy" | "book"; label: string }[] = [
+  const TABS: { id: "home" | "booking" | "academy"; label: string }[] = [
     { id: "home", label: "Home" },
     { id: "booking", label: "Booking" },
     { id: "academy", label: "Academy" },
-    { id: "book", label: "Book Now" },
   ];
 
   return (
@@ -487,15 +482,20 @@ function MobileVenueDetail({
           </button>
           <button
             type="button"
-            onClick={onBook}
-            className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-xs font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
+            disabled={!bookingState.canPay || bookingState.submitting || bookingState.confirmed}
+            onClick={() => payTriggerRef.current?.()}
+            className={`rounded-xl px-6 py-3 text-xs font-bold uppercase tracking-wide transition ${
+              bookingState.canPay && !bookingState.submitting && !bookingState.confirmed
+                ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30"
+                : "cursor-not-allowed bg-slate-200 text-slate-400"
+            }`}
           >
-            Book Now
+            {bookingState.confirmed ? "Booked" : bookingState.submitting ? "Booking..." : "Book Now"}
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
+        <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -654,29 +654,13 @@ function MobileVenueDetail({
 
         {activeTab === "booking" && (
           <section className="mt-5">
-            <h2 className="text-sm font-extrabold text-slate-900">Sports</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(venue.categories.length > 0 ? venue.categories : ["general"]).map((catId) => (
-                <span
-                  key={catId}
-                  className="rounded-full border border-brand-200 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-700"
-                >
-                  {categoryLabel(catId)}
-                </span>
-              ))}
-            </div>
-
-            <h2 className="mt-5 text-sm font-extrabold text-slate-900">Date &amp; Available Slots</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Pick a date, then choose a slot — duration adjusts in 30-minute steps.
-            </p>
-            <button
-              type="button"
-              onClick={onBook}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
-            >
-              <Clock className="h-4 w-4" /> Check Available Slots
-            </button>
+            <BookingFlow
+              listing={venue}
+              embedded
+              onClose={() => {}}
+              onStateChange={setBookingState}
+              payTriggerRef={payTriggerRef}
+            />
           </section>
         )}
 
@@ -695,37 +679,6 @@ function MobileVenueDetail({
                 Browse coaches instead
               </Link>
             </div>
-          </section>
-        )}
-
-        {activeTab === "book" && (
-          <section className="mt-5 flex flex-col gap-3">
-            <div className="flex items-start gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-              <span>
-                <span className="font-bold">Insurance Mandatory</span> — every booking includes player insurance
-                coverage by default.
-              </span>
-            </div>
-            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
-              <FileText className="h-4 w-4 shrink-0 text-brand-500" />
-              <span>Terms &amp; Conditions apply and must be accepted before payment.</span>
-            </div>
-            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
-              <Tag className="h-4 w-4 shrink-0 text-brand-500" />
-              <span>Split the payment with friends at checkout if you&apos;re playing as a group.</span>
-            </div>
-            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
-              <Share2 className="h-4 w-4 shrink-0 text-brand-500" />
-              <span>After payment, share your booking on WhatsApp or Instagram Story straight away.</span>
-            </div>
-            <button
-              type="button"
-              onClick={onBook}
-              className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
-            >
-              Proceed to Book — ₹{venue.price.toLocaleString("en-IN")}
-            </button>
           </section>
         )}
       </div>
