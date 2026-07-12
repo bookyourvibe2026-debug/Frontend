@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { MapPin, Volleyball, Waves, CircleDot, Footprints, Gamepad2, type LucideIcon } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
@@ -19,10 +19,21 @@ const NOTES: Record<string, string> = {
   "table-tennis": "Quick rallies, fun evenings",
 };
 
+// Fallback icons for sports that don't have a dedicated image asset yet.
+const FALLBACK_ICONS: Record<string, LucideIcon> = {
+  basketball: CircleDot,
+  volleyball: Volleyball,
+  swimming: Waves,
+  "snooker-pool": CircleDot,
+  skating: Footprints,
+  "indoor-games": Gamepad2,
+};
+
 const SPORTS = SPORT_CATEGORIES.map((cat) => ({
   id: cat.id,
   label: cat.label,
-  image: cat.image ?? "/bat.png",
+  image: cat.image,
+  icon: cat.image ? undefined : FALLBACK_ICONS[cat.id] ?? CircleDot,
   note: NOTES[cat.id] ?? "Live availability, easy booking",
 }));
 
@@ -64,18 +75,21 @@ export default function GamesPage() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
             {SPORTS.map((sport) => (
-              <Link key={sport.id} href={`/venues?category=${sport.id}`}>
-                <MobileCard className="flex items-center gap-4">
-                  <div className="relative h-16 w-16 shrink-0 rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
-                    <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-base font-extrabold text-slate-950">{sport.label}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{sport.note}</p>
-                  </div>
-                </MobileCard>
+              <Link
+                key={sport.id}
+                href={`/venues?category=${sport.id}`}
+                className="flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-slate-600 transition hover:border-brand-200"
+              >
+                <span className="flex h-8 w-8 items-center justify-center">
+                  {sport.image ? (
+                    <Image src={sport.image} alt={sport.label} width={28} height={28} unoptimized className="h-7 w-7 object-contain" />
+                  ) : sport.icon ? (
+                    <sport.icon className="h-6 w-6 text-brand-500" />
+                  ) : null}
+                </span>
+                <span className="whitespace-nowrap text-[11px] font-semibold">{sport.label}</span>
               </Link>
             ))}
           </div>
@@ -171,8 +185,12 @@ export default function GamesPage() {
                     key={sport.id}
                     className="rounded-3xl border border-white/70 bg-white p-4 shadow-sm"
                   >
-                    <div className="relative mx-auto h-28 w-28">
-                      <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
+                    <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+                      {sport.image ? (
+                        <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
+                      ) : sport.icon ? (
+                        <sport.icon className="h-12 w-12 text-brand-500" />
+                      ) : null}
                     </div>
                     <p className="mt-2 text-center text-sm font-bold text-slate-900">{sport.label}</p>
                   </div>
@@ -201,8 +219,12 @@ export default function GamesPage() {
                 }`}
               >
                 <div className="flex items-center gap-4">
-                  <div className="relative h-20 w-20 shrink-0 rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
-                    <Image src={sport.image} alt={sport.label} fill className="object-contain p-2 transition group-hover:scale-105" />
+                  <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
+                    {sport.image ? (
+                      <Image src={sport.image} alt={sport.label} fill className="object-contain p-2 transition group-hover:scale-105" />
+                    ) : sport.icon ? (
+                      <sport.icon className="h-9 w-9 text-brand-500" />
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xl font-black text-slate-950">{sport.label}</p>
