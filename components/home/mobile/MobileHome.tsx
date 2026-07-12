@@ -59,12 +59,12 @@ function MobileVenueCard({
       : "bg-accent-500/90 text-white";
 
   return (
-    <div className="flex w-[30vw] min-w-[104px] max-w-[150px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+    <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
       <div
         role="button"
         tabIndex={0}
         onClick={onView}
-        className="relative h-20 w-full cursor-pointer bg-slate-900"
+        className="relative h-24 w-full cursor-pointer bg-slate-900"
         style={venue.image ? { backgroundImage: `url(${venue.image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
       >
         <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300 backdrop-blur-sm">
@@ -201,6 +201,33 @@ export function MobileHome({
       </div>
 
       <section>
+        <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onChooseGame} />
+        <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
+          {CHOOSE_GAME_CHIPS.map((c) => (
+            <MobileChip
+              key={c.id}
+              label={c.label}
+              selected={selectedGame === c.id}
+              onClick={() => {
+                setSelectedGame(c.id);
+                if (c.id !== "more") onChooseGame();
+              }}
+              icon={c.id === "swimming" ? Waves : c.id === "more" ? LayoutGrid : undefined}
+              image={
+                "image" in c ? (
+                  <Image src={c.image} alt={c.label} width={28} height={28} unoptimized className="h-7 w-7 object-contain" />
+                ) : c.id === "snooker" ? (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
+                    8
+                  </span>
+                ) : undefined
+              }
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
         <MobileSectionRow
           title="Quick Actions"
           actionLabel="View All"
@@ -262,18 +289,27 @@ export function MobileHome({
             No venues match your search/filters.
           </div>
         ) : (
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
-            {filteredVenues.map((v) => (
-              <MobileVenueCard
-                key={v.id}
-                venue={v}
-                isFavorite={favorites.has(v.id)}
-                onToggleFavorite={() => onToggleFavorite(v.id)}
-                onView={() => onViewVenue(v)}
-                onBook={() => onBookVenue(v)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {filteredVenues.slice(0, 4).map((v) => (
+                <MobileVenueCard
+                  key={v.id}
+                  venue={v}
+                  isFavorite={favorites.has(v.id)}
+                  onToggleFavorite={() => onToggleFavorite(v.id)}
+                  onView={() => onViewVenue(v)}
+                  onBook={() => onBookVenue(v)}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={onViewAllVenues}
+              className="mt-3 w-full rounded-2xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600"
+            >
+              View More Venues
+            </button>
+          </>
         )}
       </section>
 
@@ -292,33 +328,6 @@ export function MobileHome({
           </div>
           <ArrowRight className="h-4 w-4 shrink-0 text-brand-500" />
         </Link>
-      </section>
-
-      <section>
-        <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onChooseGame} />
-        <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
-          {CHOOSE_GAME_CHIPS.map((c) => (
-            <MobileChip
-              key={c.id}
-              label={c.label}
-              selected={selectedGame === c.id}
-              onClick={() => {
-                setSelectedGame(c.id);
-                if (c.id !== "more") onChooseGame();
-              }}
-              icon={c.id === "swimming" ? Waves : c.id === "more" ? LayoutGrid : undefined}
-              image={
-                "image" in c ? (
-                  <Image src={c.image} alt={c.label} width={28} height={28} unoptimized className="h-7 w-7 object-contain" />
-                ) : c.id === "snooker" ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                    8
-                  </span>
-                ) : undefined
-              }
-            />
-          ))}
-        </div>
       </section>
 
       <section className="grid grid-cols-2 gap-3">

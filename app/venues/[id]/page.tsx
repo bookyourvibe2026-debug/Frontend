@@ -21,8 +21,6 @@ import {
   Store,
   Heart,
   Star,
-  Navigation,
-  Download,
   Clock,
   ParkingCircle,
   Droplets,
@@ -39,6 +37,11 @@ import {
   Ruler,
   Lightbulb,
   Layers,
+  ShieldCheck,
+  Users2,
+  Tag,
+  GraduationCap,
+  FileText,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
@@ -400,6 +403,7 @@ function MobileVenueDetail({
   onBook: () => void;
 }) {
   const [favorite, setFavorite] = useState(false);
+  const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy" | "book">("home");
   const weather = useCityWeather(venue.city);
 
   const amenities = inclusions.map((item) => {
@@ -408,6 +412,13 @@ function MobileVenueDetail({
   });
 
   const mapsQuery = encodeURIComponent(venue.address || venue.city);
+
+  const TABS: { id: "home" | "booking" | "academy" | "book"; label: string }[] = [
+    { id: "home", label: "Home" },
+    { id: "booking", label: "Booking" },
+    { id: "academy", label: "Academy" },
+    { id: "book", label: "Book Now" },
+  ];
 
   return (
     <div className="pb-24">
@@ -461,24 +472,46 @@ function MobileVenueDetail({
           {venue.address ? ` · ${venue.address}` : ""}
         </p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${mapsQuery}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-xs font-bold uppercase tracking-wide text-white"
+        {/* Price + Book Now — the only price/booking CTA on this page (no separate sticky bar) */}
+        <div id="price-block" className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-black text-slate-900">₹{venue.price.toLocaleString("en-IN")}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("home")}
+            className="rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600"
           >
-            <Navigation className="h-4 w-4" /> Directions
-          </a>
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-xs font-bold uppercase tracking-wide text-slate-700"
+            Rates
+          </button>
+          <button
+            type="button"
+            onClick={onBook}
+            className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-xs font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
           >
-            <Download className="h-4 w-4" /> Export Schedule
-          </a>
+            Book Now
+          </button>
         </div>
+
+        {/* Tabs */}
+        <div className="mt-4 grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-xl py-2 text-[10px] font-bold uppercase tracking-wide transition ${
+                activeTab === tab.id ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "home" && (
+          <>
 
         {venue.address && (
           <div className="mt-4 space-y-2">
@@ -596,6 +629,15 @@ function MobileVenueDetail({
           <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
         </section>
 
+        {/* Top players */}
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Top Players</h2>
+          <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+            <Users2 className="mx-auto h-6 w-6 text-slate-300" />
+            <p className="mt-2 text-xs font-semibold text-slate-500">No frequent players tracked here yet.</p>
+          </div>
+        </section>
+
         {/* Player reviews */}
         <section className="mt-5">
           <div className="flex items-center justify-between">
@@ -607,23 +649,85 @@ function MobileVenueDetail({
             <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
           </div>
         </section>
-      </div>
+          </>
+        )}
 
-      {/* Sticky book bar — sits above the mobile bottom nav */}
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-black text-slate-900">₹{venue.price.toLocaleString("en-IN")}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
-          </div>
-          <button
-            type="button"
-            onClick={onBook}
-            className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
-          >
-            Book Now
-          </button>
-        </div>
+        {activeTab === "booking" && (
+          <section className="mt-5">
+            <h2 className="text-sm font-extrabold text-slate-900">Sports</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(venue.categories.length > 0 ? venue.categories : ["general"]).map((catId) => (
+                <span
+                  key={catId}
+                  className="rounded-full border border-brand-200 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-700"
+                >
+                  {categoryLabel(catId)}
+                </span>
+              ))}
+            </div>
+
+            <h2 className="mt-5 text-sm font-extrabold text-slate-900">Date &amp; Available Slots</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Pick a date, then choose a slot — duration adjusts in 30-minute steps.
+            </p>
+            <button
+              type="button"
+              onClick={onBook}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
+            >
+              <Clock className="h-4 w-4" /> Check Available Slots
+            </button>
+          </section>
+        )}
+
+        {activeTab === "academy" && (
+          <section className="mt-5">
+            <h2 className="text-sm font-extrabold text-slate-900">Academy</h2>
+            <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+              <GraduationCap className="mx-auto h-6 w-6 text-slate-300" />
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                No academy programs listed at this venue yet.
+              </p>
+              <Link
+                href="/coaches"
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600"
+              >
+                Browse coaches instead
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "book" && (
+          <section className="mt-5 flex flex-col gap-3">
+            <div className="flex items-start gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>
+                <span className="font-bold">Insurance Mandatory</span> — every booking includes player insurance
+                coverage by default.
+              </span>
+            </div>
+            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
+              <FileText className="h-4 w-4 shrink-0 text-brand-500" />
+              <span>Terms &amp; Conditions apply and must be accepted before payment.</span>
+            </div>
+            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
+              <Tag className="h-4 w-4 shrink-0 text-brand-500" />
+              <span>Split the payment with friends at checkout if you&apos;re playing as a group.</span>
+            </div>
+            <div className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-xs text-slate-600 shadow-sm">
+              <Share2 className="h-4 w-4 shrink-0 text-brand-500" />
+              <span>After payment, share your booking on WhatsApp or Instagram Story straight away.</span>
+            </div>
+            <button
+              type="button"
+              onClick={onBook}
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30"
+            >
+              Proceed to Book — ₹{venue.price.toLocaleString("en-IN")}
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );

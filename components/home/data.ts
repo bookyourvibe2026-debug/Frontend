@@ -22,6 +22,7 @@ import {
   BrickWall,
   Footprints,
   Sandwich,
+  Handshake,
 } from "lucide-react";
 import type { FooterLink, Sport } from "./types";
 
@@ -264,9 +265,11 @@ export const QUICK_ACTION_TASKS = [
   { id: "food", label: "Food & Beverages", icon: CupSoda },
   { id: "tournaments", label: "Tournaments", icon: Trophy },
   { id: "challenge", label: "Challenge a Player", icon: Users },
+  { id: "community", label: "Community", icon: Handshake },
+  { id: "coaches", label: "Coaches", icon: GraduationCap },
 ];
 
-export const HERO_IMAGES = ["/hero1.png", "/hero2.png", "/hero3.png"];
+export const HERO_IMAGES = ["/hero1.png", "/hero2.png", "/hero3.png", "/hero1.png", "/hero2.png"];
 export const HERO_SLIDE_DURATION_MS = 3500;
 
 export const FOOTER_COLUMNS: { title: string; items: FooterLink[] }[] = [

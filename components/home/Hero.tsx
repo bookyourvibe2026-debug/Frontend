@@ -41,7 +41,7 @@ export function Hero({
         <div className="absolute inset-0" aria-hidden>
           {HERO_IMAGES.map((src, i) => (
             <div
-              key={src}
+              key={i}
               className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
                 i === heroSlide ? "opacity-100" : "opacity-0"
               }`}
@@ -137,7 +137,7 @@ export function Hero({
           <div className="mt-10 flex items-center justify-center gap-2 lg:justify-start">
             {HERO_IMAGES.map((src, i) => (
               <button
-                key={src}
+                key={i}
                 type="button"
                 aria-label={`Show hero image ${i + 1}`}
                 onClick={() => setHeroSlide(i)}

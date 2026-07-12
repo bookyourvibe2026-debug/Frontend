@@ -84,6 +84,8 @@ export default function HomePage() {
         food: "/food",
         tournaments: "/tournaments",
         challenge: "/community",
+        community: "/community",
+        coaches: "/coaches",
       };
       router.push(routes[taskId] ?? "/venues");
     },

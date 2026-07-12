@@ -159,7 +159,7 @@ function localChallenge(input: {
 export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const { customer, status } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
-  const [step, setStep] = useState<Step>("ground");
+  const [step, setStep] = useState<Step>("sport");
   const [players, setPlayers] = useState<Opponent[]>(NO_PLAYERS);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [search, setSearch] = useState("");
@@ -354,7 +354,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   }
 
   function goBack() {
-    const order: Step[] = ["ground", "sport", "opponent", "details", "stakes", "poster", "share"];
+    const order: Step[] = ["sport", "ground", "opponent", "details", "stakes", "poster", "share"];
     const index = order.indexOf(step);
     if (index <= 0) onClose();
     else setStep(order[index - 1]);
@@ -377,15 +377,8 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {step === "ground" && (
-            <StepShell eyebrow="Step 01 / Pick your arena" title="Choose the ground" subtitle="Select the venue or turf where the challenge will happen.">
-              <SelectBlock label="Select venue / turf" value={venueName} options={DETAILS.venues} onChange={setVenueName} />
-              <BottomBar label="Selected ground" value={venueName} onNext={() => setStep("sport")} />
-            </StepShell>
-          )}
-
           {step === "sport" && (
-            <StepShell eyebrow="Step 02 / Match format" title="Choose the battle type" subtitle="Pick the sport or keep it as a custom vibe challenge.">
+            <StepShell eyebrow="Step 01 / Match format" title="Choose the battle type" subtitle="Pick the sport or keep it as a custom vibe challenge.">
               <div className="grid grid-cols-2 gap-3">
                 {SPORTS.map((item) => (
                   <button key={item.label} type="button" onClick={() => selectSport(item.label)} className={`relative flex aspect-square flex-col items-center justify-center gap-3 rounded-[1.6rem] border text-center transition ${sport === item.label ? "border-orange-500 bg-orange-500/10 text-white" : "border-white/10 bg-white/7 text-slate-300"}`}>
@@ -399,7 +392,14 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   </button>
                 ))}
               </div>
-              <BottomBar label="Selected match" value={sport} onNext={() => setStep("opponent")} />
+              <BottomBar label="Selected match" value={sport} onNext={() => setStep("ground")} />
+            </StepShell>
+          )}
+
+          {step === "ground" && (
+            <StepShell eyebrow="Step 02 / Pick your arena" title="Choose the ground" subtitle="Select the venue or turf where the challenge will happen.">
+              <SelectBlock label="Select venue / turf" value={venueName} options={DETAILS.venues} onChange={setVenueName} />
+              <BottomBar label="Selected ground" value={venueName} onNext={() => setStep("opponent")} />
             </StepShell>
           )}
 

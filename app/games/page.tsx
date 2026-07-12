@@ -1,13 +1,14 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
-import { SPORT_CATEGORIES } from "@/lib/taxonomy";
-
-export const metadata = {
-  title: "Find Your Games | Book Your Vibe",
-  description: "Explore sports categories and discover nearby venues.",
-};
+import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
+import { browseVenues } from "@/lib/api/venues";
+import { Listing } from "@/lib/api/types";
 
 const NOTES: Record<string, string> = {
   cricket: "Fast bookings, turf-friendly",
@@ -26,6 +27,22 @@ const SPORTS = SPORT_CATEGORIES.map((cat) => ({
 }));
 
 export default function GamesPage() {
+  const [events, setEvents] = useState<Listing[]>([]);
+  const [venues, setVenues] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      browseVenues({ type: "Event", limit: 4 }),
+      browseVenues({ limit: 8 }),
+    ])
+      .then(([eventsResult, venuesResult]) => {
+        setEvents(eventsResult.items);
+        setVenues(venuesResult.items);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff,_#f8fafc_40%,_#ffffff_75%)]">
       <div className="hidden sm:block">
@@ -36,11 +53,9 @@ export default function GamesPage() {
         <div className="px-4 pt-4">
           <MobileTopBar />
         </div>
-        <main className="flex flex-col gap-5 px-4 py-6">
+        <main className="flex flex-col gap-6 px-4 py-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">
-              Find Your Games
-            </p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Choose Your Game</p>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
               Pick a sport, then jump to the right venue.
             </h1>
@@ -64,6 +79,56 @@ export default function GamesPage() {
               </Link>
             ))}
           </div>
+
+          {events.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Events</p>
+              <div className="flex flex-col gap-3">
+                {events.map((event) => (
+                  <Link key={event._id} href={`/venues/${event._id}`}>
+                    <MobileCard className="!p-4">
+                      <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                        {event.coverImage && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                        )}
+                        <div className="relative">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
+                          <h2 className="mt-1 text-lg font-extrabold">{event.title}</h2>
+                        </div>
+                      </div>
+                    </MobileCard>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Venues</p>
+            <div className="flex flex-col gap-3">
+              {venues.map((venue) => (
+                <Link key={venue._id} href={`/venues/${venue._id}`}>
+                  <MobileCard className="!p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{venue.title}</p>
+                        <p className="flex items-center gap-1 text-xs text-slate-500">
+                          <MapPin className="h-3 w-3" /> {venue.city}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                    </div>
+                  </MobileCard>
+                </Link>
+              ))}
+              {!loading && venues.length === 0 && (
+                <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
+                  No venues available yet.
+                </p>
+              )}
+            </div>
+          </div>
         </main>
       </div>
 
@@ -71,9 +136,7 @@ export default function GamesPage() {
         <section className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white/80 p-6 shadow-[0_20px_80px_rgba(148,163,184,0.18)] backdrop-blur sm:p-10">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-600">
-                Find Your Games
-              </p>
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-600">Choose Your Game</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 Pick a sport, then jump straight to the right venue.
               </h1>
@@ -92,21 +155,6 @@ export default function GamesPage() {
                 <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
                   Fast rebooking
                 </span>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/venues"
-                  className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.02]"
-                >
-                  Browse venues
-                </Link>
-                <Link
-                  href="/"
-                  className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
-                >
-                  Back home
-                </Link>
               </div>
             </div>
 
@@ -157,6 +205,81 @@ export default function GamesPage() {
                 </div>
               </Link>
             ))}
+          </div>
+        </section>
+
+        {events.length > 0 && (
+          <section className="mt-8">
+            <div className="mb-5">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">Events</p>
+              <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Beyond just booking a slot</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {events.map((event) => (
+                <Link
+                  key={event._id}
+                  href={`/venues/${event._id}`}
+                  className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
+                    {event.coverImage && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                    )}
+                    <div className="relative">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
+                      <h3 className="mt-1 text-lg font-black">{event.title}</h3>
+                    </div>
+                  </div>
+                  <p className="mt-3 flex items-center gap-1 text-xs text-slate-500">
+                    <MapPin className="h-3.5 w-3.5" /> {event.city}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="mt-8">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-600">Venues</p>
+              <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Book a court, turf, or table near you</h2>
+            </div>
+            <Link href="/venues" className="text-sm font-semibold text-brand-600 hover:text-brand-700">
+              View All Venues
+            </Link>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {venues.map((venue) => (
+              <Link
+                key={venue._id}
+                href={`/venues/${venue._id}`}
+                className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+              >
+                <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
+                  {venue.coverImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                  )}
+                  <div className="relative">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
+                    <h3 className="mt-1 text-lg font-black">{venue.title}</h3>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="flex items-center gap-1 text-xs text-slate-500">
+                    <MapPin className="h-3.5 w-3.5" /> {venue.city}
+                  </p>
+                  <p className="text-sm font-bold text-slate-950">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                </div>
+              </Link>
+            ))}
+            {!loading && venues.length === 0 && (
+              <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
+                No venues available yet.
+              </p>
+            )}
           </div>
         </section>
       </main>

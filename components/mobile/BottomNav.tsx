@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  CalendarClock,
   Gamepad2,
   Home,
   Menu,
@@ -23,7 +22,6 @@ import { SignupModal } from "@/components/home/modals/SignupModal";
 const PRIMARY_TABS = [
   { label: "Home", href: "/", icon: Home },
   { label: "Games", href: "/games", icon: Gamepad2 },
-  { label: "Venues", href: "/venues", icon: CalendarClock },
   { label: "Community", href: "/community", icon: Users },
 ];
 

@@ -18,7 +18,7 @@ function VenueCard({
   onBook: () => void;
 }) {
   return (
-    <div className="group snap-start flex w-[85vw] max-w-xs flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl sm:w-72">
+    <div className="group flex w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
       <div
         role="button"
         tabIndex={0}
@@ -99,7 +99,7 @@ export function TrendingVenues({
         actionLabel="View All Venues"
         onAction={onViewAll}
       />
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {venues.slice(0, 4).map((v) => (
           <VenueCard
             key={v.id}
@@ -111,6 +111,13 @@ export function TrendingVenues({
           />
         ))}
       </div>
+      <button
+        type="button"
+        onClick={onViewAll}
+        className="mt-4 w-full rounded-2xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+      >
+        View More Venues
+      </button>
     </section>
   );
 }

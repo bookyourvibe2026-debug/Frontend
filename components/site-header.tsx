@@ -11,7 +11,7 @@ import { SignupModal } from "./home/modals/SignupModal";
 
 const NAV_LINKS = [
   { label: "Home", href: "/" },
-  { label: "Sports", href: "/venues" },
+  { label: "Sports", href: "/games" },
   { label: "Coaches", href: "/coaches" },
   { label: "Tournaments", href: "/tournaments" },
   { label: "Blog", href: "/blogs" },
