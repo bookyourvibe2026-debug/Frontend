@@ -94,6 +94,8 @@ export interface TurfSlot {
   endTime: string;
   label: string;
   price: number;
+  blocked?: boolean;
+  blockedReason?: string;
 }
 
 export interface DateOverride {
@@ -326,11 +328,25 @@ export interface VendorFoodDashboard {
   allTimeOrderCount: number;
 }
 
+export interface VendorEventsDashboard {
+  tournamentsByStatus: Partial<Record<TournamentStatus, number>>;
+  upcomingTournamentCount: number;
+  totalRevenue: number;
+  registrationCount: number;
+}
+
+export interface VendorCoachesDashboard {
+  activeCoachCount: number;
+  bookingsByStatus: Partial<Record<CoachBookingStatus, number>>;
+  totalEarnings: number;
+  bookingCount: number;
+}
+
 export type VendorStatus = "pending" | "approved" | "suspended";
 export type VendorBusinessType = "Company" | "Individual / Proprietor" | "Partnership";
 export type VendorBankAccountType = "Savings" | "Current";
-/** Which side(s) of the platform this vendor operates — turf owner, food owner, or both. */
-export type VendorVertical = "turf" | "food" | "both";
+/** Which side(s) of the platform this vendor operates — turf owner, events organizer, food & beverages, or coaches. */
+export type VendorVertical = "turf" | "events" | "food" | "coaches";
 
 export interface Vendor {
   _id: string;
@@ -340,7 +356,7 @@ export interface Vendor {
   phone: string;
   state: string;
   city?: string;
-  vertical: VendorVertical;
+  verticals: VendorVertical[];
   status: VendorStatus;
   approvedOn?: string | null;
   notifications: { email: boolean; whatsapp: boolean; offline: boolean };
@@ -400,6 +416,7 @@ export type AdminModuleKey =
   | "bookings"
   | "payouts"
   | "blog"
+  | "banners"
   | "marketing"
   | "categories"
   | "users"
@@ -452,6 +469,17 @@ export interface BlogPost {
   content: string;
   status: "Published" | "Draft";
   publishedOn?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdBanner {
+  _id: string;
+  imageUrl: string;
+  title?: string;
+  linkUrl?: string;
+  order: number;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }

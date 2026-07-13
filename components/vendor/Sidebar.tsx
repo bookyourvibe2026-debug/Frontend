@@ -18,28 +18,49 @@ import {
   ClipboardList,
   UserRoundCog,
   Trophy,
+  Tag,
   X,
 } from "lucide-react";
 import type { VendorVertical } from "@/lib/api/types";
 
-const TURF_NAV_ITEMS = [
-  { href: "/vendor/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/vendor/listings", label: "My Listings", icon: Briefcase },
-  { href: "/vendor/bookings", label: "Bookings Management", icon: CalendarCheck2 },
-  { href: "/vendor/payments", label: "Payment Settled", icon: Wallet },
-  { href: "/vendor/memberships", label: "Memberships", icon: CreditCard },
-  { href: "/vendor/coaches", label: "Coaches", icon: UserRoundCog },
-  { href: "/vendor/tournaments", label: "Tournaments", icon: Trophy },
-  { href: "/vendor/statistics", label: "Statistics", icon: BarChart3 },
-] as const;
+export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label: string; icon: typeof LayoutDashboard }[]> = {
+  turf: [
+    { href: "/vendor/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/listings", label: "My Listings", icon: Briefcase },
+    { href: "/vendor/bookings", label: "Bookings Management", icon: CalendarCheck2 },
+    { href: "/vendor/pricing", label: "Price Setting", icon: Tag },
+    { href: "/vendor/payments", label: "Payment Settled", icon: Wallet },
+    { href: "/vendor/memberships", label: "Memberships", icon: CreditCard },
+    { href: "/vendor/statistics", label: "Statistics", icon: BarChart3 },
+  ],
+  events: [
+    { href: "/vendor/events/dashboard", label: "Events Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/tournaments", label: "Manage Tournaments", icon: Trophy },
+  ],
+  food: [
+    { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/food/menu", label: "Menu Management", icon: UtensilsCrossed },
+    { href: "/vendor/food/orders", label: "Food Orders", icon: ClipboardList },
+  ],
+  coaches: [
+    { href: "/vendor/coaches/dashboard", label: "Coaches Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/coaches", label: "Manage Coaches", icon: UserRoundCog },
+  ],
+};
 
-const FOOD_NAV_ITEMS = [
-  { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
-  { href: "/vendor/food/menu", label: "Menu Management", icon: UtensilsCrossed },
-  { href: "/vendor/food/orders", label: "Food Orders", icon: ClipboardList },
-] as const;
+/** Mobile bottom-nav order, when it should differ from the desktop sidebar's reading order. */
+export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
+  turf: ["/vendor/bookings", "/vendor/listings", "/vendor/dashboard", "/vendor/pricing"],
+};
 
-const SHARED_NAV_ITEMS = [
+const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {
+  turf: "Turf",
+  events: "Events",
+  food: "Food",
+  coaches: "Coaches",
+};
+
+export const SHARED_NAV_ITEMS = [
   { href: "/vendor/role-access", label: "Role Access", icon: ShieldCheck },
   { href: "/vendor/profile", label: "Profile", icon: Settings2 },
   { href: "/vendor/marketing", label: "Marketing", icon: Megaphone },
@@ -49,18 +70,18 @@ export default function Sidebar({
   open,
   onClose,
   onLogout,
-  vertical,
+  verticals,
 }: {
   open: boolean;
   onClose: () => void;
   onLogout: () => void;
-  vertical: VendorVertical;
+  verticals: VendorVertical[];
 }) {
   const pathname = usePathname();
-  const [appMode, setAppMode] = useState<"turf" | "food">("turf");
+  const [appMode, setAppMode] = useState<VendorVertical>(verticals[0] ?? "turf");
 
-  const activeMode = vertical === "both" ? appMode : vertical === "food" ? "food" : "turf";
-  const navItems = [...(activeMode === "food" ? FOOD_NAV_ITEMS : TURF_NAV_ITEMS), ...SHARED_NAV_ITEMS];
+  const activeMode = verticals.includes(appMode) ? appMode : verticals[0] ?? "turf";
+  const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...SHARED_NAV_ITEMS];
 
   return (
     <>
@@ -99,25 +120,23 @@ export default function Sidebar({
           </button>
         </div>
 
-        {vertical === "both" && (
+        {verticals.length > 1 && (
           <div className="p-3 border-b border-surface-border">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-cream-200 p-1 text-xs font-semibold">
-              <button
-                onClick={() => setAppMode("turf")}
-                className={`rounded-lg py-2 transition ${
-                  appMode === "turf" ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
-                }`}
-              >
-                Owner App
-              </button>
-              <button
-                onClick={() => setAppMode("food")}
-                className={`rounded-lg py-2 transition ${
-                  appMode === "food" ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
-                }`}
-              >
-                Food App
-              </button>
+            <div
+              className="grid gap-1 rounded-xl bg-cream-200 p-1 text-xs font-semibold"
+              style={{ gridTemplateColumns: `repeat(${verticals.length}, minmax(0, 1fr))` }}
+            >
+              {verticals.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setAppMode(v)}
+                  className={`rounded-lg py-2 transition ${
+                    activeMode === v ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
+                  }`}
+                >
+                  {VERTICAL_TAB_LABELS[v]}
+                </button>
+              ))}
             </div>
           </div>
         )}

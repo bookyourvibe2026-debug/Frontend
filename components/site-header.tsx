@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, ShieldCheck, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 import { useCustomerAuth } from "./providers/CustomerAuthProvider";
@@ -22,10 +22,29 @@ const NAV_LINKS = [
 export function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
+  const [imgError, setImgError] = useState(false);
   const pathname = usePathname();
   const { customer, status, logout } = useCustomerAuth();
   const isLoggedIn = status === "authenticated";
   const userName = customer?.name?.split(" ")[0] ?? "";
+
+  useEffect(() => {
+    setImgError(false);
+  }, [customer?.avatarUrl]);
+
+  const getInitials = () => {
+    if (customer?.name) {
+      const parts = customer.name.trim().split(/\s+/);
+      const firstInitial = parts[0]?.charAt(0) || "";
+      const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) : "";
+      const initials = (firstInitial + lastInitial).toUpperCase();
+      if (initials) return initials;
+    }
+    if (customer?.email) {
+      return customer.email.charAt(0).toUpperCase();
+    }
+    return "?";
+  };
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -78,11 +97,16 @@ export function SiteHeader() {
               title="My Profile"
               className="hidden h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200 sm:flex"
             >
-              {customer?.avatarUrl ? (
+              {customer?.avatarUrl && !imgError ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={customer.avatarUrl} alt={userName} className="h-full w-full object-cover" />
+                <img
+                  src={customer.avatarUrl}
+                  alt={userName}
+                  className="h-full w-full object-cover"
+                  onError={() => setImgError(true)}
+                />
               ) : (
-                userName.charAt(0).toUpperCase()
+                getInitials()
               )}
             </Link>
           ) : (

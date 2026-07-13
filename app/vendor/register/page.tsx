@@ -83,10 +83,16 @@ export default function VendorRegisterPage() {
         state: data.state,
         city: data.city,
         password: data.password,
-        vertical: data.vertical,
+        verticals: data.verticals,
       });
       setModalOpen(false);
-      router.push("/vendor/dashboard");
+      const landingByVertical: Record<string, string> = {
+        turf: "/vendor/dashboard",
+        food: "/vendor/food/dashboard",
+        events: "/vendor/events/dashboard",
+        coaches: "/vendor/coaches/dashboard",
+      };
+      router.push(landingByVertical[data.verticals[0]] ?? "/vendor/dashboard");
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     }

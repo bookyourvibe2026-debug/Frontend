@@ -16,8 +16,10 @@ import {
   MapPinned,
   RotateCw,
   Smartphone,
+  Trophy,
   Type,
   User,
+  UserRoundCog,
   UtensilsCrossed,
   X,
   type LucideIcon,
@@ -25,6 +27,13 @@ import {
 import { BusinessVertical, RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
+
+const ROLE_LABELS: Record<BusinessVertical, string> = {
+  turf: "Turf Owner",
+  events: "Events Organizer",
+  food: "Food & Beverages",
+  coaches: "Coaches",
+};
 
 const VENUE_TYPES: VenueType[] = [
   "Turf / Sports Ground",
@@ -95,6 +104,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   function validatePhase(p: number): boolean {
     const e: Record<string, string> = {};
     if (p === 1) {
+      if (data.verticals.length === 0) e.verticals = "Select at least one role.";
       if (!/^[6-9]\d{9}$/.test(data.phone)) e.phone = "Enter a valid 10-digit phone number.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "Enter a valid email address.";
       if (!data.otpVerified) e.otp = "Please verify your email with the OTP.";
@@ -251,31 +261,43 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
               <>
                 <div>
                   <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#3f5449]">
-                    What are you registering?
+                    What are you registering as? (select all that apply)
                   </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {(
                       [
-                        { value: "turf", label: "Turf / Sports Venue", icon: Building2 },
-                        { value: "food", label: "Food Court / Restaurant", icon: UtensilsCrossed },
-                        { value: "both", label: "Both", icon: Check },
+                        { value: "turf", label: "Turf Owner", icon: Building2 },
+                        { value: "events", label: "Events Organizer", icon: Trophy },
+                        { value: "food", label: "Food & Beverages", icon: UtensilsCrossed },
+                        { value: "coaches", label: "Coaches", icon: UserRoundCog },
                       ] as { value: BusinessVertical; label: string; icon: LucideIcon }[]
-                    ).map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => update("vertical", option.value)}
-                        className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                          data.vertical === option.value
-                            ? "border-[#0c1912] bg-[#0c1912] text-[#a6ff3c]"
-                            : "border-[#e4ded0] bg-white text-[#10241a] hover:border-[#0c1912]/40"
-                        }`}
-                      >
-                        <option.icon className="h-4 w-4 shrink-0" />
-                        {option.label}
-                      </button>
-                    ))}
+                    ).map((option) => {
+                      const selected = data.verticals.includes(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            update(
+                              "verticals",
+                              selected
+                                ? data.verticals.filter((v) => v !== option.value)
+                                : [...data.verticals, option.value]
+                            )
+                          }
+                          className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                            selected
+                              ? "border-[#0c1912] bg-[#0c1912] text-[#a6ff3c]"
+                              : "border-[#e4ded0] bg-white text-[#10241a] hover:border-[#0c1912]/40"
+                          }`}
+                        >
+                          <option.icon className="h-4 w-4 shrink-0" />
+                          {option.label}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {errors.verticals && <p className="mt-1 text-xs text-red-600">{errors.verticals}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -353,7 +375,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                   error={errors.phone}
                 />
 
-                {data.vertical !== "food" && (
+                {data.verticals.includes("turf") && (
                   <div>
                     <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
                       <Building className="h-4 w-4 shrink-0 text-[#3f5449]" />
@@ -466,14 +488,14 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 <div className="rounded-xl border border-[#e4ded0] bg-white p-5">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReviewItem
-                      label="Business Type"
-                      value={data.vertical === "turf" ? "Turf / Sports Venue" : data.vertical === "food" ? "Food Court / Restaurant" : "Both"}
+                      label="Registering As"
+                      value={data.verticals.map((v) => ROLE_LABELS[v]).join(", ")}
                     />
                     <ReviewItem label="Business Name" value={data.businessName} />
                     <ReviewItem label="Owner Name" value={data.ownerName} />
                     <ReviewItem label="Email Address" value={data.email} />
                     <ReviewItem label="Phone Number" value={data.phone} />
-                    {data.vertical !== "food" && <ReviewItem label="Venue Type" value={data.venueType} />}
+                    {data.verticals.includes("turf") && <ReviewItem label="Venue Type" value={data.venueType} />}
                     <ReviewItem label="City / State" value={`${data.city}, ${data.state}`} />
                   </div>
                 </div>

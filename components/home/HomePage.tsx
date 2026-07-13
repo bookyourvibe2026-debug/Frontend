@@ -149,6 +149,8 @@ export default function HomePage() {
           </p>
         )}
 
+        <AdBanner />
+
         <FindYourGames onSelectSport={handleSelectSport} />
 
         <TrendingVenues
@@ -166,8 +168,6 @@ export default function HomePage() {
         />
 
         <FoodAndBeverages onViewAll={() => router.push("/food")} />
-
-        <AdBanner />
 
         <HowItWorks />
 

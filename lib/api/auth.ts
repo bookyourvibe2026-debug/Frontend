@@ -86,7 +86,7 @@ export interface VendorOwnerProfile {
   email: string;
   status: "pending" | "approved" | "suspended";
   role: "vendor";
-  vertical: "turf" | "food" | "both";
+  verticals: ("turf" | "events" | "food" | "coaches")[];
 }
 
 export interface VendorStaffProfile {
@@ -96,7 +96,7 @@ export interface VendorStaffProfile {
   roleName: string;
   email: string;
   role: "staff" | "subadmin";
-  vertical: "turf" | "food" | "both";
+  verticals: ("turf" | "events" | "food" | "coaches")[];
   permissions?: PermissionsMap<ModulePermissionKey>;
 }
 
@@ -119,7 +119,7 @@ export function vendorRegister(input: {
   state: string;
   city?: string;
   password: string;
-  vertical?: "turf" | "food" | "both";
+  verticals: ("turf" | "events" | "food" | "coaches")[];
 }) {
   return apiRequest<VendorAuthResult>("/auth/vendor/register", { method: "POST", body: input }).then((res) => {
     setAccessToken("vendor", res.accessToken);

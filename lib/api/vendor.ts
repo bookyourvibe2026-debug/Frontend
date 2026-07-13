@@ -22,7 +22,9 @@ import type {
   TournamentRegistrationStatus,
   TournamentStatus,
   Vendor,
+  VendorCoachesDashboard,
   VendorDashboard,
+  VendorEventsDashboard,
   VendorFoodDashboard,
   VendorStaff,
 } from "./types";
@@ -382,4 +384,12 @@ export function checkInVendorFoodOrder(orderId: string) {
 
 export function getVendorFoodDashboard(period: "day" | "week" | "month" | "year" = "day") {
   return apiRequest<VendorFoodDashboard>("/vendor/food-dashboard", { query: { period }, audience: AUD });
+}
+
+export function getVendorEventsDashboard() {
+  return apiRequest<VendorEventsDashboard>("/vendor/events-dashboard", { audience: AUD });
+}
+
+export function getVendorCoachesDashboard() {
+  return apiRequest<VendorCoachesDashboard>("/vendor/coaches-dashboard", { audience: AUD });
 }

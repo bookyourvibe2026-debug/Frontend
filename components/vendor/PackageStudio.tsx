@@ -832,7 +832,7 @@ const TIME_OPTIONS = [
 ];
 
 /* ─── Indian Festival / Holiday lookup ──────────────────────────── */
-const INDIAN_HOLIDAYS: Record<string, string> = {
+export const INDIAN_HOLIDAYS: Record<string, string> = {
   "2026-01-01": "New Year's Day",
   "2026-01-02": "Guru Gobind Singh Jayanti",
   "2026-01-14": "Makar Sankranti",

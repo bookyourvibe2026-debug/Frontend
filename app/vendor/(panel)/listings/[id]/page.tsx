@@ -598,11 +598,18 @@ function AgendaTab({ listing }: { listing: Listing }) {
   }, [localListing, selectedDate, bookings]);
 
   const stats = useMemo(() => {
+    const hrsFor = (status: SlotStatus) =>
+      resolvedSlots.filter(s => s.status === status).reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
     const totalHrs = resolvedSlots.reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const bookedHrs = resolvedSlots.filter(s => s.status === "Booked").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const partPaidHrs = resolvedSlots.filter(s => s.status === "Part Paid").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const availHrs = resolvedSlots.filter(s => s.status === "Available").reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    return { totalHrs, bookedHrs, partPaidHrs, availHrs };
+    return {
+      totalHrs,
+      bookedHrs: hrsFor("Booked"),
+      partPaidHrs: hrsFor("Part Paid"),
+      offlineHrs: hrsFor("Offline Booked"),
+      blockedHrs: hrsFor("Blocked"),
+      onHoldHrs: hrsFor("On Hold"),
+      availHrs: hrsFor("Available"),
+    };
   }, [resolvedSlots]);
 
   const visibleSlots = useMemo(
@@ -612,6 +619,9 @@ function AgendaTab({ listing }: { listing: Listing }) {
 
   const groupedSlots = useMemo(() => {
     if (!groupedFilter) return [];
+    if (groupedFilter === "Booked") {
+      return resolvedSlots.filter(s => s.status === "Booked" || s.status === "Offline Booked");
+    }
     return resolvedSlots.filter(s => s.status === groupedFilter);
   }, [resolvedSlots, groupedFilter]);
 
@@ -689,13 +699,13 @@ function AgendaTab({ listing }: { listing: Listing }) {
   return (
     <div className="space-y-4">
       {/* View controls header */}
-      <div className="flex items-center justify-between border-b border-surface-border pb-3">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-surface-border pb-3">
         <div>
           <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Today&apos;s Agenda</h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">{new Date(selectedDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
+          <p className="text-[11px] text-slate-400 mt-1">{new Date(selectedDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View toggle */}
           <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
             <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "grid" ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
@@ -740,7 +750,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
         </button>
         <button onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")} className={`rounded-xl border p-2 text-center transition ${groupedFilter === "Booked" ? "border-rose-400 bg-rose-50" : "border-rose-100 bg-rose-50/50"}`}>
           <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Booked</p>
-          <p className="text-lg font-extrabold text-rose-600">{stats.bookedHrs}<span className="text-[9px] font-semibold text-rose-400 ml-0.5">h</span></p>
+          <p className="text-lg font-extrabold text-rose-600">{stats.bookedHrs + stats.offlineHrs}<span className="text-[9px] font-semibold text-rose-400 ml-0.5">h</span></p>
         </button>
         <button onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")} className={`rounded-xl border p-2 text-center transition ${groupedFilter === "Part Paid" ? "border-amber-400 bg-amber-50" : "border-amber-100 bg-amber-50/50"}`}>
           <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
@@ -934,10 +944,20 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
 }
 
 function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; filter: SlotStatus; onClose: () => void }) {
+  const colorMap: Record<SlotStatus, { border: string; label: string; dot: string }> = {
+    Available:        { border: "border-emerald-200", label: "text-emerald-700", dot: "bg-emerald-500" },
+    Booked:           { border: "border-rose-200", label: "text-rose-700", dot: "bg-rose-500" },
+    "Part Paid":      { border: "border-amber-200", label: "text-amber-700", dot: "bg-amber-500" },
+    "Offline Booked": { border: "border-orange-200", label: "text-orange-700", dot: "bg-orange-500" },
+    Blocked:          { border: "border-slate-200", label: "text-slate-600", dot: "bg-slate-400" },
+    "On Hold":        { border: "border-purple-200", label: "text-purple-700", dot: "bg-purple-500" },
+  };
+  const c = colorMap[filter] || colorMap.Available;
+
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100">
-        <span className="w-1.5 h-1.5 rounded-full bg-slate-900" />
+        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
         <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-800">{filter} Slots</h4>
         <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-slate-100 text-slate-400"><X size={12} /></button>
       </div>
@@ -945,15 +965,21 @@ function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; fil
         <p className="p-6 text-center text-xs text-slate-400">No {filter} slots</p>
       ) : (
         <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
-          {slots.map((s, i) => (
-            <div key={i} className="flex justify-between items-center px-4 py-2.5 text-xs">
-              <div>
-                <p className="text-[8px] font-bold text-slate-400 uppercase">{s.label}</p>
-                <p className="font-bold text-slate-800">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
+          {slots.map((s, i) => {
+            const sc = colorMap[s.status] || c;
+            return (
+              <div key={i} className={`flex justify-between items-center px-4 py-2.5 text-xs border-l-2 ${sc.border}`}>
+                <div>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase">{s.label}</p>
+                  <p className="font-bold text-slate-800">{to12h(s.startTime)} - <span className={sc.label}>{to12h(s.endTime)}</span></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{s.status}</p>
+                  <p className="font-extrabold text-slate-500">{durHrs(s.startTime, s.endTime)} hrs</p>
+                </div>
               </div>
-              <p className="font-extrabold text-slate-500">{durHrs(s.startTime, s.endTime)} hrs</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

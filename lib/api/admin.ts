@@ -1,5 +1,6 @@
 import { apiRequest, type Paginated } from "./client";
 import type {
+  AdBanner,
   AdminDashboard,
   AdminModuleKey,
   AdminSubUser,
@@ -226,6 +227,24 @@ export function updateBlogPost(id: string, input: Partial<{ title: string; slug:
 
 export function deleteBlogPost(id: string) {
   return apiRequest<null>(`/admin/blog/${id}`, { method: "DELETE", audience: AUD });
+}
+
+/* ---- Ad banners ---- */
+
+export function listBanners() {
+  return apiRequest<AdBanner[]>("/admin/banners", { audience: AUD });
+}
+
+export function createBanner(input: { imageUrl: string; title?: string; linkUrl?: string; order?: number; isActive?: boolean }) {
+  return apiRequest<AdBanner>("/admin/banners", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateBanner(id: string, input: Partial<{ imageUrl: string; title?: string; linkUrl?: string; order: number; isActive: boolean }>) {
+  return apiRequest<AdBanner>(`/admin/banners/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function deleteBanner(id: string) {
+  return apiRequest<null>(`/admin/banners/${id}`, { method: "DELETE", audience: AUD });
 }
 
 /* ---- App version ---- */

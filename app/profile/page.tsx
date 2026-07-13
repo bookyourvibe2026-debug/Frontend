@@ -51,7 +51,26 @@ export default function ProfilePage() {
   const [registrationsLoading, setRegistrationsLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [customer?.avatarUrl]);
+
+  const getInitials = () => {
+    if (customer?.name) {
+      const parts = customer.name.trim().split(/\s+/);
+      const firstInitial = parts[0]?.charAt(0) || "";
+      const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) : "";
+      const initials = (firstInitial + lastInitial).toUpperCase();
+      if (initials) return initials;
+    }
+    if (customer?.email) {
+      return customer.email.charAt(0).toUpperCase();
+    }
+    return "?";
+  };
 
   useEffect(() => {
     if (authStatus === "guest") {
@@ -121,11 +140,16 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:text-left">
           <div className="relative shrink-0">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-2xl font-bold text-brand-700 sm:h-16 sm:w-16">
-              {customer.avatarUrl ? (
+              {customer.avatarUrl && !imgError ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={customer.avatarUrl} alt={customer.name} className="h-full w-full object-cover" />
+                <img
+                  src={customer.avatarUrl}
+                  alt={customer.name}
+                  className="h-full w-full object-cover"
+                  onError={() => setImgError(true)}
+                />
               ) : (
-                customer.name.charAt(0).toUpperCase()
+                getInitials()
               )}
             </div>
             <input

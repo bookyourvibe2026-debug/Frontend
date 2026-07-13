@@ -18,20 +18,17 @@ import {
   Pause,
   Pencil,
   CalendarDays,
-  Boxes,
-  IndianRupee,
-  Clock3,
   Calendar as CalendarIcon,
   ChevronDown,
   User,
   Phone,
   Check,
+  CheckCircle2,
+  Wallet,
+  Clock3,
 } from "lucide-react";
 import { PageHero, SectionCard, Badge } from "@/components/vendor/ui";
-import StatCard from "@/components/vendor/StatCard";
 import {
-  getVendorDashboard,
-  getVendorProfile,
   getVendorListings,
   getVendorBookings,
   createVendorBooking,
@@ -40,9 +37,9 @@ import {
 } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
-import { Vendor, VendorDashboard } from "@/lib/api/types";
 import { Listing, Booking } from "@/lib/types";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
+import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 function to12h(t: string) {
@@ -86,14 +83,14 @@ interface AgendaSlot {
   status: SlotStatus;
   bookingId?: string;
   customerName?: string;
+  phone?: string;
+  blockedReason?: string;
 }
 
 /* ────────────────────────────────────────────────────────────────
    MAIN PAGE
 ────────────────────────────────────────────────────────────────── */
 export default function DashboardPage() {
-  const [profile, setProfile] = useState<Vendor | null>(null);
-  const [dashboard, setDashboard] = useState<VendorDashboard | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -126,21 +123,22 @@ export default function DashboardPage() {
   const [offlinePhone, setOfflinePhone] = useState("");
   const [offlineSubmitting, setOfflineSubmitting] = useState(false);
 
+  // Block-reason picker (available slot → "Block Slot")
+  const [blockReasonOpen, setBlockReasonOpen] = useState(false);
+  // Generic "are you sure, finalizing in Ns" step before any action actually runs
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; seconds: number; run: () => void | Promise<void> } | null>(null);
+
   // Load
   useEffect(() => {
-    Promise.all([
-      getVendorProfile(),
-      getVendorDashboard(),
-      getVendorListings(),
-      getVendorBookings({ limit: 500 }),
-    ])
-      .then(([p, d, l, b]) => {
-        setProfile(p);
-        setDashboard(d);
+    Promise.all([getVendorListings(), getVendorBookings({ limit: 500 })])
+      .then(([l, b]) => {
         const mapped = l.map(apiListingToMock);
         setListings(mapped);
         const turfs = mapped.filter((x) => x.type === "Turf");
-        if (turfs.length > 0) setSelectedTurfId(turfs[0].id);
+        // Prefer a turf that actually has slots configured, so the agenda isn't empty by default.
+        const withSlots = turfs.find((t) => (t.slotsList?.length ?? 0) > 0);
+        if (withSlots) setSelectedTurfId(withSlots.id);
+        else if (turfs.length > 0) setSelectedTurfId(turfs[0].id);
         setBookings(b.items as unknown as Booking[]);
       })
       .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load"))
@@ -194,6 +192,7 @@ export default function DashboardPage() {
           label: slot.label,
           price: slot.price,
           status: "Blocked" as SlotStatus,
+          blockedReason: slot.blockedReason,
         };
       }
 
@@ -204,6 +203,7 @@ export default function DashboardPage() {
           hour12: false, hour: "2-digit", minute: "2-digit",
         });
         return (bk.listing === selectedTurfId || (bk as any).listingId === selectedTurfId)
+          && bk.status !== "Cancelled"
           && bkDate === selectedDate
           && bkTime === slot.startTime;
       });
@@ -211,12 +211,14 @@ export default function DashboardPage() {
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
       let customerName: string | undefined;
+      let phone: string | undefined;
 
       if (match) {
         bookingId = match.orderId;
-        customerName = match.customer;
+        customerName = (match as any).customerName ?? match.customer;
+        phone = (match as any).phone;
         const isOffline = match.payment === "Cash (Offline)";
-        const isHold = match.customer === "Hold";
+        const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
         else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
@@ -231,6 +233,7 @@ export default function DashboardPage() {
         status,
         bookingId,
         customerName,
+        phone,
       };
     });
   }, [selectedTurf, selectedDate, bookings, selectedTurfId]);
@@ -260,11 +263,14 @@ export default function DashboardPage() {
   /* ── Grouped list (for "See Booking" panel) ── */
   const groupedSlots = useMemo(() => {
     if (!groupedFilter) return [];
+    if (groupedFilter === "Booked") {
+      return resolvedSlots.filter(s => s.status === "Booked" || s.status === "Offline Booked");
+    }
     return resolvedSlots.filter(s => s.status === groupedFilter);
   }, [resolvedSlots, groupedFilter]);
 
   /* ── Actions on available slot ── */
-  async function setSlotBlocked(slot: AgendaSlot, blocked: boolean) {
+  async function setSlotBlocked(slot: AgendaSlot, blocked: boolean, reason?: string) {
     if (!selectedTurf) return;
     try {
       const overrides = [...(selectedTurf.dateOverrides || [])];
@@ -272,7 +278,9 @@ export default function DashboardPage() {
       const currentSlots = idx > -1
         ? [...(overrides[idx].slots || [])]
         : [...(selectedTurf.slotsList || [])];
-      const next = currentSlots.map(s => s.startTime === slot.startTime ? { ...s, blocked } : s);
+      const next = currentSlots.map(s => s.startTime === slot.startTime
+        ? { ...s, blocked, blockedReason: blocked ? reason : undefined }
+        : s);
       const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
       if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
       const updated = { ...selectedTurf, dateOverrides: overrides };
@@ -287,9 +295,15 @@ export default function DashboardPage() {
     setOfflineModal(true);
   }
 
+  /** Validates the offline-booking form, then hands off to the confirm-with-undo step. */
+  function confirmOfflineBooking() {
+    if (!offlineName || !offlinePhone) { alert("Please fill name and phone"); return; }
+    setOfflineModal(false);
+    setPendingConfirm({ title: "Mark as Booked", seconds: 6, run: submitOfflineBooking });
+  }
+
   async function submitOfflineBooking() {
     if (!activeSlot || !selectedTurf) return;
-    if (!offlineName || !offlinePhone) { alert("Please fill name and phone"); return; }
     setOfflineSubmitting(true);
     try {
       const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
@@ -305,7 +319,6 @@ export default function DashboardPage() {
       // Refresh bookings
       const fresh = await getVendorBookings({ limit: 500 });
       setBookings(fresh.items as unknown as Booking[]);
-      setOfflineModal(false);
       setActiveSlot(null);
       setOfflineName("");
       setOfflinePhone("");
@@ -333,6 +346,51 @@ export default function DashboardPage() {
     } catch { alert("Failed to hold slot"); }
   }
 
+  /* ── Actions on an already-booked slot ── */
+  async function clearBookedSlot(slot: AgendaSlot) {
+    try {
+      if (slot.bookingId) {
+        await updateVendorBookingStatus(slot.bookingId, "Cancelled");
+        const fresh = await getVendorBookings({ limit: 500 });
+        setBookings(fresh.items as unknown as Booking[]);
+      }
+    } catch { alert("Failed to clear slot"); }
+    setActiveSlot(null);
+  }
+
+  async function markSlotPaidConfirmed(slot: AgendaSlot) {
+    try {
+      if (slot.bookingId) {
+        await updateVendorBookingStatus(slot.bookingId, "Confirmed");
+        const fresh = await getVendorBookings({ limit: 500 });
+        setBookings(fresh.items as unknown as Booking[]);
+      }
+    } catch { alert("Failed to update booking"); }
+    setActiveSlot(null);
+  }
+
+  async function blockSlotForMaintenance(slot: AgendaSlot) {
+    try {
+      if (slot.bookingId) {
+        await updateVendorBookingStatus(slot.bookingId, "Cancelled");
+        const fresh = await getVendorBookings({ limit: 500 });
+        setBookings(fresh.items as unknown as Booking[]);
+      }
+    } catch { alert("Failed to clear existing booking"); return; }
+    await setSlotBlocked(slot, true, "Maintenance");
+  }
+
+  function handleConfirmPending() {
+    if (!pendingConfirm) return;
+    const { run } = pendingConfirm;
+    setPendingConfirm(null);
+    void run();
+  }
+
+  function handleUndoPending() {
+    setPendingConfirm(null);
+  }
+
   /* ── Clock select ── */
   const handleClockHour = async (hour: number) => {
     if (!selectedTurf) return;
@@ -350,24 +408,25 @@ export default function DashboardPage() {
   const cardH = cardSize === "S" ? "h-24" : cardSize === "M" ? "h-36" : "h-48";
   const cardGrid = cardSize === "S" ? "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8" : cardSize === "M" ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-3";
 
+  const isBookedSlot = activeSlot
+    ? (["Booked", "Offline Booked", "Part Paid", "On Hold"] as SlotStatus[]).includes(activeSlot.status)
+    : false;
+
   if (error) return <div className="p-10 text-center text-vibe-coral text-sm">{error}</div>;
-  if (loading || !profile || !dashboard) {
+  if (loading) {
     return <div className="p-10 text-center text-ink-faint text-sm">Loading dashboard…</div>;
   }
-
-  const awaiting = dashboard.bookingsByStatus.Pending ?? 0;
-  const totalBookings = Object.values(dashboard.bookingsByStatus).reduce((s, n) => s + (n ?? 0), 0);
 
   return (
     <div className="min-h-screen bg-[#f5f5f5]">
 
       {/* ── PAGE HEADER ── */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-[15px] font-extrabold text-slate-900 leading-none">Today&apos;s Agenda</h1>
-          <p className="text-[11px] text-slate-400 mt-0.5">{todayLabel}</p>
+          <p className="text-[11px] text-slate-400 mt-1">{todayLabel}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Turf selector */}
           {turfListings.length > 1 && (
             <div className="relative">
@@ -383,17 +442,17 @@ export default function DashboardPage() {
           )}
           {/* View toggle */}
           <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-            <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "grid" ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+            <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "grid" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
               <LayoutGrid size={12} /> Grid
             </button>
-            <button onClick={() => setViewMode("clock")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "clock" ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+            <button onClick={() => setViewMode("clock")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "clock" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
               <ClockIcon size={12} /> Clock
             </button>
           </div>
           {/* Card size */}
           <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
             {(["S", "M", "L"] as const).map(s => (
-              <button key={s} onClick={() => setCardSize(s)} className={`px-2.5 py-1.5 text-[11px] font-bold transition ${cardSize === s ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{s}</button>
+              <button key={s} onClick={() => setCardSize(s)} className={`px-2.5 py-1.5 text-[11px] font-bold transition ${cardSize === s ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{s}</button>
             ))}
           </div>
         </div>
@@ -416,18 +475,28 @@ export default function DashboardPage() {
           {agendaDates.map((d) => {
             const iso = d.toISOString().slice(0, 10);
             const isSel = iso === selectedDate;
+            const isToday = iso === todayIso;
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
             return (
               <button
                 key={iso}
                 onClick={() => setSelectedDate(iso)}
                 className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition ${
                   isSel
-                    ? "bg-[#0b1226] border-[#0b1226] text-white shadow-md"
+                    ? "bg-vibe-navy border-vibe-navy text-white shadow-md"
+                    : isToday
+                    ? "border-vibe-violet/40 bg-vibe-violet/5 text-vibe-violet hover:bg-vibe-violet/10"
+                    : isWeekend
+                    ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
                     : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                 }`}
               >
                 <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                <span className={`text-xl font-extrabold leading-tight mt-0.5 ${isSel ? "text-white" : "text-slate-800"}`}>
+                <span
+                  className={`text-xl font-extrabold leading-tight mt-0.5 ${
+                    isSel ? "text-white" : isToday ? "text-vibe-violet" : isWeekend ? "text-rose-600" : "text-slate-800"
+                  }`}
+                >
                   {d.getDate()}
                 </span>
               </button>
@@ -450,11 +519,11 @@ export default function DashboardPage() {
             <button
               onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")}
               className={`rounded-xl border p-3 text-center transition ${
-                groupedFilter === "Booked" ? "border-rose-400 bg-rose-50 ring-1 ring-rose-300" : "border-rose-100 bg-rose-50/50"
+                groupedFilter === "Booked" ? "border-green-400 bg-green-50 ring-1 ring-green-300" : "border-green-100 bg-green-50/50"
               }`}
             >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Booked</p>
-              <p className="text-lg font-extrabold text-rose-600 mt-1">{stats.bookedHrs + stats.offlineHrs}<span className="text-[10px] font-semibold text-rose-400 ml-0.5">hrs</span></p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-green-600">Booked</p>
+              <p className="text-lg font-extrabold text-green-700 mt-1">{stats.bookedHrs + stats.offlineHrs}<span className="text-[10px] font-semibold text-green-500 ml-0.5">hrs</span></p>
             </button>
             <button
               onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")}
@@ -505,7 +574,7 @@ export default function DashboardPage() {
                   onClick={() => setDaypart(daypart === dp ? null : dp)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition border ${
                     daypart === dp
-                      ? "bg-[#0b1226] border-[#0b1226] text-white shadow-sm"
+                      ? "bg-vibe-navy border-vibe-navy text-white shadow-sm"
                       : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -548,28 +617,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── OVERALL STATS (collapsed below turf section) ── */}
-      <div className="px-4 md:px-6 pb-6">
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-          <StatCard label="Active Listings" value={String(dashboard.activeListingsCount)} hint="Live listings" icon={Boxes} accent="violet" />
-          <StatCard label="Total Bookings" value={String(totalBookings)} hint="All reservations" icon={CalendarDays} accent="lime" />
-          <StatCard label="Awaiting" value={String(awaiting)} hint="Need response" icon={Clock3} accent="amber" />
-          <StatCard label="Revenue" value={`₹${dashboard.totalEarnings.toLocaleString("en-IN")}`} hint="Net earnings" icon={IndianRupee} accent="coral" />
-        </div>
-        {/* Business details */}
-        <div className="mt-4 bg-white rounded-2xl border border-slate-100 p-5 grid sm:grid-cols-2 gap-x-8 gap-y-4">
-          <h3 className="sm:col-span-2 text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-2">Business Details</h3>
-          <Field label="Owner Name" value={profile.ownerName} />
-          <Field label="Business Name" value={profile.businessName} />
-          <Field label="Phone" value={profile.phone} />
-          <Field label="Email" value={profile.email} />
-          <Field label="Location" value={`${profile.city ?? "—"}, ${profile.state}`} />
-          <Field label="Status" value={profile.status} />
-        </div>
-      </div>
-
-      {/* ── SLOT ACTION MODAL ── */}
-      {activeSlot && !offlineModal && (
+      {/* ── SLOT ACTION MODAL (available / blocked) ── */}
+      {activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && !isBookedSlot && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
@@ -589,15 +638,15 @@ export default function DashboardPage() {
 
             {activeSlot.status === "Available" ? (
               <div className="space-y-2">
-                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setSlotBlocked(activeSlot, true)} />
+                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setBlockReasonOpen(true)} />
                 <ActionRow icon={<BookOpen size={18} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for a walk-in or phone customer" onClick={() => startOfflineBooking(activeSlot)} />
-                <ActionRow icon={<Pause size={18} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot without full payment" onClick={() => holdSlot(activeSlot)} />
+                <ActionRow icon={<Pause size={18} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot without full payment" onClick={() => setPendingConfirm({ title: "Keep on Hold", seconds: 8, run: () => holdSlot(activeSlot) })} />
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
                   <div className="flex justify-between"><span className="text-slate-500">Status</span><SlotBadge status={activeSlot.status} /></div>
-                  {activeSlot.customerName && <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-bold">{activeSlot.customerName}</span></div>}
+                  {activeSlot.blockedReason && <div className="flex justify-between"><span className="text-slate-500">Reason</span><span className="font-bold">{activeSlot.blockedReason}</span></div>}
                   <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
                 </div>
@@ -608,6 +657,40 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── MANAGE BOOKED SLOT MODAL ── */}
+      {activeSlot && isBookedSlot && !pendingConfirm && (
+        <ManageBookedSlotModal
+          customerName={activeSlot.customerName}
+          phone={activeSlot.phone}
+          timeLabel={`${to12h(activeSlot.startTime)} – ${to12h(activeSlot.endTime)}`}
+          onClose={() => setActiveSlot(null)}
+          onClear={() => setPendingConfirm({ title: "Clear this slot", seconds: 6, run: () => clearBookedSlot(activeSlot) })}
+          onMarkPaid={() => setPendingConfirm({ title: "Mark as Paid & Confirmed", seconds: 6, run: () => markSlotPaidConfirmed(activeSlot) })}
+          onBlockMaintenance={() => setPendingConfirm({ title: "Block for Maintenance", seconds: 6, run: () => blockSlotForMaintenance(activeSlot) })}
+        />
+      )}
+
+      {/* ── BLOCK REASON PICKER ── */}
+      {blockReasonOpen && activeSlot && (
+        <BlockReasonModal
+          onPick={(reason) => {
+            setBlockReasonOpen(false);
+            setPendingConfirm({ title: "Block this slot", seconds: 6, run: () => setSlotBlocked(activeSlot, true, reason) });
+          }}
+          onClose={() => setBlockReasonOpen(false)}
+        />
+      )}
+
+      {/* ── CONFIRM WITH UNDO COUNTDOWN ── */}
+      {pendingConfirm && (
+        <ConfirmCountdownModal
+          title={pendingConfirm.title}
+          seconds={pendingConfirm.seconds}
+          onConfirm={handleConfirmPending}
+          onUndo={handleUndoPending}
+        />
       )}
 
       {/* ── OFFLINE BOOKING MODAL ── */}
@@ -638,7 +721,7 @@ export default function DashboardPage() {
                     className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
                 </div>
               </div>
-              <button onClick={submitOfflineBooking} disabled={offlineSubmitting}
+              <button onClick={confirmOfflineBooking} disabled={offlineSubmitting}
                 className="w-full rounded-xl bg-emerald-600 text-white py-3 text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-60">
                 {offlineSubmitting ? "Booking…" : "Confirm Offline Booking"}
               </button>
@@ -699,15 +782,16 @@ function formatHourRange(start24: string, end24: string) {
 function SlotCard({ slot, cardH, onClick, now, isToday }: {
   slot: AgendaSlot; cardH: string; onClick: () => void; now: Date; isToday: boolean;
 }) {
-  const cfg: Record<SlotStatus, { bg: string; dot: string; text: string }> = {
-    Available:        { bg: "bg-white border-slate-200", dot: "bg-emerald-400", text: "text-emerald-600" },
-    Booked:           { bg: "bg-red-50/60 border-red-100", dot: "bg-rose-500", text: "text-rose-600" },
-    "Part Paid":      { bg: "bg-amber-50/60 border-amber-100", dot: "bg-amber-400", text: "text-amber-600" },
-    "Offline Booked": { bg: "bg-orange-50/60 border-orange-100", dot: "bg-orange-400", text: "text-orange-600" },
-    Blocked:          { bg: "bg-slate-100 border-slate-200", dot: "bg-slate-400", text: "text-slate-500" },
-    "On Hold":        { bg: "bg-purple-50/60 border-purple-100", dot: "bg-purple-400", text: "text-purple-600" },
+  const cfg: Record<SlotStatus, { bg: string; border: string; icon: typeof Ban }> = {
+    Available:        { bg: "", border: "", icon: Check },
+    Booked:           { bg: "bg-emerald-600", border: "border-emerald-700", icon: CheckCircle2 },
+    "Offline Booked": { bg: "bg-green-600", border: "border-green-700", icon: Wallet },
+    "Part Paid":      { bg: "bg-amber-500", border: "border-amber-600", icon: Clock3 },
+    Blocked:          { bg: "bg-rose-600", border: "border-rose-700", icon: Ban },
+    "On Hold":        { bg: "bg-violet-600", border: "border-violet-700", icon: Pause },
   };
   const c = cfg[slot.status] || cfg["Available"];
+  const StatusIcon = c.icon;
 
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const startMin = t24m(slot.startTime);
@@ -719,21 +803,21 @@ function SlotCard({ slot, cardH, onClick, now, isToday }: {
     <div className="group relative">
       <button
         onClick={onClick}
-        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-2xl border-2 border-dashed ${
+        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-2xl border-2 ${
           slot.status === "Available"
-            ? "border-emerald-200 bg-white hover:border-emerald-400"
-            : c.bg
-        } relative cursor-pointer hover:shadow-md transition-shadow ${isPast ? "opacity-45 saturate-50" : ""} ${
-          isRunning ? "ring-2 ring-[#0b1226] ring-offset-1" : ""
+            ? "border-dashed border-emerald-200 bg-white hover:border-emerald-400"
+            : `${c.border} ${c.bg} hover:brightness-110`
+        } relative cursor-pointer hover:shadow-md transition-shadow ${
+          isRunning ? "ring-2 ring-vibe-navy ring-offset-2" : ""
         }`}
       >
         {isRunning && (
           <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#0b1226] opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-[#0b1226]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vibe-navy opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-vibe-navy" />
           </span>
         )}
-        <span className={`text-base font-extrabold text-slate-800 font-sans`}>
+        <span className={`text-base font-extrabold font-sans ${slot.status === "Available" ? "text-slate-800" : "text-white"}`}>
           {formatHourRange(slot.startTime, slot.endTime)}
         </span>
         {slot.status === "Available" ? (
@@ -743,12 +827,12 @@ function SlotCard({ slot, cardH, onClick, now, isToday }: {
           </>
         ) : (
           <>
-            <span className={`mt-2 text-[10px] font-extrabold uppercase flex items-center gap-1 ${c.text}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+            <StatusIcon size={16} className="text-white/90 mt-1.5" strokeWidth={2.25} />
+            <span className="mt-1 text-[10px] font-extrabold uppercase text-white/95">
               {slot.status}
             </span>
-            {slot.customerName && (
-              <span className="text-[9px] text-slate-400 mt-1 truncate max-w-full px-1">{slot.customerName}</span>
+            {slot.customerName && slot.customerName !== "Hold" && (
+              <span className="text-[9px] text-white/80 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
             )}
           </>
         )}
@@ -768,19 +852,36 @@ function SlotCard({ slot, cardH, onClick, now, isToday }: {
 
 /* ─── SEE BOOKING BUTTON + DROPDOWN ────────────────────────────── */
 function SeeBookingButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onOutside(e: MouseEvent | TouchEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [open]);
+
   return (
-    <div className="relative group">
-      <button className="flex items-center gap-2 bg-slate-900 text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-slate-800 transition">
-        SEE BOOKING <ChevronDown size={14} />
+    <div ref={rootRef} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 bg-vibe-navy text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-vibe-navyDark transition"
+      >
+        SEE BOOKING <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[220px] overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-        {(["Booked", "Part Paid", "Offline Booked", "Blocked", "Available"] as SlotStatus[]).map(f => (
-          <button key={f} onClick={() => onPick(f)}
-            className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-            {f} ({resolvedSlots.filter(s => s.status === f).length})
-          </button>
-        ))}
-      </div>
+      {open && (
+        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[220px] overflow-hidden">
+          {(["Booked", "Part Paid", "Offline Booked", "Blocked", "Available"] as SlotStatus[]).map(f => (
+            <button key={f} onClick={() => { onPick(f); setOpen(false); }}
+              className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              {f} ({resolvedSlots.filter(s => s.status === f).length})
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -789,11 +890,11 @@ function SeeBookingButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot
 function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; filter: SlotStatus; onClose: () => void }) {
   const colorMap: Record<SlotStatus, { border: string; label: string; dot: string }> = {
     Available:        { border: "border-emerald-200", label: "text-emerald-700", dot: "bg-emerald-500" },
-    Booked:           { border: "border-rose-200", label: "text-rose-700", dot: "bg-rose-500" },
+    Booked:           { border: "border-emerald-300", label: "text-emerald-700", dot: "bg-emerald-600" },
     "Part Paid":      { border: "border-amber-200", label: "text-amber-700", dot: "bg-amber-500" },
-    "Offline Booked": { border: "border-orange-200", label: "text-orange-700", dot: "bg-orange-500" },
-    Blocked:          { border: "border-slate-200", label: "text-slate-600", dot: "bg-slate-400" },
-    "On Hold":        { border: "border-purple-200", label: "text-purple-700", dot: "bg-purple-500" },
+    "Offline Booked": { border: "border-green-200", label: "text-green-700", dot: "bg-green-600" },
+    Blocked:          { border: "border-rose-200", label: "text-rose-700", dot: "bg-rose-600" },
+    "On Hold":        { border: "border-violet-200", label: "text-violet-700", dot: "bg-violet-500" },
   };
   const c = colorMap[filter] || colorMap.Available;
 
@@ -809,18 +910,21 @@ function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; fil
         <p className="px-5 py-8 text-sm text-center text-slate-400">No {filter.toLowerCase()} slots for this date</p>
       ) : (
         <div className="divide-y divide-slate-100">
-          {slots.map((s, i) => (
-            <div key={i} className={`flex items-center justify-between px-5 py-4 border-l-2 ${c.border}`}>
-              <div>
-                <p className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">{s.label}</p>
-                <p className="text-[17px] font-extrabold text-slate-900 leading-none">{to12h(s.startTime)} – <span className={c.label}>{to12h(s.endTime)}</span></p>
+          {slots.map((s, i) => {
+            const sc = colorMap[s.status] || c;
+            return (
+              <div key={i} className={`flex items-center justify-between px-5 py-4 border-l-2 ${sc.border}`}>
+                <div>
+                  <p className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">{s.label}</p>
+                  <p className="text-[17px] font-extrabold text-slate-900 leading-none">{to12h(s.startTime)} – <span className={sc.label}>{to12h(s.endTime)}</span></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{s.status}</p>
+                  <p className="text-sm font-extrabold text-slate-700">{durHrs(s.startTime, s.endTime)} hrs</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{filter}</p>
-                <p className="text-sm font-extrabold text-slate-700">{durHrs(s.startTime, s.endTime)} hrs</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -847,21 +951,11 @@ function ActionRow({ icon, title, sub, onClick, color }: {
 function SlotBadge({ status }: { status: SlotStatus }) {
   const cfg: Record<SlotStatus, string> = {
     Available: "bg-emerald-100 text-emerald-700",
-    Booked: "bg-rose-100 text-rose-700",
+    Booked: "bg-emerald-100 text-emerald-700",
     "Part Paid": "bg-amber-100 text-amber-700",
-    "Offline Booked": "bg-orange-100 text-orange-700",
-    Blocked: "bg-slate-100 text-slate-600",
-    "On Hold": "bg-purple-100 text-purple-700",
+    "Offline Booked": "bg-green-100 text-green-700",
+    Blocked: "bg-rose-100 text-rose-700",
+    "On Hold": "bg-violet-100 text-violet-700",
   };
   return <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${cfg[status] || ""}`}>{status}</span>;
-}
-
-/* ─── FIELD ─────────────────────────────────────────────────────── */
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">{label}</p>
-      <p className="mt-0.5 text-sm font-medium text-slate-800 capitalize">{value}</p>
-    </div>
-  );
 }

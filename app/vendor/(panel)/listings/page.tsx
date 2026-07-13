@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Copy, Eye, Plus, Search, Trash2 } from "lucide-react";
 import { PageHero, Badge } from "@/components/vendor/ui";
+import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { Toast } from "@/components/admin/Toast";
 import { Listing } from "@/lib/types";
 import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
@@ -20,6 +21,8 @@ const TYPE_TONE: Record<Listing["type"], "info" | "success" | "pending"> = {
 };
 
 export default function ListingsPage() {
+  const { vendor } = useVendorAuth();
+  const canAddEvent = vendor.verticals.includes("events");
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
@@ -81,12 +84,14 @@ export default function ListingsPage() {
             >
               <Plus size={16} /> Add Turf / Game
             </Link>
-            <Link
-              href="/vendor/listings/new?kind=event"
-              className="inline-flex items-center gap-2 rounded-xl bg-vibe-lime text-vibe-indigo font-semibold text-sm px-4 py-2.5 hover:bg-vibe-lime/90 transition-colors"
-            >
-              <Plus size={16} /> Add New Event
-            </Link>
+            {canAddEvent && (
+              <Link
+                href="/vendor/listings/new?kind=event"
+                className="inline-flex items-center gap-2 rounded-xl bg-vibe-lime text-vibe-indigo font-semibold text-sm px-4 py-2.5 hover:bg-vibe-lime/90 transition-colors"
+              >
+                <Plus size={16} /> Add New Event
+              </Link>
+            )}
           </>
         }
       />

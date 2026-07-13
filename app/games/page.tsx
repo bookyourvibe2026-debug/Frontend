@@ -99,20 +99,32 @@ export default function GamesPage() {
             {events.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {events.map((event) => (
-                  <Link key={event._id} href={`/venues/${event._id}`}>
-                    <MobileCard className="!p-4">
-                      <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
-                        {event.coverImage && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
-                        )}
-                        <div className="relative">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
-                          <h2 className="mt-1 text-lg font-extrabold">{event.title}</h2>
-                        </div>
+                  <MobileCard key={event._id} className="!p-4">
+                    <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                      {event.coverImage && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={event.coverImage} alt={event.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                      )}
+                      <div className="relative">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{event.categories.join(", ") || "Event"}</p>
+                        <h2 className="mt-1 text-lg font-extrabold">{event.title}</h2>
                       </div>
-                    </MobileCard>
-                  </Link>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-1 text-xs text-slate-500">
+                          <MapPin className="h-3 w-3" /> {event.city}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-900">₹{event.price.toLocaleString("en-IN")}</p>
+                      </div>
+                      <Link
+                        href={`/venues/${event._id}`}
+                        className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
+                      >
+                        View details
+                      </Link>
+                    </div>
+                  </MobileCard>
                 ))}
               </div>
             ) : (
@@ -128,19 +140,32 @@ export default function GamesPage() {
             <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Venues</p>
             <div className="flex flex-col gap-3">
               {venues.map((venue) => (
-                <Link key={venue._id} href={`/venues/${venue._id}`}>
-                  <MobileCard className="!p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-900">{venue.title}</p>
-                        <p className="flex items-center gap-1 text-xs text-slate-500">
-                          <MapPin className="h-3 w-3" /> {venue.city}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                <MobileCard key={venue._id} className="!p-4">
+                  <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                    {venue.coverImage && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                    )}
+                    <div className="relative">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
+                      <h2 className="mt-1 text-lg font-extrabold">{venue.title}</h2>
                     </div>
-                  </MobileCard>
-                </Link>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="flex items-center gap-1 text-xs text-slate-500">
+                        <MapPin className="h-3 w-3" /> {venue.city}
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                    </div>
+                    <Link
+                      href={`/venues/${venue._id}`}
+                      className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
+                    >
+                      View details
+                    </Link>
+                  </div>
+                </MobileCard>
               ))}
               {!loading && venues.length === 0 && (
                 <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">

@@ -89,6 +89,7 @@ export function SignupModal({
           state: CITY_STATE[city] ?? city,
           city,
           password,
+          verticals: ["turf"],
         });
       }
       onSignedUp(role);

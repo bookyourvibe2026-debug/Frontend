@@ -8,6 +8,7 @@ import {
   Compass,
   LayoutGrid,
   BookOpen,
+  Image as ImageIcon,
   Users,
   Building2,
   ShieldCheck,
@@ -40,7 +41,10 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Content",
-    items: [{ href: "/admin/blog", label: "Vibe Blog", icon: BookOpen }],
+    items: [
+      { href: "/admin/blog", label: "Vibe Blog", icon: BookOpen },
+      { href: "/admin/banners", label: "Ad Banners", icon: ImageIcon },
+    ],
   },
   {
     title: "Management",

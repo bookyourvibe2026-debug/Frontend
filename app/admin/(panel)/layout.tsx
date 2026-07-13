@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   "/admin/user-queries": "User Queries",
   "/admin/categories": "Categories",
   "/admin/blog": "Vibe Blog",
+  "/admin/banners": "Ad Banners",
   "/admin/users": "Users",
   "/admin/vendor-management": "Vendor Management",
   "/admin/sub-admins": "Manage Sub Admins",

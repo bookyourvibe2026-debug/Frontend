@@ -91,6 +91,7 @@ export interface TurfSlot {
   label: string;
   price: number;
   blocked?: boolean;
+  blockedReason?: string;
 }
 
 export interface DateOverride {

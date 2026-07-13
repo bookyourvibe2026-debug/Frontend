@@ -28,6 +28,7 @@ import {
 import { type Venue } from "@/lib/venues";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
+import { AdBanner } from "../AdBanner";
 
 const MOBILE_QUICK_ACTIONS = [
   { id: "book-now", label: "Book Now", icon: Zap },
@@ -178,15 +179,9 @@ export function MobileHome({
         <p className="flex items-center justify-end gap-1.5 text-xs text-slate-500">
           Good Morning, {userName} <span aria-hidden>👋</span>
         </p>
-        <h1 className="mt-1 text-2xl font-extrabold leading-tight text-slate-900">
-          Let&rsquo;s Find Your{" "}
-          <span className="bg-gradient-to-r from-brand-500 via-amber-500 to-accent-500 bg-clip-text text-transparent">
-            Vibe
-          </span>
-        </h1>
       </div>
 
-      <div className="-mt-4 flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 shadow-sm">
+      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 shadow-sm">
         <button
           type="button"
           aria-label="Filters"
@@ -235,6 +230,8 @@ export function MobileHome({
           ))}
         </div>
       </section>
+
+      <AdBanner className="" />
 
       <section>
         <MobileSectionRow
