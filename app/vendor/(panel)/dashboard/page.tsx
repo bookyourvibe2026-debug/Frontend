@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [selectedTurfId, setSelectedTurfId] = useState("");
-  const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>(null);
+  const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>("Morning");
 
   // Live clock tick — drives "running now" / "already passed" slot styling
   const [now, setNow] = useState(() => new Date());
@@ -157,7 +157,7 @@ export default function DashboardPage() {
   const agendaDates = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    return Array.from({ length: 60 }, (_, i) => {
+    return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       return d;
@@ -412,54 +412,68 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
-        <div className="flex gap-1 py-3 overflow-x-auto scrollbar-none">
-          {agendaMonthGroups.map((group, gi) => (
-            <div key={group.key} className="flex items-center gap-1 shrink-0">
-              {gi > 0 && <span className="mx-2 h-8 w-px shrink-0 bg-slate-200" />}
-              <span className="mr-1 shrink-0 rounded-md bg-slate-100 px-1.5 py-3 text-[9px] font-extrabold uppercase tracking-wide text-slate-400">
-                {group.label}
-              </span>
-              {group.dates.map((d) => {
-                const iso = d.toISOString().slice(0, 10);
-                const isSel = iso === selectedDate;
-                return (
-                  <button key={iso} onClick={() => setSelectedDate(iso)}
-                    className={`flex flex-col items-center min-w-[56px] py-2 rounded-xl transition shrink-0 ${isSel ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                    <span className={`text-2xl font-extrabold leading-tight ${isSel ? "text-white" : "text-slate-800"}`}>{d.getDate()}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+        <div className="grid grid-cols-7 gap-2 py-3">
+          {agendaDates.map((d) => {
+            const iso = d.toISOString().slice(0, 10);
+            const isSel = iso === selectedDate;
+            return (
+              <button
+                key={iso}
+                onClick={() => setSelectedDate(iso)}
+                className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition ${
+                  isSel
+                    ? "bg-[#0b1226] border-[#0b1226] text-white shadow-md"
+                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
+                <span className={`text-xl font-extrabold leading-tight mt-0.5 ${isSel ? "text-white" : "text-slate-800"}`}>
+                  {d.getDate()}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── STATS ROW ── */}
         {selectedTurf && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-3">
-            <button onClick={() => setGroupedFilter(null)}
-              className={`rounded-xl border p-3 text-center transition ${!groupedFilter ? "border-slate-400 bg-slate-100 ring-1 ring-slate-300" : "border-slate-200 bg-white"}`}>
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <button
+              onClick={() => setGroupedFilter(null)}
+              className={`rounded-xl border p-3 text-center transition ${
+                !groupedFilter ? "border-slate-400 bg-slate-100 ring-1 ring-slate-300" : "border-slate-200 bg-slate-50"
+              }`}
+            >
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total Cap.</p>
-              <p className="text-xl font-extrabold text-slate-800">{stats.totalHrs}<span className="text-[10px] font-semibold text-slate-400 ml-0.5">hrs</span></p>
+              <p className="text-lg font-extrabold text-slate-800 mt-1">{stats.totalHrs}<span className="text-[10px] font-semibold text-slate-500 ml-0.5">hrs</span></p>
             </button>
-            {(
-              [
-                { status: "Available", hrs: stats.availHrs, cls: STAT_TONE.emerald },
-                { status: "Booked", hrs: stats.bookedHrs, cls: STAT_TONE.rose },
-                { status: "Part Paid", hrs: stats.partPaidHrs, cls: STAT_TONE.amber },
-                { status: "Offline Booked", hrs: stats.offlineHrs, cls: STAT_TONE.orange },
-                { status: "On Hold", hrs: stats.onHoldHrs, cls: STAT_TONE.purple },
-                { status: "Blocked", hrs: stats.blockedHrs, cls: STAT_TONE.slate },
-              ] as const
-            ).map(({ status, hrs, cls }) => (
-              <button key={status} onClick={() => setGroupedFilter(groupedFilter === status ? null : status)}
-                className={`rounded-xl border p-3 text-center transition ${groupedFilter === status ? cls.active : cls.idle}`}>
-                <p className={`text-[9px] font-bold uppercase tracking-wider ${cls.label}`}>{status === "Offline Booked" ? "Offline" : status}</p>
-                <p className={`text-xl font-extrabold ${cls.value}`}>{hrs}<span className={`text-[10px] font-semibold ${cls.pct} ml-0.5`}>hrs</span></p>
-                <p className={`text-[9px] font-bold ${cls.pct}`}>{stats.totalHrs ? Math.round((hrs / stats.totalHrs) * 100) : 0}%</p>
-              </button>
-            ))}
+            <button
+              onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")}
+              className={`rounded-xl border p-3 text-center transition ${
+                groupedFilter === "Booked" ? "border-rose-400 bg-rose-50 ring-1 ring-rose-300" : "border-rose-100 bg-rose-50/50"
+              }`}
+            >
+              <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Booked</p>
+              <p className="text-lg font-extrabold text-rose-600 mt-1">{stats.bookedHrs + stats.offlineHrs}<span className="text-[10px] font-semibold text-rose-400 ml-0.5">hrs</span></p>
+            </button>
+            <button
+              onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")}
+              className={`rounded-xl border p-3 text-center transition ${
+                groupedFilter === "Part Paid" ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300" : "border-amber-100 bg-amber-50/50"
+              }`}
+            >
+              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
+              <p className="text-lg font-extrabold text-amber-600 mt-1">{stats.partPaidHrs}<span className="text-[10px] font-semibold text-amber-400 ml-0.5">hrs</span></p>
+            </button>
+            <button
+              onClick={() => setGroupedFilter(groupedFilter === "Available" ? null : "Available")}
+              className={`rounded-xl border p-3 text-center transition ${
+                groupedFilter === "Available" ? "border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300" : "border-emerald-100 bg-emerald-50/50"
+              }`}
+            >
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Available</p>
+              <p className="text-lg font-extrabold text-emerald-600 mt-1">{stats.availHrs}<span className="text-[10px] font-semibold text-emerald-400 ml-0.5">hrs</span></p>
+            </button>
           </div>
         )}
 
@@ -486,8 +500,15 @@ export default function DashboardPage() {
             {/* Day-part tabs */}
             <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none">
               {(["Morning", "Afternoon", "Night", "Mid Night"] as const).map(dp => (
-                <button key={dp} onClick={() => setDaypart(daypart === dp ? null : dp)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${daypart === dp ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+                <button
+                  key={dp}
+                  onClick={() => setDaypart(daypart === dp ? null : dp)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition border ${
+                    daypart === dp
+                      ? "bg-[#0b1226] border-[#0b1226] text-white shadow-sm"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
                   {dp}
                 </button>
               ))}
@@ -508,6 +529,7 @@ export default function DashboardPage() {
               <div className="flex justify-center py-4">
                 <ClockSlotsWidget
                   slots={resolvedSlots}
+                  onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
                   renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
                 />
@@ -667,6 +689,12 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick, now, isToday
   );
 }
 
+function formatHourRange(start24: string, end24: string) {
+  const startHour = parseInt(start24.split(":")[0], 10);
+  const endHour = parseInt(end24.split(":")[0], 10);
+  return `${startHour}-${endHour}`;
+}
+
 /* ─── SLOT CARD ────────────────────────────────────────────────── */
 function SlotCard({ slot, cardH, onClick, now, isToday }: {
   slot: AgendaSlot; cardH: string; onClick: () => void; now: Date; isToday: boolean;
@@ -689,25 +717,40 @@ function SlotCard({ slot, cardH, onClick, now, isToday }: {
 
   return (
     <div className="group relative">
-      <button onClick={onClick}
-        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-xl border ${c.bg} relative cursor-pointer hover:shadow-md transition-shadow ${
-          isPast ? "opacity-45 saturate-50" : ""
-        } ${isRunning ? "ring-2 ring-vibe-violet ring-offset-1" : ""}`}>
+      <button
+        onClick={onClick}
+        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-2xl border-2 border-dashed ${
+          slot.status === "Available"
+            ? "border-emerald-200 bg-white hover:border-emerald-400"
+            : c.bg
+        } relative cursor-pointer hover:shadow-md transition-shadow ${isPast ? "opacity-45 saturate-50" : ""} ${
+          isRunning ? "ring-2 ring-[#0b1226] ring-offset-1" : ""
+        }`}
+      >
         {isRunning && (
           <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vibe-violet opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-vibe-violet" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#0b1226] opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-[#0b1226]" />
           </span>
         )}
-        <span className={`text-sm font-bold ${c.text} font-mono`}>
-          {slot.startTime.slice(0, 5)}-{slot.endTime.slice(0, 5).replace(":", "·").slice(0, 5)}
+        <span className={`text-base font-extrabold text-slate-800 font-sans`}>
+          {formatHourRange(slot.startTime, slot.endTime)}
         </span>
-        <span className={`mt-1 text-[10px] font-bold uppercase flex items-center gap-1 ${c.text}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-          {slot.status === "Available" ? `₹${slot.price}` : slot.status}
-        </span>
-        {slot.customerName && (
-          <span className="text-[9px] text-slate-400 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
+        {slot.status === "Available" ? (
+          <>
+            <span className="text-xl font-bold text-emerald-500 mt-1 leading-none">+</span>
+            <span className="text-[10px] font-extrabold uppercase text-emerald-600 mt-0.5">FREE</span>
+          </>
+        ) : (
+          <>
+            <span className={`mt-2 text-[10px] font-extrabold uppercase flex items-center gap-1 ${c.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+              {slot.status}
+            </span>
+            {slot.customerName && (
+              <span className="text-[9px] text-slate-400 mt-1 truncate max-w-full px-1">{slot.customerName}</span>
+            )}
+          </>
         )}
       </button>
 

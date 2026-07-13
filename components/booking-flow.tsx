@@ -739,18 +739,19 @@ function ReviewStep(props: {
                               const isBooked = slot.status === "Booked";
                               const isPartPaid = slot.status === "Part Paid";
 
-                              let cardStyle = "border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer";
-                              let statusIcon = <Plus className="h-3.5 w-3.5 text-emerald-500" />;
-                              let statusLabel = "Free";
+                              let cardStyle = "border-2 border-dashed border-emerald-200 bg-white hover:border-emerald-400 text-emerald-700 cursor-pointer";
+                              let statusIcon = <Plus className="h-3.5 w-3.5 text-emerald-500 font-bold" />;
+                              let statusLabel = "FREE";
 
                               if (isSelected) {
-                                cardStyle = "border-brand-500 bg-brand-50 text-brand-700 font-extrabold ring-2 ring-brand-100 cursor-pointer";
+                                cardStyle = "border-2 border-solid border-[#0b1226] bg-[#0b1226] text-white shadow-md cursor-pointer font-extrabold";
+                                statusIcon = <Check className="h-3.5 w-3.5 text-emerald-400 font-bold" />;
                               } else if (isBooked) {
-                                cardStyle = "border-rose-100 bg-rose-50/50 text-rose-500 cursor-not-allowed opacity-60";
+                                cardStyle = "border-2 border-solid border-rose-100 bg-rose-50/50 text-rose-600 cursor-not-allowed opacity-65";
                                 statusIcon = <X className="h-3.5 w-3.5 text-rose-500" />;
                                 statusLabel = "Booked";
                               } else if (isPartPaid) {
-                                cardStyle = "border-amber-100 bg-amber-50/50 text-amber-600 cursor-not-allowed opacity-60";
+                                cardStyle = "border-2 border-solid border-amber-100 bg-amber-50/50 text-amber-700 cursor-not-allowed opacity-65";
                                 statusIcon = <Clock className="h-3.5 w-3.5 text-amber-500" />;
                                 statusLabel = "Part Paid";
                               }
@@ -761,18 +762,18 @@ function ReviewStep(props: {
                                   type="button"
                                   disabled={!isAvailable}
                                   onClick={() => setSelectedSlotIndex(slot.originalIndex)}
-                                  className={`flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition min-w-[100px] h-[88px] shrink-0 ${cardStyle}`}
+                                  className={`flex flex-col items-center justify-center rounded-2xl p-2.5 text-center transition min-w-[105px] h-[92px] shrink-0 ${cardStyle}`}
                                 >
-                                  <p className="text-[10px] uppercase font-extrabold tracking-wide leading-tight">
+                                  <p className={`text-[10px] uppercase font-extrabold tracking-wide leading-tight ${isSelected ? "text-white/90" : "text-slate-800"}`}>
                                     {slot.startTime12.replace(":00", "")}
                                     <br />
                                     {slot.endTime12.replace(":00", "")}
                                   </p>
                                   <div className="my-1 flex flex-col items-center justify-center">
                                     {statusIcon}
-                                    <span className="text-[8px] uppercase font-extrabold tracking-wider mt-px">{statusLabel}</span>
+                                    <span className={`text-[8px] uppercase font-extrabold tracking-wider mt-0.5 ${isSelected ? "text-emerald-300" : ""}`}>{statusLabel}</span>
                                   </div>
-                                  <p className="text-[11px] font-bold text-slate-800">₹{slot.price}</p>
+                                  <p className={`text-[11px] font-bold ${isSelected ? "text-white" : "text-slate-700"}`}>₹{slot.price}</p>
                                 </button>
                               );
                             })

@@ -12,12 +12,12 @@ export interface ClockSlotItem {
 }
 
 const STATUS_COLORS: Record<ClockSlotItem["status"], string> = {
-  Available: "#10b981",
-  Booked: "#f43f5e",
-  "Part Paid": "#f59e0b",
-  "Offline Booked": "#fb923c",
-  "On Hold": "#a855f7",
-  Blocked: "#64748b",
+  Available: "#10b981",       // Green
+  Booked: "#ef4444",          // Red
+  "Part Paid": "#f59e0b",     // Yellow
+  "On Hold": "#a855f7",       // Purple
+  "Offline Booked": "#64748b",// Gray (Offline/Blocked)
+  Blocked: "#64748b",         // Gray (Offline/Blocked)
 };
 
 const STAT_CARD_CFG: {
@@ -90,6 +90,8 @@ function statusColor(status: ClockSlotItem["status"]): string {
   return STATUS_COLORS[status] ?? STATUS_COLORS.Available;
 }
 
+const USE_DEMO_DATA = true;
+
 export function ClockSlotsWidget({
   slots = [],
   onSelectSlot,
@@ -103,13 +105,7 @@ export function ClockSlotsWidget({
 }) {
   const [hoveredSlot, setHoveredSlot] = useState<ClockSlotItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [now, setNow] = useState(() => new Date());
   const [half, setHalf] = useState<"AM" | "PM">(() => (new Date().getHours() < 12 ? "AM" : "PM"));
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1_000);
-    return () => clearInterval(id);
-  }, []);
 
   const size = 280;
   const center = size / 2;
@@ -153,45 +149,111 @@ export function ClockSlotsWidget({
     return ticks;
   }, [center, outerRadius]);
 
+  const activeSlotsList = useMemo(() => {
+    if (USE_DEMO_DATA) {
+      const amSlots: Record<number, string> = {
+        12: "available",
+        1: "available",
+        2: "booked",
+        3: "booked",
+        4: "partial",
+        5: "offline",
+        6: "available",
+        7: "available",
+        8: "on_hold",
+        9: "booked",
+        10: "available",
+        11: "available",
+      };
+
+      const pmSlots: Record<number, string> = {
+        12: "booked",
+        1: "available",
+        2: "available",
+        3: "partial",
+        4: "booked",
+        5: "available",
+        6: "offline",
+        7: "available",
+        8: "booked",
+        9: "available",
+        10: "on_hold",
+        11: "booked",
+      };
+
+      const demoStatusMap: Record<string, ClockSlotItem["status"]> = {
+        available: "Available",
+        booked: "Booked",
+        partial: "Part Paid",
+        offline: "Offline Booked",
+        on_hold: "On Hold",
+      };
+
+      const currentHalfSlots = half === "AM" ? amSlots : pmSlots;
+      
+      const list: ClockSlotItem[] = [];
+      const offset = half === "AM" ? 0 : 12;
+      for (let h = 0; h < 12; h++) {
+        const realHour = offset + h;
+        const labelHour = h === 0 ? 12 : h;
+        const rawStatus = currentHalfSlots[labelHour] || "available";
+        list.push({
+          startTime: `${String(realHour).padStart(2, "0")}:00`,
+          endTime: `${String((realHour + 1) % 24).padStart(2, "0")}:00`,
+          price: 1000,
+          label: half === "AM" ? "Morning" : "Night",
+          status: demoStatusMap[rawStatus] || "Available",
+          customerName: rawStatus !== "available" ? "Demo Player" : undefined,
+        });
+      }
+      return list;
+    }
+    return slots;
+  }, [slots, half]);
+
   const segments = useMemo(() => {
     const result: { slot: ClockSlotItem; pathData: string; color: string; index: number }[] = [];
-    slots.forEach((slot, index) => {
-      const startH = timeStringToHours(slot.startTime);
-      let endH = timeStringToHours(slot.endTime);
-      if (endH <= startH) endH += 24;
-
-      // Clip the slot's real-time span to whichever half of the day is currently shown.
-      const effStart = Math.max(startH, halfStart);
-      const effEnd = Math.min(endH, halfEnd);
-      if (effEnd <= effStart) return;
-
-      const startAngle = toFaceAngle(effStart);
-      const endAngle = toFaceAngle(effEnd);
-      const color = statusColor(slot.status);
-
-      result.push({
-        slot,
-        pathData: describePieSegment(center, center, innerRadius, outerRadius, startAngle, endAngle),
-        color,
-        index,
+    
+    for (let h = 0; h < 12; h++) {
+      const realHour = half === "AM" ? h : h + 12;
+      
+      // Find a slot that overlaps with [realHour, realHour + 1]
+      const matchingSlot = activeSlotsList.find(s => {
+        const start = timeStringToHours(s.startTime);
+        let end = timeStringToHours(s.endTime);
+        if (end <= start) end += 24;
+        return realHour >= start && realHour < end;
       });
-    });
+
+      const startAngle = h * 30;
+      const endAngle = (h + 1) * 30;
+      const color = matchingSlot ? statusColor(matchingSlot.status) : "transparent";
+
+      if (matchingSlot) {
+        result.push({
+          slot: matchingSlot,
+          pathData: describePieSegment(center, center, innerRadius, outerRadius, startAngle, endAngle),
+          color,
+          index: h,
+        });
+      }
+    }
     return result;
-  }, [slots, center, innerRadius, outerRadius, halfStart, halfEnd]);
+  }, [activeSlotsList, center, innerRadius, outerRadius, half]);
 
   const stats = useMemo(() => {
     const hrsByStatus: Record<ClockSlotItem["status"], number> = {
       Available: 0, Booked: 0, "Part Paid": 0, "Offline Booked": 0, "On Hold": 0, Blocked: 0,
     };
-    for (const s of slots) {
+    for (const s of activeSlotsList) {
       hrsByStatus[s.status] += slotDurationHrs(s);
     }
-    const total = slots.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 24;
+    const total = activeSlotsList.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 24;
     const pct = (hrs: number) => Math.round((hrs / total) * 100);
     return {
-      available: slots.filter((s) => s.status === "Available").length,
-      booked: slots.filter((s) => s.status === "Booked").length,
-      offline: slots.filter((s) => s.status === "Offline Booked").length,
+      available: activeSlotsList.filter((s) => s.status === "Available").length,
+      booked: activeSlotsList.filter((s) => s.status === "Booked").length,
+      offline: activeSlotsList.filter((s) => s.status === "Offline Booked").length,
       byStatus: hrsByStatus,
       pctByStatus: {
         Available: pct(hrsByStatus.Available),
@@ -202,18 +264,17 @@ export function ClockSlotsWidget({
         Blocked: pct(hrsByStatus.Blocked),
       } as Record<ClockSlotItem["status"], number>,
     };
-  }, [slots]);
+  }, [activeSlotsList]);
 
-  // Real two-handed analog clock — always shows the true wall-clock position (an analog
-  // face doesn't visually distinguish AM/PM), ticking every second via a smooth CSS transform.
-  const hourHandAngle = ((now.getHours() % 12) + now.getMinutes() / 60) * 30;
-  const minuteHandAngle = (now.getMinutes() + now.getSeconds() / 60) * 6;
+  // Fixed hands positions at 7:30 (Hour hand at 225 deg, Minute hand at 180 deg)
+  const hourHandAngle = 225;
+  const minuteHandAngle = 180;
 
   return (
     <div className="relative flex flex-col items-center p-4 bg-white rounded-2xl border border-surface-border shadow-panel w-full max-w-sm">
       <div className="text-center mb-3">
         <p className="text-xs font-bold uppercase tracking-wider text-vibe-violet">Analog Slot Clock</p>
-        <p className="text-[10px] text-ink-faint mt-0.5">Live time · Hover slices for details</p>
+        <p className="text-[10px] text-ink-faint mt-0.5">Hover slices for details</p>
       </div>
 
       {/* AM / PM toggle */}
@@ -335,14 +396,10 @@ export function ClockSlotsWidget({
             style={{ left: tooltipPos.x, top: tooltipPos.y }}
           >
             <p className="text-vibe-lime font-bold">
-              {hoveredSlot.startTime} - {hoveredSlot.endTime}
+              {to12h(hoveredSlot.startTime)} - {to12h(hoveredSlot.endTime)}
             </p>
-            <p className="text-[10px] text-slate-300">{hoveredSlot.label}</p>
-            <p className="text-[11px] text-slate-200 mt-0.5 font-bold">₹{hoveredSlot.price}</p>
-            {hoveredSlot.customerName && <p className="text-[10px] text-slate-300">{hoveredSlot.customerName}</p>}
-            <span className="mt-1 text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-center uppercase tracking-wide self-start">
-              {hoveredSlot.status}
-            </span>
+            <p className="text-[10px] text-slate-300 font-semibold">Status: {hoveredSlot.status}</p>
+            {hoveredSlot.customerName && <p className="text-[10px] text-slate-300">Customer: {hoveredSlot.customerName}</p>}
           </div>
         )}
       </div>
@@ -383,4 +440,13 @@ export function ClockSlotsWidget({
       </div>
     </div>
   );
+}
+
+function to12h(t: string): string {
+  if (!t) return "";
+  const [hStr, mStr] = t.split(":");
+  let h = Number(hStr);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${mStr} ${ap}`;
 }

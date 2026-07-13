@@ -773,6 +773,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
             <div className="flex justify-center py-4 bg-white border border-slate-100 rounded-xl">
               <ClockSlotsWidget
                 slots={resolvedSlots}
+                onSelectSlot={setActiveSlot}
                 onSelectHour={handleClockHour}
                 renderSeeBooking={() => <SeeBookingsButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
               />
@@ -890,12 +891,37 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
                   Blocked: "bg-slate-100 border-slate-200 text-slate-500",
                   "On Hold": "bg-purple-50 border-purple-100 text-purple-600",
                 };
+                
+                const formatHourRange = (start24: string, end24: string) => {
+                  const startHour = parseInt(start24.split(":")[0], 10);
+                  const endHour = parseInt(end24.split(":")[0], 10);
+                  return `${startHour}-${endHour}`;
+                };
+                
+                const isAvail = s.status === "Available";
                 return (
-                  <button key={i} onClick={() => onSlotClick(s)} className={`flex flex-col items-center justify-center ${cardH} rounded-xl border ${colors[s.status] || ""} hover:shadow transition-shadow`}>
-                    <span className="text-xs font-bold font-mono">{s.startTime.slice(0, 5)}-{s.endTime.slice(0, 5)}</span>
-                    <span className="text-[9px] font-bold mt-1 uppercase tracking-wide">
-                      {s.status === "Available" ? `₹${s.price}` : s.status}
+                  <button
+                    key={i}
+                    onClick={() => onSlotClick(s)}
+                    className={`flex flex-col items-center justify-center ${cardH} rounded-2xl border-2 ${
+                      isAvail
+                        ? "border-dashed border-emerald-200 bg-white hover:border-emerald-400 text-emerald-700"
+                        : `border-solid ${colors[s.status] || ""}`
+                    } hover:shadow transition-shadow`}
+                  >
+                    <span className={`text-base font-extrabold ${isAvail ? "text-slate-800" : "font-mono"}`}>
+                      {isAvail ? formatHourRange(s.startTime, s.endTime) : `${s.startTime.slice(0, 5)}-${s.endTime.slice(0, 5)}`}
                     </span>
+                    {isAvail ? (
+                      <>
+                        <span className="text-xl font-bold text-emerald-500 mt-1 leading-none">+</span>
+                        <span className="text-[10px] font-extrabold uppercase text-emerald-600 mt-0.5">FREE</span>
+                      </>
+                    ) : (
+                      <span className="text-[9px] font-extrabold mt-1 uppercase tracking-wide">
+                        {s.status}
+                      </span>
+                    )}
                   </button>
                 );
               })}
