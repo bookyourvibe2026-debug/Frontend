@@ -5,7 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
+  BookOpen,
+  Calendar,
   Gamepad2,
+  GraduationCap,
   Home,
   Menu,
   ShieldCheck,
@@ -14,6 +17,7 @@ import {
   Users,
   UserRoundCog,
   X,
+  Zap,
 } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
@@ -26,11 +30,12 @@ const PRIMARY_TABS = [
 ];
 
 const MORE_LINKS = [
-  { label: "Events", href: "/events" },
-  { label: "Coaches", href: "/coaches" },
-  { label: "Tournaments", href: "/tournaments" },
-  { label: "View Challenges", href: "/challenges" },
-  { label: "Blog", href: "/blogs" },
+  { label: "Events", href: "/events", icon: Calendar },
+  { label: "Coaches", href: "/coaches", icon: GraduationCap },
+  { label: "Tournaments", href: "/tournaments", icon: Trophy },
+  { label: "View Challenges", href: "/challenges", icon: Zap },
+  { label: "Community", href: "/community", icon: Users },
+  { label: "Blog", href: "/blogs", icon: BookOpen },
 ];
 
 /** Fixed mobile app-shell bottom tab bar — replaces the desktop footer's nav role on small screens. */
@@ -120,16 +125,19 @@ export function BottomNav() {
               </button>
             </div>
             <nav className="grid grid-cols-2 gap-2">
-              {MORE_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700"
-                >
-                  <Trophy className="h-4 w-4 text-brand-500" /> {link.label}
-                </Link>
-              ))}
+              {MORE_LINKS.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700"
+                  >
+                    <Icon className="h-4 w-4 text-brand-500" /> {link.label}
+                  </Link>
+                );
+              })}
             </nav>
             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
               <Link
