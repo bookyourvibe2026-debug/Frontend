@@ -32,14 +32,12 @@ export function BrandLogo({
 }: BrandLogoProps) {
   return (
     <Link href={href} className={`flex min-w-0 items-center gap-3 ${className}`.trim()}>
-      <div className={`relative shrink-0 overflow-hidden border bg-white shadow-sm ${boxClassName} ${logoBoxClassName}`.trim()}>
-        <Image
+      <div className={`shrink-0 overflow-hidden border bg-white shadow-sm ${boxClassName} ${logoBoxClassName}`.trim()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/logo.jpg"
           alt="Book Your Vibe logo"
-          fill
-          sizes="120px"
-          className={`object-contain ${imageClassName}`.trim()}
-          priority={priority}
+          className={`h-full w-full object-contain ${imageClassName}`.trim()}
         />
       </div>
 

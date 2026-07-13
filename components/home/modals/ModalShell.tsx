@@ -22,8 +22,9 @@ export function ModalShell({
         className="relative max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-h-[92vh] sm:rounded-3xl sm:p-8"
       >
         <button
+          type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+          className="absolute right-5 top-5 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
         >
           <X className="h-4 w-4" />
         </button>

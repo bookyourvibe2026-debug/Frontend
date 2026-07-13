@@ -657,7 +657,7 @@ function MobileVenueDetail({
             <BookingFlow
               listing={venue}
               embedded
-              onClose={() => {}}
+              onClose={() => setActiveTab("home")}
               onStateChange={setBookingState}
               payTriggerRef={payTriggerRef}
             />

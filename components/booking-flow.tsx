@@ -807,12 +807,12 @@ function ReviewStep(props: {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">15m</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">30m</span>
                           <input
                             type="range"
-                            min={15}
+                            min={30}
                             max={240}
-                            step={15}
+                            step={30}
                             value={durationMin}
                             onChange={(e) => setDurationMin(Number(e.target.value))}
                             className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
