@@ -80,9 +80,14 @@ export default function HomePage() {
   const handleQuickAction = useCallback(
     (taskId: string, gameId: string) => {
       const routes: Record<string, string> = {
+        "book-now": "/venues",
+        "find-players": "/community",
+        tournaments: "/tournaments",
+        "near-me": "/venues",
+        offers: "/offers",
+        // Keep old mapping for compatibility with desktop components
         venue: `/venues?category=${gameId}`,
         food: "/food",
-        tournaments: "/tournaments",
         challenge: "/community",
         community: "/community",
         coaches: "/coaches",

@@ -10,6 +10,7 @@ import {
   Calendar,
   CupSoda,
   Feather,
+  Handshake,
   Heart,
   LayoutGrid,
   MapPin,
@@ -22,11 +23,20 @@ import {
   Users,
   Waves,
   X,
+  Zap,
 } from "lucide-react";
 import { type Venue } from "@/lib/venues";
-import { QUICK_ACTION_GAMES, QUICK_ACTION_TASKS } from "../data";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
+
+const MOBILE_QUICK_ACTIONS = [
+  { id: "book-now", label: "Book Now", icon: Zap },
+  { id: "find-players", label: "Find Players", icon: Users },
+  { id: "tournaments", label: "Tournaments", icon: Trophy },
+  { id: "near-me", label: "Near Me", icon: MapPin },
+  { id: "offers", label: "Offers", icon: Tag },
+  { id: "community", label: "Community", icon: Handshake },
+];
 
 const CHOOSE_GAME_CHIPS = [
   { id: "cricket", label: "Cricket", image: "/bat.png" },
@@ -144,7 +154,6 @@ export function MobileHome({
   onViewAllOffers: () => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
-  const [quickActionGame, setQuickActionGame] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const {
     sportOptions,
@@ -233,53 +242,23 @@ export function MobileHome({
           actionLabel="View All"
           onAction={onViewAllQuickActions}
         />
-        {!quickActionGame ? (
-          <div className="grid grid-cols-6 gap-1">
-            {QUICK_ACTION_GAMES.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => setQuickActionGame(g.id)}
-                className="flex flex-col items-center gap-1.5 text-center"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
-                  {"image" in g && g.image ? (
-                    <Image src={g.image} alt={g.label} width={22} height={22} unoptimized className="h-[22px] w-[22px] object-contain" />
-                  ) : "icon" in g && g.icon ? (
-                    <g.icon className="h-5 w-5" />
-                  ) : null}
-                </span>
-                <span className="text-[9px] font-semibold leading-tight text-brand-600">{g.label}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-6 gap-1">
+        <div className="flex flex-wrap items-start justify-start gap-x-[15px] gap-y-3.5 pt-1">
+          {MOBILE_QUICK_ACTIONS.map((a) => (
             <button
+              key={a.id}
               type="button"
-              onClick={() => setQuickActionGame(null)}
-              className="flex flex-col items-center gap-1.5 text-center"
+              onClick={() => onQuickAction(a.id, "")}
+              className="flex flex-col items-center gap-1.5 text-center group active:scale-95 transition-transform"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-md shadow-slate-200">
-                <ArrowLeft className="h-5 w-5" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-brand-500 shadow-[0_6px_16px_rgba(15,23,42,0.05)] border border-slate-50 transition hover:border-brand-200 group-active:bg-slate-50">
+                <a.icon className="h-5 w-5 stroke-[1.75]" />
               </span>
-              <span className="text-[9px] font-semibold leading-tight text-slate-500">Change</span>
+              <span className="text-[9px] font-semibold leading-tight text-slate-800 tracking-tight sm:text-xs">
+                {a.label}
+              </span>
             </button>
-            {QUICK_ACTION_TASKS.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => onQuickAction(a.id, quickActionGame)}
-                className="flex flex-col items-center gap-1.5 text-center"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-500 shadow-md shadow-slate-200">
-                  <a.icon className="h-5 w-5" />
-                </span>
-                <span className="text-[9px] font-semibold leading-tight text-brand-600">{a.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
       </section>
 
       <section>

@@ -262,7 +262,6 @@ export const QUICK_ACTION_GAMES = [
 // Step 2 of Quick Actions: action to take for the chosen game.
 export const QUICK_ACTION_TASKS = [
   { id: "venue", label: "Book a Venue", icon: Compass },
-  { id: "food", label: "Food & Beverages", icon: CupSoda },
   { id: "tournaments", label: "Tournaments", icon: Trophy },
   { id: "challenge", label: "Challenge a Player", icon: Users },
   { id: "community", label: "Community", icon: Handshake },
