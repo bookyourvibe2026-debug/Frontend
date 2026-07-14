@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CustomerAuthProvider } from "@/components/providers/CustomerAuthProvider";
 import { GoogleAuthProvider } from "@/components/providers/GoogleAuthProvider";
 import { BottomNav } from "@/components/mobile/BottomNav";
+import Script from "next/script";
 import "./globals.css";
 
 const THEME_INIT_SCRIPT = `
@@ -83,7 +84,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <Script id="theme-init" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body
         className="min-h-full flex flex-col font-sans"

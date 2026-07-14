@@ -6,6 +6,7 @@ import { MapPin, Swords, Users } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import type { Challenge } from "@/lib/api/challenges";
+import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
 
 const RECENT_CHALLENGES_KEY = "byv_recent_challenges";
 
@@ -64,6 +65,7 @@ function readRecentChallenges(): Challenge[] {
 
 export default function ChallengesPage() {
   const [challenges] = useState<Challenge[]>(readRecentChallenges);
+  const [isFlowOpen, setIsFlowOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff7ed,_#f8fafc_42%,_#ffffff_78%)]">
@@ -78,9 +80,17 @@ export default function ChallengesPage() {
       <main className="mx-auto max-w-5xl px-4 py-6 sm:py-10 sm:px-6">
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-600">View Challenges</p>
-          <h1 className="mt-2 text-2xl font-extrabold text-slate-900 sm:text-3xl">
-            Every duel you&apos;ve thrown or accepted.
-          </h1>
+          <div className="flex items-center justify-between mt-2">
+            <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
+              Every duel you&apos;ve thrown or accepted.
+            </h1>
+            <button
+              onClick={() => setIsFlowOpen(true)}
+              className="shrink-0 rounded-full bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm"
+            >
+              New Challenge
+            </button>
+          </div>
           <p className="mt-2 text-sm text-slate-500">
             Challenges you create on this device show up here with their live status.
           </p>
@@ -88,16 +98,26 @@ export default function ChallengesPage() {
 
         <div className="mt-6 flex flex-col gap-3">
           {challenges.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
               <Swords className="h-8 w-8 text-slate-300" />
-              <p className="text-sm font-semibold text-slate-500">No challenges yet.</p>
-              <p className="text-xs text-slate-400">Launch a Vibe Challenge from the Community section on Home.</p>
+              <div>
+                <p className="text-sm font-semibold text-slate-500">No challenges yet.</p>
+                <p className="text-xs text-slate-400 mt-1">Ready to throw down the gauntlet?</p>
+              </div>
+              <button
+                onClick={() => setIsFlowOpen(true)}
+                className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm"
+              >
+                Launch a Vibe Challenge
+              </button>
             </div>
           ) : (
             challenges.map((c) => <ChallengeRow key={c.code} challenge={c} />)
           )}
         </div>
       </main>
+
+      {isFlowOpen && <ChallengeFlow onClose={() => setIsFlowOpen(false)} />}
     </div>
   );
 }

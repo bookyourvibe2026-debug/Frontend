@@ -492,8 +492,10 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
 
           {(step === "poster" || step === "share") && challenge && (
             <StepShell eyebrow={step === "poster" ? "Final review" : "Deep link ready"} title={step === "poster" ? "Your cinematic poster" : "The gauntlet is thrown!"} subtitle={step === "poster" ? "Review your generated duel flyer." : `Share the challenge with ${opponent?.name ?? "your opponent"} on WhatsApp.`}>
-              <div ref={posterRef} className={step === "poster" ? "" : "pointer-events-none fixed left-[-9999px] top-0"}>
-                <Poster challenge={challenge} />
+              <div className={step === "poster" ? "" : "pointer-events-none absolute left-[-9999px] top-0 w-[350px]"}>
+                <div ref={posterRef} className="w-full">
+                  <Poster challenge={challenge} />
+                </div>
               </div>
               {step === "poster" && (
                 <button

@@ -10,6 +10,7 @@ import {
   Calendar,
   CupSoda,
   Feather,
+  Flame,
   Handshake,
   Heart,
   LayoutGrid,
@@ -368,29 +369,28 @@ export function MobileHome({
 
       <section>
         <MobileSectionRow title="Community" actionLabel="View All" onAction={onViewAllCommunity} />
-        <Link href="/profile" className="w-full text-left">
-          <MobileCard className="relative flex flex-col gap-4 overflow-hidden !bg-slate-950 !p-5 text-white">
+        <button type="button" onClick={onJoinCommunity} className="w-full text-left">
+          <MobileCard className="relative flex flex-col gap-4 overflow-hidden !bg-slate-950 !p-5 text-white active:scale-[0.98] transition-transform">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(249,115,22,0.34),transparent_34%),radial-gradient(circle_at_84%_100%,rgba(16,185,129,0.2),transparent_38%)]" />
             <div className="relative flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/35 bg-orange-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-orange-300">
-                <Calendar className="h-3.5 w-3.5" /> Upcoming Booking
+                <Flame className="h-3.5 w-3.5" /> Vibe Challenge
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-300">May 27</span>
             </div>
             <div className="relative">
-              <p className="text-xl font-black uppercase leading-tight">Cricket Arena</p>
+              <p className="text-xl font-black uppercase leading-tight">Challenge a Friend</p>
               <p className="mt-2 max-w-[260px] text-xs font-medium leading-relaxed text-slate-400">
-                7:00 – 9:00 PM · 2 Courts booked · 10 players confirmed.
+                Pick a sport, set the stakes, and send a cinematic duel poster.
               </p>
             </div>
             <div className="relative flex items-center justify-between border-t border-white/10 pt-3">
-              <span className="text-xs text-slate-300">🏏 2 Courts · 10 Players</span>
+              <span className="text-xs text-slate-300">Generate poster & share</span>
               <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-orange-400">
-                View Details <ArrowRight className="h-4 w-4" />
+                Create Now <ArrowRight className="h-4 w-4" />
               </span>
             </div>
           </MobileCard>
-        </Link>
+        </button>
 
         <MobileCard className="mt-3 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
