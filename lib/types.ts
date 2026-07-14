@@ -114,6 +114,7 @@ export interface Booking {
   yourEarning: number;
   payment: "Cashfree (Online)" | "Cash (Offline)" | "UPI";
   status: BookingStatus;
+  paymentStatus?: string;
   createdAt?: string;
 }
 

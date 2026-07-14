@@ -366,6 +366,7 @@ export interface Vendor {
   businessType?: VendorBusinessType;
   gstNumber?: string;
   categories: string[];
+  sports: string[];
   address: { street?: string; pinCode?: string; country?: string };
   bankDetails: {
     accountNumber?: string;

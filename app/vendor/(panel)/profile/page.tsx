@@ -17,6 +17,14 @@ const CATEGORIES = [
   "Hospitality & Stay Partners",
 ];
 
+const DEFAULT_SPORTS = [
+  "Box Cricket", "Football", "Badminton", "Tennis", "Basketball", 
+  "Volleyball", "Table Tennis", "Swimming", "Squash", "Pickleball", 
+  "Snooker / Billiards", "Skating", "Hockey", "Archery", "Shooting", 
+  "Gym / Fitness", "Yoga / Zumba", "Padel", "Martial Arts", "Boxing", 
+  "Bowling", "Golf / Mini Golf", "Athletics", "Kabaddi"
+];
+
 function completeness(v: Vendor) {
   const fields = [
     v.ownerName,
@@ -65,6 +73,15 @@ export default function ProfilePage() {
     });
   }
 
+  function toggleSport(sport: string) {
+    setVendor((v) => {
+      if (!v) return v;
+      const has = v.sports?.includes(sport);
+      if (has) return { ...v, sports: v.sports.filter((s) => s !== sport) };
+      return { ...v, sports: [...(v.sports || []), sport] };
+    });
+  }
+
   async function handleLogoUpload(file: File | undefined) {
     if (!file || !vendor) return;
     setLogoUploading(true);
@@ -91,6 +108,7 @@ export default function ProfilePage() {
         businessType: vendor.businessType,
         gstNumber: vendor.gstNumber,
         categories: vendor.categories,
+        sports: vendor.sports,
         address: vendor.address,
         bankDetails: vendor.bankDetails,
       });
@@ -300,6 +318,35 @@ export default function ProfilePage() {
                     active ? "bg-vibe-violet border-vibe-violet" : "border-surface-border"
                   }`}
                 />
+              </button>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Supported Sports"
+        description="Select the sports or games you provide at your facility"
+        action={
+          <span className="text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 px-3 py-1">
+            {vendor.sports?.length || 0} Selected
+          </span>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          {DEFAULT_SPORTS.map((sport) => {
+            const active = vendor.sports?.includes(sport);
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                  active
+                    ? "bg-indigo-500 text-white shadow-sm border border-indigo-600"
+                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                }`}
+              >
+                {sport}
               </button>
             );
           })}

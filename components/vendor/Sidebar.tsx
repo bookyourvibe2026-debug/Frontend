@@ -20,13 +20,14 @@ import {
   Trophy,
   Tag,
   X,
+  Bell,
 } from "lucide-react";
 import type { VendorVertical } from "@/lib/api/types";
 
 export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label: string; icon: typeof LayoutDashboard }[]> = {
   turf: [
     { href: "/vendor/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/vendor/listings", label: "My Listings", icon: Briefcase },
+    { href: "/vendor/notifications", label: "Notifications", icon: Bell },
     { href: "/vendor/bookings", label: "Bookings Management", icon: CalendarCheck2 },
     { href: "/vendor/pricing", label: "Price Setting", icon: Tag },
     { href: "/vendor/payments", label: "Payment Settled", icon: Wallet },
@@ -50,7 +51,7 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
 
 /** Mobile bottom-nav order, when it should differ from the desktop sidebar's reading order. */
 export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
-  turf: ["/vendor/bookings", "/vendor/listings", "/vendor/dashboard", "/vendor/pricing"],
+  turf: ["/vendor/bookings", "/vendor/notifications", "/vendor/dashboard", "/vendor/pricing"],
 };
 
 const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {

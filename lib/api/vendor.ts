@@ -41,6 +41,30 @@ export function getVendorSettledPayments() {
   return apiRequest<SettledPayment[]>("/vendor/dashboard/settled-payments", { audience: AUD });
 }
 
+export async function exportVendorBookings() {
+  const token = localStorage.getItem("vendorToken");
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+  const response = await fetch(`${baseUrl}/vendor/bookings/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to export bookings");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "bookings_report.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /* ---- Profile ---- */
 
 export function getVendorProfile() {
@@ -59,12 +83,34 @@ export interface UpdateVendorProfileInput {
   businessType?: Vendor["businessType"];
   gstNumber?: string;
   categories?: string[];
+  sports?: string[];
   address?: Partial<Vendor["address"]>;
   bankDetails?: Partial<Vendor["bankDetails"]>;
 }
 
 export function updateVendorProfile(input: UpdateVendorProfileInput) {
   return apiRequest<Vendor>("/vendor/profile", { method: "PATCH", body: input, audience: AUD });
+}
+
+/* ---- Dashboard ---- */
+
+export interface VendorDashboardStats {
+  listingsCount: number;
+  activeListingsCount: number;
+  bookingsByStatus: Record<string, number>;
+  totalEarnings: number;
+  earningsTrend: number;
+  settledBookingsCount: number;
+  bookingsTrend: number;
+  customersCount: number;
+  customersTrend: number;
+  occupancyRate: number;
+  occupancyTrend: number;
+}
+
+export function getVendorDashboardStats(params?: { startDate?: string; endDate?: string; compareWith?: string }) {
+  const query = params ? "?" + new URLSearchParams(params as any).toString() : "";
+  return apiRequest<VendorDashboardStats>(`/vendor/dashboard${query}`, { audience: AUD });
 }
 
 /* ---- Staff ---- */
@@ -393,3 +439,26 @@ export function getVendorEventsDashboard() {
 export function getVendorCoachesDashboard() {
   return apiRequest<VendorCoachesDashboard>("/vendor/coaches-dashboard", { audience: AUD });
 }
+
+/* ---- MPIN ---- */
+
+export function getMpinStatus() {
+  return apiRequest<{ hasPin: boolean }>("/vendor/mpin/status", { audience: AUD });
+}
+
+export function setMpin(pin: string) {
+  return apiRequest<null>("/vendor/mpin/set", { method: "POST", body: { pin }, audience: AUD });
+}
+
+export function verifyMpin(pin: string) {
+  return apiRequest<null>("/vendor/mpin/verify", { method: "POST", body: { pin }, audience: AUD });
+}
+
+export function requestMpinChange() {
+  return apiRequest<null>("/vendor/mpin/change/request", { method: "POST", audience: AUD });
+}
+
+export function confirmMpinChange(otp: string, newPin: string) {
+  return apiRequest<null>("/vendor/mpin/change/confirm", { method: "POST", body: { otp, newPin }, audience: AUD });
+}
+

@@ -1,7 +1,6 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { NotificationBell } from "./NotificationBell";
 
 export default function Topbar({
   onLogout,
@@ -16,14 +15,12 @@ export default function Topbar({
         <p className="text-sm text-ink-soft hidden sm:block">
           Welcome, <span className="font-semibold text-ink">{vendorName}</span>
         </p>
-        <NotificationBell />
         {onLogout && (
           <button
             onClick={onLogout}
             aria-label="Logout"
             title="Logout"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-vibe-coral/10 hover:text-vibe-coral transition"
-          >
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-vibe-coral/10 hover:text-vibe-coral transition">
             <LogOut size={18} />
           </button>
         )}

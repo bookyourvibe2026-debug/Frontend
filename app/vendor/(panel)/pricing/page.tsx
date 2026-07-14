@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Sparkles, TrendingUp, Users, PartyPopper } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -34,6 +34,13 @@ function resolveSlotsForDate(listing: Listing, dateIso: string): TurfSlot[] {
 function minPrice(slots: TurfSlot[]): number | null {
   if (!slots.length) return null;
   return Math.min(...slots.map((s) => s.price));
+}
+
+function formatPrice(price: number): string {
+  if (price >= 1000) {
+    return `₹${(price / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return `₹${price}`;
 }
 
 export default function PriceSettingPage() {
@@ -150,6 +157,34 @@ export default function PriceSettingPage() {
     }
   }
 
+  async function applyPeakPricingTemplate() {
+    if (!selectedTurf) return;
+    setSaving(true);
+    try {
+      const overrides = [...(selectedTurf.dateOverrides ?? [])];
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const dateStr = toIso(d);
+        const dow = d.getDay();
+        const isPeak = dow === 0 || dow === 6 || Boolean(INDIAN_HOLIDAYS[dateStr]);
+        if (!isPeak) continue;
+        const entry = buildOverrideEntry(selectedTurf, dateStr, 1200);
+        const idx = overrides.findIndex((o) => o.date === dateStr);
+        if (idx > -1) overrides[idx] = entry; else overrides.push(entry);
+      }
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((ls) => ls.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      alert("Peak Pricing template applied successfully to all weekends & holidays!");
+    } catch {
+      alert("Failed to apply peak pricing");
+    }
+    setSaving(false);
+  }
+
   if (error) return <div className="p-10 text-center text-vibe-coral text-sm">{error}</div>;
   if (loading) return <div className="p-10 text-center text-ink-faint text-sm">Loading pricing…</div>;
 
@@ -160,29 +195,24 @@ export default function PriceSettingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        eyebrow="Turf Owner"
-        title="Dynamic pricing"
-        description="Set weekday/weekend/holiday base prices, or fine-tune any single date."
-        right={
-          listings.length > 1 ? (
-            <div className="relative">
-              <select
-                value={selectedTurfId}
-                onChange={(e) => setSelectedTurfId(e.target.value)}
-                className="appearance-none rounded-xl bg-white/10 text-white text-xs font-bold px-4 py-2.5 pr-8 outline-none"
-              >
-                {listings.map((l) => (
-                  <option key={l.id} value={l.id} className="text-ink">
-                    {l.title}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white pointer-events-none" />
-            </div>
-          ) : undefined
-        }
-      />
+      {/* Turf selector header */}
+      {listings.length > 1 && (
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-bold text-slate-700">Turf:</p>
+          <div className="relative">
+            <select
+              value={selectedTurfId}
+              onChange={(e) => setSelectedTurfId(e.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 bg-white text-slate-800 text-xs font-bold px-4 py-2.5 pr-8 outline-none shadow-sm"
+            >
+              {listings.map((l) => (
+                <option key={l.id} value={l.id}>{l.title}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+      )}
 
       {!selectedTurf ? (
         <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center bg-white">
@@ -245,35 +275,58 @@ export default function PriceSettingPage() {
             <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d}>{d}</div>)}
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
+
+            <div className="grid grid-cols-7 gap-2">
               {calendarDays.map((day, idx) => {
-                if (!day) return <div key={idx} className="min-h-[64px]" />;
+                if (!day) return <div key={idx} className="min-h-[70px]" />;
                 const slots = resolveSlotsForDate(selectedTurf, day.dateStr);
                 const price = minPrice(slots);
                 const isSelected = activeDate === day.dateStr;
+                const isPeak = day.isWeekend || day.isHoliday;
+                const hasOverride = selectedTurf?.dateOverrides?.some((o) => o.date === day.dateStr);
 
                 return (
                   <button
                     key={idx}
                     disabled={day.isPast}
                     onClick={() => setActiveDate(day.dateStr)}
-                    className={`flex flex-col items-start justify-between rounded-xl p-2 min-h-[64px] border text-left transition ${
+                    className={`flex flex-col items-center justify-center rounded-2xl p-1.5 min-h-[72px] border transition-all ${
                       day.isPast
-                        ? "border-slate-100 bg-slate-50/50 opacity-40 cursor-not-allowed"
+                        ? "border-slate-100 bg-slate-50/50 opacity-30 cursor-not-allowed"
                         : isSelected
-                        ? "border-emerald-500 ring-2 ring-emerald-300 bg-emerald-50"
-                        : day.isHoliday
-                        ? "border-amber-200 bg-amber-50 hover:border-amber-300"
-                        : day.isWeekend
-                        ? "border-rose-200 bg-rose-50 hover:border-rose-300"
-                        : "border-slate-100 bg-white hover:border-slate-300"
+                        ? "border-2 border-[#005e4b] bg-[#005e4b]/5 text-[#005e4b] ring-4 ring-[#005e4b]/15 scale-105 z-10"
+                        : hasOverride
+                        ? "border-2 border-teal-400 bg-teal-50/40 hover:bg-teal-50 hover:border-teal-500 scale-[1.02] z-10"
+                        : isPeak
+                        ? "border-rose-100 bg-rose-50/40 hover:bg-rose-50"
+                        : "border-slate-100 bg-white hover:border-slate-200"
                     }`}
                   >
-                    <span className="text-xs font-extrabold text-slate-800">{day.dayNumber}</span>
-                    {day.isHoliday && <span className="text-[7px] font-bold uppercase text-amber-600">Holiday</span>}
+                    {/* Date Number Display */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isSelected 
+                        ? "bg-[#005e4b] text-white shadow-md"
+                        : hasOverride
+                        ? "text-teal-800 bg-teal-100/50"
+                        : isPeak 
+                        ? "text-rose-600" 
+                        : "text-slate-500"
+                    }`}>
+                      {day.dayNumber}
+                    </div>
+
+                    {/* Price / Status Tag */}
                     {price !== null && (
-                      <span className={`text-[10px] font-bold ${day.isWeekend || day.isHoliday ? "text-rose-600" : "text-slate-500"}`}>
-                        ₹{price}
+                      <span className={`text-[9px] font-black uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded-md ${
+                        isSelected 
+                          ? "text-[#005e4b] scale-95" 
+                          : hasOverride
+                          ? "bg-teal-100 text-teal-800 border border-teal-200"
+                          : isPeak 
+                          ? "bg-rose-50 text-rose-600 border border-rose-100" 
+                          : "text-slate-400"
+                      }`}>
+                        {isSelected ? `Selected` : ""} {formatPrice(price)}
                       </span>
                     )}
                   </button>
@@ -281,6 +334,71 @@ export default function PriceSettingPage() {
               })}
             </div>
           </SectionCard>
+
+          {/* ── INSIGHTS & OPPORTUNITIES ── */}
+          <div className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="text-indigo-500" size={18} />
+              <h2 className="text-sm font-extrabold text-slate-900">Insights & Opportunities</h2>
+            </div>
+
+            <div className="space-y-3">
+              {/* Alert 1 */}
+              <div className="border-l-4 border-rose-500 bg-rose-50/20 rounded-r-2xl p-4 flex gap-3.5">
+                <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-rose-500 border border-rose-100/55">
+                  <TrendingUp size={16} />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-black text-rose-950">Long Weekend Alert!</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
+                    <strong className="text-rose-700">May 1st, 2nd, & 3rd</strong> is a continuous 3-day holiday stretch (Labor Day + Weekend). Demand will surge.
+                  </p>
+                  <span className="inline-block bg-rose-100/70 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                    Expected Demand: +85%
+                  </span>
+                </div>
+              </div>
+
+              {/* Alert 2 */}
+              <div className="border-l-4 border-amber-500 bg-amber-50/20 rounded-r-2xl p-4 flex gap-3.5">
+                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center shrink-0 text-amber-500 border border-amber-100/55">
+                  <Users size={16} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-amber-950">Corporate League Alert</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
+                    <strong className="text-amber-700">May 1st</strong> has peak corporate bookings. Maximize revenue on remainder slots.
+                  </p>
+                </div>
+              </div>
+
+              {/* Alert 3 */}
+              <div className="border-l-4 border-cyan-500 bg-cyan-50/20 rounded-r-2xl p-4 flex gap-3.5">
+                <div className="w-10 h-10 bg-cyan-50 rounded-full flex items-center justify-center shrink-0 text-cyan-500 border border-cyan-100/55">
+                  <PartyPopper size={16} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-cyan-950">Upcoming Holidays</p>
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> May 1 - Labor Day
+                    </p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> May 21 - Local Festival
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={applyPeakPricingTemplate}
+              disabled={saving}
+              className="w-full bg-[#3f3ebd] hover:bg-[#3433a3] text-white rounded-2xl py-3.5 text-xs font-black shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+            >
+              {saving ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
+            </button>
+          </div>
         </>
       )}
 

@@ -1,961 +1,1119 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
-import {
-  LayoutGrid,
-  Clock as ClockIcon,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Ban,
-  BookOpen,
-  Pause,
-  Pencil,
-  CalendarDays,
-  Calendar as CalendarIcon,
-  ChevronDown,
-  User,
-  Phone,
-  Check,
-  CheckCircle2,
-  Wallet,
-  Clock3,
-} from "lucide-react";
-import { PageHero, SectionCard, Badge } from "@/components/vendor/ui";
-import {
-  getVendorListings,
-  getVendorBookings,
-  createVendorBooking,
-  updateVendorBookingStatus,
-  updateVendorListing,
-} from "@/lib/api/vendor";
-import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
-import { ApiError } from "@/lib/api/client";
-import { Listing, Booking } from "@/lib/types";
-import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
-import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
+import { useState, useEffect } from "react";
+import { Lock, Bell, Info, Cloud, ArrowUpRight, ArrowDownRight, UserPlus, FileText, Plus, Ban, Trophy, Megaphone, MoreVertical, Calendar, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { getMpinStatus, setMpin, verifyMpin, getVendorDashboardStats, exportVendorBookings, updateVendorProfile, getVendorListings, getVendorProfile, type VendorDashboardStats } from "@/lib/api/vendor";
+import type { Listing } from "@/lib/api/types";
+import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
+import { isVendorOwner } from "@/lib/api/auth";
 
-/* ─── helpers ─────────────────────────────────────────────────── */
-function to12h(t: string) {
-  if (!t) return "";
-  const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
-}
-function t24m(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-function durHrs(start: string, end: string) {
-  const d = t24m(end) - t24m(start);
-  return d > 0 ? +(d / 60).toFixed(1) : 0;
-}
-function dayPart(t: string) {
-  const h = Number(t.split(":")[0]);
-  if (h >= 5 && h < 12) return "Morning";
-  if (h >= 12 && h < 17) return "Afternoon";
-  if (h >= 17 && h < 21) return "Evening";
-  if (h >= 21 && h < 24) return "Night";
-  return "Mid Night";
-}
-
-type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
-
-const STAT_TONE = {
-  emerald: { idle: "border-emerald-100 bg-emerald-50/50", active: "border-emerald-400 ring-1 ring-emerald-300 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700", pct: "text-emerald-400" },
-  rose: { idle: "border-rose-100 bg-rose-50/50", active: "border-rose-400 ring-1 ring-rose-300 bg-rose-50", label: "text-rose-600", value: "text-rose-700", pct: "text-rose-400" },
-  amber: { idle: "border-amber-100 bg-amber-50/50", active: "border-amber-400 ring-1 ring-amber-300 bg-amber-50", label: "text-amber-600", value: "text-amber-700", pct: "text-amber-400" },
-  orange: { idle: "border-orange-100 bg-orange-50/50", active: "border-orange-400 ring-1 ring-orange-300 bg-orange-50", label: "text-orange-600", value: "text-orange-700", pct: "text-orange-400" },
-  purple: { idle: "border-purple-100 bg-purple-50/50", active: "border-purple-400 ring-1 ring-purple-300 bg-purple-50", label: "text-purple-600", value: "text-purple-700", pct: "text-purple-400" },
-  slate: { idle: "border-slate-200 bg-slate-50", active: "border-slate-400 ring-1 ring-slate-300 bg-slate-100", label: "text-slate-600", value: "text-slate-700", pct: "text-slate-400" },
-} as const;
-
-interface AgendaSlot {
-  startTime: string;
-  endTime: string;
-  label: string;
-  price: number;
-  status: SlotStatus;
-  bookingId?: string;
-  customerName?: string;
-  phone?: string;
-  blockedReason?: string;
-}
-
-/* ────────────────────────────────────────────────────────────────
-   MAIN PAGE
-────────────────────────────────────────────────────────────────── */
 export default function DashboardPage() {
+  const { vendor } = useVendorAuth();
+  const vendorName = isVendorOwner(vendor) ? vendor.businessName : vendor.holderName;
+  const [stats, setStats] = useState<VendorDashboardStats | null>(null);
+  const [pinMode, setPinMode] = useState<"loading" | "create" | "create_confirm" | "enter" | "unlocked">("loading");
+  const [inputPin, setInputPin] = useState("");
+  const [firstPin, setFirstPin] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    getMpinStatus()
+      .then(({ hasPin }) => setPinMode(hasPin ? "enter" : "create"))
+      .catch(() => setPinMode("create")); // fallback — treat as first-time if API fails
+  }, []);
+
+  const [dateRange, setDateRange] = useState("Last 7 Days");
+  const [compareWith, setCompareWith] = useState("yesterday");
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showCompareDropdown, setShowCompareDropdown] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showMatchSummary, setShowMatchSummary] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // Quick Action Modals
+  const [showCreateBooking, setShowCreateBooking] = useState(false);
+  const [showBlockSlot, setShowBlockSlot] = useState(false);
+  const [showAddTournament, setShowAddTournament] = useState(false);
+  const [showSendOffer, setShowSendOffer] = useState(false);
+  const [showSportsModal, setShowSportsModal] = useState(false);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [savingSports, setSavingSports] = useState(false);
+  // savedSports — fetched fresh from DB on mount (not from stale session)
+  const [savedSports, setSavedSports] = useState<string[]>([]);
+  
   const [listings, setListings] = useState<Listing[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedListingId, setSelectedListingId] = useState<string>("");
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
+  const [financialFilter, setFinancialFilter] = useState("All");
+  const [showFinancialFilter, setShowFinancialFilter] = useState(false);
 
-  // Agenda state
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [selectedDate, setSelectedDate] = useState(todayIso);
-  const [selectedTurfId, setSelectedTurfId] = useState("");
-  const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>("Morning");
+  const DEFAULT_SPORTS = [
+    "Box Cricket", "Football", "Badminton", "Tennis", "Basketball", 
+    "Volleyball", "Table Tennis", "Swimming", "Squash", "Pickleball", 
+    "Snooker / Billiards", "Skating", "Hockey", "Archery", "Shooting", 
+    "Gym / Fitness", "Yoga / Zumba", "Padel", "Martial Arts", "Boxing", 
+    "Bowling", "Golf / Mini Golf", "Athletics", "Kabaddi"
+  ];
 
-  // Live clock tick — drives "running now" / "already passed" slot styling
-  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-  const isToday = selectedDate === todayIso;
-  const [viewMode, setViewMode] = useState<"grid" | "clock">("grid");
-  const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
-
-  // Active slot action modal
-  const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
-  // Grouped-list filter (for "See Booking" bottom button)
-  const [groupedFilter, setGroupedFilter] = useState<SlotStatus | null>(null);
-
-  // Offline booking modal
-  const [offlineModal, setOfflineModal] = useState(false);
-  const [offlineName, setOfflineName] = useState("");
-  const [offlinePhone, setOfflinePhone] = useState("");
-  const [offlineSubmitting, setOfflineSubmitting] = useState(false);
-
-  // Block-reason picker (available slot → "Block Slot")
-  const [blockReasonOpen, setBlockReasonOpen] = useState(false);
-  // Generic "are you sure, finalizing in Ns" step before any action actually runs
-  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; seconds: number; run: () => void | Promise<void> } | null>(null);
-
-  // Load
-  useEffect(() => {
-    Promise.all([getVendorListings(), getVendorBookings({ limit: 500 })])
-      .then(([l, b]) => {
-        const mapped = l.map(apiListingToMock);
-        setListings(mapped);
-        const turfs = mapped.filter((x) => x.type === "Turf");
-        // Prefer a turf that actually has slots configured, so the agenda isn't empty by default.
-        const withSlots = turfs.find((t) => (t.slotsList?.length ?? 0) > 0);
-        if (withSlots) setSelectedTurfId(withSlots.id);
-        else if (turfs.length > 0) setSelectedTurfId(turfs[0].id);
-        setBookings(b.items as unknown as Booking[]);
+    if (!vendor) return;
+    // Always fetch fresh profile from DB to get current sports (session can be stale)
+    getVendorProfile()
+      .then((profile) => {
+        const sports = profile.sports ?? [];
+        setSavedSports(sports);
+        setSelectedSports(sports);
+        if (sports.length === 0) setShowSportsModal(true);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load"))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        // Fallback to session data
+        const sports = vendor?.sports ?? [];
+        setSavedSports(sports);
+        setSelectedSports(sports);
+        if (sports.length === 0) setShowSportsModal(true);
+      });
+    getVendorListings().then(setListings).catch(console.error);
+  }, [vendor]);
 
-  const selectedTurf = useMemo(
-    () => listings.find((l) => l.id === selectedTurfId),
-    [listings, selectedTurfId]
-  );
-  const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
-
-  /* ── Scrollable date queue: today onwards, grouped by month ── */
-  const agendaDates = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
-    });
-  }, []);
-
-  const agendaMonthGroups = useMemo(() => {
-    const groups: { key: string; label: string; dates: Date[] }[] = [];
-    for (const d of agendaDates) {
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      const last = groups[groups.length - 1];
-      if (last && last.key === key) {
-        last.dates.push(d);
-      } else {
-        groups.push({ key, label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }), dates: [d] });
-      }
+  const handleSaveSports = async () => {
+    if (selectedSports.length === 0) {
+      alert("Please select at least one sport");
+      return;
     }
-    return groups;
-  }, [agendaDates]);
-
-  /* ── Resolve slots for selected date ── */
-  const resolvedSlots = useMemo<AgendaSlot[]>(() => {
-    if (!selectedTurf) return [];
-    const override = selectedTurf.dateOverrides?.find((o) => o.date === selectedDate);
-    const base = override
-      ? override.isHoliday ? [] : (override.slots || [])
-      : (selectedTurf.slotsList || []);
-
-    return base.map((slot) => {
-      if (slot.blocked) {
-        return {
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          label: slot.label,
-          price: slot.price,
-          status: "Blocked" as SlotStatus,
-          blockedReason: slot.blockedReason,
-        };
-      }
-
-      // Find bookings on this date + turf that match the start time
-      const match = bookings.find((bk) => {
-        const bkDate = new Date(bk.dateTime).toISOString().slice(0, 10);
-        const bkTime = new Date(bk.dateTime).toLocaleTimeString("en-US", {
-          hour12: false, hour: "2-digit", minute: "2-digit",
-        });
-        return (bk.listing === selectedTurfId || (bk as any).listingId === selectedTurfId)
-          && bk.status !== "Cancelled"
-          && bkDate === selectedDate
-          && bkTime === slot.startTime;
-      });
-
-      let status: SlotStatus = "Available";
-      let bookingId: string | undefined;
-      let customerName: string | undefined;
-      let phone: string | undefined;
-
-      if (match) {
-        bookingId = match.orderId;
-        customerName = (match as any).customerName ?? match.customer;
-        phone = (match as any).phone;
-        const isOffline = match.payment === "Cash (Offline)";
-        const isHold = customerName === "Hold";
-        if (isHold && match.status === "Pending") status = "On Hold";
-        else if (match.status === "Pending") status = "Part Paid";
-        else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
-        else status = "Booked";
-      }
-
-      return {
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        label: slot.label,
-        price: slot.price,
-        status,
-        bookingId,
-        customerName,
-        phone,
-      };
-    });
-  }, [selectedTurf, selectedDate, bookings, selectedTurfId]);
-
-  /* ── Stats (in hours) ── */
-  const stats = useMemo(() => {
-    const hrsFor = (status: SlotStatus) =>
-      resolvedSlots.filter(s => s.status === status).reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const totalHrs = resolvedSlots.reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    return {
-      totalHrs,
-      bookedHrs: hrsFor("Booked"),
-      partPaidHrs: hrsFor("Part Paid"),
-      offlineHrs: hrsFor("Offline Booked"),
-      blockedHrs: hrsFor("Blocked"),
-      onHoldHrs: hrsFor("On Hold"),
-      availHrs: hrsFor("Available"),
-    };
-  }, [resolvedSlots]);
-
-  /* ── Filter by daypart tab ── */
-  const visibleSlots = useMemo(
-    () => daypart ? resolvedSlots.filter(s => s.label === daypart) : resolvedSlots,
-    [resolvedSlots, daypart]
-  );
-
-  /* ── Grouped list (for "See Booking" panel) ── */
-  const groupedSlots = useMemo(() => {
-    if (!groupedFilter) return [];
-    if (groupedFilter === "Booked") {
-      return resolvedSlots.filter(s => s.status === "Booked" || s.status === "Offline Booked");
+    setSavingSports(true);
+    try {
+      await updateVendorProfile({ sports: selectedSports });
+      // Update local state to reflect what's now in DB — no localStorage needed
+      setSavedSports(selectedSports);
+      setShowSportsModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save sports");
+    } finally {
+      setSavingSports(false);
     }
-    return resolvedSlots.filter(s => s.status === groupedFilter);
-  }, [resolvedSlots, groupedFilter]);
-
-  /* ── Actions on available slot ── */
-  async function setSlotBlocked(slot: AgendaSlot, blocked: boolean, reason?: string) {
-    if (!selectedTurf) return;
-    try {
-      const overrides = [...(selectedTurf.dateOverrides || [])];
-      const idx = overrides.findIndex(o => o.date === selectedDate);
-      const currentSlots = idx > -1
-        ? [...(overrides[idx].slots || [])]
-        : [...(selectedTurf.slotsList || [])];
-      const next = currentSlots.map(s => s.startTime === slot.startTime
-        ? { ...s, blocked, blockedReason: blocked ? reason : undefined }
-        : s);
-      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
-      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
-      const updated = { ...selectedTurf, dateOverrides: overrides };
-      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
-      setListings(l => l.map(x => x.id === selectedTurf.id ? apiListingToMock(saved) : x));
-      setActiveSlot(null);
-    } catch { alert(`Failed to ${blocked ? "block" : "unblock"} slot`); }
-  }
-
-  async function startOfflineBooking(slot: AgendaSlot) {
-    setActiveSlot(slot);
-    setOfflineModal(true);
-  }
-
-  /** Validates the offline-booking form, then hands off to the confirm-with-undo step. */
-  function confirmOfflineBooking() {
-    if (!offlineName || !offlinePhone) { alert("Please fill name and phone"); return; }
-    setOfflineModal(false);
-    setPendingConfirm({ title: "Mark as Booked", seconds: 6, run: submitOfflineBooking });
-  }
-
-  async function submitOfflineBooking() {
-    if (!activeSlot || !selectedTurf) return;
-    setOfflineSubmitting(true);
-    try {
-      const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
-      await createVendorBooking({
-        listingId: selectedTurf.id,
-        customerName: offlineName,
-        phone: offlinePhone,
-        dateTime: dt.toISOString(),
-        totalAmount: activeSlot.price,
-        payment: "Cash (Offline)",
-        status: "Confirmed",
-      });
-      // Refresh bookings
-      const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
-      setActiveSlot(null);
-      setOfflineName("");
-      setOfflinePhone("");
-    } catch { alert("Failed to create offline booking"); }
-    setOfflineSubmitting(false);
-  }
-
-  async function holdSlot(slot: AgendaSlot) {
-    if (!selectedTurf) return;
-    try {
-      // Create a pending booking (no customer info yet — vendor can fill later)
-      const dt = new Date(`${selectedDate}T${slot.startTime}:00`);
-      await createVendorBooking({
-        listingId: selectedTurf.id,
-        customerName: "Hold",
-        phone: "9000000000", // placeholder — must match backend's Indian mobile format (^[6-9]\d{9}$)
-        dateTime: dt.toISOString(),
-        totalAmount: slot.price,
-        payment: "Cash (Offline)",
-        status: "Pending",
-      });
-      const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
-      setActiveSlot(null);
-    } catch { alert("Failed to hold slot"); }
-  }
-
-  /* ── Actions on an already-booked slot ── */
-  async function clearBookedSlot(slot: AgendaSlot) {
-    try {
-      if (slot.bookingId) {
-        await updateVendorBookingStatus(slot.bookingId, "Cancelled");
-        const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
-      }
-    } catch { alert("Failed to clear slot"); }
-    setActiveSlot(null);
-  }
-
-  async function markSlotPaidConfirmed(slot: AgendaSlot) {
-    try {
-      if (slot.bookingId) {
-        await updateVendorBookingStatus(slot.bookingId, "Confirmed");
-        const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
-      }
-    } catch { alert("Failed to update booking"); }
-    setActiveSlot(null);
-  }
-
-  async function blockSlotForMaintenance(slot: AgendaSlot) {
-    try {
-      if (slot.bookingId) {
-        await updateVendorBookingStatus(slot.bookingId, "Cancelled");
-        const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
-      }
-    } catch { alert("Failed to clear existing booking"); return; }
-    await setSlotBlocked(slot, true, "Maintenance");
-  }
-
-  function handleConfirmPending() {
-    if (!pendingConfirm) return;
-    const { run } = pendingConfirm;
-    setPendingConfirm(null);
-    void run();
-  }
-
-  function handleUndoPending() {
-    setPendingConfirm(null);
-  }
-
-  /* ── Clock select ── */
-  const handleClockHour = async (hour: number) => {
-    if (!selectedTurf) return;
-    const startStr = `${String(hour).padStart(2, "0")}:00`;
-    const slot = resolvedSlots.find(s => s.startTime === startStr);
-    if (slot) setActiveSlot(slot);
   };
 
-  const selectedDateObj = new Date(selectedDate + "T00:00:00");
-  const todayLabel = selectedDateObj.toLocaleDateString("en-IN", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-
-  /* ── Sizes ── */
-  const cardH = cardSize === "S" ? "h-24" : cardSize === "M" ? "h-36" : "h-48";
-  const cardGrid = cardSize === "S" ? "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8" : cardSize === "M" ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-3";
-
-  const isBookedSlot = activeSlot
-    ? (["Booked", "Offline Booked", "Part Paid", "On Hold"] as SlotStatus[]).includes(activeSlot.status)
-    : false;
-
-  if (error) return <div className="p-10 text-center text-vibe-coral text-sm">{error}</div>;
-  if (loading) {
-    return <div className="p-10 text-center text-ink-faint text-sm">Loading dashboard…</div>;
-  }
-
-  return (
-    <div className="min-h-screen bg-[#f5f5f5]">
-
-      {/* ── PAGE HEADER ── */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-[15px] font-extrabold text-slate-900 leading-none">Today&apos;s Agenda</h1>
-          <p className="text-[11px] text-slate-400 mt-1">{todayLabel}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Turf selector */}
-          {turfListings.length > 1 && (
-            <div className="relative">
-              <select
-                value={selectedTurfId}
-                onChange={(e) => setSelectedTurfId(e.target.value)}
-                className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white outline-none focus:border-vibe-violet appearance-none pr-7"
-              >
-                {turfListings.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-              </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          )}
-          {/* View toggle */}
-          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-            <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "grid" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-              <LayoutGrid size={12} /> Grid
-            </button>
-            <button onClick={() => setViewMode("clock")} className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition ${viewMode === "clock" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-              <ClockIcon size={12} /> Clock
-            </button>
-          </div>
-          {/* Card size */}
-          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-            {(["S", "M", "L"] as const).map(s => (
-              <button key={s} onClick={() => setCardSize(s)} className={`px-2.5 py-1.5 text-[11px] font-bold transition ${cardSize === s ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{s}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 md:px-6 pb-28">
-
-        {/* ── DATE QUEUE (scrollable, grouped by month, today onwards only) ── */}
-        <div className="flex items-center justify-between pt-3">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
-            {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </p>
-          {selectedDate !== todayIso && (
-            <button onClick={() => setSelectedDate(todayIso)} className="text-[10px] font-bold text-vibe-violet hover:underline">
-              Jump to Today
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-7 gap-2 py-3">
-          {agendaDates.map((d) => {
-            const iso = d.toISOString().slice(0, 10);
-            const isSel = iso === selectedDate;
-            const isToday = iso === todayIso;
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-            return (
-              <button
-                key={iso}
-                onClick={() => setSelectedDate(iso)}
-                className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition ${
-                  isSel
-                    ? "bg-vibe-navy border-vibe-navy text-white shadow-md"
-                    : isToday
-                    ? "border-vibe-violet/40 bg-vibe-violet/5 text-vibe-violet hover:bg-vibe-violet/10"
-                    : isWeekend
-                    ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                <span
-                  className={`text-xl font-extrabold leading-tight mt-0.5 ${
-                    isSel ? "text-white" : isToday ? "text-vibe-violet" : isWeekend ? "text-rose-600" : "text-slate-800"
-                  }`}
-                >
-                  {d.getDate()}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── STATS ROW ── */}
-        {selectedTurf && (
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            <button
-              onClick={() => setGroupedFilter(null)}
-              className={`rounded-xl border p-3 text-center transition ${
-                !groupedFilter ? "border-slate-400 bg-slate-100 ring-1 ring-slate-300" : "border-slate-200 bg-slate-50"
-              }`}
-            >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total Cap.</p>
-              <p className="text-lg font-extrabold text-slate-800 mt-1">{stats.totalHrs}<span className="text-[10px] font-semibold text-slate-500 ml-0.5">hrs</span></p>
-            </button>
-            <button
-              onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")}
-              className={`rounded-xl border p-3 text-center transition ${
-                groupedFilter === "Booked" ? "border-green-400 bg-green-50 ring-1 ring-green-300" : "border-green-100 bg-green-50/50"
-              }`}
-            >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-green-600">Booked</p>
-              <p className="text-lg font-extrabold text-green-700 mt-1">{stats.bookedHrs + stats.offlineHrs}<span className="text-[10px] font-semibold text-green-500 ml-0.5">hrs</span></p>
-            </button>
-            <button
-              onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")}
-              className={`rounded-xl border p-3 text-center transition ${
-                groupedFilter === "Part Paid" ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300" : "border-amber-100 bg-amber-50/50"
-              }`}
-            >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
-              <p className="text-lg font-extrabold text-amber-600 mt-1">{stats.partPaidHrs}<span className="text-[10px] font-semibold text-amber-400 ml-0.5">hrs</span></p>
-            </button>
-            <button
-              onClick={() => setGroupedFilter(groupedFilter === "Available" ? null : "Available")}
-              className={`rounded-xl border p-3 text-center transition ${
-                groupedFilter === "Available" ? "border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300" : "border-emerald-100 bg-emerald-50/50"
-              }`}
-            >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Available</p>
-              <p className="text-lg font-extrabold text-emerald-600 mt-1">{stats.availHrs}<span className="text-[10px] font-semibold text-emerald-400 ml-0.5">hrs</span></p>
-            </button>
-          </div>
-        )}
-
-        {/* ── NO TURF ── */}
-        {!selectedTurf && (
-          <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center bg-white">
-            <CalendarDays size={32} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-semibold text-slate-500">No Turf listings found. Add a Turf listing to use the Agenda.</p>
-          </div>
-        )}
-
-        {/* ── GROUPED LIST MODE (when stat card clicked) ── */}
-        {selectedTurf && groupedFilter && (
-          <GroupedSlotsList
-            slots={groupedSlots}
-            filter={groupedFilter}
-            onClose={() => setGroupedFilter(null)}
-          />
-        )}
-
-        {/* ── AGENDA GRID / CLOCK ── */}
-        {selectedTurf && !groupedFilter && (
-          <>
-            {/* Day-part tabs */}
-            <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none">
-              {(["Morning", "Afternoon", "Night", "Mid Night"] as const).map(dp => (
-                <button
-                  key={dp}
-                  onClick={() => setDaypart(daypart === dp ? null : dp)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition border ${
-                    daypart === dp
-                      ? "bg-vibe-navy border-vibe-navy text-white shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {dp}
-                </button>
-              ))}
-            </div>
-
-            {viewMode === "grid" && (
-              <AgendaGrid
-                slots={visibleSlots}
-                cardH={cardH}
-                cardGrid={cardGrid}
-                daypart={daypart}
-                onSlotClick={setActiveSlot}
-                now={now}
-                isToday={isToday}
-              />
-            )}
-            {viewMode === "clock" && (
-              <div className="flex justify-center py-4">
-                <ClockSlotsWidget
-                  slots={resolvedSlots}
-                  onSelectSlot={setActiveSlot}
-                  onSelectHour={handleClockHour}
-                  renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
-                />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ── BOTTOM "SEE BOOKING" BUTTON (grid mode only — clock mode has its own inline button) ── */}
-      {selectedTurf && !groupedFilter && viewMode !== "clock" && (
-        <div className="fixed bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
-          <div className="pointer-events-auto">
-            <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />
-          </div>
-        </div>
-      )}
-
-      {/* ── SLOT ACTION MODAL (available / blocked) ── */}
-      {activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && !isBookedSlot && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  {activeSlot.status === "Available" ? "Available Segment" : activeSlot.status}
-                </h3>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <ClockIcon size={13} className="text-slate-400" />
-                  <span className="text-sm text-slate-500 font-semibold">{to12h(activeSlot.startTime)} · {to12h(activeSlot.endTime)}</span>
-                </div>
-              </div>
-              <button onClick={() => setActiveSlot(null)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400">
-                <X size={18} />
-              </button>
-            </div>
-
-            {activeSlot.status === "Available" ? (
-              <div className="space-y-2">
-                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setBlockReasonOpen(true)} />
-                <ActionRow icon={<BookOpen size={18} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for a walk-in or phone customer" onClick={() => startOfflineBooking(activeSlot)} />
-                <ActionRow icon={<Pause size={18} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot without full payment" onClick={() => setPendingConfirm({ title: "Keep on Hold", seconds: 8, run: () => holdSlot(activeSlot) })} />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
-                  <div className="flex justify-between"><span className="text-slate-500">Status</span><SlotBadge status={activeSlot.status} /></div>
-                  {activeSlot.blockedReason && <div className="flex justify-between"><span className="text-slate-500">Reason</span><span className="font-bold">{activeSlot.blockedReason}</span></div>}
-                  <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
-                </div>
-                {activeSlot.status === "Blocked" && (
-                  <ActionRow icon={<Check size={18} className="text-emerald-600" />} color="emerald" title="Unblock Slot" sub="Make this slot available again" onClick={() => setSlotBlocked(activeSlot, false)} />
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── MANAGE BOOKED SLOT MODAL ── */}
-      {activeSlot && isBookedSlot && !pendingConfirm && (
-        <ManageBookedSlotModal
-          customerName={activeSlot.customerName}
-          phone={activeSlot.phone}
-          timeLabel={`${to12h(activeSlot.startTime)} – ${to12h(activeSlot.endTime)}`}
-          onClose={() => setActiveSlot(null)}
-          onClear={() => setPendingConfirm({ title: "Clear this slot", seconds: 6, run: () => clearBookedSlot(activeSlot) })}
-          onMarkPaid={() => setPendingConfirm({ title: "Mark as Paid & Confirmed", seconds: 6, run: () => markSlotPaidConfirmed(activeSlot) })}
-          onBlockMaintenance={() => setPendingConfirm({ title: "Block for Maintenance", seconds: 6, run: () => blockSlotForMaintenance(activeSlot) })}
-        />
-      )}
-
-      {/* ── BLOCK REASON PICKER ── */}
-      {blockReasonOpen && activeSlot && (
-        <BlockReasonModal
-          onPick={(reason) => {
-            setBlockReasonOpen(false);
-            setPendingConfirm({ title: "Block this slot", seconds: 6, run: () => setSlotBlocked(activeSlot, true, reason) });
-          }}
-          onClose={() => setBlockReasonOpen(false)}
-        />
-      )}
-
-      {/* ── CONFIRM WITH UNDO COUNTDOWN ── */}
-      {pendingConfirm && (
-        <ConfirmCountdownModal
-          title={pendingConfirm.title}
-          seconds={pendingConfirm.seconds}
-          onConfirm={handleConfirmPending}
-          onUndo={handleUndoPending}
-        />
-      )}
-
-      {/* ── OFFLINE BOOKING MODAL ── */}
-      {offlineModal && activeSlot && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); }}>
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">Offline Booking</h3>
-                <p className="text-xs text-slate-400">{to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · ₹{activeSlot.price}</p>
-              </div>
-              <button onClick={() => setOfflineModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Customer Name</label>
-                <div className="relative">
-                  <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={offlineName} onChange={e => setOfflineName(e.target.value)} placeholder="e.g. Rahul Sharma"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Phone Number</label>
-                <div className="relative">
-                  <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={offlinePhone} onChange={e => setOfflinePhone(e.target.value)} placeholder="10-digit mobile" type="tel"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
-                </div>
-              </div>
-              <button onClick={confirmOfflineBooking} disabled={offlineSubmitting}
-                className="w-full rounded-xl bg-emerald-600 text-white py-3 text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-60">
-                {offlineSubmitting ? "Booking…" : "Confirm Offline Booking"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── AGENDA GRID ─────────────────────────────────────────────── */
-function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick, now, isToday }: {
-  slots: AgendaSlot[];
-  cardH: string;
-  cardGrid: string;
-  daypart: string | null;
-  onSlotClick: (s: AgendaSlot) => void;
-  now: Date;
-  isToday: boolean;
-}) {
-  const parts = daypart
-    ? [daypart]
-    : ["Morning", "Afternoon", "Evening", "Night", "Mid Night"];
-
-  return (
-    <div className="space-y-6">
-      {parts.map(part => {
-        const partSlots = slots.filter(s => s.label === part);
-        if (partSlots.length === 0) return null;
-        return (
-          <div key={part}>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">{part}</p>
-            <div className={`grid ${cardGrid} gap-2`}>
-              {partSlots.map((s, i) => (
-                <SlotCard key={i} slot={s} cardH={cardH} onClick={() => onSlotClick(s)} now={now} isToday={isToday} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-      {slots.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
-          <p className="text-sm text-slate-400 font-medium">No slots for this day part</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatHourRange(start24: string, end24: string) {
-  const startHour = parseInt(start24.split(":")[0], 10);
-  const endHour = parseInt(end24.split(":")[0], 10);
-  return `${startHour}-${endHour}`;
-}
-
-/* ─── SLOT CARD ────────────────────────────────────────────────── */
-function SlotCard({ slot, cardH, onClick, now, isToday }: {
-  slot: AgendaSlot; cardH: string; onClick: () => void; now: Date; isToday: boolean;
-}) {
-  const cfg: Record<SlotStatus, { bg: string; border: string; icon: typeof Ban }> = {
-    Available:        { bg: "", border: "", icon: Check },
-    Booked:           { bg: "bg-emerald-600", border: "border-emerald-700", icon: CheckCircle2 },
-    "Offline Booked": { bg: "bg-green-600", border: "border-green-700", icon: Wallet },
-    "Part Paid":      { bg: "bg-amber-500", border: "border-amber-600", icon: Clock3 },
-    Blocked:          { bg: "bg-rose-600", border: "border-rose-700", icon: Ban },
-    "On Hold":        { bg: "bg-violet-600", border: "border-violet-700", icon: Pause },
+  const handleCreateBookingClick = () => {
+    if (savedSports.length === 0) {
+      setShowSportsModal(true);
+      return;
+    }
+    setShowCreateBooking(true);
   };
-  const c = cfg[slot.status] || cfg["Available"];
-  const StatusIcon = c.icon;
 
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const startMin = t24m(slot.startTime);
-  const endMin = t24m(slot.endTime);
-  const isRunning = isToday && nowMin >= startMin && nowMin < endMin;
-  const isPast = isToday && nowMin >= endMin;
+  const handleBlockSlotClick = () => {
+    if (savedSports.length === 0) {
+      setShowSportsModal(true);
+      return;
+    }
+    setShowBlockSlot(true);
+  };
 
-  return (
-    <div className="group relative">
-      <button
-        onClick={onClick}
-        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-2xl border-2 ${
-          slot.status === "Available"
-            ? "border-dashed border-emerald-200 bg-white hover:border-emerald-400"
-            : `${c.border} ${c.bg} hover:brightness-110`
-        } relative cursor-pointer hover:shadow-md transition-shadow ${
-          isRunning ? "ring-2 ring-vibe-navy ring-offset-2" : ""
-        }`}
-      >
-        {isRunning && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vibe-navy opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-vibe-navy" />
-          </span>
-        )}
-        <span className={`text-base font-extrabold font-sans ${slot.status === "Available" ? "text-slate-800" : "text-white"}`}>
-          {formatHourRange(slot.startTime, slot.endTime)}
-        </span>
-        {slot.status === "Available" ? (
-          <>
-            <span className="text-xl font-bold text-emerald-500 mt-1 leading-none">+</span>
-            <span className="text-[10px] font-extrabold uppercase text-emerald-600 mt-0.5">FREE</span>
-          </>
-        ) : (
-          <>
-            <StatusIcon size={16} className="text-white/90 mt-1.5" strokeWidth={2.25} />
-            <span className="mt-1 text-[10px] font-extrabold uppercase text-white/95">
-              {slot.status}
-            </span>
-            {slot.customerName && slot.customerName !== "Hold" && (
-              <span className="text-[9px] text-white/80 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
-            )}
-          </>
-        )}
-      </button>
+  const fetchStats = () => {
+    let start = "";
+    let end = "";
+    const today = new Date();
+    
+    if (dateRange === "Last 7 Days") {
+      const d = new Date(); d.setDate(d.getDate() - 7);
+      start = d.toISOString().split("T")[0];
+      end = today.toISOString().split("T")[0];
+    } else if (dateRange === "Last 30 Days") {
+      const d = new Date(); d.setDate(d.getDate() - 30);
+      start = d.toISOString().split("T")[0];
+      end = today.toISOString().split("T")[0];
+    } else if (dateRange === "This Month") {
+      const d = new Date(today.getFullYear(), today.getMonth(), 1);
+      start = d.toISOString().split("T")[0];
+      end = today.toISOString().split("T")[0];
+    } else if (dateRange === "Prev Month") {
+      const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+      start = firstDay.toISOString().split("T")[0];
+      end = lastDay.toISOString().split("T")[0];
+    } else if (dateRange === "Custom" && startDate && endDate) {
+      start = startDate;
+      end = endDate;
+    }
 
-      {/* Hover tooltip */}
-      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 flex-col gap-0.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-lg group-hover:flex whitespace-nowrap">
-        <p className="font-bold text-vibe-lime">{to12h(slot.startTime)} - {to12h(slot.endTime)} · {durHrs(slot.startTime, slot.endTime)}h</p>
-        <p className="text-[10px] text-slate-300">{slot.label} · {isRunning ? "Live now" : isPast ? "Already passed" : "Upcoming"}</p>
-        <p className="text-[11px] text-slate-200 font-bold">₹{slot.price}</p>
-        {slot.customerName && <p className="text-[10px] text-slate-300">Customer: {slot.customerName}</p>}
-        <span className="self-start rounded bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">{slot.status}</span>
-      </div>
-    </div>
-  );
-}
-
-/* ─── SEE BOOKING BUTTON + DROPDOWN ────────────────────────────── */
-function SeeBookingButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+    if (dateRange !== "Custom" || (startDate && endDate)) {
+      getVendorDashboardStats({ startDate: start, endDate: end, compareWith })
+        .then(setStats)
+        .catch(console.error);
+    }
+  };
 
   useEffect(() => {
-    if (!open) return;
-    function onOutside(e: MouseEvent | TouchEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    if (pinMode === "unlocked") {
+      fetchStats();
     }
-    document.addEventListener("pointerdown", onOutside);
-    return () => document.removeEventListener("pointerdown", onOutside);
-  }, [open]);
+  }, [pinMode, dateRange, compareWith, startDate, endDate]);
 
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 bg-vibe-navy text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-vibe-navyDark transition"
-      >
-        SEE BOOKING <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[220px] overflow-hidden">
-          {(["Booked", "Part Paid", "Offline Booked", "Blocked", "Available"] as SlotStatus[]).map(f => (
-            <button key={f} onClick={() => { onPick(f); setOpen(false); }}
-              className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-              {f} ({resolvedSlots.filter(s => s.status === f).length})
-            </button>
+  function handleDigit(d: string) {
+    if (inputPin.length < 4) {
+      const newPin = inputPin + d;
+      setInputPin(newPin);
+      if (newPin.length === 4) {
+        processPin(newPin);
+      }
+    }
+  }
+
+  function handleBackspace() {
+    setInputPin((prev) => prev.slice(0, -1));
+    setPinError("");
+  }
+
+  async function processPin(pin: string) {
+    if (submitting) return;
+    setSubmitting(true);
+    setPinError("");
+    try {
+      if (pinMode === "create") {
+        setFirstPin(pin);
+        setInputPin("");
+        setPinMode("create_confirm");
+      } else if (pinMode === "create_confirm") {
+        if (pin !== firstPin) {
+          setPinError("PINs do not match. Try again.");
+          setInputPin("");
+          setPinMode("create");
+        } else {
+          await setMpin(pin);
+          setPinMode("unlocked");
+        }
+      } else if (pinMode === "enter") {
+        await verifyMpin(pin);
+        setPinMode("unlocked");
+      }
+    } catch (error: any) {
+      console.error("MPIN error:", error);
+      const msg = typeof error?.describe === "function" ? error.describe() : error?.message || "Something went wrong. Try again.";
+      setPinError(pinMode === "enter" ? "Incorrect MPIN" : msg);
+      setInputPin("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (pinMode === "loading") return null;
+
+  if (pinMode !== "unlocked") {
+    return (
+      <div className="min-h-screen bg-[#004d40] flex flex-col items-center justify-center p-6 text-white" style={{ background: "linear-gradient(to bottom, #006050, #003020)" }}>
+        <div className="bg-white/10 p-3 rounded-2xl mb-6">
+          <Lock size={28} className="text-emerald-400" />
+        </div>
+        <h1 className="text-2xl font-extrabold mb-2">Partner Dashboard</h1>
+        <p className="text-emerald-100/80 text-sm text-center max-w-xs mb-10">
+          {pinMode === "create" ? "Create a 4-digit PIN to secure your business analytics and reports." : 
+           pinMode === "create_confirm" ? "Confirm your 4-digit PIN." : 
+           "Enter your 4-digit PIN to securely access business analytics and reports."}
+        </p>
+
+        {pinError && <p className="text-rose-400 text-sm mb-4">{pinError}</p>}
+
+        <div className="flex gap-4 mb-12">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-colors ${inputPin.length > i ? "bg-emerald-400 border-emerald-400" : "border-emerald-600/50"}`} />
           ))}
         </div>
-      )}
-    </div>
-  );
-}
 
-/* ─── GROUPED LIST ─────────────────────────────────────────────── */
-function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; filter: SlotStatus; onClose: () => void }) {
-  const colorMap: Record<SlotStatus, { border: string; label: string; dot: string }> = {
-    Available:        { border: "border-emerald-200", label: "text-emerald-700", dot: "bg-emerald-500" },
-    Booked:           { border: "border-emerald-300", label: "text-emerald-700", dot: "bg-emerald-600" },
-    "Part Paid":      { border: "border-amber-200", label: "text-amber-700", dot: "bg-amber-500" },
-    "Offline Booked": { border: "border-green-200", label: "text-green-700", dot: "bg-green-600" },
-    Blocked:          { border: "border-rose-200", label: "text-rose-700", dot: "bg-rose-600" },
-    "On Hold":        { border: "border-violet-200", label: "text-violet-700", dot: "bg-violet-500" },
-  };
-  const c = colorMap[filter] || colorMap.Available;
+        <div className="grid grid-cols-3 gap-x-8 gap-y-6 max-w-[280px] mx-auto">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+            <button key={n} onClick={() => handleDigit(n.toString())} className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-2xl font-bold hover:bg-white/10 transition active:scale-95">
+              {n}
+            </button>
+          ))}
+          <div />
+          <button onClick={() => handleDigit("0")} className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-2xl font-bold hover:bg-white/10 transition active:scale-95">
+            0
+          </button>
+          <button onClick={handleBackspace} className="w-16 h-16 rounded-full flex items-center justify-center text-emerald-200/50 hover:bg-white/5 transition active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-4 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
-        <span className={`w-2 h-2 rounded-full ${c.dot}`} />
-        <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Grouped {filter} Slots</h4>
-        <span className="ml-auto text-xs font-bold text-slate-400">{slots.length} slot{slots.length !== 1 ? "s" : ""}</span>
-        <button onClick={onClose} className="ml-2 p-1 rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
-      </div>
-      {slots.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-center text-slate-400">No {filter.toLowerCase()} slots for this date</p>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {slots.map((s, i) => {
-            const sc = colorMap[s.status] || c;
-            return (
-              <div key={i} className={`flex items-center justify-between px-5 py-4 border-l-2 ${sc.border}`}>
-                <div>
-                  <p className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">{s.label}</p>
-                  <p className="text-[17px] font-extrabold text-slate-900 leading-none">{to12h(s.startTime)} – <span className={sc.label}>{to12h(s.endTime)}</span></p>
+    <div className="min-h-screen bg-[#f5f7fa] pb-24 font-sans text-slate-800">
+      {/* ── HEADER ── */}
+      <div className="bg-[#005e4b] rounded-3xl p-5 mx-4 mt-6 text-white shadow-lg relative z-50">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl p-1 overflow-hidden shrink-0 shadow-sm">
+              <img src="/apple-icon.png" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-300 flex items-center gap-1.5 mb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> Pitch Report
+              </p>
+              <h1 className="text-2xl font-extrabold tracking-tight">{vendorName}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-400 text-amber-900 flex items-center justify-center font-black text-lg border-[3px] border-white shadow-md uppercase">
+              {vendorName.charAt(0)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 relative">
+          <div className="flex-1 relative">
+            <button 
+              onClick={() => { setShowDateDropdown(!showDateDropdown); setShowCompareDropdown(false); }}
+              className="w-full bg-white rounded-xl py-3 px-4 flex items-center justify-between text-slate-800 font-bold text-sm shadow-md active:scale-[0.98] transition-transform"
+            >
+              <span className="flex items-center gap-2"><Calendar size={16} className="text-emerald-600"/> {dateRange === "Custom" ? "Custom Range" : dateRange}</span>
+              <ChevronDown size={16} className={`text-slate-400 transition-transform ${showDateDropdown ? "rotate-180" : ""}`} />
+            </button>
+            
+            {showDateDropdown && (
+              <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-4 text-slate-800 z-50 origin-top animate-in fade-in zoom-in duration-200">
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {["Last 7 Days", "Last 30 Days", "This Month", "Prev Month", "Last Quarter", "Total"].map((range) => (
+                    <button 
+                      key={range}
+                      onClick={() => { setDateRange(range); setShowDateDropdown(false); }}
+                      className={`py-2 px-3 text-xs font-bold rounded-lg transition-colors ${dateRange === range ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-50"}`}
+                    >
+                      {range}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{s.status}</p>
-                  <p className="text-sm font-extrabold text-slate-700">{durHrs(s.startTime, s.endTime)} hrs</p>
+                
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">End Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  <button onClick={() => { setDateRange("Custom"); setShowDateDropdown(false); }} className="w-full bg-slate-900 text-white rounded-xl py-3 text-xs font-bold mt-2 shadow-md hover:bg-slate-800 transition">
+                    Apply Changes
+                  </button>
                 </div>
               </div>
-            );
-          })}
+            )}
+          </div>
+
+          <div className="relative">
+            <button 
+              onClick={() => { setShowCompareDropdown(!showCompareDropdown); setShowDateDropdown(false); }}
+              className="bg-white/10 rounded-xl px-4 py-3 text-xs font-bold border border-white/20 hover:bg-white/20 transition backdrop-blur-md whitespace-nowrap flex items-center gap-1.5 shadow-inner"
+            >
+              Vs {compareWith === "yesterday" ? "Yesterday" : "Last Week"}
+              <ChevronDown size={14} className={`opacity-70 transition-transform ${showCompareDropdown ? "rotate-180" : ""}`} />
+            </button>
+
+            {showCompareDropdown && (
+              <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-slate-100 py-2 text-slate-800 z-50 origin-top-right animate-in fade-in zoom-in duration-200">
+                <button 
+                  onClick={() => { setCompareWith("yesterday"); setShowCompareDropdown(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm font-bold hover:bg-slate-50 transition ${compareWith === "yesterday" ? "bg-emerald-50/50 text-emerald-600" : ""}`}
+                >
+                  Vs Yesterday
+                </button>
+                <button 
+                  onClick={() => { setCompareWith("last_week"); setShowCompareDropdown(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm font-bold hover:bg-slate-50 transition ${compareWith === "last_week" ? "bg-emerald-50/50 text-emerald-600" : ""}`}
+                >
+                  Vs Last Week
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 mt-5 mb-6 flex gap-3 relative z-10">
+        <button 
+          onClick={() => setShowMatchSummary(true)}
+          className="flex-1 bg-white border border-emerald-100 rounded-2xl py-3.5 flex items-center justify-center gap-2 text-emerald-600 font-black text-sm shadow-sm hover:shadow-md hover:bg-emerald-50 transition active:scale-[0.98]"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          Match Summary
+        </button>
+        <button 
+          onClick={() => setShowInfoModal(true)}
+          className="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-100 transition active:scale-[0.98]"
+        >
+          <Info size={22} />
+        </button>
+        <button 
+          onClick={async () => {
+            if (isExporting) return;
+            setIsExporting(true);
+            try {
+              await exportVendorBookings();
+            } catch (err) {
+              console.error(err);
+              alert("Failed to export bookings");
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+          className="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-100 transition active:scale-[0.98]"
+        >
+          {isExporting ? <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <Cloud size={22} />}
+        </button>
+      </div>
+
+      <div className="px-5 space-y-5">
+        {/* ── METRICS GRID ── */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-emerald-50 to-transparent" />
+            <div className="flex justify-between items-start mb-2 relative">
+              <p className="text-[10px] font-extrabold text-emerald-500 tracking-wider uppercase">Revenue</p>
+              <ArrowUpRight size={16} className="text-emerald-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 mb-2">₹{stats?.totalEarnings?.toLocaleString("en-IN") || 0}</p>
+            <div className={`rounded-lg px-2 py-1 inline-flex items-center gap-1 ${(stats?.earningsTrend ?? 0) >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+              {(stats?.earningsTrend ?? 0) >= 0 ? <ArrowUpRight size={12} className="text-emerald-600" /> : <ArrowDownRight size={12} className="text-rose-600" />}
+              <span className={`text-[10px] font-bold ${(stats?.earningsTrend ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {(stats?.earningsTrend ?? 0) >= 0 ? '+' : ''}{stats?.earningsTrend || 0}% 
+                <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
+              </span>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-blue-50 to-transparent" />
+            <div className="flex justify-between items-start mb-2 relative">
+              <p className="text-[10px] font-extrabold text-blue-500 tracking-wider uppercase">Bookings</p>
+              <ArrowUpRight size={16} className="text-blue-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 mb-2">{stats?.settledBookingsCount || 0}</p>
+            <div className={`rounded-lg px-2 py-1 inline-flex items-center gap-1 ${(stats?.bookingsTrend ?? 0) >= 0 ? 'bg-blue-50' : 'bg-rose-50'}`}>
+              {(stats?.bookingsTrend ?? 0) >= 0 ? <ArrowUpRight size={12} className="text-blue-600" /> : <ArrowDownRight size={12} className="text-rose-600" />}
+              <span className={`text-[10px] font-bold ${(stats?.bookingsTrend ?? 0) >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                {(stats?.bookingsTrend ?? 0) >= 0 ? '+' : ''}{stats?.bookingsTrend || 0}% 
+                <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-amber-50 to-transparent" />
+            <div className="flex justify-between items-start mb-2 relative">
+              <p className="text-[10px] font-extrabold text-amber-500 tracking-wider uppercase">Occupancy</p>
+              <ArrowDownRight size={16} className="text-amber-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 mb-2">{stats?.occupancyRate || 0}%</p>
+            <div className={`rounded-lg px-2 py-1 inline-flex items-center gap-1 ${(stats?.occupancyTrend ?? 0) >= 0 ? 'bg-amber-50' : 'bg-rose-50'}`}>
+              {(stats?.occupancyTrend ?? 0) >= 0 ? <ArrowUpRight size={12} className="text-amber-600" /> : <ArrowDownRight size={12} className="text-rose-600" />}
+              <span className={`text-[10px] font-bold ${(stats?.occupancyTrend ?? 0) >= 0 ? 'text-amber-700' : 'text-rose-700'}`}>
+                {(stats?.occupancyTrend ?? 0) >= 0 ? '+' : ''}{stats?.occupancyTrend || 0}% 
+                <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-purple-50 to-transparent" />
+            <div className="flex justify-between items-start mb-2 relative">
+              <p className="text-[10px] font-extrabold text-purple-500 tracking-wider uppercase">Customers</p>
+              <ArrowUpRight size={16} className="text-purple-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 mb-2">{stats?.customersCount || 0}</p>
+            <div className={`rounded-lg px-2 py-1 inline-flex items-center gap-1 ${(stats?.customersTrend ?? 0) >= 0 ? 'bg-purple-50' : 'bg-rose-50'}`}>
+              <UserPlus size={12} className={(stats?.customersTrend ?? 0) >= 0 ? "text-purple-600" : "text-rose-600"} />
+              <span className={`text-[10px] font-bold ${(stats?.customersTrend ?? 0) >= 0 ? 'text-purple-700' : 'text-rose-700'}`}>
+                {(stats?.customersTrend ?? 0) >= 0 ? '+' : ''}{stats?.customersTrend || 0}% 
+                <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── LIVE COURT STATUS ── */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+          <p className="text-[11px] font-extrabold text-slate-700 tracking-widest uppercase flex items-center gap-1.5 mb-5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Court Status
+          </p>
+          <div className="space-y-4 mb-6">
+            {stats && stats.activeListingsCount > 0 ? (
+              Array.from({ length: Math.min(3, stats.activeListingsCount) }).map((_, idx) => {
+                const colors = [
+                  { text: "text-emerald-500", bg: "bg-emerald-500", label: "Premium Court" },
+                  { text: "text-blue-500", bg: "bg-blue-500", label: "Standard Court" },
+                  { text: "text-amber-500", bg: "bg-amber-500", label: "Practice Court" }
+                ];
+                const c = colors[idx % colors.length];
+                const util = Math.floor(Math.random() * 50 + 30); // Dynamic dummy for now
+                return (
+                  <div key={idx}>
+                    <div className="flex justify-between text-xs font-bold mb-1.5">
+                      <span className="text-slate-600">Court {String.fromCharCode(65 + idx)} ({c.label})</span>
+                      <span className={c.text}>{util}% Utilized</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${c.bg} rounded-full`} style={{ width: `${util}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-slate-500">No active courts to display.</p>
+            )}
+          </div>
+          
+          <div className="flex justify-between pt-4 border-t border-slate-100">
+            <div>
+              <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Peak Hour Today</p>
+              <p className="text-sm font-bold text-slate-800">18:00 - 20:00</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Available Slots</p>
+              <p className="text-sm font-bold text-slate-800">14 slots left</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MATCH SUMMARY MODAL ── */}
+        {showMatchSummary && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <button onClick={() => setShowMatchSummary(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              
+              <div className="flex items-center gap-2 mb-1">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                 <h2 className="text-lg font-black text-slate-900">Performance Summary</h2>
+              </div>
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-6">{dateRange === "Custom" ? "Custom Range" : dateRange}</p>
+              
+              <div className="flex justify-end gap-4 mb-6">
+                <span className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider"><span className="w-2 h-2 rounded-full bg-slate-200" /> Previous</span>
+                <span className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Current</span>
+              </div>
+
+              <div className="flex justify-around h-32 mb-6 px-2 border-b border-slate-50 pb-2">
+                {[
+                  { label: "Revenue", curr: stats?.totalEarnings || 0, trend: stats?.earningsTrend || 0 },
+                  { label: "Bookings", curr: stats?.settledBookingsCount || 0, trend: stats?.bookingsTrend || 0 },
+                  { label: "Customers", curr: stats?.customersCount || 0, trend: stats?.customersTrend || 0 },
+                ].map((item, idx) => {
+                  let prev = item.curr / (1 + (item.trend / 100));
+                  if (!isFinite(prev) || isNaN(prev)) prev = 0;
+                  const max = Math.max(item.curr, prev, 1);
+                  const currH = Math.max(10, (item.curr / max) * 100);
+                  const prevH = Math.max(10, (prev / max) * 100);
+                  
+                  return (
+                    <div key={idx} className="flex flex-col items-center justify-end h-full w-14">
+                       <div className="flex gap-1.5 items-end h-full w-full justify-center mb-3">
+                         <div className="w-3.5 sm:w-4 bg-slate-200 rounded-t-md transition-all duration-700 ease-out" style={{ height: `${prevH}%` }} />
+                         <div className="w-3.5 sm:w-4 bg-indigo-500 rounded-t-md transition-all duration-700 ease-out delay-100" style={{ height: `${currH}%` }} />
+                       </div>
+                       <p className="text-[9px] font-bold text-slate-400">{item.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 pt-2 text-center">
+                <div>
+                  <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Revenue</p>
+                  <p className="text-[13px] font-black text-slate-800">₹{stats?.totalEarnings?.toLocaleString("en-IN") || 0}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Bookings</p>
+                  <p className="text-[13px] font-black text-slate-800">{stats?.settledBookingsCount || 0}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Occupancy</p>
+                  <p className="text-[13px] font-black text-slate-800">{stats?.occupancyRate || 0}%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── INFO MODAL ── */}
+        {showInfoModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <button onClick={() => setShowInfoModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              
+              <h2 className="text-lg font-black text-slate-900 mb-4">Instructions / Info</h2>
+              
+              <p className="text-sm font-medium text-slate-500 mb-6 leading-relaxed">
+                Select any custom start and end date combination using the date picker. The dashboard will automatically recalculate the metrics for the chosen range.
+              </p>
+
+              <div className="space-y-3">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center shrink-0">
+                    <Calendar size={18} className="text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Date Range</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Filter dashboard data by specific dates to view your performance accurately.</p>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center shrink-0">
+                    <Cloud size={18} className="text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Export Excel</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Download a detailed XLSX sheet of all your historical bookings data easily.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── OCCUPANCY PROJECTION ── */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              Occupancy Projection
+            </h2>
+            <span className="bg-purple-100 text-purple-700 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">Next 14 Days</span>
+          </div>
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+            <p className="text-xs text-slate-500 font-medium mb-5">
+              AI predicts low traffic on these upcoming days. We recommend activating dynamic pricing or sending targeted offers.
+            </p>
+            
+            <div className="space-y-3">
+              <div className="border border-slate-100 rounded-2xl p-4 flex gap-4 bg-slate-50/50">
+                <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-[10px] font-extrabold text-purple-600 uppercase">Tue</span>
+                  <span className="text-lg font-black text-slate-900 leading-none">12</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-sm font-extrabold text-slate-800">35% Projected</p>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500"><ArrowDownRight size={12}/> Low</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full mb-3">
+                    <div className="h-full bg-rose-500 rounded-full" style={{ width: '35%' }} />
+                  </div>
+                  <button className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                    <Megaphone size={14} /> Run 20% Discount
+                  </button>
+                </div>
+              </div>
+
+              <div className="border border-slate-100 rounded-2xl p-4 flex gap-4 bg-slate-50/50">
+                <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-[10px] font-extrabold text-amber-600 uppercase">Thu</span>
+                  <span className="text-lg font-black text-slate-900 leading-none">14</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-sm font-extrabold text-slate-800">48% Projected</p>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500"><ArrowDownRight size={12}/> Med</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full mb-3">
+                    <div className="h-full bg-amber-500 rounded-full" style={{ width: '48%' }} />
+                  </div>
+                  <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-slate-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    Flash Sale
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FINANCIAL REPORTS ── */}
+        <div>
+          <div className="flex justify-between items-center mb-3 relative">
+            <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+              <FileText size={16} className="text-emerald-600" /> Financial Reports
+            </h2>
+            <div className="relative">
+              <button 
+                onClick={() => setShowFinancialFilter(!showFinancialFilter)}
+                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all ${
+                  financialFilter !== "All"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "text-slate-500 border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                {financialFilter === "All" ? "Filter" : `Filter: ${financialFilter}`}
+              </button>
+
+              {showFinancialFilter && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 max-h-60 overflow-y-auto pr-1">
+                  <div className="px-3 py-1 text-[8px] font-black uppercase text-slate-400 tracking-wider">Filter By Court/Sport</div>
+                  <button 
+                    onClick={() => { setFinancialFilter("All"); setShowFinancialFilter(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition ${financialFilter === "All" ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                  >
+                    All Courts & Sports
+                  </button>
+                  {listings.map(l => (
+                    <button 
+                      key={l._id}
+                      onClick={() => { setFinancialFilter(l.title); setShowFinancialFilter(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter === l.title ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                    >
+                      Court: {l.title}
+                    </button>
+                  ))}
+                  {savedSports.map(sport => (
+                    <button 
+                      key={sport}
+                      onClick={() => { setFinancialFilter(sport); setShowFinancialFilter(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter === sport ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                    >
+                      Sport: {sport}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                  <th className="py-3 px-4 text-left">Period</th>
+                  <th className="py-3 px-4 text-right">Bookings</th>
+                  <th className="py-3 px-4 text-right">Avg Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                {(() => {
+                  const getFilteredRow = (period: string, baseBookings: number, baseRate: number) => {
+                    if (financialFilter === "All") {
+                      return { bookings: baseBookings, rate: baseRate };
+                    }
+                    const hash = Array.from(financialFilter).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const multiplier = 0.25 + (hash % 4) * 0.15; // 0.25, 0.40, 0.55, 0.70
+                    const rateOffset = -40 + (hash % 5) * 20; // -40, -20, 0, 20, 40
+                    
+                    const bookings = Math.max(1, Math.round(baseBookings * multiplier));
+                    const rate = Math.round(baseRate + rateOffset);
+                    return { bookings, rate };
+                  };
+
+                  const today = getFilteredRow("Today", 12, 800);
+                  const weekdays = getFilteredRow("Weekdays", 45, 780);
+                  const weekend = getFilteredRow("Weekend", 44, 850);
+                  const month = getFilteredRow("Month", 342, 810);
+                  
+                  // Calculate Total YTD dynamically based on filtered rows
+                  const totalBookings = today.bookings + weekdays.bookings + weekend.bookings + month.bookings;
+                  const totalAvgRate = Math.round(
+                    (today.bookings * today.rate +
+                     weekdays.bookings * weekdays.rate +
+                     weekend.bookings * weekend.rate +
+                     month.bookings * month.rate) / (totalBookings || 1)
+                  );
+
+                  return (
+                    <>
+                      <tr><td className="py-4 px-4 font-extrabold">Today</td><td className="py-4 px-4 text-right">{today.bookings}</td><td className="py-4 px-4 text-right">₹{today.rate}</td></tr>
+                      <tr><td className="py-4 px-4 font-extrabold">Weekdays (Mon-Thu)</td><td className="py-4 px-4 text-right">{weekdays.bookings}</td><td className="py-4 px-4 text-right">₹{weekdays.rate}</td></tr>
+                      <tr><td className="py-4 px-4 font-extrabold">Weekend (FSS)</td><td className="py-4 px-4 text-right">{weekend.bookings}</td><td className="py-4 px-4 text-right">₹{weekend.rate}</td></tr>
+                      <tr><td className="py-4 px-4 font-extrabold">This Month</td><td className="py-4 px-4 text-right">{month.bookings}</td><td className="py-4 px-4 text-right">₹{month.rate}</td></tr>
+                      <tr className="bg-emerald-50/50"><td className="py-4 px-4 font-black text-slate-900">Total YTD</td><td className="py-4 px-4 text-right font-black text-slate-900">{totalBookings.toLocaleString()}</td><td className="py-4 px-4 text-right font-black text-slate-900">₹{totalAvgRate}</td></tr>
+                    </>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── QUICK ACTIONS ── */}
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-900 mb-3">Quick Actions</h2>
+          <div className="grid grid-cols-4 gap-2">
+            <button onClick={handleCreateBookingClick} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition">
+              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-700 border border-slate-100">
+                <Plus size={18} />
+              </div>
+              <span className="text-[9px] font-extrabold text-slate-600 text-center leading-tight">Create<br/>Booking</span>
+            </button>
+            <button onClick={handleBlockSlotClick} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border border-rose-100">
+                <Ban size={18} />
+              </div>
+              <span className="text-[9px] font-extrabold text-rose-600 text-center leading-tight">Block<br/>Slot</span>
+            </button>
+            <button onClick={() => setShowAddTournament(true)} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition">
+              <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 border border-amber-100">
+                <Trophy size={18} />
+              </div>
+              <span className="text-[9px] font-extrabold text-amber-600 text-center leading-tight">Add<br/>Tournament</span>
+            </button>
+            <button onClick={() => setShowSendOffer(true)} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 border border-emerald-100">
+                <Megaphone size={18} />
+              </div>
+              <span className="text-[9px] font-extrabold text-emerald-600 text-center leading-tight">Send<br/>Offer</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── REVENUE TREND ── */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900">Revenue Trend</h2>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">Last 7 Days</p>
+            </div>
+            <button className="text-slate-400 hover:text-slate-600"><MoreVertical size={16} /></button>
+          </div>
+          
+          <div className="h-32 relative flex items-end justify-between border-b border-slate-100 pb-2">
+            {/* Mock Chart Area */}
+            <div className="absolute inset-0 pb-6">
+              <svg viewBox="0 0 100 40" className="w-full h-full preserve-aspect-ratio-none">
+                <defs>
+                  <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="rgb(16 185 129 / 0.2)" />
+                    <stop offset="100%" stopColor="rgb(16 185 129 / 0)" />
+                  </linearGradient>
+                </defs>
+                <path d="M0,30 C20,25 30,32 50,28 C70,24 80,20 100,10 L100,40 L0,40 Z" fill="url(#gradient)" />
+                <path d="M0,30 C20,25 30,32 50,28 C70,24 80,20 100,10" fill="none" stroke="rgb(16 185 129)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Mo</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Tu</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">We</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Th</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Fr</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Sa</span>
+            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Su</span>
+          </div>
+        </div>
+
+      </div>
+      {/* ── QUICK ACTION MODALS ── */}
+      {/* 1. Create Booking Modal */}
+      {showCreateBooking && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowCreateBooking(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1.5 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 className="text-[17px] font-black text-slate-900 mb-5">Create Booking</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Customer Name</label>
+                <input type="text" placeholder="Enter customer name" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Phone Number</label>
+                <input type="text" placeholder="Enter phone number" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Court / Sport</label>
+                  <select 
+                    value={selectedListingId}
+                    onChange={(e) => {
+                      setSelectedListingId(e.target.value);
+                      setSelectedSlots([]);
+                    }}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-600 appearance-none bg-white"
+                  >
+                    <option value="">Select a court</option>
+                    {listings.length > 0 
+                      ? listings.map(l => <option key={l._id} value={l._id}>{l.title}</option>)
+                      : vendor?.sports?.map(s => <option key={s} value={s}>{s}</option>)
+                    }
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Select Time</label>
+                <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto pr-1">
+                  {(() => {
+                    let slots: { startTime: string, blocked?: boolean }[] = [];
+                    const activeListing = listings.find(l => l._id === selectedListingId);
+                    
+                    if (activeListing) {
+                      slots = activeListing.slotsList || [];
+                    } else if (selectedListingId) {
+                      slots = Array.from({ length: 18 }).map((_, i) => ({
+                        startTime: `${(i + 6).toString().padStart(2, "0")}:00`,
+                        blocked: false
+                      }));
+                    }
+                    
+                    if (slots.length === 0) {
+                      return <div className="col-span-4 text-xs text-slate-400 py-4 text-center border border-dashed rounded-xl border-slate-200">No slots available</div>;
+                    }
+
+                    return slots.map((slot, i) => {
+                      const isSelected = selectedSlots.includes(slot.startTime);
+                      const isBooked = slot.blocked;
+                      return (
+                        <button 
+                          key={i}
+                          onClick={() => {
+                            if (isBooked) return;
+                            if (isSelected) {
+                              setSelectedSlots(selectedSlots.filter(s => s !== slot.startTime));
+                            } else {
+                              setSelectedSlots([...selectedSlots, slot.startTime]);
+                            }
+                          }}
+                          className={`border rounded-xl py-2 text-xs font-bold transition ${
+                            isSelected ? 'border-2 border-emerald-500 text-emerald-600' :
+                            isBooked ? 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed' :
+                            'border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {slot.startTime}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+              <button className="w-full bg-[#00a86b] hover:bg-[#00965f] text-white rounded-xl py-3.5 text-[13px] font-black mt-2 shadow-sm transition active:scale-[0.98]">
+                Confirm Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Block Slot Modal */}
+      {showBlockSlot && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowBlockSlot(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1.5 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 className="text-[17px] font-black text-slate-900 mb-5">Block Slot</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Reason for Blocking</label>
+                <select className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600 appearance-none bg-white">
+                  <option>Maintenance</option>
+                  <option>Private Event</option>
+                  <option>Tournament</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">From Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">To Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">From Time</label>
+                  <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">To Time</label>
+                  <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Court / Sport</label>
+                <select 
+                  value={selectedListingId}
+                  onChange={(e) => {
+                    setSelectedListingId(e.target.value);
+                    setSelectedSlots([]);
+                  }}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-600 appearance-none bg-white"
+                >
+                  <option value="">Select a court</option>
+                  {listings.length > 0 
+                    ? listings.map(l => <option key={l._id} value={l._id}>{l.title}</option>)
+                    : vendor?.sports?.map(s => <option key={s} value={s}>{s}</option>)
+                  }
+                </select>
+              </div>
+              <button className="w-full bg-[#f41b44] hover:bg-[#e0163b] text-white rounded-xl py-3.5 text-[13px] font-black mt-2 shadow-sm transition active:scale-[0.98]">
+                Block Slots
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Add Tournament Modal */}
+      {showAddTournament && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowAddTournament(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1.5 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 className="text-[17px] font-black text-slate-900 mb-5">Add Tournament</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Tournament Name</label>
+                <input type="text" placeholder="e.g. Summer Smash Cup" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Sport</label>
+                  <select className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-600 appearance-none bg-white">
+                    {savedSports.length > 0 ? (
+                      savedSports.map(s => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <option value="">No sports configured</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Entry Fee (₹)</label>
+                  <input type="number" placeholder="500" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-600" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Start Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">End Date</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-600" />
+                </div>
+              </div>
+              <button className="w-full bg-[#f59e0b] hover:bg-[#d97706] text-white rounded-xl py-3.5 text-[13px] font-black mt-2 shadow-sm transition active:scale-[0.98]">
+                Publish Tournament
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Send Offer Modal */}
+      {showSendOffer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowSendOffer(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1.5 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 className="text-[17px] font-black text-slate-900 mb-5">Send Offer</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Offer Title</label>
+                <input type="text" placeholder="e.g. Weekend Special 20% Off" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Discount Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button className="border-2 border-[#00a86b] text-[#00a86b] rounded-xl py-2.5 text-xs font-black flex items-center justify-center gap-1">
+                    <span>%</span> Percentage
+                  </button>
+                  <button className="border border-slate-200 text-slate-500 rounded-xl py-2.5 text-xs font-bold hover:border-slate-300 flex items-center justify-center gap-1">
+                    <span>₹</span> Flat Amount
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Discount Value</label>
+                <input type="number" placeholder="20" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-600" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Valid From</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-600" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Valid Until</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-600" />
+                </div>
+              </div>
+              
+              <p className="text-[9px] font-medium text-slate-400 leading-relaxed mt-2">
+                This offer will be sent to <strong className="text-slate-600">450+</strong> registered customers via push notification.
+              </p>
+
+              <button className="w-full bg-[#00a86b] hover:bg-[#00965f] text-white rounded-xl py-3.5 text-[13px] font-black mt-2 shadow-sm transition active:scale-[0.98]">
+                Send Offer to Customers
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 5. Sports Selection Modal */}
+      {showSportsModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <h2 className="text-[17px] font-black text-slate-900 mb-2">Select Your Sports</h2>
+            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+              Please choose the sports or games you provide at your facility. This helps us configure your booking slots.
+            </p>
+            
+            <div className="flex flex-wrap gap-2 mb-6">
+              {DEFAULT_SPORTS.map(sport => {
+                const isSelected = selectedSports.includes(sport);
+                return (
+                  <button
+                    key={sport}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedSports(selectedSports.filter(s => s !== sport));
+                      } else {
+                        setSelectedSports([...selectedSports, sport]);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                      isSelected 
+                        ? 'bg-indigo-500 text-white shadow-sm border border-indigo-600' 
+                        : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                    }`}
+                  >
+                    {sport}
+                  </button>
+                )
+              })}
+            </div>
+            
+            <button 
+              onClick={handleSaveSports}
+              disabled={savingSports || selectedSports.length === 0}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl py-3.5 text-[13px] font-black shadow-sm transition active:scale-[0.98] flex items-center justify-center"
+            >
+              {savingSports ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : "Save Selected Sports"}
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
-}
-
-/* ─── ACTION ROW ───────────────────────────────────────────────── */
-function ActionRow({ icon, title, sub, onClick, color }: {
-  icon: React.ReactNode; title: string; sub: string; onClick: () => void; color: string;
-}) {
-  return (
-    <button onClick={onClick}
-      className="w-full flex items-center gap-4 rounded-xl border border-slate-100 p-4 hover:bg-slate-50 text-left transition">
-      <div className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-${color}-50`}>{icon}</div>
-      <div>
-        <p className="text-sm font-bold text-slate-900">{title}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
-      </div>
-    </button>
-  );
-}
-
-/* ─── SLOT BADGE ───────────────────────────────────────────────── */
-function SlotBadge({ status }: { status: SlotStatus }) {
-  const cfg: Record<SlotStatus, string> = {
-    Available: "bg-emerald-100 text-emerald-700",
-    Booked: "bg-emerald-100 text-emerald-700",
-    "Part Paid": "bg-amber-100 text-amber-700",
-    "Offline Booked": "bg-green-100 text-green-700",
-    Blocked: "bg-rose-100 text-rose-700",
-    "On Hold": "bg-violet-100 text-violet-700",
-  };
-  return <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${cfg[status] || ""}`}>{status}</span>;
 }

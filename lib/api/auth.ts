@@ -87,6 +87,7 @@ export interface VendorOwnerProfile {
   status: "pending" | "approved" | "suspended";
   role: "vendor";
   verticals: ("turf" | "events" | "food" | "coaches")[];
+  sports?: string[];
 }
 
 export interface VendorStaffProfile {
@@ -97,6 +98,7 @@ export interface VendorStaffProfile {
   email: string;
   role: "staff" | "subadmin";
   verticals: ("turf" | "events" | "food" | "coaches")[];
+  sports?: string[];
   permissions?: PermissionsMap<ModulePermissionKey>;
 }
 
