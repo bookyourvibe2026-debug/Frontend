@@ -37,7 +37,7 @@ import {
 } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
-import { Listing, Booking } from "@/lib/types";
+import { Listing, Booking, BookingStatus } from "@/lib/types";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
 
