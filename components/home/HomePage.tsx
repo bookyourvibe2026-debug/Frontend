@@ -30,6 +30,8 @@ import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
 
+import { OnboardingFlow } from "./OnboardingFlow";
+
 export default function HomePage() {
   const router = useRouter();
   const { customer, status } = useCustomerAuth();
@@ -41,7 +43,18 @@ export default function HomePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [challengeOpen, setChallengeOpen] = useState(false);
   const [joinInviteOpen, setJoinInviteOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const filters = useVenueFilters(venues, search);
+
+  useEffect(() => {
+    // Show onboarding immediately if they haven't seen it, no need to wait for auth
+    const hasSeen = localStorage.getItem("byv-onboarding-seen");
+    if (!hasSeen) {
+      setShowOnboarding(true);
+    } else {
+      setShowOnboarding(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "guest" && new URLSearchParams(window.location.search).get("join") === "player") {
@@ -109,8 +122,18 @@ export default function HomePage() {
     return filters.filteredVenues.length;
   }, [search, filters.activeFilterCount, filters.filteredVenues]);
 
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem("byv-onboarding-seen", "true");
+    setShowOnboarding(false);
+  }, []);
+
+  if (showOnboarding === null) {
+    return <div className="min-h-screen bg-slate-900" />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
       <div className="sm:hidden">
         <MobileHome
           userName={userName}
