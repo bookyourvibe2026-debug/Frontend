@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut } from "lucide-react";
-import { NAV_ITEMS_BY_VERTICAL, SHARED_NAV_ITEMS, MOBILE_NAV_ORDER } from "./Sidebar";
+import { Menu } from "lucide-react";
+import { NAV_ITEMS_BY_VERTICAL, MOBILE_NAV_ORDER } from "./Sidebar";
 import type { VendorVertical } from "@/lib/api/types";
 
 const MAX_PRIMARY_ITEMS = 4;
@@ -25,140 +25,83 @@ export default function BottomNav({
   onLogout: () => void;
 }) {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [activeVertical, setActiveVertical] = useState<VendorVertical>(verticals[0] ?? "turf");
 
-  const activeVertical =
-    verticals.find((v) => NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))) ??
-    verticals[0] ??
-    "turf";
+  useEffect(() => {
+    const matched = verticals.find((v) =>
+      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
+    );
+    if (matched) {
+      localStorage.setItem("byv_vendor_active_vertical", matched);
+      setActiveVertical(matched);
+    } else {
+      const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
+      if (stored && verticals.includes(stored)) {
+        setActiveVertical(stored);
+      } else {
+        setActiveVertical(verticals[0] ?? "turf");
+      }
+    }
+  }, [pathname, verticals]);
 
   const allItems = NAV_ITEMS_BY_VERTICAL[activeVertical];
   const customOrder = MOBILE_NAV_ORDER[activeVertical];
   const primaryItems = customOrder
     ? (customOrder.map((href) => allItems.find((item) => item.href === href)).filter(Boolean) as typeof allItems)
     : allItems.slice(0, MAX_PRIMARY_ITEMS);
-  const primaryHrefs = new Set(primaryItems.map((item) => item.href));
-  const overflowItems = [...allItems.filter((item) => !primaryHrefs.has(item.href)), ...SHARED_NAV_ITEMS];
+
+  const isMoreActive = pathname === "/vendor/more";
 
   return (
-    <>
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-white lg:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        {primaryItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname?.startsWith(href);
-          const isDashboard = href.endsWith("/dashboard");
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-white lg:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {primaryItems.map(({ href, label, icon: Icon }) => {
+        const active = pathname?.startsWith(href) && !isMoreActive;
+        const isDashboard = href.endsWith("/dashboard");
 
-          if (isDashboard) {
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="flex flex-1 flex-col items-center justify-end gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
-              >
-                <span
-                  className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-colors ${
-                    active ? "bg-vibe-violet" : "bg-vibe-navy"
-                  }`}
-                >
-                  <Icon size={22} strokeWidth={2} className="text-white" />
-                </span>
-                <span className={active ? "text-vibe-violet" : "text-ink-faint"}>{label}</span>
-              </Link>
-            );
-          }
-
+        if (isDashboard) {
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${
-                active ? "text-vibe-violet" : "text-ink-faint"
-              }`}
+              className="flex flex-1 flex-col items-center justify-end gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
             >
-              <Icon size={20} strokeWidth={2} />
-              {SHORT_LABELS[label] ?? label}
+              <span
+                className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-colors ${
+                  active ? "bg-vibe-violet" : "bg-vibe-navy"
+                }`}
+              >
+                <Icon size={22} strokeWidth={2} className="text-white" />
+              </span>
+              <span className={active ? "text-vibe-violet" : "text-ink-faint"}>{label}</span>
             </Link>
           );
-        })}
-        <button
-          onClick={() => setMoreOpen(true)}
-          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-ink-faint"
-        >
-          <Menu size={20} strokeWidth={2} />
-          More
-        </button>
-      </nav>
+        }
 
-      {moreOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMoreOpen(false)}>
-          <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" />
-          <div
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white shadow-2xl px-3 pt-3"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
-            onClick={(e) => e.stopPropagation()}
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${
+              active ? "text-vibe-violet" : "text-ink-faint"
+            }`}
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-surface-border" />
-            <div className="flex items-center justify-between px-2 pb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">More</p>
-              <button onClick={() => setMoreOpen(false)} className="p-1 text-ink-faint hover:text-ink" aria-label="Close">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="space-y-1 pb-1">
-              {overflowItems.map(({ href, label, icon: Icon }) => {
-                const active = pathname?.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setMoreOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                      active ? "bg-vibe-violet/10 text-vibe-violet" : "text-ink-soft hover:bg-cream-300"
-                    }`}
-                  >
-                    <Icon size={18} strokeWidth={2} />
-                    {label}
-                  </Link>
-                );
-              })}
-              {/* Extra: My Listings */}
-              <Link
-                href="/vendor/listings"
-                onClick={() => setMoreOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  pathname?.startsWith("/vendor/listings") ? "bg-vibe-violet/10 text-vibe-violet" : "text-ink-soft hover:bg-cream-300"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><path d="M13 8h4M13 12h4M13 16h4"/></svg>
-                My Listings
-              </Link>
-              {/* Extra: Privacy & Security */}
-              <Link
-                href="/vendor/privacy-security"
-                onClick={() => setMoreOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  pathname?.startsWith("/vendor/privacy-security") ? "bg-vibe-violet/10 text-vibe-violet" : "text-ink-soft hover:bg-cream-300"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Privacy &amp; Security
-              </Link>
-              <button
-                onClick={() => {
-                  setMoreOpen(false);
-                  onLogout();
-                }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-vibe-coral hover:bg-vibe-coral/10 transition-colors"
-              >
-                <LogOut size={18} />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+            <Icon size={20} strokeWidth={2} />
+            {SHORT_LABELS[label] ?? label}
+          </Link>
+        );
+      })}
+      <Link
+        href="/vendor/more"
+        className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${
+          isMoreActive ? "text-vibe-violet" : "text-ink-faint"
+        }`}
+      >
+        <Menu size={20} strokeWidth={2} />
+        More
+      </Link>
+    </nav>
   );
 }
