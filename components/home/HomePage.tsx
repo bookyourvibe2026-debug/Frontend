@@ -47,6 +47,14 @@ export default function HomePage() {
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
+    // Check if URL has reset_splash=true for testing
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("reset_splash") === "true") {
+        localStorage.removeItem("byv-onboarding-seen");
+      }
+    }
+
     // Show onboarding immediately if they haven't seen it, no need to wait for auth
     const hasSeen = localStorage.getItem("byv-onboarding-seen");
     if (!hasSeen) {
