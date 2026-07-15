@@ -47,21 +47,8 @@ export default function HomePage() {
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
-    // Check if URL has reset_splash=true for testing
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get("reset_splash") === "true") {
-        localStorage.removeItem("byv-onboarding-seen");
-      }
-    }
-
-    // Show onboarding immediately if they haven't seen it, no need to wait for auth
-    const hasSeen = localStorage.getItem("byv-onboarding-seen");
-    if (!hasSeen) {
-      setShowOnboarding(true);
-    } else {
-      setShowOnboarding(false);
-    }
+    // Always show onboarding every time the user visits
+    setShowOnboarding(true);
   }, []);
 
   useEffect(() => {
@@ -131,7 +118,6 @@ export default function HomePage() {
   }, [search, filters.activeFilterCount, filters.filteredVenues]);
 
   const handleOnboardingComplete = useCallback(() => {
-    localStorage.setItem("byv-onboarding-seen", "true");
     setShowOnboarding(false);
   }, []);
 
