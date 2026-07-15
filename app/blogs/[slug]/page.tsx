@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, Newspaper } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { MobileTopBar } from "@/components/mobile/ui";
@@ -23,6 +23,7 @@ function formatDate(date?: string | null) {
 
 export default function BlogDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const router = useRouter();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,12 +76,13 @@ export default function BlogDetailPage() {
       </div>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
-        <Link
-          href="/blogs"
+        <button
+          type="button"
+          onClick={() => router.back()}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-brand-600"
         >
           <ArrowLeft className="h-4 w-4" /> Back to blog
-        </Link>
+        </button>
 
         <article className="mt-4">
           <div className="h-56 w-full overflow-hidden rounded-3xl border border-slate-100 bg-slate-100 sm:h-96">

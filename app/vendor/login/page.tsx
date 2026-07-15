@@ -135,7 +135,7 @@ function VendorLoginInner() {
 
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => router.push("/")}
         aria-label="Go back"
         className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[#f6f3ea] backdrop-blur transition hover:bg-white/20 lg:hidden"
       >

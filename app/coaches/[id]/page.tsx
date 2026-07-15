@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Award, Clock, UserRoundCog } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -12,6 +12,7 @@ import { Coach, CoachSlot } from "@/lib/api/types";
 
 export default function CoachDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [coach, setCoach] = useState<Coach | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<CoachSlot | null>(null);
@@ -59,12 +60,13 @@ export default function CoachDetailPage() {
       <SiteHeader />
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link
-          href="/coaches"
+        <button
+          type="button"
+          onClick={() => router.back()}
           className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-brand-600"
         >
           <ArrowLeft className="h-4 w-4" /> Back to coaches
-        </Link>
+        </button>
 
         <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <div>

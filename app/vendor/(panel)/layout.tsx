@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/vendor/Sidebar";
 import BottomNav from "@/components/vendor/BottomNav";
-import Topbar from "@/components/vendor/Topbar";
+
 import { isVendorOwner, restoreVendorSession, vendorLogout, type VendorProfile } from "@/lib/api/auth";
 import { VendorAuthProvider } from "@/components/providers/VendorAuthProvider";
 
@@ -58,10 +58,6 @@ export default function VendorPanelLayout({
           verticals={session.verticals}
         />
         <div className="flex-1 min-w-0 flex flex-col">
-          <Topbar
-            onLogout={() => void handleLogout()}
-            vendorName={isVendorOwner(session) ? session.businessName : session.holderName}
-          />
           <main className="flex-1 px-4 sm:px-6 py-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto">
             {children}
           </main>

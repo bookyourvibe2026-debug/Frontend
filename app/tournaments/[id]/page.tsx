@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Calendar, MapPin, Trophy, Users } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -12,6 +12,7 @@ import { Tournament } from "@/lib/api/types";
 
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
@@ -61,12 +62,13 @@ export default function TournamentDetailPage() {
       <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link
-          href="/tournaments"
+        <button
+          type="button"
+          onClick={() => router.back()}
           className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-brand-600"
         >
           <ArrowLeft className="h-4 w-4" /> Back to tournaments
-        </Link>
+        </button>
 
         <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div>

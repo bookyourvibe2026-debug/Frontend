@@ -47,8 +47,15 @@ export default function HomePage() {
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
-    // Always show onboarding every time the user visits
-    setShowOnboarding(true);
+    if (typeof window !== "undefined") {
+      const seen = sessionStorage.getItem("onboarding_seen");
+      if (!seen) {
+        sessionStorage.setItem("onboarding_seen", "true");
+        setShowOnboarding(true);
+      } else {
+        setShowOnboarding(false);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -118,6 +125,9 @@ export default function HomePage() {
   }, [search, filters.activeFilterCount, filters.filteredVenues]);
 
   const handleOnboardingComplete = useCallback(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("onboarding_seen", "true");
+    }
     setShowOnboarding(false);
   }, []);
 

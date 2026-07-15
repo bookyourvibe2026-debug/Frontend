@@ -62,7 +62,7 @@ function AdminLoginInner() {
     <main className="relative flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => router.push("/")}
         aria-label="Go back"
         className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 lg:hidden"
       >

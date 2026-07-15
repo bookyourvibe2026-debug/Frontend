@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Ticket } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Ticket } from "lucide-react";
 import { SectionHeading } from "./ui";
 import { getActiveBanners } from "@/lib/api/banners";
 import type { AdBanner as AdBannerData } from "@/lib/api/types";
@@ -16,6 +16,11 @@ export function AdBanner({
 }) {
   const [banners, setBanners] = useState<AdBannerData[]>([]);
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  // Swipe / drag state
+  const dragStartX = useRef<number | null>(null);
+  const isDragging = useRef(false);
 
   useEffect(() => {
     getActiveBanners()
@@ -23,32 +28,90 @@ export function AdBanner({
       .catch(() => setBanners([]));
   }, []);
 
+  // Auto-slide — pauses on hover/focus
   useEffect(() => {
-    if (banners.length < 2) return;
+    if (banners.length < 2 || paused) return;
     const id = setInterval(() => {
       setIndex((i) => (i + 1) % banners.length);
     }, 4500);
     return () => clearInterval(id);
-  }, [banners.length]);
+  }, [banners.length, paused]);
 
   if (banners.length === 0) return null;
+
+  const prev = () => setIndex((i) => (i - 1 + banners.length) % banners.length);
+  const next = () => setIndex((i) => (i + 1) % banners.length);
+
+  // ─── Touch handlers ───────────────────────────────────────────
+  const onTouchStart = (e: React.TouchEvent) => {
+    dragStartX.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (dragStartX.current === null) return;
+    const diff = dragStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    dragStartX.current = null;
+  };
+
+  // ─── Mouse drag handlers (desktop) ────────────────────────────
+  const onMouseDown = (e: React.MouseEvent) => {
+    dragStartX.current = e.clientX;
+    isDragging.current = false;
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (dragStartX.current !== null && Math.abs(e.clientX - dragStartX.current) > 5) {
+      isDragging.current = true;
+    }
+  };
+  const onMouseUp = (e: React.MouseEvent) => {
+    if (dragStartX.current === null) return;
+    const diff = dragStartX.current - e.clientX;
+    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    dragStartX.current = null;
+  };
+  const onMouseLeaveTrack = () => {
+    dragStartX.current = null;
+  };
 
   return (
     <section className={className}>
       {!compact && (
-        <SectionHeading eyebrow="Exclusive" title="Hot Offers & Events" subtitle="Limited-time deals, tournaments, and offers — handpicked for you." icon={Ticket} />
+        <SectionHeading
+          eyebrow="Exclusive"
+          title="Hot Offers & Events"
+          subtitle="Limited-time deals, tournaments, and offers — handpicked for you."
+          icon={Ticket}
+        />
       )}
 
-      <div className="relative overflow-hidden rounded-2xl">
+      <div
+        className="relative overflow-hidden rounded-2xl"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+      >
+        {/* ── Slide track ── */}
         <div
-          className="flex transition-transform duration-700 ease-in-out"
+          className="flex transition-transform duration-700 ease-in-out cursor-grab active:cursor-grabbing select-none"
           style={{ transform: `translateX(-${index * 100}%)` }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeaveTrack}
         >
           {banners.map((banner) => {
             const content = (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={banner.imageUrl} alt={banner.title ?? "Promotional banner"} className="h-full w-full object-cover" />
+                <img
+                  src={banner.imageUrl}
+                  alt={banner.title ?? "Promotional banner"}
+                  className="h-full w-full object-cover pointer-events-none"
+                  draggable={false}
+                />
                 {banner.title && (
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4">
                     <p className="text-sm font-bold text-white sm:text-base">{banner.title}</p>
@@ -60,7 +123,12 @@ export function AdBanner({
               ? "group relative block aspect-[21/6] w-full shrink-0 overflow-hidden"
               : "group relative block aspect-[16/7] w-full shrink-0 overflow-hidden sm:aspect-[21/6]";
             return banner.linkUrl ? (
-              <a key={banner._id} href={banner.linkUrl} className={cardClass}>
+              <a
+                key={banner._id}
+                href={banner.linkUrl}
+                className={cardClass}
+                onClick={(e) => { if (isDragging.current) e.preventDefault(); }}
+              >
                 {content}
               </a>
             ) : (
@@ -71,6 +139,29 @@ export function AdBanner({
           })}
         </div>
 
+        {/* ── Prev / Next arrows (only when >1 banner) ── */}
+        {banners.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous banner"
+              onClick={prev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next banner"
+              onClick={next}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        )}
+
+        {/* ── Dot indicators ── */}
         {banners.length > 1 && (
           <div className="mt-4 flex items-center justify-center gap-2">
             {banners.map((banner, i) => (

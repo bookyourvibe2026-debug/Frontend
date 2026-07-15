@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Flame, MapPin, MessageCircle, ShieldCheck, Swords, XCircle } from "lucide-react";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { acceptChallenge, getChallengeInvite, rejectChallenge, type Challenge } from "@/lib/api/challenges";
 
-export default function ChallengeInvitePage({ params }: { params: { code: string } }) {
+export default function ChallengeInvitePage() {
+  const { code } = useParams<{ code: string }>();
+  const router = useRouter();
   const { status } = useCustomerAuth();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function ChallengeInvitePage({ params }: { params: { code: string
 
   useEffect(() => {
     let cancelled = false;
-    getChallengeInvite(params.code)
+    getChallengeInvite(code as string)
       .then((data) => {
         if (!cancelled) setChallenge(data);
       })
@@ -33,7 +35,7 @@ export default function ChallengeInvitePage({ params }: { params: { code: string
     return () => {
       cancelled = true;
     };
-  }, [params.code]);
+  }, [code]);
 
   async function handleDecision(decision: "accept" | "reject") {
     if (status !== "authenticated") {
@@ -43,7 +45,7 @@ export default function ChallengeInvitePage({ params }: { params: { code: string
     setBusy(decision);
     setNotice("");
     try {
-      const updated = decision === "accept" ? await acceptChallenge(params.code) : await rejectChallenge(params.code);
+      const updated = decision === "accept" ? await acceptChallenge(code as string) : await rejectChallenge(code as string);
       setChallenge(updated);
       setNotice(decision === "accept" ? "Challenge accepted. You are now joined as a player." : "Challenge rejected.");
     } catch (err) {
@@ -57,9 +59,9 @@ export default function ChallengeInvitePage({ params }: { params: { code: string
     <main className="min-h-screen bg-[#071018] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(249,115,22,0.24),transparent_30%),radial-gradient(circle_at_80%_100%,rgba(16,185,129,0.16),transparent_34%)]" />
       <div className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-5 py-6">
-        <Link href="/" className="inline-flex w-fit items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-sm font-bold text-slate-300">
+        <button type="button" onClick={() => router.back()} className="inline-flex w-fit items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-sm font-bold text-slate-300">
           <ArrowLeft className="h-4 w-4" /> Back to BYV
-        </Link>
+        </button>
 
         <div className="grid flex-1 items-center gap-8 py-10 lg:grid-cols-[0.9fr_1.1fr]">
           <section>

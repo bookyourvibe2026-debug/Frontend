@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -53,6 +53,7 @@ const DEFAULT_EXCLUSIONS = ["Personal gear", "Food & beverages", "Coaching"];
 
 export default function VenueDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [venue, setVenue] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
@@ -127,12 +128,13 @@ export default function VenueDetailPage() {
 
       <main className="mx-auto hidden max-w-7xl px-4 py-6 sm:block sm:px-6 sm:py-8">
         <div className="mb-4 flex items-center justify-between">
-          <Link
-            href="/venues"
+          <button
+            type="button"
+            onClick={() => router.back()}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-brand-600"
           >
             <ArrowLeft className="h-4 w-4" /> Back to venues
-          </Link>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -403,6 +405,7 @@ function MobileVenueDetail({
   categoryText: string;
   onOpenBooking: (sport: string) => void;
 }) {
+  const router = useRouter();
   const [favorite, setFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy">("home");
   const [bookingState, setBookingState] = useState({ canPay: false, submitting: false, confirmed: false });
@@ -433,13 +436,14 @@ function MobileVenueDetail({
           <img src={venue.coverImage} alt={venue.title} className="h-full w-full object-cover" />
         )}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
-          <Link
-            href="/venues"
+          <button
+            type="button"
+            onClick={() => router.back()}
             aria-label="Back"
             className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
           >
             <ArrowLeft className="h-4 w-4" />
-          </Link>
+          </button>
           <div className="flex items-center gap-2">
             <button
               type="button"
