@@ -156,14 +156,16 @@ export function LoginModal({
                 placeholder="you@example.com"
                 className={inputClass}
               />
-              <button
-                type="button"
-                onClick={sendOtp}
-                disabled={submitting}
-                className="whitespace-nowrap rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {otpSent ? "Resend code" : "Send code"}
-              </button>
+              {otpSent && (
+                <button
+                  type="button"
+                  onClick={sendOtp}
+                  disabled={submitting}
+                  className="whitespace-nowrap rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  Resend code
+                </button>
+              )}
             </div>
             {otpSent && (
               <div className="mt-3">

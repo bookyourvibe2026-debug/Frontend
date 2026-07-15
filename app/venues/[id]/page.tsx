@@ -56,6 +56,7 @@ export default function VenueDetailPage() {
   const [venue, setVenue] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
+  const [selectedSportForBooking, setSelectedSportForBooking] = useState<string>("");
 
   useEffect(() => {
     getVenueById(id)
@@ -117,6 +118,10 @@ export default function VenueDetailPage() {
           highlights={highlights}
           inclusions={inclusions}
           categoryText={categoryText}
+          onOpenBooking={(sport) => {
+            setSelectedSportForBooking(sport);
+            setBooking(true);
+          }}
         />
       </div>
 
@@ -290,7 +295,7 @@ export default function VenueDetailPage() {
         </div>
       </main>
 
-      {booking && <BookingFlow listing={venue} onClose={() => setBooking(false)} />}
+      {booking && <BookingFlow listing={venue} onClose={() => setBooking(false)} selectedSport={selectedSportForBooking} />}
     </div>
   );
 }
@@ -390,17 +395,21 @@ function MobileVenueDetail({
   highlights,
   inclusions,
   categoryText,
+  onOpenBooking,
 }: {
   venue: Listing;
   highlights: string[];
   inclusions: string[];
   categoryText: string;
+  onOpenBooking: (sport: string) => void;
 }) {
   const [favorite, setFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy">("home");
   const [bookingState, setBookingState] = useState({ canPay: false, submitting: false, confirmed: false });
   const payTriggerRef = useRef<(() => void) | null>(null);
   const weather = useCityWeather(venue.city);
+  const [selectedSport, setSelectedSport] = useState<string>("");
+  const [sportModalOpen, setSportModalOpen] = useState(false);
 
   const amenities = inclusions.map((item) => {
     const match = AMENITY_ICON_RULES.find((rule) => rule.keywords.some((k) => item.toLowerCase().includes(k)));
@@ -475,32 +484,20 @@ function MobileVenueDetail({
           </div>
           <button
             type="button"
-            onClick={() => setActiveTab("home")}
-            className="rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600"
+            onClick={() => onOpenBooking(venue.categories.length > 0 ? categoryLabel(venue.categories[0]) : "")}
+            className={`rounded-xl px-6 py-3 text-xs font-bold uppercase tracking-wide transition bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30`}
           >
-            Rates
-          </button>
-          <button
-            type="button"
-            disabled={!bookingState.canPay || bookingState.submitting || bookingState.confirmed}
-            onClick={() => payTriggerRef.current?.()}
-            className={`rounded-xl px-6 py-3 text-xs font-bold uppercase tracking-wide transition ${
-              bookingState.canPay && !bookingState.submitting && !bookingState.confirmed
-                ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30"
-                : "cursor-not-allowed bg-slate-200 text-slate-400"
-            }`}
-          >
-            {bookingState.confirmed ? "Booked" : bookingState.submitting ? "Booking..." : "Book Now"}
+            Book Now
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
-          {TABS.map((tab) => (
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+          {[{ id: "home", label: "Home" }, { id: "academy", label: "Academy" }].map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => setActiveTab(tab.id as any)}
               className={`rounded-xl py-2 text-[10px] font-bold uppercase tracking-wide transition ${
                 activeTab === tab.id ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
               }`}
@@ -512,25 +509,6 @@ function MobileVenueDetail({
 
         {activeTab === "home" && (
           <>
-
-        {venue.address && (
-          <div className="mt-4 space-y-2">
-            <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" /> {venue.address}
-            </p>
-            <div className="relative h-40 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-              <iframe
-                title="Venue Location Map"
-                src={`https://maps.google.com/maps?q=${mapsQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                className="absolute inset-0 h-full w-full border-0"
-                loading="lazy"
-              />
-              <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold uppercase text-white">
-                Satellite View
-              </span>
-            </div>
-          </div>
-        )}
 
         {(venue.reportingStartTime || venue.reportingEndTime) && (
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
@@ -590,21 +568,36 @@ function MobileVenueDetail({
         </section>
 
         {/* Sports available */}
-        {venue.categories.length > 0 && (
-          <section className="mt-5">
-            <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              {venue.categories.map((catId) => (
-                <div key={catId} className="flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                    <Layers className="h-4 w-4" />
-                  </span>
-                  <span className="truncate text-xs font-bold text-slate-700">{categoryLabel(catId)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            {(venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"]).map((catId) => {
+              const sportName = categoryLabel(catId);
+              let sportEmoji = "🎯";
+              let courtsInfo = "1 Court";
+              const lower = sportName.toLowerCase();
+              if (lower.includes("badminton")) { sportEmoji = "🏸"; courtsInfo = "4 Courts"; }
+              else if (lower.includes("cricket")) { sportEmoji = "🏏"; courtsInfo = "2 Nets"; }
+              else if (lower.includes("turf") || lower.includes("football")) { sportEmoji = "⚽"; courtsInfo = "1 Turf"; }
+              else if (lower.includes("pickleball")) { sportEmoji = "🏓"; courtsInfo = "2 Courts"; }
+              else if (lower.includes("tennis")) { sportEmoji = "🎾"; courtsInfo = "3 Courts"; }
+
+              return (
+                <button
+                  key={catId}
+                  onClick={() => { setSelectedSport(sportName); setSportModalOpen(true); }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm hover:border-brand-200 transition"
+                >
+                  <span className="text-3xl">{sportEmoji}</span>
+                  <div className="text-center mt-1">
+                    <span className="block text-sm font-bold text-slate-800">{sportName}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400">{courtsInfo}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         {/* Amenities */}
         {amenities.length > 0 && (
@@ -621,6 +614,26 @@ function MobileVenueDetail({
               ))}
             </div>
           </section>
+        )}
+
+        {/* Map Location */}
+        {venue.address && (
+          <div className="mt-5 space-y-2">
+            <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" /> {venue.address}
+            </p>
+            <div className="relative h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+              <iframe
+                title="Venue Location Map"
+                src={`https://maps.google.com/maps?q=${mapsQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                className="absolute inset-0 h-full w-full border-0"
+                loading="lazy"
+              />
+              <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold uppercase text-white">
+                Satellite View
+              </span>
+            </div>
+          </div>
         )}
 
         {/* Description */}
@@ -652,18 +665,6 @@ function MobileVenueDetail({
           </>
         )}
 
-        {activeTab === "booking" && (
-          <section className="mt-5">
-            <BookingFlow
-              listing={venue}
-              embedded
-              onClose={() => setActiveTab("home")}
-              onStateChange={setBookingState}
-              payTriggerRef={payTriggerRef}
-            />
-          </section>
-        )}
-
         {activeTab === "academy" && (
           <section className="mt-5">
             <h2 className="text-sm font-extrabold text-slate-900">Academy</h2>
@@ -682,6 +683,74 @@ function MobileVenueDetail({
           </section>
         )}
       </div>
+
+      {/* Sport Selection Bottom Sheet */}
+      {sportModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl relative animate-in slide-in-from-bottom-full duration-300">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-5">
+               <button onClick={() => setSportModalOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                 <ArrowLeft className="h-4 w-4" />
+               </button>
+               <h3 className="text-sm font-bold text-slate-900">{venue.title}</h3>
+            </div>
+            
+            <h2 className="text-xl font-extrabold text-slate-900 mb-5">Which sport do you want to play?</h2>
+            
+            <div className="space-y-3">
+              {(venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"]).map((catId) => {
+                const sportName = categoryLabel(catId);
+                let sportEmoji = "🎯";
+                let courtsInfo = "1 Court Available";
+                const lower = sportName.toLowerCase();
+                if (lower.includes("badminton")) { sportEmoji = "🏸"; courtsInfo = "4 Courts Available"; }
+                else if (lower.includes("cricket")) { sportEmoji = "🏏"; courtsInfo = "2 Nets Available"; }
+                else if (lower.includes("turf") || lower.includes("football")) { sportEmoji = "⚽"; courtsInfo = "1 Turf Available"; }
+                else if (lower.includes("pickleball")) { sportEmoji = "🏓"; courtsInfo = "2 Courts Available"; }
+                else if (lower.includes("tennis")) { sportEmoji = "🎾"; courtsInfo = "3 Courts Available"; }
+
+                const isSelected = selectedSport === sportName;
+
+                return (
+                  <button
+                    key={catId}
+                    onClick={() => setSelectedSport(sportName)}
+                    className={`flex w-full items-center justify-between rounded-2xl border p-4 transition ${
+                      isSelected ? "border-[#0b9c65] bg-[#0b9c65]/5" : "border-slate-100 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-2xl shadow-sm border border-slate-100">
+                        {sportEmoji}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-900">{sportName}</p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{courtsInfo}</p>
+                      </div>
+                    </div>
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
+                      isSelected ? "border-[#0b9c65]" : "border-slate-300"
+                    }`}>
+                      {isSelected && <div className="h-3 w-3 rounded-full bg-[#0b9c65]" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              disabled={!selectedSport}
+              onClick={() => {
+                setSportModalOpen(false);
+                onOpenBooking(selectedSport);
+              }}
+              className="mt-6 w-full rounded-2xl bg-[#0b9c65] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 transition hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              CONTINUE
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

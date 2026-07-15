@@ -13,7 +13,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useState, type MutableRefObject } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Share2, ShieldCheck, Users, X, AlertTriangle, Plus } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
@@ -74,6 +74,7 @@ export default function BookingFlow({
   embedded = false,
   onStateChange,
   payTriggerRef,
+  selectedSport,
 }: {
   listing: Listing;
   onClose: () => void;
@@ -82,6 +83,7 @@ export default function BookingFlow({
   onStateChange?: (state: { canPay: boolean; submitting: boolean; confirmed: boolean }) => void;
   /** Lets an embedding parent trigger the actual booking submit from its own button. */
   payTriggerRef?: MutableRefObject<(() => void) | null>;
+  selectedSport?: string;
 }) {
   const { status } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
@@ -415,6 +417,7 @@ export default function BookingFlow({
           visibleYear={visibleYear}
           setVisibleMonth={setVisibleMonth}
           setVisibleYear={setVisibleYear}
+          selectedSport={selectedSport}
         />
       )}
 
@@ -478,6 +481,7 @@ function ReviewStep(props: {
   visibleYear: number;
   setVisibleMonth: (v: number | ((n: number) => number)) => void;
   setVisibleYear: (v: number | ((n: number) => number)) => void;
+  selectedSport?: string;
 }) {
   const {
     embedded,
@@ -520,9 +524,11 @@ function ReviewStep(props: {
     visibleYear,
     setVisibleMonth,
     setVisibleYear,
+    selectedSport,
   } = props;
 
   const today = new Date();
+  const [mobileStep, setMobileStep] = useState<"slots" | "checkout">("slots");
 
   const formatDurationText = (min: number) => {
     const hrs = Math.floor(min / 60);
@@ -536,7 +542,7 @@ function ReviewStep(props: {
       className={
         embedded
           ? "w-full"
-          : "relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-3xl bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
+          : "relative flex h-full max-h-[92vh] w-full max-w-4xl flex-col bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
       }
     >
       {!embedded && (
@@ -544,18 +550,40 @@ function ReviewStep(props: {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow"
+          className="hidden lg:flex absolute right-3 top-3 z-10 h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow"
         >
           <X className="h-4 w-4" />
         </button>
       )}
 
-      <div className={embedded ? "" : "overflow-y-auto p-4 pb-6 sm:p-5"}>
-        {!embedded && <h2 className="text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>}
+      {/* Mobile Header */}
+      {!embedded && (
+        <div className="flex items-center gap-3 p-4 lg:hidden border-b border-slate-100 bg-white">
+          <button
+            onClick={() => (mobileStep === "checkout" ? setMobileStep("slots") : onClose())}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+            {mobileStep === "slots" ? listing.title : "Checkout"}
+          </h3>
+        </div>
+      )}
+
+      <div className={embedded ? "" : "overflow-y-auto p-4 pb-28 sm:p-5"}>
+        {!embedded && <h2 className="hidden lg:block text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>}
 
         <div className="mt-3 flex flex-col gap-3 lg:flex-row">
           {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-3 flex-1 min-w-0">
+          <div className={`flex flex-col gap-3 flex-1 min-w-0 ${mobileStep === "checkout" ? "hidden lg:flex" : "flex"}`}>
+            {/* Safety Notice */}
+            {!embedded && (
+              <div className="lg:hidden flex items-start gap-2 rounded-xl bg-blue-50 p-3 text-xs text-blue-800">
+                <span className="text-blue-500 font-black text-lg leading-none mt-0.5">✨</span>
+                <span><span className="font-bold">Game On! Essential Safety Notice:</span> Appropriate sports shoes are mandatory to utilize this venue for your safety.</span>
+              </div>
+            )}
             {/* Venue info */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
               <p className="text-sm font-bold text-slate-900">
@@ -568,7 +596,16 @@ function ReviewStep(props: {
 
             {/* Date & Time section */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
-              <p className="text-xs font-bold text-slate-900">Select Date &amp; Time</p>
+              <div className="flex items-center justify-between">
+                <p className={selectedSport ? "text-xl font-extrabold text-slate-900" : "text-xs font-bold text-slate-900"}>
+                  {selectedSport ? "Select Slots" : "Select Date & Time"}
+                </p>
+                {selectedSport && (
+                  <span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm">
+                    {selectedSport}
+                  </span>
+                )}
+              </div>
 
               {/* Date Slider */}
               <div className="mt-3 flex items-center justify-between border-b border-slate-100 pb-1.5">
@@ -854,102 +891,164 @@ function ReviewStep(props: {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className="flex flex-col gap-3 shrink-0 w-full lg:w-64">
-            {/* Price */}
+          {/* RIGHT COLUMN */}
+          <div className={`flex flex-col gap-3 shrink-0 w-full lg:w-80 ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}>
+            {/* Checkout Header Card */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
-              <p className="text-xs font-bold text-slate-900">Price Summary</p>
-              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
-                <span className="font-bold text-brand-600 text-sm">Total</span>
-                <span className="font-extrabold text-brand-600 text-sm">₹{activePrice.toLocaleString("en-IN")}</span>
-              </div>
-            </div>
-
-            {/* Insurance — mandatory */}
-            <div className="flex items-start gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-left text-[11px] text-emerald-800">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-              <span>
-                <span className="font-bold">✅ Insurance Mandatory</span> — every booking includes player
-                insurance coverage by default. This cannot be opted out of.
-              </span>
-            </div>
-
-            {/* Payment */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-4">
-              <p className="text-xs font-bold text-slate-900">Payment Method</p>
-              <div className="mt-2 flex gap-2">
-                {PAYMENT_METHODS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPayment(p)}
-                    className={`flex-1 rounded-xl border px-2.5 py-2 text-[11px] font-semibold transition ${
-                      payment === p ? "border-brand-400 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                  >
-                    {p === "Cashfree (Online)" ? "Online" : "Cash"}
-                  </button>
-                ))}
-              </div>
-
-              <label className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={splitEnabled}
-                  onChange={(e) => setSplitEnabled(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-brand-600"
-                />
-                <Users className="h-3.5 w-3.5 text-slate-400" /> Split Payment with friends
-              </label>
-              {splitEnabled && (
-                <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                  <span className="flex items-center gap-2">
-                    Split between
-                    <select
-                      value={splitCount}
-                      onChange={(e) => setSplitCount(Number(e.target.value))}
-                      className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-semibold outline-none"
-                    >
-                      {[2, 3, 4, 5, 6].map((n) => (
-                        <option key={n} value={n}>{n} players</option>
-                      ))}
-                    </select>
-                  </span>
-                  <span className="font-bold text-brand-600">
-                    ₹{Math.ceil(activePrice / splitCount).toLocaleString("en-IN")} / player
-                  </span>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">{listing.title}</h3>
+                  <p className="mt-0.5 text-xs font-medium text-slate-500">
+                    {selectedSport ? `${selectedSport} • ` : ""}{listing.type === "Turf" ? `Court 2 (Synthetic)` : listing.type}
+                  </p>
                 </div>
-              )}
+                {selectedSport && (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 text-lg">
+                    {selectedSport.toLowerCase().includes("badminton") ? "🏸" : 
+                     selectedSport.toLowerCase().includes("cricket") ? "🏏" : 
+                     selectedSport.toLowerCase().includes("pickleball") ? "🏓" : 
+                     selectedSport.toLowerCase().includes("tennis") ? "🎾" : "⚽"}
+                  </span>
+                )}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                <div className="flex items-start gap-2">
+                  <CalendarDays className="h-4 w-4 text-brand-500 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Date</p>
+                    <p className="text-xs font-bold text-slate-800">
+                      {date ? new Date(date).toLocaleDateString("en-US", { day: "2-digit", month: "short" }) : "Select Date"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 text-brand-500 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Time</p>
+                    <p className="text-xs font-bold text-slate-800">
+                      {listing.type === "Turf" && selectedSlotIndex !== -1 ? `${generatedSlots[selectedSlotIndex].startTime12} to ${generatedSlots[selectedSlotIndex].endTime12}` : "Select Time"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-              {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
+            {/* Apply Coupon Code */}
+            <button type="button" className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4 transition hover:bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="text-brand-500 text-lg">🏷️</div>
+                <span className="text-sm font-bold text-slate-800">Apply Coupon Code</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
 
-              <label className="mt-3 flex items-start gap-2 text-[11px] text-slate-600">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-3.5 w-3.5 accent-brand-600 shrink-0" />
-                <span>I accept the <span className="font-semibold underline">Terms &amp; Conditions</span>.</span>
+            {/* Game Reminders */}
+            <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4">
+              <div>
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">Game Reminders <span className="text-orange-500 text-sm">🔔</span></p>
+                <p className="text-xs text-slate-500 mt-1">Get an SMS/Push notification 1 hr before your slot.</p>
+              </div>
+              <div className="relative inline-block w-10 h-6">
+                <input type="checkbox" defaultChecked className="peer sr-only" />
+                <div className="w-10 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+              </div>
+            </div>
+
+            {/* Play Protect */}
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-600 accent-indigo-600" />
+                <div>
+                  <p className="text-sm font-bold text-indigo-900 flex items-center gap-1.5">Add Play Protect <ShieldCheck className="h-4 w-4 text-indigo-700" /></p>
+                  <p className="text-[11px] text-indigo-700/80 mt-1 font-medium leading-relaxed">Get 100% refund on cancellation &amp; accidental injury cover up to ₹10K.</p>
+                  <p className="text-[11px] font-bold text-indigo-900 mt-1.5">+ ₹19 added to total</p>
+                </div>
               </label>
             </div>
 
-            {!embedded && (
-              <button
-                type="button"
-                disabled={!canPay || submitting}
-                onClick={onPay}
-                className={`w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition ${
-                  canPay && !submitting
-                    ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
-                    : "cursor-not-allowed bg-slate-300 text-white"
-                }`}
-              >
-                {submitting ? "Booking..." : "Confirm Booking"}
-              </button>
-            )}
+            {/* Add-ons Mock */}
+            <div className="relative h-28 overflow-hidden rounded-2xl bg-slate-900">
+               {/* eslint-disable-next-line @next/next/no-img-element */}
+               <img src="https://images.unsplash.com/photo-1572916288674-f25b16e45f94?w=500&auto=format&fit=crop&q=60" alt="Background" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+               <div className="absolute inset-0 p-3 flex flex-col justify-between">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-xl">🥤</div>
+                     <div>
+                       <p className="text-xs font-bold text-white">Energy Drink</p>
+                       <p className="text-[10px] font-semibold text-white/80">₹99</p>
+                     </div>
+                   </div>
+                   <button type="button" className="rounded-md border border-brand-400/50 text-brand-400 font-bold text-[10px] px-3 py-1 bg-black/20 backdrop-blur-sm">ADD</button>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-xl">🍫</div>
+                     <div>
+                       <p className="text-xs font-bold text-white">Protein Bar</p>
+                       <p className="text-[10px] font-semibold text-white/80">₹60</p>
+                     </div>
+                   </div>
+                   <button type="button" className="rounded-md border border-brand-400/50 text-brand-400 font-bold text-[10px] px-3 py-1 bg-black/20 backdrop-blur-sm">ADD</button>
+                 </div>
+               </div>
+            </div>
+
+            <div className="hidden lg:block mt-3">
+              {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
+              {!embedded && (
+                <button
+                  type="button"
+                  disabled={!canPay || submitting}
+                  onClick={onPay}
+                  className={`w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition ${
+                    canPay && !submitting
+                      ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
+                      : "cursor-not-allowed bg-slate-300 text-white"
+                  }`}
+                >
+                  {submitting ? "Booking..." : "Confirm Booking"}
+                </button>
+              )}
+            </div>
             {embedded && (
-              <p className="text-center text-[11px] font-semibold text-slate-500">
+              <p className="text-center text-[11px] font-semibold text-slate-500 hidden lg:block">
                 {canPay ? "All set — tap Book Now above to confirm." : "Complete the steps above, then Book Now activates."}
               </p>
             )}
           </div>
         </div>
       </div>
+
+      {/* Mobile Sticky Footers */}
+      {!embedded && mobileStep === "slots" && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] rounded-t-3xl">
+          <div>
+            <p className="text-[10px] font-bold text-[#0b9c65] uppercase">{formatDurationText(durationMin)} • {listing.type}</p>
+            <p className="text-2xl font-black text-slate-900">₹{activePrice.toLocaleString("en-IN")}</p>
+          </div>
+          <button
+            onClick={() => setMobileStep("checkout")}
+            disabled={!date || (listing.type === "Turf" && selectedSlotIndex === -1)}
+            className="rounded-2xl bg-[#0b1226] px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            CONTINUE
+          </button>
+        </div>
+      )}
+
+      {!embedded && mobileStep === "checkout" && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] rounded-t-3xl">
+           <button
+            onClick={onPay}
+            disabled={!canPay || submitting}
+            className="w-full rounded-2xl bg-[#0b9c65] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 flex items-center justify-between px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span>PAY ₹{(activePrice + (agreed ? 19 : 0)).toLocaleString("en-IN")}</span>
+            <ArrowRight className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
