@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Ticket } from "lucide-react";
 import { SectionHeading } from "./ui";
 import { getActiveBanners } from "@/lib/api/banners";
 import type { AdBanner as AdBannerData } from "@/lib/api/types";
+import Image from "next/image";
 
 export function AdBanner({
   className = "mx-auto mt-8 max-w-7xl px-4 sm:px-6",
@@ -105,11 +106,26 @@ export function AdBanner({
           {banners.map((banner) => {
             const content = (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                {/* The artwork is ~2:1 but this slot is far wider, so it can never fill
+                    edge-to-edge without cropping. A blurred copy of the same image fills the
+                    dead space, and the sharp object-contain copy on top shows the banner
+                    whole — full width, nothing cropped, nothing stretched. */}
+                <Image
                   src={banner.imageUrl}
+                  aria-hidden
+                  fill
+                  sizes="100vw"
+                  alt=""
+                  className="scale-110 object-cover blur-2xl brightness-90 pointer-events-none"
+                  draggable={false}
+                />
+                <Image
+                  src={banner.imageUrl}
+                  fill
+                  sizes="(max-width: 640px) 100vw, 1280px"
+                  priority
                   alt={banner.title ?? "Promotional banner"}
-                  className="h-full w-full object-cover pointer-events-none"
+                  className="relative object-contain pointer-events-none"
                   draggable={false}
                 />
                 {banner.title && (
@@ -120,8 +136,8 @@ export function AdBanner({
               </>
             );
             const cardClass = compact
-              ? "group relative block aspect-[21/6] w-full shrink-0 overflow-hidden"
-              : "group relative block aspect-[16/7] w-full shrink-0 overflow-hidden sm:aspect-[21/6]";
+              ? "group relative block h-[130px] w-full shrink-0 overflow-hidden"
+              : "group relative block h-[210px] w-full shrink-0 overflow-hidden sm:h-[350px]";
             return banner.linkUrl ? (
               <a
                 key={banner._id}

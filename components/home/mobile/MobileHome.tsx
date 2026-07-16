@@ -4,13 +4,11 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowRight,
-  Building2,
-  Calendar,
   CupSoda,
   Feather,
   Flame,
+  GraduationCap,
   Handshake,
   Heart,
   LayoutGrid,
@@ -21,10 +19,8 @@ import {
   Swords,
   Tag,
   Trophy,
-  Users,
   Waves,
   X,
-  Zap,
 } from "lucide-react";
 import { type Venue } from "@/lib/venues";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
@@ -32,11 +28,10 @@ import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/compon
 import { AdBanner } from "../AdBanner";
 
 const MOBILE_QUICK_ACTIONS = [
-  { id: "book-now", label: "Book Now", icon: Zap },
-  { id: "find-players", label: "Find Players", icon: Users },
+  { id: "coaches", label: "Coaches", icon: GraduationCap },
+  { id: "challenge-a-friend", label: "Challenge a Friend", icon: Swords },
   { id: "tournaments", label: "Tournaments", icon: Trophy },
   { id: "near-me", label: "Near Me", icon: MapPin },
-  { id: "offers", label: "Offers", icon: Tag },
   { id: "community", label: "Community", icon: Handshake },
 ];
 
@@ -76,9 +71,20 @@ function MobileVenueCard({
         role="button"
         tabIndex={0}
         onClick={onView}
-        className="relative h-24 w-full cursor-pointer bg-slate-900"
-        style={venue.image ? { backgroundImage: `url(${venue.image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+        className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden bg-slate-100"
       >
+        {/* next/image instead of a CSS background-image: optimised + lazy-loaded, so the
+            card no longer pulls the full-size original over the wire. */}
+        {venue.image && (
+          <Image
+            src={venue.image}
+            alt={venue.name}
+            fill
+            sizes="50vw"
+            className="object-cover"
+          />
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/15" />
         <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300 backdrop-blur-sm">
           <Star className="h-2.5 w-2.5 fill-current" /> {venue.rating.toFixed(1)}
         </span>
@@ -292,62 +298,48 @@ export function MobileHome({
 
       <section>
         <MobileSectionRow title="Food & Beverages" />
-        <Link
-          href="/food"
-          className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
+        {/* Food ordering isn't live yet — shown as Coming Soon rather than linking to /food. */}
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-400">
             <CupSoda className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-900">Hungry between games?</p>
-            <p className="text-xs text-slate-500">Order courtside snacks & drinks</p>
+            <p className="text-sm font-bold text-slate-500">Hungry between games?</p>
+            <p className="text-xs text-slate-400">Courtside snacks &amp; drinks</p>
           </div>
-          <ArrowRight className="h-4 w-4 shrink-0 text-brand-500" />
-        </Link>
+          <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
+            Coming Soon
+          </span>
+        </div>
       </section>
 
       <section className="grid grid-cols-2 gap-3">
         <MobileCard className="flex flex-col gap-3 !p-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-900">Upcoming Booking</p>
-            <Link href="/profile" className="text-[10px] font-semibold text-brand-600">
-              View All
-            </Link>
+            <p className="text-xs font-bold text-slate-900">Challenge a Friend</p>
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-orange-500">
+              <Flame className="h-2.5 w-2.5" /> Vibe
+            </span>
           </div>
-          <div className="flex items-center gap-2 rounded-xl bg-brand-50 p-2.5">
-            <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-500 text-white">
-              <span className="text-[8px] font-bold uppercase leading-none">May</span>
-              <span className="text-xs font-extrabold leading-none">27</span>
+          <div className="flex items-center gap-2 rounded-xl bg-orange-50/70 p-2.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white">
+              <Swords className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">Cricket Arena</p>
-              <p className="text-[10px] text-slate-500">7:00 – 9:00 PM</p>
+              <p className="truncate text-xs font-bold text-slate-900">Throw a duel</p>
+              <p className="text-[10px] text-slate-500">Pick sport &amp; stakes</p>
             </div>
           </div>
-          <p className="flex items-center gap-2 text-[10px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <Building2 className="h-3 w-3" /> 2 Courts
-            </span>
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" /> 10 Players
-            </span>
+          <p className="text-[10px] leading-relaxed text-slate-400">
+            Set the stakes and send a cinematic duel poster to your opponent.
           </p>
-          <div className="flex items-center gap-1.5 text-center">
-            {[
-              { label: "HRS", value: "24" },
-              { label: "MIN", value: "05" },
-              { label: "SEC", value: "36" },
-            ].map((t) => (
-              <div key={t.label} className="flex-1 rounded-lg bg-slate-50 py-1.5">
-                <p className="text-xs font-extrabold text-slate-900">{t.value}</p>
-                <p className="text-[8px] font-semibold text-slate-400">{t.label}</p>
-              </div>
-            ))}
-          </div>
-          <Link href="/profile" className="flex items-center gap-1 text-[10px] font-semibold text-brand-600">
+          <button
+            type="button"
+            onClick={onJoinCommunity}
+            className="mt-auto flex items-center gap-1 text-[10px] font-semibold text-brand-600"
+          >
             View Details <ArrowRight className="h-3 w-3" />
-          </Link>
+          </button>
         </MobileCard>
 
         <MobileCard className="flex flex-col gap-3 !p-4">

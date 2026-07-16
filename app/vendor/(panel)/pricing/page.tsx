@@ -48,7 +48,9 @@ export default function PriceSettingPage() {
   const [selectedTurfId, setSelectedTurfId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [applyingBulk, setApplyingBulk] = useState(false);
+  const [applyingPeak, setApplyingPeak] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const todayIso = useMemo(() => toIso(new Date()), []);
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -73,10 +75,18 @@ export default function PriceSettingPage() {
 
   const selectedTurf = useMemo(() => listings.find((l) => l.id === selectedTurfId), [listings, selectedTurfId]);
 
+  // Auto-dismiss the toast after a few seconds.
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   const calendarDays = useMemo(() => {
-    const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
+    // Week starts Monday so Sat & Sun sit next to each other at the end of the row.
+    const firstDayIndex = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
     const lastDay = new Date(calYear, calMonth + 1, 0).getDate();
     const days: ({ dayNumber: number; dateStr: string; isWeekend: boolean; isPast: boolean; isHoliday: boolean } | null)[] = [];
     for (let i = 0; i < firstDayIndex; i++) days.push(null);
@@ -110,34 +120,63 @@ export default function PriceSettingPage() {
   }
 
   async function applyBulkPrice() {
-    if (!selectedTurf || !bulkTarget) return;
-    setSaving(true);
+    if (!selectedTurf || !bulkTarget || applyingBulk) return;
+    const turf = selectedTurf;
+    const target = bulkTarget;
+    setApplyingBulk(true);
     try {
-      const overrides = [...(selectedTurf.dateOverrides ?? [])];
+      const overrides = [...(turf.dateOverrides ?? [])];
       const start = new Date();
       start.setHours(0, 0, 0, 0);
+      let matched = 0;
+      let firstMatch: { year: number; month: number } | null = null;
       for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         const dateStr = toIso(d);
         const dow = d.getDay();
+        const isHolidayDay = Boolean(INDIAN_HOLIDAYS[dateStr]);
         const matches =
-          bulkTarget === "weekdays" ? dow >= 1 && dow <= 5 :
-          bulkTarget === "weekends" ? dow === 0 || dow === 6 :
-          Boolean(INDIAN_HOLIDAYS[dateStr]);
+          target === "weekdays" ? dow >= 1 && dow <= 5 :
+          target === "weekends" ? dow === 0 || dow === 6 :
+          isHolidayDay;
         if (!matches) continue;
-        const entry = buildOverrideEntry(selectedTurf, dateStr, bulkPrice);
+        matched++;
+        if (!firstMatch) firstMatch = { year: d.getFullYear(), month: d.getMonth() };
+        const entry = buildOverrideEntry(turf, dateStr, bulkPrice);
+        entry.isHoliday = target === "holidays" ? true : entry.isHoliday;
+        if (target === "holidays" && !entry.holidayName) entry.holidayName = INDIAN_HOLIDAYS[dateStr] ?? "";
         const idx = overrides.findIndex((o) => o.date === dateStr);
         if (idx > -1) overrides[idx] = entry; else overrides.push(entry);
       }
-      const updated = { ...selectedTurf, dateOverrides: overrides };
-      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
-      setListings((ls) => ls.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+
+      // Nothing matched — tell the vendor instead of silently doing nothing.
+      if (matched === 0) {
+        setToast(
+          target === "holidays"
+            ? "No holidays fall in the next 6 months, so there was nothing to update."
+            : `No ${BULK_LABEL[target].toLowerCase()} fall in the next 6 months.`
+        );
+        setApplyingBulk(false);
+        return;
+      }
+
+      const updated = { ...turf, dateOverrides: overrides };
+      // Optimistic update so the calendar reflects the change instantly.
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
+      // Jump the calendar to the first affected month so the change is visible.
+      if (firstMatch) { setCalYear(firstMatch.year); setCalMonth(firstMatch.month); }
       setBulkTarget(null);
+      setToast(`Applied ${formatPrice(bulkPrice)} to ${matched} ${BULK_LABEL[target].toLowerCase()} for the next 6 months.`);
+
+      const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
     } catch {
-      alert("Failed to apply bulk pricing");
+      // Roll the optimistic change back to the last known-good listing.
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? turf : x)));
+      setToast("Couldn't save that rate. Please check your connection and try again.");
     }
-    setSaving(false);
+    setApplyingBulk(false);
   }
 
   async function saveDailyPricing(nextSlots: TurfSlot[]) {
@@ -158,12 +197,14 @@ export default function PriceSettingPage() {
   }
 
   async function applyPeakPricingTemplate() {
-    if (!selectedTurf) return;
-    setSaving(true);
+    if (!selectedTurf || applyingPeak) return;
+    const turf = selectedTurf;
+    setApplyingPeak(true);
     try {
-      const overrides = [...(selectedTurf.dateOverrides ?? [])];
+      const overrides = [...(turf.dateOverrides ?? [])];
       const start = new Date();
       start.setHours(0, 0, 0, 0);
+      let matched = 0;
       for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
@@ -171,18 +212,22 @@ export default function PriceSettingPage() {
         const dow = d.getDay();
         const isPeak = dow === 0 || dow === 6 || Boolean(INDIAN_HOLIDAYS[dateStr]);
         if (!isPeak) continue;
-        const entry = buildOverrideEntry(selectedTurf, dateStr, 1200);
+        matched++;
+        const entry = buildOverrideEntry(turf, dateStr, 1200);
         const idx = overrides.findIndex((o) => o.date === dateStr);
         if (idx > -1) overrides[idx] = entry; else overrides.push(entry);
       }
-      const updated = { ...selectedTurf, dateOverrides: overrides };
-      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
-      setListings((ls) => ls.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
-      alert("Peak Pricing template applied successfully to all weekends & holidays!");
+      const updated = { ...turf, dateOverrides: overrides };
+      // Optimistic update so the calendar reflects the change instantly.
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
+      setToast(`Peak Pricing applied to ${matched} weekend & holiday dates.`);
+      const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
     } catch {
-      alert("Failed to apply peak pricing");
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? turf : x)));
+      setToast("Couldn't apply the Peak Pricing template. Please try again.");
     }
-    setSaving(false);
+    setApplyingPeak(false);
   }
 
   if (error) return <div className="p-10 text-center text-vibe-coral text-sm">{error}</div>;
@@ -195,6 +240,15 @@ export default function PriceSettingPage() {
 
   return (
     <div className="space-y-6">
+      {/* Toast / feedback banner */}
+      {toast && (
+        <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto max-w-md rounded-2xl bg-ink text-white text-xs font-bold px-4 py-3 shadow-xl">
+            {toast}
+          </div>
+        </div>
+      )}
+
       {/* Turf selector header */}
       {listings.length > 1 && (
         <div className="flex items-center gap-3">
@@ -246,10 +300,10 @@ export default function PriceSettingPage() {
                 />
                 <button
                   onClick={applyBulkPrice}
-                  disabled={saving}
+                  disabled={applyingBulk}
                   className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
                 >
-                  {saving ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
+                  {applyingBulk ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
                 </button>
               </div>
             )}
@@ -273,7 +327,7 @@ export default function PriceSettingPage() {
             </div>
 
             <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d}>{d}</div>)}
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d}>{d}</div>)}
             </div>
 
             <div className="grid grid-cols-7 gap-2">
@@ -391,12 +445,12 @@ export default function PriceSettingPage() {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={applyPeakPricingTemplate}
-              disabled={saving}
+              disabled={applyingPeak}
               className="w-full bg-[#3f3ebd] hover:bg-[#3433a3] text-white rounded-2xl py-3.5 text-xs font-black shadow-sm transition active:scale-[0.98] disabled:opacity-60"
             >
-              {saving ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
+              {applyingPeak ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
             </button>
           </div>
         </>

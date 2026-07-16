@@ -11,15 +11,11 @@ import { FoodAndBeverages } from "./FoodAndBeverages";
 import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
 import { HowItWorks } from "./HowItWorks";
-import { PlatformSystemsSection } from "./PlatformSystemsSection";
 import { AdBanner } from "./AdBanner";
 import { CommunityMatches } from "./CommunityMatches";
 import { EventsAndOffers } from "./EventsAndOffers";
-import { CommerceSection } from "./CommerceSection";
-import { WalkInPOSSection } from "./WalkInPOSSection";
 import { WhyBookYourVibe } from "./WhyBookYourVibe";
 import { AboutUs } from "./AboutUs";
-import { BuildCostAndExtensionsSection } from "./BuildCostAndExtensionsSection";
 import { Testimonials } from "./Testimonials";
 import { AppDownloadCTA } from "./AppDownloadCTA";
 import { Footer } from "./Footer";
@@ -95,17 +91,18 @@ export default function HomePage() {
   const handleQuickAction = useCallback(
     (taskId: string, gameId: string) => {
       const routes: Record<string, string> = {
-        "book-now": "/venues",
-        "find-players": "/community",
+        coaches: "/coaches",
+        "challenge-a-friend": "/challenges",
         tournaments: "/tournaments",
         "near-me": "/venues",
+        community: "/community",
+        // Keep old mapping for compatibility with other components
+        "book-now": "/venues",
+        "find-players": "/community",
         offers: "/offers",
-        // Keep old mapping for compatibility with desktop components
         venue: `/venues?category=${gameId}`,
         food: "/food",
-        challenge: "/community",
-        community: "/community",
-        coaches: "/coaches",
+        challenge: "/challenges",
       };
       router.push(routes[taskId] ?? "/venues");
     },
@@ -194,11 +191,7 @@ export default function HomePage() {
           onViewAllQuickActions={() => router.push("/games")}
         />
 
-        <FoodAndBeverages onViewAll={() => router.push("/food")} />
-
-        <HowItWorks />
-
-        <PlatformSystemsSection />
+        <FoodAndBeverages />
 
         <CommunityMatches
           onJoin={() => showToast("Joining Badminton Doubles match…")}
@@ -206,20 +199,16 @@ export default function HomePage() {
           onLaunchChallenge={() => setChallengeOpen(true)}
         />
 
+        <HowItWorks />
+
         <EventsAndOffers
           onViewAllEvents={() => router.push("/tournaments")}
           onViewAllOffers={() => router.push("/offers")}
         />
 
-        <CommerceSection />
-
-        <WalkInPOSSection />
-
         <WhyBookYourVibe />
 
         <AboutUs />
-
-        <BuildCostAndExtensionsSection />
 
         <Testimonials />
 

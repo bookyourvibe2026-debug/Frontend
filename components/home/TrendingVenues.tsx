@@ -1,6 +1,7 @@
 "use client";
 
-import { Flame, Heart, MapPin } from "lucide-react";
+import Image from "next/image";
+import { Building2, Flame, Heart, MapPin } from "lucide-react";
 import { type Venue } from "@/lib/venues";
 import { PrimaryButton, SectionHeading, StarRating, StatusPill } from "./ui";
 
@@ -29,9 +30,25 @@ function VenueCard({
             onView();
           }
         }}
-        className="relative h-40 w-full cursor-pointer bg-slate-900 text-left"
-        style={venue.image ? { backgroundImage: `url(${venue.image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+        className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden bg-slate-100 text-left"
       >
+        {/* next/image (was a CSS background-image): optimised + lazy-loaded, and a 4:3
+            box keeps the photo in a natural shape instead of a cropped letterbox strip. */}
+        {venue.image ? (
+          <Image
+            src={venue.image}
+            alt={venue.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
+            className="object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-100">
+            <Building2 className="h-8 w-8 text-slate-300" />
+          </div>
+        )}
+        {/* Keeps the overlaid pills readable on bright photos. */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/15" />
         <div className="absolute left-3 top-3">
           <StarRating rating={venue.rating} />
         </div>
@@ -99,7 +116,8 @@ export function TrendingVenues({
         actionLabel="View All Venues"
         onAction={onViewAll}
       />
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {/* Was grid-cols-2 at every width, which stretched each card to ~630px on desktop. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {venues.slice(0, 4).map((v) => (
           <VenueCard
             key={v.id}

@@ -10,7 +10,7 @@ import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const router = useRouter();
   const { status } = useCustomerAuth();
-  const [step, setStep] = useState<"splash1" | "splash2" | "splash3" | "role" | "player-login" | "player-signup">("splash1");
+  const [step, setStep] = useState<"splash1" | "splash2" | "role" | "player-login" | "player-signup">("splash1");
 
   // Auto-advance splash screens
   useEffect(() => {
@@ -22,7 +22,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     if (step === "splash2") {
-      const timer = setTimeout(() => setStep("splash3"), 2000);
+      const timer = setTimeout(() => setStep("role"), 2000);
       return () => clearTimeout(timer);
     }
   }, [step]);
@@ -94,59 +94,6 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             <p className="mt-4 text-sm font-extrabold uppercase tracking-[0.2em] text-[#001711] opacity-70">
               Your Venue. Your Game.
             </p>
-          </div>
-        )}
-
-        {step === "splash3" && (
-          <div className="fixed inset-0 z-0 bg-[#0b1118] flex flex-col md:flex-row items-center justify-center animate-in fade-in duration-500">
-             {/* Desktop SEO Content - Hidden on mobile */}
-             <div className="hidden md:flex flex-1 flex-col justify-center px-12 lg:px-24">
-               <h2 className="text-4xl lg:text-5xl font-black text-white leading-tight">
-                 India's Premier <span className="text-emerald-500">Sports & Venue</span> Management Platform
-               </h2>
-               <p className="mt-6 text-lg text-slate-400 max-w-xl leading-relaxed">
-                 Book Your Vibe is the ultimate solution for turf owners, sports arenas, and players. We bridge the gap between sports enthusiasts and premium venues. Discover games, manage seamless bookings, host professional tournaments, and grow your sports community all in one place. Experience the future of sports management today.
-               </p>
-               <div className="mt-8 flex gap-6">
-                 <div className="flex items-center gap-2">
-                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                   <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Automated Bookings</span>
-                 </div>
-                 <div className="flex items-center gap-2">
-                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                   <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Revenue Analytics</span>
-                 </div>
-                 <div className="flex items-center gap-2">
-                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                   <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Player Discovery</span>
-                 </div>
-               </div>
-             </div>
-
-             {/* Mobile / Shared Image Section */}
-             <div className="relative flex h-full w-full md:w-[500px] lg:w-[600px] flex-col bg-[#0b1118] md:bg-[#0f1720] md:border-l border-white/5 shadow-2xl">
-                
-                {/* Image Container */}
-                <div className="relative flex-1 w-full px-5 pt-8 pb-36 md:pb-40">
-                  <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-[#fdfaf2] shadow-2xl border-2 border-[#111720]">
-                    <Image src="/sim.png" alt="Book Your Vibe Complete Solution" fill className="object-contain" unoptimized priority />
-                  </div>
-                </div>
-
-                {/* Bottom Dock */}
-                <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center rounded-t-[2.5rem] bg-[#111720] px-6 py-8 shadow-[0_-15px_40px_rgba(0,0,0,0.4)]">
-                  <div className="mb-8 flex gap-2">
-                    <span className="h-1.5 w-6 rounded-full bg-emerald-500" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-700" />
-                  </div>
-                  <button
-                    onClick={() => setStep("role")}
-                    className="w-full rounded-2xl bg-emerald-500 py-4 text-[15px] font-bold uppercase tracking-wider text-white shadow-[0_8px_30px_rgba(16,185,129,0.35)] transition-transform active:scale-95"
-                  >
-                    Continue
-                  </button>
-                </div>
-             </div>
           </div>
         )}
 

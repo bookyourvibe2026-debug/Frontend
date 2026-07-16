@@ -7,7 +7,7 @@
 /*  Its "Book Now" launches the real booking flow (review -> confirm). */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -59,6 +59,9 @@ export default function VenueDetailPage() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [selectedSportForBooking, setSelectedSportForBooking] = useState<string>("");
+  // Desktop sport picker (the mobile shell owns its own copy of this state).
+  const [selectedSport, setSelectedSport] = useState<string>("");
+  const [sportModalOpen, setSportModalOpen] = useState(false);
 
   useEffect(() => {
     getVenueById(id)
@@ -106,6 +109,10 @@ export default function VenueDetailPage() {
   const highlights = venue.highlights.length > 0 ? venue.highlights : DEFAULT_HIGHLIGHTS;
   const inclusions = venue.inclusions.length > 0 ? venue.inclusions : DEFAULT_INCLUSIONS;
   const exclusions = venue.exclusions.length > 0 ? venue.exclusions : DEFAULT_EXCLUSIONS;
+  const desktopAmenities = inclusions.map((item) => {
+    const match = AMENITY_ICON_RULES.find((rule) => rule.keywords.some((k) => item.toLowerCase().includes(k)));
+    return { label: item, Icon: match?.icon ?? Layers };
+  });
   const categoryText = venue.categories.map(categoryLabel).join(", ") || "General";
   // Cards elsewhere show images[0] (poster). The detail-page hero shows a scrollable
   // gallery built from the banner + any extra photos (images[1..]), falling back to
@@ -171,6 +178,19 @@ export default function VenueDetailPage() {
               <h2 className="text-lg font-extrabold text-slate-900">Summary</h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{venue.description}</p>
             </section>
+
+            {/* Same info the mobile view shows — specs, weather, sports, amenities, players, reviews. */}
+            {!isEvent && (
+              <VenueInfoSections
+                venue={venue}
+                highlights={highlights}
+                amenities={desktopAmenities}
+                onPickSport={(sport) => {
+                  setSelectedSport(sport);
+                  setSportModalOpen(true);
+                }}
+              />
+            )}
 
             {isEvent && (
               <>
@@ -245,7 +265,12 @@ export default function VenueDetailPage() {
           {/* RIGHT — sticky booking card */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-lg">
-              <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> 4.8
+                </span>
+              </div>
               <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-brand-600">
                 {categoryText} · {venue.city}
               </p>
@@ -253,6 +278,7 @@ export default function VenueDetailPage() {
               <p className="mt-4 text-2xl font-black text-slate-900">
                 ₹{venue.price.toLocaleString("en-IN")}
               </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
 
               <div className="mt-4 space-y-2 border-y border-slate-100 py-4 text-sm text-slate-600">
                 <p className="flex items-center gap-2">
@@ -301,7 +327,263 @@ export default function VenueDetailPage() {
         </div>
       </main>
 
+      {/* Desktop sport picker — mobile renders its own inside MobileVenueDetail. */}
+      {sportModalOpen && (
+        <SportPickerSheet
+          venue={venue}
+          selectedSport={selectedSport}
+          onSelect={setSelectedSport}
+          onClose={() => setSportModalOpen(false)}
+          onContinue={() => {
+            setSportModalOpen(false);
+            setSelectedSportForBooking(selectedSport);
+            setBooking(true);
+          }}
+        />
+      )}
+
       {booking && <BookingFlow listing={venue} onClose={() => setBooking(false)} selectedSport={selectedSportForBooking} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SHARED venue sections — rendered on BOTH mobile and desktop         */
+/* ------------------------------------------------------------------ */
+
+/** Emoji + court-count copy per sport. Single source for the grid and the picker sheet. */
+function sportMeta(sportName: string): { emoji: string; courts: string } {
+  const l = sportName.toLowerCase();
+  if (l.includes("badminton")) return { emoji: "🏸", courts: "4 Courts" };
+  if (l.includes("cricket")) return { emoji: "🏏", courts: "2 Nets" };
+  if (l.includes("turf") || l.includes("football")) return { emoji: "⚽", courts: "1 Turf" };
+  if (l.includes("pickleball")) return { emoji: "🏓", courts: "2 Courts" };
+  if (l.includes("tennis")) return { emoji: "🎾", courts: "3 Courts" };
+  return { emoji: "🎯", courts: "1 Court" };
+}
+
+/** Categories to show, falling back to a sensible default set. */
+function venueSports(venue: Listing): string[] {
+  return venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"];
+}
+
+/** Self-contained so both layouts can drop it in without duplicating the fetch. */
+function LocalWeatherCard({ city }: { city: string }) {
+  const weather = useCityWeather(city);
+  if (weather.loading) return <div className="mt-3 h-24 animate-pulse rounded-2xl bg-slate-100" />;
+  if (weather.error || !weather.current) return null;
+  return (
+    <div className="mt-3 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 text-white shadow-lg shadow-brand-500/20">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-3xl font-black">{weather.current.temp}°</p>
+          <p className="text-xs font-semibold text-white/80">{weatherLabel(weather.current.code)}</p>
+        </div>
+        {weatherIcon(weather.current.code, "h-10 w-10")}
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/20 pt-3">
+        {weather.days.map((d) => (
+          <div key={d.label} className="flex flex-col items-center gap-1">
+            <span className="text-[10px] font-bold uppercase text-white/80">{d.label}</span>
+            {weatherIcon(d.code, "h-4 w-4")}
+            <span className="text-xs font-bold">{d.tempMax}°</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Every info section of a venue (hours, specs, weather, sports, amenities,
+ * players, reviews). Rendered by both the mobile shell and the desktop page so
+ * the two views can't drift apart again.
+ */
+function VenueInfoSections({
+  venue,
+  highlights,
+  amenities,
+  onPickSport,
+}: {
+  venue: Listing;
+  highlights: string[];
+  amenities: { label: string; Icon: typeof Layers }[];
+  onPickSport: (sportName: string) => void;
+}) {
+  return (
+    <>
+      {(venue.reportingStartTime || venue.reportingEndTime) && (
+        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+          <Clock className="h-4 w-4 text-brand-500" />
+          <span className="text-xs font-bold text-slate-700">
+            Open Today · {venue.reportingStartTime ?? "—"} - {venue.reportingEndTime ?? "—"}
+          </span>
+          <span className="ml-auto rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-emerald-600">
+            Open
+          </span>
+        </div>
+      )}
+
+      {/* Technical / venue highlights */}
+      <section className="mt-6">
+        <h2 className="text-base font-black tracking-tight text-slate-900">Technical Specifications</h2>
+        <p className="mt-0.5 text-xs font-medium text-slate-400">What makes this venue play-ready.</p>
+        <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {highlights.map((h, i) => {
+            const Icon = SPEC_ICONS[i % SPEC_ICONS.length];
+            const accent = SPEC_ACCENTS[i % SPEC_ACCENTS.length];
+            return (
+              <div
+                key={h}
+                className={`flex items-center gap-3.5 rounded-2xl border ${accent.ring} bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
+              >
+                <span
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.badge} text-white shadow-lg`}
+                >
+                  <Icon className="h-5 w-5 stroke-[2.25]" />
+                </span>
+                <p className="text-sm font-bold leading-snug text-slate-800">{h}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Local weather */}
+      <section className="mt-5">
+        <h2 className="text-sm font-extrabold text-slate-900">Local Weather</h2>
+        <LocalWeatherCard city={venue.city} />
+      </section>
+
+      {/* Sports available */}
+      <section className="mt-5">
+        <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+        <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          {venueSports(venue).map((catId) => {
+            const sportName = categoryLabel(catId);
+            const { emoji, courts } = sportMeta(sportName);
+            return (
+              <button
+                key={catId}
+                onClick={() => onPickSport(sportName)}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:border-brand-200"
+              >
+                <span className="text-3xl">{emoji}</span>
+                <div className="mt-1 text-center">
+                  <span className="block text-sm font-bold text-slate-800">{sportName}</span>
+                  <span className="block text-[10px] font-semibold text-slate-400">{courts}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Amenities */}
+      {amenities.length > 0 && (
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {amenities.map(({ label, Icon }) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+              >
+                <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Top players */}
+      <section className="mt-5">
+        <h2 className="text-sm font-extrabold text-slate-900">Top Players</h2>
+        <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+          <Users2 className="mx-auto h-6 w-6 text-slate-300" />
+          <p className="mt-2 text-xs font-semibold text-slate-500">No frequent players tracked here yet.</p>
+        </div>
+      </section>
+
+      {/* Player reviews */}
+      <section className="mt-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-slate-900">Player Reviews</h2>
+          <span className="text-xs font-semibold text-brand-600">View All</span>
+        </div>
+        <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+          <MessageSquareText className="mx-auto h-6 w-6 text-slate-300" />
+          <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** Bottom sheet for choosing which sport to book. Shared by both layouts. */
+function SportPickerSheet({
+  venue,
+  selectedSport,
+  onSelect,
+  onClose,
+  onContinue,
+}: {
+  venue: Listing;
+  selectedSport: string;
+  onSelect: (sport: string) => void;
+  onClose: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="relative w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl animate-in slide-in-from-bottom-full duration-300">
+        <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="text-sm font-bold text-slate-900">{venue.title}</h3>
+        </div>
+
+        <h2 className="mb-5 text-xl font-extrabold text-slate-900">Which sport do you want to play?</h2>
+
+        <div className="space-y-3">
+          {venueSports(venue).map((catId) => {
+            const sportName = categoryLabel(catId);
+            const { emoji, courts } = sportMeta(sportName);
+            const isSelected = selectedSport === sportName;
+            return (
+              <button
+                key={catId}
+                onClick={() => onSelect(sportName)}
+                className={`flex w-full items-center justify-between rounded-2xl border p-4 transition ${
+                  isSelected ? "border-[#0b9c65] bg-[#0b9c65]/5" : "border-slate-100 bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-2xl shadow-sm">
+                    {emoji}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-900">{sportName}</p>
+                    <p className="mt-0.5 text-[10px] font-medium text-slate-500">{courts} Available</p>
+                  </div>
+                </div>
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${isSelected ? "border-[#0b9c65]" : "border-slate-300"}`}>
+                  {isSelected && <div className="h-3 w-3 rounded-full bg-[#0b9c65]" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          disabled={!selectedSport}
+          onClick={onContinue}
+          className="mt-6 w-full rounded-2xl bg-[#0b9c65] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+        >
+          CONTINUE
+        </button>
+      </div>
     </div>
   );
 }
@@ -324,6 +606,14 @@ interface WeatherState {
 }
 
 const SPEC_ICONS = [Ruler, Lightbulb, Layers, CheckCircle2];
+
+/** Rotating accent palette so each spec chip gets its own attractive colour. */
+const SPEC_ACCENTS = [
+  { badge: "from-brand-500 to-brand-600 shadow-brand-500/30", ring: "border-brand-100" },
+  { badge: "from-amber-400 to-orange-500 shadow-orange-500/30", ring: "border-orange-100" },
+  { badge: "from-emerald-400 to-teal-500 shadow-emerald-500/30", ring: "border-emerald-100" },
+  { badge: "from-violet-500 to-indigo-500 shadow-indigo-500/30", ring: "border-indigo-100" },
+];
 
 const AMENITY_ICON_RULES: { keywords: string[]; icon: typeof ParkingCircle; label: string }[] = [
   { keywords: ["park"], icon: ParkingCircle, label: "Parking" },
@@ -414,9 +704,6 @@ function MobileVenueDetail({
   const router = useRouter();
   const [favorite, setFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy">("home");
-  const [bookingState, setBookingState] = useState({ canPay: false, submitting: false, confirmed: false });
-  const payTriggerRef = useRef<(() => void) | null>(null);
-  const weather = useCityWeather(venue.city);
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sportModalOpen, setSportModalOpen] = useState(false);
 
@@ -426,12 +713,6 @@ function MobileVenueDetail({
   });
 
   const mapsQuery = encodeURIComponent(venue.address || venue.city);
-
-  const TABS: { id: "home" | "booking" | "academy"; label: string }[] = [
-    { id: "home", label: "Home" },
-    { id: "booking", label: "Booking" },
-    { id: "academy", label: "Academy" },
-  ];
 
   return (
     <div className="pb-24">
@@ -500,11 +781,11 @@ function MobileVenueDetail({
 
         {/* Tabs */}
         <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-          {[{ id: "home", label: "Home" }, { id: "academy", label: "Academy" }].map((tab) => (
+          {([{ id: "home", label: "Home" }, { id: "academy", label: "Academy" }] as const).map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id)}
               className={`rounded-xl py-2 text-[10px] font-bold uppercase tracking-wide transition ${
                 activeTab === tab.id ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
               }`}
@@ -517,111 +798,12 @@ function MobileVenueDetail({
         {activeTab === "home" && (
           <>
 
-        {(venue.reportingStartTime || venue.reportingEndTime) && (
-          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
-            <Clock className="h-4 w-4 text-brand-500" />
-            <span className="text-xs font-bold text-slate-700">
-              Open Today · {venue.reportingStartTime ?? "—"} - {venue.reportingEndTime ?? "—"}
-            </span>
-            <span className="ml-auto rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-emerald-600">
-              Open
-            </span>
-          </div>
-        )}
-
-        {/* Technical / venue highlights */}
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Technical Specifications</h2>
-          <div className="mt-3 grid grid-cols-1 gap-2.5">
-            {highlights.map((h, i) => {
-              const Icon = SPEC_ICONS[i % SPEC_ICONS.length];
-              return (
-                <div key={h} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <p className="text-xs font-semibold text-slate-700">{h}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Local weather */}
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Local Weather</h2>
-          {weather.loading ? (
-            <div className="mt-3 h-24 animate-pulse rounded-2xl bg-slate-100" />
-          ) : weather.error || !weather.current ? null : (
-            <div className="mt-3 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 text-white shadow-lg shadow-brand-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-3xl font-black">{weather.current.temp}°</p>
-                  <p className="text-xs font-semibold text-white/80">{weatherLabel(weather.current.code)}</p>
-                </div>
-                {weatherIcon(weather.current.code, "h-10 w-10")}
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/20 pt-3">
-                {weather.days.map((d) => (
-                  <div key={d.label} className="flex flex-col items-center gap-1">
-                    <span className="text-[10px] font-bold uppercase text-white/80">{d.label}</span>
-                    {weatherIcon(d.code, "h-4 w-4")}
-                    <span className="text-xs font-bold">{d.tempMax}°</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Sports available */}
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            {(venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"]).map((catId) => {
-              const sportName = categoryLabel(catId);
-              let sportEmoji = "🎯";
-              let courtsInfo = "1 Court";
-              const lower = sportName.toLowerCase();
-              if (lower.includes("badminton")) { sportEmoji = "🏸"; courtsInfo = "4 Courts"; }
-              else if (lower.includes("cricket")) { sportEmoji = "🏏"; courtsInfo = "2 Nets"; }
-              else if (lower.includes("turf") || lower.includes("football")) { sportEmoji = "⚽"; courtsInfo = "1 Turf"; }
-              else if (lower.includes("pickleball")) { sportEmoji = "🏓"; courtsInfo = "2 Courts"; }
-              else if (lower.includes("tennis")) { sportEmoji = "🎾"; courtsInfo = "3 Courts"; }
-
-              return (
-                <button
-                  key={catId}
-                  onClick={() => { setSelectedSport(sportName); setSportModalOpen(true); }}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm hover:border-brand-200 transition"
-                >
-                  <span className="text-3xl">{sportEmoji}</span>
-                  <div className="text-center mt-1">
-                    <span className="block text-sm font-bold text-slate-800">{sportName}</span>
-                    <span className="block text-[10px] font-semibold text-slate-400">{courtsInfo}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Amenities */}
-        {amenities.length > 0 && (
-          <section className="mt-5">
-            <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {amenities.map(({ label, Icon }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-                >
-                  <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        <VenueInfoSections
+          venue={venue}
+          highlights={highlights}
+          amenities={amenities}
+          onPickSport={(sport) => { setSelectedSport(sport); setSportModalOpen(true); }}
+        />
 
         {/* Map Location */}
         {venue.address && (
@@ -648,27 +830,6 @@ function MobileVenueDetail({
           <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
         </section>
-
-        {/* Top players */}
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Top Players</h2>
-          <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
-            <Users2 className="mx-auto h-6 w-6 text-slate-300" />
-            <p className="mt-2 text-xs font-semibold text-slate-500">No frequent players tracked here yet.</p>
-          </div>
-        </section>
-
-        {/* Player reviews */}
-        <section className="mt-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">Player Reviews</h2>
-            <span className="text-xs font-semibold text-brand-600">View All</span>
-          </div>
-          <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
-            <MessageSquareText className="mx-auto h-6 w-6 text-slate-300" />
-            <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
-          </div>
-        </section>
           </>
         )}
 
@@ -693,70 +854,16 @@ function MobileVenueDetail({
 
       {/* Sport Selection Bottom Sheet */}
       {sportModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl relative animate-in slide-in-from-bottom-full duration-300">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-5">
-               <button onClick={() => setSportModalOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-                 <ArrowLeft className="h-4 w-4" />
-               </button>
-               <h3 className="text-sm font-bold text-slate-900">{venue.title}</h3>
-            </div>
-            
-            <h2 className="text-xl font-extrabold text-slate-900 mb-5">Which sport do you want to play?</h2>
-            
-            <div className="space-y-3">
-              {(venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"]).map((catId) => {
-                const sportName = categoryLabel(catId);
-                let sportEmoji = "🎯";
-                let courtsInfo = "1 Court Available";
-                const lower = sportName.toLowerCase();
-                if (lower.includes("badminton")) { sportEmoji = "🏸"; courtsInfo = "4 Courts Available"; }
-                else if (lower.includes("cricket")) { sportEmoji = "🏏"; courtsInfo = "2 Nets Available"; }
-                else if (lower.includes("turf") || lower.includes("football")) { sportEmoji = "⚽"; courtsInfo = "1 Turf Available"; }
-                else if (lower.includes("pickleball")) { sportEmoji = "🏓"; courtsInfo = "2 Courts Available"; }
-                else if (lower.includes("tennis")) { sportEmoji = "🎾"; courtsInfo = "3 Courts Available"; }
-
-                const isSelected = selectedSport === sportName;
-
-                return (
-                  <button
-                    key={catId}
-                    onClick={() => setSelectedSport(sportName)}
-                    className={`flex w-full items-center justify-between rounded-2xl border p-4 transition ${
-                      isSelected ? "border-[#0b9c65] bg-[#0b9c65]/5" : "border-slate-100 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-2xl shadow-sm border border-slate-100">
-                        {sportEmoji}
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-slate-900">{sportName}</p>
-                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{courtsInfo}</p>
-                      </div>
-                    </div>
-                    <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
-                      isSelected ? "border-[#0b9c65]" : "border-slate-300"
-                    }`}>
-                      {isSelected && <div className="h-3 w-3 rounded-full bg-[#0b9c65]" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button
-              disabled={!selectedSport}
-              onClick={() => {
-                setSportModalOpen(false);
-                onOpenBooking(selectedSport);
-              }}
-              className="mt-6 w-full rounded-2xl bg-[#0b9c65] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 transition hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-            >
-              CONTINUE
-            </button>
-          </div>
-        </div>
+        <SportPickerSheet
+          venue={venue}
+          selectedSport={selectedSport}
+          onSelect={setSelectedSport}
+          onClose={() => setSportModalOpen(false)}
+          onContinue={() => {
+            setSportModalOpen(false);
+            onOpenBooking(selectedSport);
+          }}
+        />
       )}
     </div>
   );

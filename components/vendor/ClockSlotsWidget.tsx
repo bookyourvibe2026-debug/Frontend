@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Maximize2, X } from "lucide-react";
 
 export interface ClockSlotItem {
   startTime: string; // "HH:MM"
@@ -11,26 +12,34 @@ export interface ClockSlotItem {
   customerName?: string;
 }
 
-const STATUS_COLORS: Record<ClockSlotItem["status"], string> = {
-  Available: "#10b981",       // Green
-  Booked: "#ef4444",          // Red
-  "Part Paid": "#f59e0b",     // Yellow
-  "On Hold": "#a855f7",       // Purple
-  "Offline Booked": "#64748b",// Gray (Offline/Blocked)
-  Blocked: "#64748b",         // Gray (Offline/Blocked)
+/* ─── Vibe Cycle: a deliberately simple 3-colour system ──────────
+   green = open to book, red = taken, grey = closed/blocked.
+   Every granular status folds into one of these three buckets.     */
+const GREEN = "#10b981";
+const RED = "#ef4444";
+const GREY = "#94a3b8";
+
+type Tone = "open" | "taken" | "closed";
+
+const STATUS_TONE: Record<ClockSlotItem["status"], Tone> = {
+  Available: "open",
+  Booked: "taken",
+  "Part Paid": "taken",
+  "Offline Booked": "taken",
+  "On Hold": "taken",
+  Blocked: "closed",
 };
 
+const TONE_COLOR: Record<Tone, string> = { open: GREEN, taken: RED, closed: GREY };
+
 const STAT_CARD_CFG: {
-  status: ClockSlotItem["status"];
+  tone: Tone;
   label: string;
   cls: { box: string; label: string; value: string };
 }[] = [
-  { status: "Available", label: "Available", cls: { box: "border-emerald-200 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700" } },
-  { status: "Booked", label: "Booked", cls: { box: "border-rose-200 bg-rose-50", label: "text-rose-500", value: "text-rose-700" } },
-  { status: "Part Paid", label: "Part Paid", cls: { box: "border-amber-200 bg-amber-50", label: "text-amber-600", value: "text-amber-700" } },
-  { status: "Offline Booked", label: "Offline", cls: { box: "border-orange-200 bg-orange-50", label: "text-orange-600", value: "text-orange-700" } },
-  { status: "On Hold", label: "On Hold", cls: { box: "border-purple-200 bg-purple-50", label: "text-purple-600", value: "text-purple-700" } },
-  { status: "Blocked", label: "Blocked", cls: { box: "border-slate-200 bg-slate-100", label: "text-slate-500", value: "text-slate-700" } },
+  { tone: "open", label: "Available", cls: { box: "border-emerald-200 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700" } },
+  { tone: "taken", label: "Booked", cls: { box: "border-rose-200 bg-rose-50", label: "text-rose-500", value: "text-rose-700" } },
+  { tone: "closed", label: "Blocked", cls: { box: "border-slate-200 bg-slate-100", label: "text-slate-500", value: "text-slate-700" } },
 ];
 
 function timeStringToHours(timeStr: string): number {
@@ -86,11 +95,13 @@ function describePieSegment(
   ].join(" ");
 }
 
-function statusColor(status: ClockSlotItem["status"]): string {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.Available;
+function toneOf(status: ClockSlotItem["status"]): Tone {
+  return STATUS_TONE[status] ?? "open";
 }
 
-const USE_DEMO_DATA = true;
+function statusColor(status: ClockSlotItem["status"]): string {
+  return TONE_COLOR[toneOf(status)];
+}
 
 export function ClockSlotsWidget({
   slots = [],
@@ -106,8 +117,22 @@ export function ClockSlotsWidget({
   const [hoveredSlot, setHoveredSlot] = useState<ClockSlotItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [half, setHalf] = useState<"AM" | "PM">(() => (new Date().getHours() < 12 ? "AM" : "PM"));
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const size = 280;
+  // Close fullscreen on Escape, and lock background scroll while open.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isFullscreen]);
+
+  const size = isFullscreen ? 340 : 280;
   const center = size / 2;
   const outerRadius = size / 2 - 24;
   const innerRadius = outerRadius * 0.3;
@@ -149,66 +174,14 @@ export function ClockSlotsWidget({
     return ticks;
   }, [center, outerRadius]);
 
+  /** Only the slots that fall inside the currently shown 12-hour half. */
   const activeSlotsList = useMemo(() => {
-    if (USE_DEMO_DATA) {
-      const amSlots: Record<number, string> = {
-        12: "available",
-        1: "available",
-        2: "booked",
-        3: "booked",
-        4: "partial",
-        5: "offline",
-        6: "available",
-        7: "available",
-        8: "on_hold",
-        9: "booked",
-        10: "available",
-        11: "available",
-      };
-
-      const pmSlots: Record<number, string> = {
-        12: "booked",
-        1: "available",
-        2: "available",
-        3: "partial",
-        4: "booked",
-        5: "available",
-        6: "offline",
-        7: "available",
-        8: "booked",
-        9: "available",
-        10: "on_hold",
-        11: "booked",
-      };
-
-      const demoStatusMap: Record<string, ClockSlotItem["status"]> = {
-        available: "Available",
-        booked: "Booked",
-        partial: "Part Paid",
-        offline: "Offline Booked",
-        on_hold: "On Hold",
-      };
-
-      const currentHalfSlots = half === "AM" ? amSlots : pmSlots;
-      
-      const list: ClockSlotItem[] = [];
-      const offset = half === "AM" ? 0 : 12;
-      for (let h = 0; h < 12; h++) {
-        const realHour = offset + h;
-        const labelHour = h === 0 ? 12 : h;
-        const rawStatus = currentHalfSlots[labelHour] || "available";
-        list.push({
-          startTime: `${String(realHour).padStart(2, "0")}:00`,
-          endTime: `${String((realHour + 1) % 24).padStart(2, "0")}:00`,
-          price: 1000,
-          label: half === "AM" ? "Morning" : "Night",
-          status: demoStatusMap[rawStatus] || "Available",
-          customerName: rawStatus !== "available" ? "Demo Player" : undefined,
-        });
-      }
-      return list;
-    }
-    return slots;
+    const from = half === "AM" ? 0 : 12;
+    const to = from + 12;
+    return slots.filter((s) => {
+      const start = timeStringToHours(s.startTime);
+      return start >= from && start < to;
+    });
   }, [slots, half]);
 
   const segments = useMemo(() => {
@@ -242,27 +215,15 @@ export function ClockSlotsWidget({
   }, [activeSlotsList, center, innerRadius, outerRadius, half]);
 
   const stats = useMemo(() => {
-    const hrsByStatus: Record<ClockSlotItem["status"], number> = {
-      Available: 0, Booked: 0, "Part Paid": 0, "Offline Booked": 0, "On Hold": 0, Blocked: 0,
-    };
+    const hrsByTone: Record<Tone, number> = { open: 0, taken: 0, closed: 0 };
     for (const s of activeSlotsList) {
-      hrsByStatus[s.status] += slotDurationHrs(s);
+      hrsByTone[toneOf(s.status)] += slotDurationHrs(s);
     }
-    const total = activeSlotsList.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 24;
+    const total = activeSlotsList.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 1;
     const pct = (hrs: number) => Math.round((hrs / total) * 100);
     return {
-      available: activeSlotsList.filter((s) => s.status === "Available").length,
-      booked: activeSlotsList.filter((s) => s.status === "Booked").length,
-      offline: activeSlotsList.filter((s) => s.status === "Offline Booked").length,
-      byStatus: hrsByStatus,
-      pctByStatus: {
-        Available: pct(hrsByStatus.Available),
-        Booked: pct(hrsByStatus.Booked),
-        "Part Paid": pct(hrsByStatus["Part Paid"]),
-        "Offline Booked": pct(hrsByStatus["Offline Booked"]),
-        "On Hold": pct(hrsByStatus["On Hold"]),
-        Blocked: pct(hrsByStatus.Blocked),
-      } as Record<ClockSlotItem["status"], number>,
+      byTone: hrsByTone,
+      pctByTone: { open: pct(hrsByTone.open), taken: pct(hrsByTone.taken), closed: pct(hrsByTone.closed) } as Record<Tone, number>,
     };
   }, [activeSlotsList]);
 
@@ -270,11 +231,21 @@ export function ClockSlotsWidget({
   const hourHandAngle = 225;
   const minuteHandAngle = 180;
 
-  return (
-    <div className="relative flex flex-col items-center p-4 bg-white rounded-2xl border border-surface-border shadow-panel w-full max-w-sm">
-      <div className="text-center mb-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-vibe-violet">Analog Slot Clock</p>
-        <p className="text-[10px] text-ink-faint mt-0.5">Hover slices for details</p>
+  const body = (
+    <>
+      <div className="relative w-full text-center mb-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-vibe-violet">Vibe Cycle</p>
+        <p className="text-[10px] text-ink-faint mt-0.5">
+          {isFullscreen ? "Tap a slice to manage that slot" : "Tap the cycle to open fullscreen"}
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsFullscreen((v) => !v)}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Open Vibe Cycle fullscreen"}
+          className="absolute right-0 top-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+        >
+          {isFullscreen ? <X size={16} /> : <Maximize2 size={14} />}
+        </button>
       </div>
 
       {/* AM / PM toggle */}
@@ -296,6 +267,16 @@ export function ClockSlotsWidget({
       </div>
 
       <div className="relative">
+        {/* Compact mode: the whole cycle is one big tap target that opens fullscreen.
+            In fullscreen this layer is gone, so slices/hours become directly interactive. */}
+        {!isFullscreen && (
+          <button
+            type="button"
+            aria-label="Open Vibe Cycle fullscreen"
+            onClick={() => setIsFullscreen(true)}
+            className="absolute inset-0 z-10 cursor-pointer rounded-full"
+          />
+        )}
         <svg width={size} height={size} className="overflow-visible select-none cursor-crosshair" onClick={handleSvgClick}>
           {/* Outer Dial Face */}
           <circle cx={center} cy={center} r={outerRadius} fill="#ffffff" stroke="#f1f5f9" strokeWidth="2" />
@@ -404,23 +385,24 @@ export function ClockSlotsWidget({
         )}
       </div>
 
+      {/* Legend — three colours only */}
       <div className="mt-2 flex items-center gap-3 text-[9px] font-semibold text-slate-500">
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white border border-slate-300" /> No slot</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLORS.Available }} /> Available</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLORS.Booked }} /> Booked</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLORS["Offline Booked"] }} /> Offline</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: GREEN }} /> Available</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: RED }} /> Booked</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: GREY }} /> Blocked</span>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-2 w-full mt-4">
-        {STAT_CARD_CFG.map(({ status, cls, label }) => (
-          <div key={status} className={`rounded-xl border p-2.5 text-center ${cls.box}`}>
+        {STAT_CARD_CFG.map(({ tone, cls, label }) => (
+          <div key={tone} className={`rounded-xl border p-2.5 text-center ${cls.box}`}>
             <p className={`text-[9px] font-bold uppercase tracking-wider ${cls.label}`}>{label}</p>
             <p className={`text-lg font-extrabold leading-tight ${cls.value}`}>
-              {round1(stats.byStatus[status])}
+              {round1(stats.byTone[tone])}
               <span className={`text-[10px] font-semibold ml-0.5 ${cls.label}`}>hrs</span>
             </p>
-            <p className={`text-[9px] font-bold ${cls.label}`}>{stats.pctByStatus[status]}%</p>
+            <p className={`text-[9px] font-bold ${cls.label}`}>{stats.pctByTone[tone]}%</p>
           </div>
         ))}
       </div>
@@ -438,6 +420,20 @@ export function ClockSlotsWidget({
           </button>
         )}
       </div>
+    </>
+  );
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-[70] overflow-y-auto bg-white animate-in fade-in duration-150">
+        <div className="flex min-h-full flex-col items-center px-4 py-6">{body}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex flex-col items-center p-4 bg-white rounded-2xl border border-surface-border shadow-panel w-full max-w-sm">
+      {body}
     </div>
   );
 }

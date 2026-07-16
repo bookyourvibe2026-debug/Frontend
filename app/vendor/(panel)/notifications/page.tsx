@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getVendorBookings, updateVendorBookingStatus } from "@/lib/api/vendor";
 import { Booking } from "@/lib/types";
 import { Bell, ChevronDown, ChevronUp, Phone, MessageSquare, MoreHorizontal, Clock, CheckCircle2 } from "lucide-react";
+import { MessageTemplatesModal, type MessageTemplateContext } from "@/components/vendor/MessageTemplatesModal";
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -26,6 +27,8 @@ export default function NotificationsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  // Booking whose "Message" button was tapped — drives the template picker.
+  const [messageCtx, setMessageCtx] = useState<MessageTemplateContext | null>(null);
 
   // Time state to force re-render for countdown updates
   const [time, setTime] = useState(Date.now());
@@ -240,7 +243,24 @@ export default function NotificationsPage() {
                         </button>
                       )}
                       
-                      <button className="flex-1 bg-[#0f172a] hover:bg-slate-800 text-white py-3.5 rounded-xl text-xs font-black shadow-sm transition active:scale-[0.97] flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() =>
+                          setMessageCtx({
+                            customerName: booking.customer,
+                            phone: booking.phone,
+                            orderId: booking.orderId,
+                            timeLabel: `${formattedTime} - ${formattedEndTime}`,
+                            dateLabel: new Date(booking.dateTime).toLocaleDateString("en-US", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "long",
+                            }),
+                            totalAmount: booking.totalAmount,
+                            paymentStatus: booking.paymentStatus,
+                          })
+                        }
+                        className="flex-1 bg-[#0f172a] hover:bg-slate-800 text-white py-3.5 rounded-xl text-xs font-black shadow-sm transition active:scale-[0.97] flex items-center justify-center gap-1.5"
+                      >
                         <MessageSquare size={13} />
                         Message
                       </button>
@@ -256,6 +276,8 @@ export default function NotificationsPage() {
           })
         )}
       </div>
+
+      {messageCtx && <MessageTemplatesModal ctx={messageCtx} onClose={() => setMessageCtx(null)} />}
     </div>
   );
 }
