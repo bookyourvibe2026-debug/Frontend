@@ -64,7 +64,7 @@ const INDIAN_STATES = [
 const CHECKLISTS: Record<number, string[]> = {
   1: ["Business Type (Turf, Food, or Both)", "Business Name", "Your Full Name", "Business Email (Verified via OTP)", "Contact Phone Number"],
   2: ["Strong Password (min 8 characters)", "Confirm Password", "Passwords must match"],
-  3: ["Bank Account Number", "IFSC Code", "Account Holder Name"],
+  3: ["Bank Account Number (optional)", "IFSC Code (optional)", "Account Holder Name (optional)"],
   4: ["State", "City", "Postal Code (Pincode)"],
   5: ["Verify all details", "Solve security puzzle", "Accept terms & conditions"],
 };
@@ -116,9 +116,9 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
       if (data.password !== data.confirmPassword) e.confirmPassword = "Passwords do not match.";
     }
     if (p === 3) {
-      if (!/^\d{9,18}$/.test(data.accountNumber)) e.accountNumber = "Enter a valid account number.";
-      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(data.ifscCode.toUpperCase())) e.ifscCode = "Enter a valid IFSC code.";
-      if (!data.accountHolderName.trim()) e.accountHolderName = "Account holder name is required.";
+      // Bank details are optional at registration — only validate format if the vendor chose to fill them in.
+      if (data.accountNumber.trim() && !/^\d{9,18}$/.test(data.accountNumber)) e.accountNumber = "Enter a valid account number.";
+      if (data.ifscCode.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(data.ifscCode.toUpperCase())) e.ifscCode = "Enter a valid IFSC code.";
     }
     if (p === 4) {
       if (!data.state) e.state = "Select a state.";
@@ -422,9 +422,12 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
 
             {phase === 3 && (
               <>
+                <p className="text-xs text-[#3f5449]">
+                  Optional — you can add these now or later from your vendor dashboard before your first payout.
+                </p>
                 <Field
                   icon={Landmark}
-                  placeholder="Bank Account Number"
+                  placeholder="Bank Account Number (optional)"
                   value={data.accountNumber}
                   onChange={(v) => update("accountNumber", v.replace(/\D/g, "").slice(0, 18))}
                   error={errors.accountNumber}
@@ -432,7 +435,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     icon={Type}
-                    placeholder="IFSC Code"
+                    placeholder="IFSC Code (optional)"
                     value={data.ifscCode}
                     onChange={(v) => update("ifscCode", v.toUpperCase().slice(0, 11))}
                     error={errors.ifscCode}
@@ -440,7 +443,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                   />
                   <Field
                     icon={User}
-                    placeholder="Account Holder Name"
+                    placeholder="Account Holder Name (optional)"
                     value={data.accountHolderName}
                     onChange={(v) => update("accountHolderName", v)}
                     error={errors.accountHolderName}

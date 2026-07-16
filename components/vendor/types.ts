@@ -55,7 +55,7 @@ export const emptyFormData: RegistrationFormData = {
 export const PHASES = [
   { id: 1, title: "Business Information", desc: "Tell us about your venue and provide your contact details." },
   { id: 2, title: "Security Setup", desc: "Create a secure password for your vendor account." },
-  { id: 3, title: "Bank Account Details", desc: "Add your bank account information for receiving payouts." },
+  { id: 3, title: "Bank Account Details", desc: "Add your bank account information for receiving payouts (optional — you can add this later)." },
   { id: 4, title: "Address Details", desc: "Provide your venue's location information." },
   { id: 5, title: "Review & Submit", desc: "Review all your information and complete registration." },
 ] as const;
