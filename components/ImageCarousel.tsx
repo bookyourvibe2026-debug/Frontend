@@ -1,0 +1,105 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+/** Swipeable, auto-advancing image carousel. Scrolling is native (CSS scroll-snap) so
+ * touch/trackpad drag works for free; arrows + dots + a timer just drive the same scroll. */
+export function ImageCarousel({
+  images,
+  alt,
+  className = "",
+  autoPlayMs = 4000,
+}: {
+  images: string[];
+  alt: string;
+  className?: string;
+  autoPlayMs?: number;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const resumeAt = useRef(0);
+
+  function goTo(index: number) {
+    const track = trackRef.current;
+    const slide = track?.children[index] as HTMLElement | undefined;
+    if (!track || !slide) return;
+    track.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+    resumeAt.current = Date.now() + 5000;
+  }
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const id = setInterval(() => {
+      if (Date.now() < resumeAt.current) return;
+      goTo((active + 1) % images.length);
+    }, autoPlayMs);
+    return () => clearInterval(id);
+  }, [active, images.length, autoPlayMs]);
+
+  function handleScroll() {
+    const track = trackRef.current;
+    if (!track) return;
+    const idx = Math.round(track.scrollLeft / track.clientWidth);
+    setActive((prev) => (prev !== idx ? idx : prev));
+  }
+
+  function handleUserScroll() {
+    resumeAt.current = Date.now() + 5000;
+  }
+
+  if (images.length === 0) return null;
+
+  return (
+    <div className={`relative ${className}`}>
+      <div
+        ref={trackRef}
+        onScroll={handleScroll}
+        onTouchStart={handleUserScroll}
+        onPointerDown={handleUserScroll}
+        onWheel={handleUserScroll}
+        className="flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {images.map((src, i) => (
+          <div key={i} className="h-full w-full flex-none snap-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={`${alt} ${i + 1}`} className="h-full w-full object-cover" draggable={false} />
+          </div>
+        ))}
+      </div>
+
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => goTo(Math.max(0, active - 1))}
+            aria-label="Previous image"
+            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo(Math.min(images.length - 1, active + 1))}
+            aria-label="Next image"
+            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => goTo(i)}
+                aria-label={`Go to image ${i + 1}`}
+                className={`h-1.5 rounded-full transition-all ${active === i ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
+import { ImageCarousel } from "@/components/ImageCarousel";
 import { getVenueById } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
@@ -106,6 +107,11 @@ export default function VenueDetailPage() {
   const inclusions = venue.inclusions.length > 0 ? venue.inclusions : DEFAULT_INCLUSIONS;
   const exclusions = venue.exclusions.length > 0 ? venue.exclusions : DEFAULT_EXCLUSIONS;
   const categoryText = venue.categories.map(categoryLabel).join(", ") || "General";
+  // Cards elsewhere show images[0] (poster). The detail-page hero shows a scrollable
+  // gallery built from the banner + any extra photos (images[1..]), falling back to
+  // the poster alone when nothing else was uploaded.
+  const allImageUrls = venue.images.map((img) => img.url).filter(Boolean);
+  const galleryImages = (allImageUrls.length > 1 ? allImageUrls.slice(1) : allImageUrls).slice(0, 4);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -119,6 +125,7 @@ export default function VenueDetailPage() {
           highlights={highlights}
           inclusions={inclusions}
           categoryText={categoryText}
+          galleryImages={galleryImages}
           onOpenBooking={(sport) => {
             setSelectedSportForBooking(sport);
             setBooking(true);
@@ -149,12 +156,9 @@ export default function VenueDetailPage() {
         <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
           {/* LEFT — details */}
           <div>
-            {/* Hero image */}
+            {/* Hero gallery */}
             <div className="relative h-64 w-full overflow-hidden rounded-3xl border border-brand-200 bg-slate-900 sm:h-80">
-              {venue.coverImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={venue.coverImage} alt={venue.title} className="h-full w-full object-cover" />
-              )}
+              <ImageCarousel images={galleryImages} alt={venue.title} className="absolute inset-0" />
               <div className="absolute bottom-4 left-4 flex items-center gap-2">
                 <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
                   {categoryText}
@@ -397,12 +401,14 @@ function MobileVenueDetail({
   highlights,
   inclusions,
   categoryText,
+  galleryImages,
   onOpenBooking,
 }: {
   venue: Listing;
   highlights: string[];
   inclusions: string[];
   categoryText: string;
+  galleryImages: string[];
   onOpenBooking: (sport: string) => void;
 }) {
   const router = useRouter();
@@ -429,12 +435,9 @@ function MobileVenueDetail({
 
   return (
     <div className="pb-24">
-      {/* Hero image with floating header */}
+      {/* Hero gallery with floating header */}
       <div className="relative h-72 w-full bg-slate-900">
-        {venue.coverImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={venue.coverImage} alt={venue.title} className="h-full w-full object-cover" />
-        )}
+        <ImageCarousel images={galleryImages} alt={venue.title} className="absolute inset-0" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <button
             type="button"

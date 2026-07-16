@@ -352,7 +352,7 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
     <div>
       <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Package photos</p>
       <p className="mb-5 text-xs text-ink-faint">
-        {draft.images.length} of 10 uploaded — first image is poster, second is banner
+        {draft.images.length} of 10 uploaded — poster shows on listing cards, banner + gallery photos become the scrolling carousel on the detail page
       </p>
 
       {error && (
@@ -386,6 +386,40 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
           onRemove={banner ? () => removeAt(1) : undefined}
           outputNote="Output: Auto-optimized to 1200×630 WEBP. Portrait uploads keep a blurred background frame."
         />
+      </div>
+
+      <div className="mt-6">
+        <p className="mb-1 text-sm font-semibold text-ink">Gallery photos</p>
+        <p className="mb-3 text-xs text-ink-faint">
+          Shown as a scrolling banner on the listing&apos;s detail page — add 2 to 4 for the best carousel.
+        </p>
+        <input
+          ref={bulkInput}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            appendFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => bulkInput.current?.click()}
+          disabled={bulkUploading || draft.images.length >= 10}
+          className="inline-flex items-center gap-2 rounded-lg border border-dashed border-surface-border bg-cream-200/50 px-4 py-2.5 text-xs font-semibold text-ink transition-colors hover:bg-cream-200 disabled:opacity-50"
+        >
+          {bulkUploading ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Uploading...
+            </>
+          ) : (
+            <>
+              <Upload size={14} /> Add gallery photos
+            </>
+          )}
+        </button>
       </div>
 
       {draft.images.length > 0 && (
@@ -988,6 +1022,12 @@ function BookingStep({ draft, update }: StepProps) {
         update("dateOverrides", next);
       } else {
         update("dateOverrides", [...existing, entry]);
+      }
+      // `slotsPerDay` is a required summary stat on the backend. When the vendor only ever
+      // configures date-specific slots (never touches the Global Default), it would otherwise
+      // stay stuck at 0 and fail listing creation — so keep it in sync with whatever slots exist.
+      if (dailySlots.length === 0 && nextSlots.length > 0) {
+        update("slotsPerDay", nextSlots.length);
       }
     }
   }
@@ -2158,6 +2198,11 @@ export function PackageStudio({
     if (!hasCity) {
       setFormError("Choose at least one city.");
       goTo(4); // Location step
+      return;
+    }
+    if (finalDraft.type !== "Event" && (finalDraft.slotsPerDay ?? 0) <= 0) {
+      setFormError("Generate at least one time slot before publishing.");
+      goTo(2); // Slots step
       return;
     }
     setFormError(null);
