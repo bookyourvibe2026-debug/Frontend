@@ -7,6 +7,7 @@ import { getMpinStatus, setMpin, verifyMpin, getVendorDashboardStats, exportVend
 import type { Listing } from "@/lib/api/types";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
+import { EarningsAndExpenses } from "@/components/vendor/dashboard/EarningsAndExpenses";
 
 export default function DashboardPage() {
   const { vendor } = useVendorAuth();
@@ -435,6 +436,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ── BYV EARNINGS + EXPENSES ── */}
+        <EarningsAndExpenses byvEarnings={stats?.totalEarnings ?? 0} />
 
         {/* ── LIVE COURT STATUS ── */}
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">

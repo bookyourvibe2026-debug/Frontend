@@ -16,24 +16,51 @@ import {
   Megaphone,
   ShieldCheck,
   ClipboardList,
-  PhoneCall
+  PhoneCall,
+  Sparkles,
+  MessageCircle,
+  LayoutGrid,
+  GraduationCap,
+  UtensilsCrossed,
+  Trophy,
+  ArrowRightLeft
 } from "lucide-react";
 
 const MAX_PRIMARY_ITEMS = 4;
+/** Support line vendors can WhatsApp directly. */
+const SUPPORT_WHATSAPP_URL = "https://wa.me/916350651667?text=Hi%20BYV%20team%2C%20I%20need%20help%20with%20my%20venue.";
+
+/** Display copy for each panel a vendor can switch between. */
+const VERTICAL_META: Record<VendorVertical, { label: string; blurb: string; icon: typeof Zap }> = {
+  turf: { label: "Turf Panel", blurb: "Bookings, slots & pricing", icon: LayoutGrid },
+  coaches: { label: "Coach Panel", blurb: "Sessions & coach bookings", icon: GraduationCap },
+  food: { label: "Food Panel", blurb: "Menu & counter orders", icon: UtensilsCrossed },
+  events: { label: "Events Panel", blurb: "Tournaments & events", icon: Trophy },
+};
 
 export default function MorePage() {
   const { vendor, logout } = useVendorAuth();
   const vendorName = isVendorOwner(vendor) ? vendor.businessName : vendor.holderName;
   const initialLetter = vendorName ? vendorName.charAt(0).toUpperCase() : "V";
 
-  const [overflowItems, setOverflowItems] = useState<any[]>([]);
+  interface MoreLink {
+    href: string;
+    label: string;
+    icon: typeof ChevronRight;
+    /** Leaves the app (e.g. WhatsApp) — rendered as a plain anchor. */
+    external?: boolean;
+  }
+
+  const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
+  const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
 
   useEffect(() => {
     if (!vendor) return;
 
     const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
     const activeVertical = (stored && vendor.verticals.includes(stored)) ? stored : (vendor.verticals[0] ?? "turf");
-    
+    setActiveVertical(activeVertical);
+
     const allItems = NAV_ITEMS_BY_VERTICAL[activeVertical] ?? [];
     const customOrder = MOBILE_NAV_ORDER[activeVertical];
     const primaryItems = customOrder
@@ -46,7 +73,9 @@ export default function MorePage() {
       ...allItems.filter((item) => !primaryHrefs.has(item.href) && item.href !== "/vendor/marketing"),
       ...SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/marketing"),
       { href: "/vendor/listings", label: "My Listings", icon: ClipboardList },
-      { href: "/vendor/privacy-security", label: "Privacy & Security", icon: ShieldCheck }
+      { href: "/vendor/insights", label: "BYV Insights", icon: Sparkles },
+      { href: "/vendor/privacy-security", label: "Privacy & Security", icon: ShieldCheck },
+      { href: SUPPORT_WHATSAPP_URL, label: "Chat with Us", icon: MessageCircle, external: true },
     ];
     setOverflowItems(list);
   }, [vendor]);
@@ -82,7 +111,7 @@ export default function MorePage() {
         <span className="inline-block text-[10px] font-bold tracking-wider text-vibe-lime bg-vibe-lime/10 border border-vibe-lime/20 px-2.5 py-0.5 rounded uppercase">
           Setup Progress
         </span>
-        <h3 className="text-base font-semibold mt-2.5 mb-1">You're almost ready...</h3>
+        <h3 className="text-base font-semibold mt-2.5 mb-1">You&apos;re almost ready...</h3>
         <p className="text-[11px] text-slate-300">Complete your profile to start accepting bookings.</p>
         
         {/* Progress Bar */}
@@ -91,8 +120,49 @@ export default function MorePage() {
         </div>
       </div>
 
+      {/* Panel switcher — only the verticals this vendor actually runs. */}
+      {vendor && activeVertical && vendor.verticals.filter((v) => v !== activeVertical).length > 0 && (
+        <div className="mb-5 rounded-2xl border-2 border-vibe-violet/30 bg-vibe-violet/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ArrowRightLeft size={14} className="text-vibe-violet" />
+            <p className="text-[11px] font-black uppercase tracking-wide text-vibe-violet">Switch Panel</p>
+            <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-ink-soft">
+              Now: {VERTICAL_META[activeVertical].label}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            {vendor.verticals
+              .filter((v) => v !== activeVertical)
+              .map((v) => {
+                const meta = VERTICAL_META[v];
+                const target = NAV_ITEMS_BY_VERTICAL[v]?.[0]?.href ?? "/vendor/dashboard";
+                return (
+                  <button
+                    key={v}
+                    onClick={() => {
+                      localStorage.setItem("byv_vendor_active_vertical", v);
+                      // Full navigation so the sidebar/bottom-nav re-read the new vertical.
+                      window.location.href = target;
+                    }}
+                    className="flex items-center gap-3 rounded-xl border border-vibe-violet/20 bg-white p-3 text-left shadow-sm transition hover:border-vibe-violet/50 active:scale-[0.98]"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vibe-violet/10 text-vibe-violet">
+                      <meta.icon size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold text-ink">Switch to {meta.label}</span>
+                      <span className="block text-[11px] text-ink-faint">{meta.blurb}</span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-vibe-violet" />
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Marketing Center Card */}
-      <Link 
+      <Link
         href="/vendor/marketing"
         className="flex items-center justify-between p-4 mb-5 bg-white border border-surface-border rounded-2xl shadow-sm hover:bg-cream-200/40 transition-colors"
       >
@@ -110,19 +180,29 @@ export default function MorePage() {
 
       {/* Links List */}
       <div className="bg-white border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden mb-5 shadow-sm">
-        {overflowItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center justify-between px-4 py-3.5 hover:bg-cream-200/40 transition-colors text-sm font-medium text-ink-soft"
-          >
-            <div className="flex items-center gap-3">
-              <Icon size={18} strokeWidth={2} className="text-ink-faint" />
-              <span>{label}</span>
-            </div>
-            <ChevronRight size={16} className="text-ink-faint/60" />
-          </Link>
-        ))}
+        {overflowItems.map(({ href, label, icon: Icon, external }) => {
+          const body = (
+            <>
+              <div className="flex items-center gap-3">
+                <Icon size={18} strokeWidth={2} className="text-ink-faint" />
+                <span>{label}</span>
+              </div>
+              <ChevronRight size={16} className="text-ink-faint/60" />
+            </>
+          );
+          const cls =
+            "flex items-center justify-between px-4 py-3.5 hover:bg-cream-200/40 transition-colors text-sm font-medium text-ink-soft";
+          // WhatsApp support leaves the app, so it needs a plain anchor.
+          return external ? (
+            <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+              {body}
+            </a>
+          ) : (
+            <Link key={href} href={href} className={cls}>
+              {body}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Actions */}

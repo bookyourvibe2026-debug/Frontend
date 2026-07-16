@@ -4,42 +4,45 @@ import {
   useEffect,
   useState,
   useMemo,
-  useCallback,
   useRef,
 } from "react";
 import {
-  LayoutGrid,
   Clock as ClockIcon,
-  ChevronLeft,
-  ChevronRight,
+  List as ListIcon,
+  SlidersHorizontal,
   X,
   Ban,
   BookOpen,
   Pause,
-  Pencil,
   CalendarDays,
-  Calendar as CalendarIcon,
   ChevronDown,
-  User,
-  Phone,
   Check,
-  CheckCircle2,
-  Wallet,
-  Clock3,
 } from "lucide-react";
-import { PageHero, SectionCard, Badge } from "@/components/vendor/ui";
 import {
   getVendorListings,
   getVendorBookings,
   createVendorBooking,
   updateVendorBookingStatus,
   updateVendorListing,
+  checkInVendorBooking,
 } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Listing, Booking, BookingStatus } from "@/lib/types";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
+import { BookingsHeader } from "@/components/vendor/bookings/BookingsHeader";
+import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/vendor/bookings/BookingsTimeline";
+import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/bookings/AddBookingSheet";
+import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
+import {
+  SlotFilterSheet,
+  DEFAULT_FILTERS,
+  activeFilterCount,
+  filterSummary,
+  hourMatchesTimeOfDay,
+  type SlotFilters,
+} from "@/components/vendor/bookings/SlotFilterSheet";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 function to12h(t: string) {
@@ -51,29 +54,27 @@ function to12h(t: string) {
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
 }
 function t24m(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+/** Local-date ISO (yyyy-mm-dd). toISOString() would shift the day for IST users. */
+function toIsoDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function durHrs(start: string, end: string) {
   const d = t24m(end) - t24m(start);
   return d > 0 ? +(d / 60).toFixed(1) : 0;
 }
-function dayPart(t: string) {
-  const h = Number(t.split(":")[0]);
-  if (h >= 5 && h < 12) return "Morning";
-  if (h >= 12 && h < 17) return "Afternoon";
-  if (h >= 17 && h < 21) return "Evening";
-  if (h >= 21 && h < 24) return "Night";
-  return "Mid Night";
-}
-
 type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
 
-const STAT_TONE = {
-  emerald: { idle: "border-emerald-100 bg-emerald-50/50", active: "border-emerald-400 ring-1 ring-emerald-300 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700", pct: "text-emerald-400" },
-  rose: { idle: "border-rose-100 bg-rose-50/50", active: "border-rose-400 ring-1 ring-rose-300 bg-rose-50", label: "text-rose-600", value: "text-rose-700", pct: "text-rose-400" },
-  amber: { idle: "border-amber-100 bg-amber-50/50", active: "border-amber-400 ring-1 ring-amber-300 bg-amber-50", label: "text-amber-600", value: "text-amber-700", pct: "text-amber-400" },
-  orange: { idle: "border-orange-100 bg-orange-50/50", active: "border-orange-400 ring-1 ring-orange-300 bg-orange-50", label: "text-orange-600", value: "text-orange-700", pct: "text-orange-400" },
-  purple: { idle: "border-purple-100 bg-purple-50/50", active: "border-purple-400 ring-1 ring-purple-300 bg-purple-50", label: "text-purple-600", value: "text-purple-700", pct: "text-purple-400" },
-  slate: { idle: "border-slate-200 bg-slate-50", active: "border-slate-400 ring-1 ring-slate-300 bg-slate-100", label: "text-slate-600", value: "text-slate-700", pct: "text-slate-400" },
-} as const;
+/**
+ * The vendor bookings API returns more than the shared mock `Booking` type models
+ * (it carries listingId/customerName/phone/checkedIn). Naming that here keeps the
+ * slot resolver free of `as any` casts.
+ */
+type ApiBooking = Booking & {
+  listingId?: string;
+  customerName?: string;
+  phone?: string;
+  checkedIn?: boolean;
+};
 
 interface AgendaSlot {
   startTime: string;
@@ -85,6 +86,8 @@ interface AgendaSlot {
   customerName?: string;
   phone?: string;
   blockedReason?: string;
+  /** True once the player's ticket QR has been scanned in. */
+  arrived?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ interface AgendaSlot {
 ────────────────────────────────────────────────────────────────── */
 export default function BookingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -100,7 +103,20 @@ export default function BookingsPage() {
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [selectedTurfId, setSelectedTurfId] = useState("");
-  const [daypart, setDaypart] = useState<"All" | "Morning" | "Afternoon" | "Evening" | "Night" | "Mid Night">("All");
+  // "All Slots" filter — status / time of day / source / quick filters.
+  const [filters, setFilters] = useState<SlotFilters>(DEFAULT_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  // Add Booking sheet (name, number, court, price, timing, sport)
+  const [addBookingOpen, setAddBookingOpen] = useState(false);
+  const [addBookingInitial, setAddBookingInitial] = useState<Partial<AddBookingValues>>({});
+  const [addBookingSaving, setAddBookingSaving] = useState(false);
+  /** Start of the visible 7-day strip in the header. */
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   // Live clock tick — drives "running now" / "already passed" slot styling
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -108,7 +124,7 @@ export default function BookingsPage() {
     return () => clearInterval(id);
   }, []);
   const isToday = selectedDate === todayIso;
-  const [viewMode, setViewMode] = useState<"grid" | "clock">("grid");
+  const [viewMode, setViewMode] = useState<"timeline" | "clock">("timeline");
   // Active slot action modal
   const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
   // Grouped-list filter (for "See Booking" bottom button)
@@ -143,7 +159,7 @@ export default function BookingsPage() {
         const withSlots = turfs.find((t) => (t.slotsList?.length ?? 0) > 0);
         if (withSlots) setSelectedTurfId(withSlots.id);
         else if (turfs.length > 0) setSelectedTurfId(turfs[0].id);
-        setBookings(b.items as unknown as Booking[]);
+        setBookings(b.items as unknown as ApiBooking[]);
       })
       .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load"))
       .finally(() => setLoading(false));
@@ -154,31 +170,6 @@ export default function BookingsPage() {
     [listings, selectedTurfId]
   );
   const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
-
-  /* ── Scrollable date queue: today onwards, grouped by month ── */
-  const agendaDates = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return Array.from({ length: 90 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
-    });
-  }, []);
-
-  const agendaMonthGroups = useMemo(() => {
-    const groups: { key: string; label: string; dates: Date[] }[] = [];
-    for (const d of agendaDates) {
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      const last = groups[groups.length - 1];
-      if (last && last.key === key) {
-        last.dates.push(d);
-      } else {
-        groups.push({ key, label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }), dates: [d] });
-      }
-    }
-    return groups;
-  }, [agendaDates]);
 
   /* ── Resolve slots for selected date ── */
   const resolvedSlots = useMemo<AgendaSlot[]>(() => {
@@ -206,7 +197,7 @@ export default function BookingsPage() {
         const bkTime = new Date(bk.dateTime).toLocaleTimeString("en-US", {
           hour12: false, hour: "2-digit", minute: "2-digit",
         });
-        return (bk.listing === selectedTurfId || (bk as any).listingId === selectedTurfId)
+        return (bk.listing === selectedTurfId || bk.listingId === selectedTurfId)
           && bk.status !== "Cancelled"
           && bkDate === selectedDate
           && bkTime === slot.startTime;
@@ -216,11 +207,13 @@ export default function BookingsPage() {
       let bookingId: string | undefined;
       let customerName: string | undefined;
       let phone: string | undefined;
+      let arrived = false;
 
       if (match) {
         bookingId = match.orderId;
-        customerName = (match as any).customerName ?? match.customer;
-        phone = (match as any).phone;
+        customerName = match.customerName ?? match.customer;
+        phone = match.phone;
+        arrived = Boolean(match.checkedIn);
         const isOffline = match.payment === "Cash (Offline)";
         const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
@@ -238,31 +231,102 @@ export default function BookingsPage() {
         bookingId,
         customerName,
         phone,
+        arrived,
       };
     });
   }, [selectedTurf, selectedDate, bookings, selectedTurfId]);
 
-  /* ── Stats (in hours) ── */
-  const stats = useMemo(() => {
-    const hrsFor = (status: SlotStatus) =>
-      resolvedSlots.filter(s => s.status === status).reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    const totalHrs = resolvedSlots.reduce((s, sl) => s + durHrs(sl.startTime, sl.endTime), 0);
-    return {
-      totalHrs,
-      bookedHrs: hrsFor("Booked"),
-      partPaidHrs: hrsFor("Part Paid"),
-      offlineHrs: hrsFor("Offline Booked"),
-      blockedHrs: hrsFor("Blocked"),
-      onHoldHrs: hrsFor("On Hold"),
-      availHrs: hrsFor("Available"),
-    };
-  }, [resolvedSlots]);
+  /* ── "All Slots" filter: status + time of day + source + quick ── */
+  const visibleSlots = useMemo(() => {
+    // "Next Booking" = the single next upcoming booked slot (today only).
+    let nextBookedStart: string | null = null;
+    if (filters.quick === "Next Booking") {
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const upcoming = resolvedSlots
+        .filter((s) => s.status !== "Available" && s.status !== "Blocked")
+        .filter((s) => !isToday || t24m(s.startTime) >= nowMins)
+        .sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+      nextBookedStart = upcoming[0]?.startTime ?? null;
+    }
 
-  /* ── Filter by daypart tab ── */
-  const visibleSlots = useMemo(
-    () => (daypart && daypart !== "All") ? resolvedSlots.filter(s => s.label === daypart || dayPart(s.startTime) === daypart) : resolvedSlots,
-    [resolvedSlots, daypart]
+    return resolvedSlots.filter((s) => {
+      const hour = Number(s.startTime.split(":")[0]);
+      if (!hourMatchesTimeOfDay(hour, filters.timeOfDay)) return false;
+
+      if (filters.status === "Available" && s.status !== "Available") return false;
+      if (filters.status === "Confirmed" && !(s.status === "Booked" || s.status === "Offline Booked")) return false;
+      if (filters.status === "Pending" && !(s.status === "Part Paid" || s.status === "On Hold")) return false;
+      if (filters.status === "Blocked" && s.status !== "Blocked") return false;
+
+      if (filters.source === "Walk-in" && s.status !== "Offline Booked") return false;
+      if (filters.source === "Online" && s.status !== "Booked") return false;
+      // "Admin Added" / "QR Booking" have no backing field on a booking yet.
+      if (filters.source === "Admin Added" || filters.source === "QR Booking") return false;
+
+      if (filters.quick === "Empty Slots" && s.status !== "Available") return false;
+      if (filters.quick === "Next Booking" && s.startTime !== nextBookedStart) return false;
+
+      return true;
+    });
+  }, [resolvedSlots, filters, now, isToday]);
+
+  /* ── Header-derived data ── */
+  const weekDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      return d;
+    }),
+    [weekStart]
   );
+
+  /** Slots taken by any kind of booking — drives the "x/y Slots Booked" ring. */
+  const bookedSlotCount = useMemo(
+    () => resolvedSlots.filter((s) => ["Booked", "Offline Booked", "Part Paid", "On Hold"].includes(s.status)).length,
+    [resolvedSlots]
+  );
+
+  /** Next upcoming booking on the selected day (from now, when the day is today). */
+  const nextBooking = useMemo(() => {
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    return resolvedSlots
+      .filter((s) => s.status !== "Available" && s.status !== "Blocked")
+      .filter((s) => !isToday || t24m(s.startTime) >= nowMins)
+      .sort((a, b) => t24m(a.startTime) - t24m(b.startTime))[0];
+  }, [resolvedSlots, now, isToday]);
+
+  /**
+   * How far off the next booking is, measured from the current clock —
+   * e.g. "in 45 min", "in 2 hr 10 min", or "now" while it's running.
+   */
+  const nextBookingIn = useMemo(() => {
+    if (!nextBooking) return undefined;
+    if (!isToday) return undefined;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const diff = t24m(nextBooking.startTime) - nowMins;
+    if (diff <= 0) return t24m(nextBooking.endTime) > nowMins ? "now" : undefined;
+    if (diff < 60) return `in ${diff} min`;
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    return m === 0 ? `in ${h} hr` : `in ${h} hr ${m} min`;
+  }, [nextBooking, now, isToday]);
+
+  /** Open when the current time falls inside the day's configured slot window. */
+  const isOpenNow = useMemo(() => {
+    if (!isToday || resolvedSlots.length === 0) return false;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const open = Math.min(...resolvedSlots.map((s) => t24m(s.startTime)));
+    const close = Math.max(...resolvedSlots.map((s) => t24m(s.endTime)));
+    return nowMins >= open && nowMins < close;
+  }, [resolvedSlots, now, isToday]);
+
+  /** Keep the visible week strip in sync when the date jumps (e.g. quick filters). */
+  function jumpToDate(iso: string) {
+    setSelectedDate(iso);
+    const d = new Date(iso + "T00:00:00");
+    const inStrip = weekDates.some((w) => toIsoDate(w) === iso);
+    if (!inStrip) setWeekStart(d);
+  }
 
   /* ── Grouped list (for "See Booking" panel) ── */
   const groupedSlots = useMemo(() => {
@@ -351,7 +415,7 @@ export default function BookingsPage() {
       });
       // Refresh bookings
       const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
+      setBookings(fresh.items as unknown as ApiBooking[]);
       setActiveSlot(null);
       setOfflineName("");
       setOfflinePhone("");
@@ -374,7 +438,7 @@ export default function BookingsPage() {
         status: "Pending",
       });
       const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
+      setBookings(fresh.items as unknown as ApiBooking[]);
       setActiveSlot(null);
     } catch { alert("Failed to hold slot"); }
   }
@@ -385,7 +449,7 @@ export default function BookingsPage() {
       if (slot.bookingId) {
         await updateVendorBookingStatus(slot.bookingId, "Cancelled");
         const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
+        setBookings(fresh.items as unknown as ApiBooking[]);
       }
     } catch { alert("Failed to clear slot"); }
     setActiveSlot(null);
@@ -396,7 +460,7 @@ export default function BookingsPage() {
       if (slot.bookingId) {
         await updateVendorBookingStatus(slot.bookingId, "Confirmed");
         const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
+        setBookings(fresh.items as unknown as ApiBooking[]);
       }
     } catch { alert("Failed to update booking"); }
     setActiveSlot(null);
@@ -407,7 +471,7 @@ export default function BookingsPage() {
       if (slot.bookingId) {
         await updateVendorBookingStatus(slot.bookingId, "Cancelled");
         const fresh = await getVendorBookings({ limit: 500 });
-        setBookings(fresh.items as unknown as Booking[]);
+        setBookings(fresh.items as unknown as ApiBooking[]);
       }
     } catch { alert("Failed to clear existing booking"); return; }
     await setSlotBlocked(slot, true, "Maintenance");
@@ -424,6 +488,109 @@ export default function BookingsPage() {
     setPendingConfirm(null);
   }
 
+  /* ── Add Booking ── */
+  function openAddBooking(slot?: AgendaSlot) {
+    setAddBookingInitial({
+      courtId: selectedTurfId,
+      price: slot ? String(slot.price) : "",
+      startTime: slot?.startTime ?? "",
+      endTime: slot?.endTime ?? "",
+      sport: selectedTurf?.categories?.[0] ?? "",
+    });
+    setAddBookingOpen(true);
+  }
+
+  async function submitAddBooking(v: AddBookingValues) {
+    setAddBookingSaving(true);
+    try {
+      const dt = new Date(`${selectedDate}T${v.startTime}:00`);
+      await createVendorBooking({
+        listingId: v.courtId,
+        customerName: v.customerName.trim(),
+        phone: v.phone,
+        sport: v.sport || undefined,
+        dateTime: dt.toISOString(),
+        endTime: v.endTime || undefined,
+        totalAmount: Number(v.price) || 0,
+        payment: "Cash (Offline)",
+        status: "Confirmed",
+      });
+      const fresh = await getVendorBookings({ limit: 500 });
+      setBookings(fresh.items as unknown as ApiBooking[]);
+      setAddBookingOpen(false);
+      setActiveSlot(null);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.describe() : "Failed to create booking");
+    }
+    setAddBookingSaving(false);
+  }
+
+  /* ── QR check-in: scan ticket → mark the booking arrived ── */
+  async function handleQrCheckIn(orderId: string): Promise<string> {
+    const booking = await checkInVendorBooking(orderId).catch((e) => {
+      throw new Error(e instanceof ApiError ? e.describe() : "Check-in failed. Please try again.");
+    });
+    // Refresh so the slot immediately shows the "Arrived" badge.
+    const fresh = await getVendorBookings({ limit: 500 });
+    setBookings(fresh.items as unknown as ApiBooking[]);
+    const name = (booking as unknown as { customerName?: string })?.customerName;
+    return name ? `${name} · ${orderId}` : orderId;
+  }
+
+  /* ── Timeline row ⋮ menu ── */
+  function handleSlotAction(slot: AgendaSlot, action: SlotAction) {
+    switch (action) {
+      case "create-booking":
+        openAddBooking(slot);
+        return;
+      case "block-slot":
+        setActiveSlot(slot);
+        setBlockReasonOpen(true);
+        return;
+      case "make-available":
+        setPendingConfirm({
+          title: "Make slot available",
+          seconds: 6,
+          run: () => (slot.status === "Blocked" ? setSlotBlocked(slot, false) : clearBookedSlot(slot)),
+        });
+        return;
+      case "cancel-booking":
+        setPendingConfirm({
+          title: "Cancel this booking",
+          seconds: 6,
+          run: () => clearBookedSlot(slot),
+        });
+        return;
+      case "mark-pending":
+        setPendingConfirm({
+          title: "Mark as pending",
+          seconds: 6,
+          run: () => setBookingStatus(slot, "Pending"),
+        });
+        return;
+      case "mark-paid":
+        setPendingConfirm({
+          title: "Mark as paid & confirmed",
+          seconds: 6,
+          run: () => markSlotPaidConfirmed(slot),
+        });
+        return;
+    }
+  }
+
+  /** Move a booking between Confirmed / Pending from the timeline. */
+  async function setBookingStatus(slot: AgendaSlot, status: BookingStatus) {
+    try {
+      if (!slot.bookingId) return;
+      await updateVendorBookingStatus(slot.bookingId, status);
+      const fresh = await getVendorBookings({ limit: 500 });
+      setBookings(fresh.items as unknown as ApiBooking[]);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.describe() : "Failed to update booking");
+    }
+    setActiveSlot(null);
+  }
+
   /* ── Clock select ── */
   const handleClockHour = async (hour: number) => {
     if (!selectedTurf) return;
@@ -433,13 +600,10 @@ export default function BookingsPage() {
   };
 
   const selectedDateObj = new Date(selectedDate + "T00:00:00");
-  const todayLabel = selectedDateObj.toLocaleDateString("en-IN", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  /** e.g. "Fri, 17 July" — the label beside "TODAY" in the header. */
+  const headerDateLabel = selectedDateObj.toLocaleDateString("en-IN", {
+    weekday: "short", day: "numeric", month: "long",
   });
-
-  /* ── Sizes ── */
-  const cardH = "h-24";
-  const cardGrid = "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8";
 
   const isBookedSlot = activeSlot
     ? (["Booked", "Offline Booked", "Part Paid", "On Hold"] as SlotStatus[]).includes(activeSlot.status)
@@ -452,125 +616,59 @@ export default function BookingsPage() {
 
   return (
     <div className="flex flex-col bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6 h-[calc(100dvh-64px)] overflow-hidden relative">
-      {/* ── FIXED COMPRESSED HEADER ── */}
-      <div className="shrink-0 z-20 shadow-sm flex flex-col bg-[#f5f7fa]">
-        {/* PAGE HEADER — single row */}
-        <div className="bg-white px-3 py-1.5 flex items-center gap-2 border-b border-slate-100">
-          <div className="flex flex-col shrink-0">
-            <h1 className="text-[12px] font-extrabold text-slate-900 leading-none">Bookings Agenda</h1>
-            <p className="text-[9px] text-slate-400 mt-0.5 leading-none">{todayLabel}</p>
+      {/* ── HEADER: venue, today card, date strip ── */}
+      <div className="shrink-0 z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
+        <BookingsHeader
+          turfs={turfListings.map((t) => ({ id: t.id, title: t.title }))}
+          selectedTurfId={selectedTurfId}
+          onSelectTurf={setSelectedTurfId}
+          city={selectedTurf?.city}
+          dateLabel={headerDateLabel}
+          isOpenNow={isOpenNow}
+          bookedSlots={bookedSlotCount}
+          totalSlots={resolvedSlots.length}
+          nextBookingTime={nextBooking ? to12h(nextBooking.startTime) : undefined}
+          nextBookingIn={nextBookingIn}
+          nextBookingName={nextBooking?.customerName}
+          onOpenQrScanner={() => setQrScannerOpen(true)}
+          onAddBooking={() => openAddBooking()}
+          dates={weekDates}
+          selectedDate={selectedDate}
+          todayIso={todayIso}
+          onSelectDate={setSelectedDate}
+          onPrevWeek={() => setWeekStart((d) => { const n = new Date(d); n.setDate(d.getDate() - 7); return n; })}
+          onNextWeek={() => setWeekStart((d) => { const n = new Date(d); n.setDate(d.getDate() + 7); return n; })}
+        />
+
+        {/* View toggle + "All Slots" filter */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold transition ${viewMode === "timeline" ? "bg-vibe-navy text-white" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              <ListIcon size={12} /> Timeline
+            </button>
+            <button
+              onClick={() => setViewMode("clock")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold transition ${viewMode === "clock" ? "bg-vibe-navy text-white" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              <ClockIcon size={12} /> Clock
+            </button>
           </div>
-          <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-            {turfListings.length > 0 && (
-              <div className="relative">
-                <select
-                  value={selectedTurfId}
-                  onChange={(e) => setSelectedTurfId(e.target.value)}
-                  className="text-[11px] font-bold border border-slate-200 rounded-lg px-2.5 py-1 bg-white outline-none focus:border-vibe-violet appearance-none pr-6"
-                >
-                  {turfListings.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                </select>
-                <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </div>
+
+          <button
+            onClick={() => setFilterOpen(true)}
+            className="ml-auto flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50"
+          >
+            <SlidersHorizontal size={12} /> {filterSummary(filters)}
+            {activeFilterCount(filters) > 0 && (
+              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-vibe-violet px-1 text-[8px] font-black text-white">
+                {activeFilterCount(filters)}
+              </span>
             )}
-            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-              <button onClick={() => setViewMode("grid")} className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition ${viewMode === "grid" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-                <LayoutGrid size={10} /> Grid
-              </button>
-              <button onClick={() => setViewMode("clock")} className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition ${viewMode === "clock" ? "bg-vibe-navy text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-                <ClockIcon size={10} /> Clock
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* DATE QUEUE, STATS, DAYPART */}
-        <div className="bg-[#f5f7fa] px-4 md:px-6 pt-2 pb-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-700">
-              {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-            </p>
-            {selectedDate !== todayIso && (
-              <button onClick={() => setSelectedDate(todayIso)} className="text-[9px] font-bold text-vibe-violet hover:underline">
-                Jump to Today
-              </button>
-            )}
-          </div>
-          
-          <div className="flex gap-1.5 py-1.5 overflow-x-auto snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {agendaDates.map((d) => {
-              const iso = d.toISOString().slice(0, 10);
-              const isSel = iso === selectedDate;
-              const isToday = iso === todayIso;
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <button
-                  key={iso}
-                  onClick={() => setSelectedDate(iso)}
-                  className={`flex flex-col items-center justify-center w-[48px] h-[52px] shrink-0 snap-start rounded-xl border transition ${
-                    isSel
-                      ? "bg-vibe-navy border-vibe-navy text-white shadow-md"
-                      : isToday
-                      ? "border-vibe-violet/40 bg-vibe-violet/5 text-vibe-violet hover:bg-vibe-violet/10"
-                      : isWeekend
-                      ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="text-[9px] font-bold uppercase leading-none mb-0.5">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                  <span
-                    className={`text-base font-black leading-none ${
-                      isSel ? "text-white" : isToday ? "text-vibe-violet" : isWeekend ? "text-rose-600" : "text-slate-800"
-                    }`}
-                  >
-                    {d.getDate()}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedTurf && (
-            <div className="flex gap-2 py-1 overflow-x-auto snap-x mb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <button onClick={() => setGroupedFilter(null)} className={`snap-start shrink-0 min-w-[72px] rounded-xl border p-1.5 flex flex-col items-center justify-center transition ${!groupedFilter ? "border-slate-400 bg-slate-100 shadow-inner" : "border-slate-200 bg-white"}`}>
-                <p className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Total Cap.</p>
-                <p className="text-[13px] font-black text-slate-800 leading-none mt-0.5">{stats.totalHrs}<span className="text-[8px] font-semibold text-slate-400 ml-0.5">hrs</span></p>
-              </button>
-              <button onClick={() => setGroupedFilter(groupedFilter === "Booked" ? null : "Booked")} className={`snap-start shrink-0 min-w-[72px] rounded-xl border p-1.5 flex flex-col items-center justify-center transition ${groupedFilter === "Booked" ? "border-green-400 bg-green-50 shadow-inner" : "border-green-100 bg-green-50/30"}`}>
-                <p className="text-[8px] font-bold uppercase tracking-wider text-green-600">Booked</p>
-                <p className="text-[13px] font-black text-green-700 leading-none mt-0.5">{stats.bookedHrs + stats.offlineHrs}<span className="text-[8px] font-semibold text-green-500 ml-0.5">hrs</span></p>
-              </button>
-              <button onClick={() => setGroupedFilter(groupedFilter === "Part Paid" ? null : "Part Paid")} className={`snap-start shrink-0 min-w-[72px] rounded-xl border p-1.5 flex flex-col items-center justify-center transition ${groupedFilter === "Part Paid" ? "border-amber-400 bg-amber-50 shadow-inner" : "border-amber-100 bg-amber-50/30"}`}>
-                <p className="text-[8px] font-bold uppercase tracking-wider text-amber-600">Part Paid</p>
-                <p className="text-[13px] font-black text-amber-600 leading-none mt-0.5">{stats.partPaidHrs}<span className="text-[8px] font-semibold text-amber-400 ml-0.5">hrs</span></p>
-              </button>
-              <button onClick={() => setGroupedFilter(groupedFilter === "Available" ? null : "Available")} className={`snap-start shrink-0 min-w-[72px] rounded-xl border p-1.5 flex flex-col items-center justify-center transition ${groupedFilter === "Available" ? "border-emerald-400 bg-emerald-50 shadow-inner" : "border-emerald-100 bg-emerald-50/30"}`}>
-                <p className="text-[8px] font-bold uppercase tracking-wider text-emerald-600">Available</p>
-                <p className="text-[13px] font-black text-emerald-600 leading-none mt-0.5">{stats.availHrs}<span className="text-[8px] font-semibold text-emerald-400 ml-0.5">hrs</span></p>
-              </button>
-            </div>
-          )}
-
-          {selectedTurf && !groupedFilter && (
-            <div className="flex items-center gap-1.5 overflow-x-auto relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {(["All", "Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map(dp => {
-                const isActive = daypart === dp;
-                return (
-                  <button
-                    key={dp}
-                    onClick={() => setDaypart(dp)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold shrink-0 transition border ${
-                      isActive
-                        ? "bg-vibe-navy border-vibe-navy text-white shadow-md"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {dp}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            <ChevronDown size={11} className="text-slate-400" />
+          </button>
         </div>
       </div>
 
@@ -592,21 +690,20 @@ export default function BookingsPage() {
 
         {selectedTurf && !groupedFilter && (
           <>
-            {viewMode === "grid" && (
-              <AgendaGrid
-                slots={visibleSlots}
-                cardH={cardH}
-                cardGrid={cardGrid}
-                daypart={daypart}
-                onSlotClick={setActiveSlot}
-                now={now}
-                isToday={isToday}
-              />
+            {viewMode === "timeline" && (
+              <>
+                <BookingsTimeline
+                  slots={visibleSlots}
+                  onSlotClick={setActiveSlot}
+                  onAction={handleSlotAction}
+                />
+                <TimelineLegend />
+              </>
             )}
             {viewMode === "clock" && (
               <div className="flex justify-center py-4">
                 <ClockSlotsWidget
-                  slots={resolvedSlots}
+                  slots={visibleSlots}
                   onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
                   renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
@@ -624,6 +721,47 @@ export default function BookingsPage() {
             <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />
           </div>
         </div>
+      )}
+
+      {/* ── "ALL SLOTS" FILTER SHEET ── */}
+      {filterOpen && (
+      <SlotFilterSheet
+        initial={filters}
+        onClose={() => setFilterOpen(false)}
+        onApply={(next) => {
+          setFilters(next);
+          setFilterOpen(false);
+          // Date-scoped quick filters move the agenda instead of filtering rows.
+          if (next.quick === "Today") jumpToDate(todayIso);
+          if (next.quick === "Tomorrow") {
+            const d = new Date();
+            d.setDate(d.getDate() + 1);
+            jumpToDate(toIsoDate(d));
+          }
+          if (next.quick === "Weekend") {
+            const d = new Date();
+            d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
+            jumpToDate(toIsoDate(d));
+          }
+        }}
+      />
+      )}
+
+      {/* ── ADD BOOKING ── */}
+      {addBookingOpen && (
+        <AddBookingSheet
+          courts={turfListings.map((t) => ({ id: t.id, title: t.title }))}
+          sports={selectedTurf?.categories ?? []}
+          initial={addBookingInitial}
+          submitting={addBookingSaving}
+          onClose={() => setAddBookingOpen(false)}
+          onSubmit={submitAddBooking}
+        />
+      )}
+
+      {/* ── QR SCANNER — scans the ticket QR and checks the player in ── */}
+      {qrScannerOpen && (
+        <QrScannerModal onClose={() => setQrScannerOpen(false)} onCheckIn={handleQrCheckIn} />
       )}
 
       {/* ── SLOT ACTION MODAL (available / blocked) ── */}
@@ -797,122 +935,6 @@ export default function BookingsPage() {
 }
 
 /* ─── AGENDA GRID ─────────────────────────────────────────────── */
-function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick, now, isToday }: {
-  slots: AgendaSlot[];
-  cardH: string;
-  cardGrid: string;
-  daypart: string;
-  onSlotClick: (s: AgendaSlot) => void;
-  now: Date;
-  isToday: boolean;
-}) {
-  const parts = daypart && daypart !== "All"
-    ? [daypart]
-    : ["Morning", "Afternoon", "Evening", "Night", "Mid Night"];
-
-  return (
-    <div className="space-y-6">
-      {parts.map(part => {
-        const partSlots = slots.filter(s => s.label === part || dayPart(s.startTime) === part);
-        if (partSlots.length === 0) return null;
-        return (
-          <div key={part}>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">{part}</p>
-            <div className={`grid ${cardGrid} gap-2`}>
-              {partSlots.map((s, i) => (
-                <SlotCard key={i} slot={s} cardH={cardH} onClick={() => onSlotClick(s)} now={now} isToday={isToday} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-      {slots.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
-          <p className="text-sm text-slate-400 font-medium">No slots for this day part</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatHourRange(start24: string, end24: string) {
-  const startHour = parseInt(start24.split(":")[0], 10);
-  const endHour = parseInt(end24.split(":")[0], 10);
-  return `${startHour}-${endHour}`;
-}
-
-/* ─── SLOT CARD ────────────────────────────────────────────────── */
-function SlotCard({ slot, cardH, onClick, now, isToday }: {
-  slot: AgendaSlot; cardH: string; onClick: () => void; now: Date; isToday: boolean;
-}) {
-  const cfg: Record<SlotStatus, { bg: string; border: string; icon: typeof Ban }> = {
-    Available:        { bg: "", border: "", icon: Check },
-    Booked:           { bg: "bg-emerald-600", border: "border-emerald-700", icon: CheckCircle2 },
-    "Offline Booked": { bg: "bg-green-600", border: "border-green-700", icon: Wallet },
-    "Part Paid":      { bg: "bg-amber-500", border: "border-amber-600", icon: Clock3 },
-    Blocked:          { bg: "bg-rose-600", border: "border-rose-700", icon: Ban },
-    "On Hold":        { bg: "bg-violet-600", border: "border-violet-700", icon: Pause },
-  };
-  const c = cfg[slot.status] || cfg["Available"];
-  const StatusIcon = c.icon;
-
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const startMin = t24m(slot.startTime);
-  const endMin = t24m(slot.endTime);
-  const isRunning = isToday && nowMin >= startMin && nowMin < endMin;
-  const isPast = isToday && nowMin >= endMin;
-
-  return (
-    <div className="group relative">
-      <button
-        onClick={onClick}
-        className={`flex w-full flex-col items-center justify-center ${cardH} rounded-2xl border-2 ${
-          slot.status === "Available"
-            ? "border-dashed border-emerald-200 bg-white hover:border-emerald-400"
-            : `${c.border} ${c.bg} hover:brightness-110`
-        } relative cursor-pointer hover:shadow-md transition-shadow ${
-          isRunning ? "ring-2 ring-vibe-navy ring-offset-2" : ""
-        }`}
-      >
-        {isRunning && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vibe-navy opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-vibe-navy" />
-          </span>
-        )}
-        <span className={`text-base font-extrabold font-sans ${slot.status === "Available" ? "text-slate-800" : "text-white"}`}>
-          {formatHourRange(slot.startTime, slot.endTime)}
-        </span>
-        {slot.status === "Available" ? (
-          <>
-            <span className="text-xl font-bold text-emerald-500 mt-1 leading-none">+</span>
-            <span className="text-[10px] font-extrabold uppercase text-emerald-600 mt-0.5">FREE</span>
-          </>
-        ) : (
-          <>
-            <StatusIcon size={16} className="text-white/90 mt-1.5" strokeWidth={2.25} />
-            <span className="mt-1 text-[10px] font-extrabold uppercase text-white/95">
-              {slot.status}
-            </span>
-            {slot.customerName && slot.customerName !== "Hold" && (
-              <span className="text-[9px] text-white/80 mt-0.5 truncate max-w-full px-1">{slot.customerName}</span>
-            )}
-          </>
-        )}
-      </button>
-
-      {/* Hover tooltip */}
-      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 flex-col gap-0.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-lg group-hover:flex whitespace-nowrap">
-        <p className="font-bold text-vibe-lime">{to12h(slot.startTime)} - {to12h(slot.endTime)} · {durHrs(slot.startTime, slot.endTime)}h</p>
-        <p className="text-[10px] text-slate-300">{slot.label} · {isRunning ? "Live now" : isPast ? "Already passed" : "Upcoming"}</p>
-        <p className="text-[11px] text-slate-200 font-bold">₹{slot.price}</p>
-        {slot.customerName && <p className="text-[10px] text-slate-300">Customer: {slot.customerName}</p>}
-        <span className="self-start rounded bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">{slot.status}</span>
-      </div>
-    </div>
-  );
-}
-
 /* ─── SEE BOOKING BUTTON + DROPDOWN ────────────────────────────── */
 function SeeBookingButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
   const [open, setOpen] = useState(false);

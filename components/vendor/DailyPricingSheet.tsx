@@ -48,26 +48,42 @@ export function DailyPricingSheet({
     [basePrice]
   );
 
-  const [bulkPrice, setBulkPrice] = useState(basePrice);
+  /*
+   * Prices are held as strings, not numbers. With a number state, clearing the
+   * field ran Number("") → 0, so it snapped back to 0 and you could never empty
+   * it to type your own price. Strings let the box go genuinely empty; the value
+   * is only coerced on save.
+   */
+  const [bulkPrice, setBulkPrice] = useState(() => String(basePrice));
   const [selectedPreset, setSelectedPreset] = useState<"offPeak" | "standard" | "peak" | "custom">("standard");
-  const [slotOverrides, setSlotOverrides] = useState<Record<string, number>>({});
+  const [slotOverrides, setSlotOverrides] = useState<Record<string, string>>({});
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [twilightApplied, setTwilightApplied] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  /** Digits only — keeps out "e", "+", "-" that a number input would otherwise accept. */
+  const onlyDigits = (v: string) => v.replace(/\D/g, "");
+
+  /** Effective price for a slot, falling back to its existing price when left blank. */
+  function priceFor(slot: TurfSlot): number {
+    const raw = slotOverrides[slot.startTime] ?? bulkPrice;
+    if (raw === "") return slot.price;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : slot.price;
+  }
+
   function pickPreset(key: "offPeak" | "standard" | "peak") {
     setSelectedPreset(key);
-    setBulkPrice(presets[key]);
+    setBulkPrice(String(presets[key]));
   }
 
   function activateTwilightOffer() {
-    const next: Record<string, number> = { ...slotOverrides };
+    const next: Record<string, string> = { ...slotOverrides };
     let count = 0;
     for (const slot of slots) {
       const startMin = t24m(slot.startTime);
       if (startMin >= TWILIGHT_START && startMin < TWILIGHT_END) {
-        const current = slotOverrides[slot.startTime] ?? bulkPrice;
-        next[slot.startTime] = roundTo50(current * 0.8);
+        next[slot.startTime] = String(roundTo50(priceFor(slot) * 0.8));
         count += 1;
       }
     }
@@ -78,10 +94,7 @@ export function DailyPricingSheet({
   async function handleSave() {
     setSaving(true);
     try {
-      const next = slots.map((s) => ({
-        ...s,
-        price: slotOverrides[s.startTime] ?? bulkPrice,
-      }));
+      const next = slots.map((s) => ({ ...s, price: priceFor(s) }));
       await onSave(next);
     } finally {
       setSaving(false);
@@ -134,12 +147,13 @@ export function DailyPricingSheet({
 
         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Or Set My Price (₹)</p>
         <input
-          type="number"
-          min={0}
+          type="text"
+          inputMode="numeric"
           value={bulkPrice}
+          placeholder="Enter price"
           onChange={(e) => {
             setSelectedPreset("custom");
-            setBulkPrice(Number(e.target.value));
+            setBulkPrice(onlyDigits(e.target.value));
           }}
           className="w-full rounded-xl border border-surface-border bg-cream-200/40 px-4 py-3 text-sm font-bold outline-none focus:border-vibe-violet mb-4"
         />
@@ -162,11 +176,12 @@ export function DailyPricingSheet({
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-slate-400">₹</span>
                   <input
-                    type="number"
-                    min={0}
+                    type="text"
+                    inputMode="numeric"
                     value={slotOverrides[slot.startTime] ?? bulkPrice}
+                    placeholder={String(slot.price)}
                     onChange={(e) =>
-                      setSlotOverrides((prev) => ({ ...prev, [slot.startTime]: Number(e.target.value) }))
+                      setSlotOverrides((prev) => ({ ...prev, [slot.startTime]: onlyDigits(e.target.value) }))
                     }
                     className="w-20 rounded-lg border border-surface-border bg-cream-200/40 px-2 py-1.5 text-xs font-bold outline-none focus:border-vibe-violet"
                   />

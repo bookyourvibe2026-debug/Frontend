@@ -198,7 +198,11 @@ export interface CreateVendorBookingInput {
   listingId: string;
   customerName: string;
   phone: string;
+  /** Sport the slot is booked for (manual/walk-in bookings). */
+  sport?: string;
   dateTime: string;
+  /** Slot end as "HH:mm". */
+  endTime?: string;
   totalAmount: number;
   payment: Booking["payment"];
   status: BookingStatus;
@@ -462,3 +466,46 @@ export function confirmMpinChange(otp: string, newPin: string) {
   return apiRequest<null>("/vendor/mpin/change/confirm", { method: "POST", body: { otp, newPin }, audience: AUD });
 }
 
+
+/* ─── Expenses ──────────────────────────────────────────────────── */
+
+export type ExpenseCategory = "Maintenance" | "Rent" | "Salary" | "Misc";
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Maintenance", "Rent", "Salary", "Misc"];
+
+export interface VendorExpense {
+  _id: string;
+  category: ExpenseCategory;
+  amount: number;
+  note?: string;
+  spentAt: string;
+  createdAt: string;
+}
+
+export interface ExpenseListResponse {
+  items: VendorExpense[];
+  total: number;
+  byCategory: Partial<Record<ExpenseCategory, number>>;
+}
+
+export interface CreateExpenseInput {
+  category: ExpenseCategory;
+  amount: number;
+  note?: string;
+  spentAt?: string;
+}
+
+export function getVendorExpenses(params: { from?: string; to?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return apiRequest<ExpenseListResponse>(`/vendor/expenses${suffix}`, { audience: AUD });
+}
+
+export function createVendorExpense(input: CreateExpenseInput) {
+  return apiRequest<VendorExpense>("/vendor/expenses", { method: "POST", body: input, audience: AUD });
+}
+
+export function deleteVendorExpense(id: string) {
+  return apiRequest<null>(`/vendor/expenses/${id}`, { method: "DELETE", audience: AUD });
+}

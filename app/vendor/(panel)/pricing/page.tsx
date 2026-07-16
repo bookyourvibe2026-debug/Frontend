@@ -57,7 +57,10 @@ export default function PriceSettingPage() {
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
   const [bulkTarget, setBulkTarget] = useState<BulkTarget | null>(null);
-  const [bulkPrice, setBulkPrice] = useState(1000);
+  // Held as a string so the field can be cleared. Number state coerced ""→0, which
+  // snapped the box back to 0 and forced values like "0300".
+  const [bulkPriceInput, setBulkPriceInput] = useState("1000");
+  const bulkPrice = Number(bulkPriceInput) || 0;
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
 
@@ -291,16 +294,16 @@ export default function PriceSettingPage() {
             {bulkTarget && (
               <div className="mt-3 flex items-center gap-2">
                 <input
-                  type="number"
-                  min={0}
-                  value={bulkPrice}
-                  onChange={(e) => setBulkPrice(Number(e.target.value))}
-                  placeholder="Price"
+                  type="text"
+                  inputMode="numeric"
+                  value={bulkPriceInput}
+                  onChange={(e) => setBulkPriceInput(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter price"
                   className="flex-1 rounded-xl border border-surface-border bg-cream-200/40 px-4 py-2.5 text-sm font-bold outline-none focus:border-vibe-violet"
                 />
                 <button
                   onClick={applyBulkPrice}
-                  disabled={applyingBulk}
+                  disabled={applyingBulk || bulkPrice <= 0}
                   className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
                 >
                   {applyingBulk ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
