@@ -95,6 +95,22 @@ function uploadImage(audience: Audience, file: File) {
   return audience === "admin" ? uploadAdminImage(file, "listings") : uploadVendorImage(file, "listings");
 }
 
+/** The top-level `price` shown on listing cards / detail pages isn't edited directly anywhere in
+ * this form — it must be derived from the per-slot pricing (Step 5) so customers and vendors see
+ * the real "starting from" price instead of the 0 the draft is initialized with. */
+function computeStartingPrice(listing: Listing): number {
+  if (listing.type === "Event") {
+    const amounts = listing.priceTiers.map((t) => t.amount).filter((a) => a > 0);
+    return amounts.length ? Math.min(...amounts) : 0;
+  }
+  const allSlots = [
+    ...(listing.slotsList ?? []),
+    ...((listing.dateOverrides ?? []).flatMap((o) => o.slots ?? [])),
+  ];
+  const pricedSlots = allSlots.filter((s) => s.price > 0 && !s.blocked).map((s) => s.price);
+  return pricedSlots.length ? Math.min(...pricedSlots) : 0;
+}
+
 const inputClass =
   "w-full rounded-lg border border-surface-border bg-cream-200/40 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint";
 
@@ -2187,7 +2203,8 @@ export function PackageStudio({
 
     // Auto fallback for empty listing title to vendor profile business name
     const finalTitle = draft.title.trim() || profileName || `Udaipur ${draft.type} Club`;
-    const finalDraft = { ...draft, title: finalTitle };
+    const startingPrice = computeStartingPrice(draft);
+    const finalDraft = { ...draft, title: finalTitle, price: startingPrice };
 
     if (finalDraft.categories.length === 0) {
       setFormError("Select at least one category.");
@@ -2203,6 +2220,15 @@ export function PackageStudio({
     if (finalDraft.type !== "Event" && (finalDraft.slotsPerDay ?? 0) <= 0) {
       setFormError("Generate at least one time slot before publishing.");
       goTo(2); // Slots step
+      return;
+    }
+    if (startingPrice <= 0) {
+      setFormError(
+        finalDraft.type === "Event"
+          ? "Set a price for at least one participant tier before publishing."
+          : "Set a price for at least one slot before publishing."
+      );
+      goTo(5); // Pricing step
       return;
     }
     setFormError(null);
