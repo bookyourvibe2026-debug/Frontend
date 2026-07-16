@@ -1499,8 +1499,37 @@ function DayPartGroup({ part, children }: { part: string; children: React.ReactN
 function PricingStep({ draft, update }: StepProps) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [priceInput, setPriceInput] = useState<number>(1000);
+  const [activeSource, setActiveSource] = useState<string>("default");
 
-  const slots = draft.slotsList ?? [];
+  /* slots can live in two places: the global default list, or per-date overrides */
+  const defaultSlots = draft.slotsList ?? [];
+  const overrideSources = (draft.dateOverrides ?? []).filter((o) => !o.isHoliday && (o.slots ?? []).length > 0);
+
+  const sources: { id: string; label: string }[] = [
+    ...(defaultSlots.length > 0 ? [{ id: "default", label: "Global Default" }] : []),
+    ...overrideSources.map((o) => ({
+      id: o.date,
+      label: new Date(`${o.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    })),
+  ];
+
+  const sourceId = sources.some((s) => s.id === activeSource) ? activeSource : sources[0]?.id ?? "default";
+
+  const slots: TurfSlot[] =
+    sourceId === "default"
+      ? defaultSlots
+      : (draft.dateOverrides ?? []).find((o) => o.date === sourceId)?.slots ?? [];
+
+  function saveSlots(nextSlots: TurfSlot[]) {
+    if (sourceId === "default") {
+      update("slotsList", nextSlots);
+    } else {
+      update(
+        "dateOverrides",
+        (draft.dateOverrides ?? []).map((o) => (o.date === sourceId ? { ...o, slots: nextSlots } : o))
+      );
+    }
+  }
 
   // Blocked slots (unavailable — excluded from pricing entirely)
   const blockedSlots = slots.filter((s) => s.blocked);
@@ -1513,7 +1542,7 @@ function PricingStep({ draft, update }: StepProps) {
     const nextSlots = slots.map((s) =>
       `${s.startTime}-${s.endTime}` === key ? { ...s, blocked } : s
     );
-    update("slotsList", nextSlots);
+    saveSlots(nextSlots);
     setSelectedKeys((prev) => prev.filter((k) => k !== key));
   }
 
@@ -1526,7 +1555,7 @@ function PricingStep({ draft, update }: StepProps) {
       }
       return s;
     });
-    update("slotsList", nextSlots);
+    saveSlots(nextSlots);
     setSelectedKeys([]);
   }
 
@@ -1537,7 +1566,7 @@ function PricingStep({ draft, update }: StepProps) {
       }
       return s;
     });
-    update("slotsList", nextSlots);
+    saveSlots(nextSlots);
     setSelectedKeys((prev) => prev.filter((k) => k !== key));
   }
 
@@ -1595,6 +1624,35 @@ function PricingStep({ draft, update }: StepProps) {
           <p className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-1">Slot-by-Slot Pricing</p>
           <p className="text-xs text-ink-faint mb-4">Click to select one or multiple slots below, set their price, and apply. Priced slots will move to the list below.</p>
 
+          {/* Slot source tabs — global default + per-date override lists */}
+          {sources.length > 1 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {sources.map((src) => (
+                <button
+                  key={src.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSource(src.id);
+                    setSelectedKeys([]);
+                  }}
+                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold transition ${
+                    sourceId === src.id
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {src.id === "default" ? "⚙️ " : "📅 "}
+                  {src.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {sources.length > 0 && sourceId !== "default" && (
+            <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-vibe-amber">
+              You are pricing the custom slots for {sources.find((s) => s.id === sourceId)?.label} only.
+            </p>
+          )}
+
           {/* Pricing Controls Row */}
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -1619,7 +1677,11 @@ function PricingStep({ draft, update }: StepProps) {
           {/* Unpriced slots selector cards */}
           <div className="mb-6">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Select Slots to Price ({unpricedSlots.length})</p>
-            {unpricedSlots.length === 0 ? (
+            {slots.length === 0 ? (
+              <p className="text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                No slots generated yet. Go back to the Slots step (Step 2) and generate slots first.
+              </p>
+            ) : unpricedSlots.length === 0 ? (
               <p className="text-xs text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">🎉 All slots have been priced!</p>
             ) : (
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
