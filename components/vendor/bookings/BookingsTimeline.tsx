@@ -95,7 +95,7 @@ export const TIMELINE_LEGEND: { tone: Tone; label: string }[] = [
 /** "07:00" → "07:00 AM" */
 function to12h(t: string): string {
   const [hStr, m] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${m} ${ap}`;
@@ -186,11 +186,34 @@ export function BookingsTimeline({
   slots,
   onSlotClick,
   onAction,
+  scrollToNow = false,
 }: {
   slots: TimelineSlot[];
   onSlotClick: (slot: TimelineSlot) => void;
   onAction: (slot: TimelineSlot, action: SlotAction) => void;
+  /** When viewing today, open the list at the current/upcoming slot; passed slots stay reachable by scrolling up. */
+  scrollToNow?: boolean;
 }) {
+  const currentSlotRef = useRef<HTMLDivElement>(null);
+  const didAutoScroll = useRef(false);
+
+  // First slot still running or upcoming; if the day is over, land at the end.
+  const toMins = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  let scrollIdx = slots.findIndex((s) => toMins(s.endTime) > nowMins);
+  if (scrollIdx === -1) scrollIdx = slots.length - 1;
+
+  useEffect(() => {
+    if (!scrollToNow) {
+      didAutoScroll.current = false;
+      return;
+    }
+    // Scroll once per visit to today — not again on every clock tick or filter change.
+    if (didAutoScroll.current || !currentSlotRef.current) return;
+    didAutoScroll.current = true;
+    currentSlotRef.current.scrollIntoView({ block: "start" });
+  }, [scrollToNow, slots]);
+
   if (slots.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
@@ -209,7 +232,11 @@ export function BookingsTimeline({
         const isLast = i === slots.length - 1;
 
         return (
-          <div key={`${slot.startTime}-${i}`} className="flex gap-3 px-3 py-1.5">
+          <div
+            key={`${slot.startTime}-${i}`}
+            ref={i === scrollIdx ? currentSlotRef : undefined}
+            className="flex gap-3 px-3 py-1.5"
+          >
             {/* Time rail — shows the slot's full duration, exactly as configured. */}
             <div className="w-[68px] shrink-0 pt-3 text-right">
               <span className="block text-[10px] font-bold leading-tight tabular-nums text-slate-600">
@@ -226,11 +253,19 @@ export function BookingsTimeline({
               {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
             </div>
 
-            {/* Slot card */}
-            <button
-              type="button"
+            {/* Slot card — a div (not a button) so RowMenu's buttons can nest inside it. */}
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => onSlotClick(slot)}
-              className={`mb-1 flex flex-1 items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.995] ${s.card}`}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSlotClick(slot);
+                }
+              }}
+              className={`mb-1 flex flex-1 cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.995] ${s.card}`}
             >
               <div className="min-w-0 flex-1">
                 {isFree ? (
@@ -255,7 +290,7 @@ export function BookingsTimeline({
                     </div>
                     <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
                       {slot.phone ? `${slot.phone} · ` : ""}
-                      {slot.status === "Offline Booked" ? "Walk-in" : "Online Booking"}
+                      {slot.status === "Offline Booked" ? "Walk-in" : "BYV Booked"}
                     </p>
                   </>
                 )}
@@ -280,7 +315,7 @@ export function BookingsTimeline({
               )}
 
               <RowMenu slot={slot} onAction={onAction} />
-            </button>
+            </div>
           </div>
         );
       })}

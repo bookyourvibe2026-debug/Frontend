@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Sparkles, TrendingUp, Users, PartyPopper } from "lucide-react";
+import { ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, ThumbsUp } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -63,6 +63,23 @@ export default function PriceSettingPage() {
   const bulkPrice = Number(bulkPriceInput) || 0;
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
+
+  /** Vendor opted in to BYV managing this turf's dynamic pricing (local until a backend field exists). */
+  const [byvManaged, setByvManaged] = useState(false);
+  useEffect(() => {
+    if (!selectedTurfId) return;
+    setByvManaged(localStorage.getItem(`byv_dynamic_pricing_${selectedTurfId}`) === "1");
+  }, [selectedTurfId]);
+  function toggleByvManaged() {
+    const next = !byvManaged;
+    setByvManaged(next);
+    localStorage.setItem(`byv_dynamic_pricing_${selectedTurfId}`, next ? "1" : "0");
+    setToast(
+      next
+        ? "BYV will now manage dynamic pricing for this turf — demand-based rates on weekends, holidays and peak hours."
+        : "You're back to managing this turf's pricing yourself."
+    );
+  }
 
   useEffect(() => {
     getVendorListings()
@@ -277,6 +294,33 @@ export default function PriceSettingPage() {
         </div>
       ) : (
         <>
+          {/* Hand pricing over to BYV — mirrors the "Let BYV handle this" action on notifications. */}
+          <div className={`rounded-2xl border-2 p-4 transition ${byvManaged ? "border-indigo-300 bg-indigo-50/60" : "border-slate-200 bg-white"}`}>
+            <div className="flex items-center gap-3">
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${byvManaged ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600"}`}>
+                <Sparkles size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">Dynamic Pricing by BYV</p>
+                <p className="text-[11px] font-medium text-slate-500">
+                  {byvManaged
+                    ? "BYV is managing this turf's rates — weekends, holidays and peak hours adjust automatically."
+                    : "Let the BYV team adjust your rates for demand, weekends and holidays."}
+                </p>
+              </div>
+              <button
+                onClick={toggleByvManaged}
+                className={`shrink-0 rounded-xl px-3.5 py-2.5 text-[11px] font-black transition active:scale-[0.97] ${
+                  byvManaged ? "bg-indigo-600 text-white" : "border border-indigo-200 bg-indigo-50 text-indigo-600"
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <ThumbsUp size={12} /> {byvManaged ? "BYV is handling this" : "Let BYV handle this"}
+                </span>
+              </button>
+            </div>
+          </div>
+
           <SectionCard title="Bulk Pricing" description="Applies as a rolling rule for the next 6 months.">
             <div className="grid grid-cols-3 gap-2">
               {(["weekdays", "weekends", "holidays"] as BulkTarget[]).map((t) => (
@@ -465,6 +509,15 @@ export default function PriceSettingPage() {
           slots={activeDateSlots}
           onClose={() => setActiveDate(null)}
           onSave={saveDailyPricing}
+          onBookSlot={(slot) => {
+            const q = new URLSearchParams({
+              date: activeDate,
+              start: slot.startTime,
+              end: slot.endTime,
+              price: String(slot.price),
+            });
+            window.location.href = `/vendor/bookings?${q.toString()}`;
+          }}
         />
       )}
     </div>

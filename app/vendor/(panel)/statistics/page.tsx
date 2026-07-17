@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { TrendingUp, Users, CalendarRange } from "lucide-react";
+import { Users, CalendarRange } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import StatCard from "@/components/vendor/StatCard";
 import { getVendorBookings, getVendorListings } from "@/lib/api/vendor";
@@ -24,18 +24,12 @@ export default function StatisticsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalRevenue = useMemo(() => bookings.reduce((s, b) => s + b.vendorEarning, 0), [bookings]);
-
   const byListing = useMemo(
     () =>
-      listings.map((l) => {
-        const listingBookings = bookings.filter((b) => b.listingId === l._id);
-        return {
-          title: l.title,
-          count: listingBookings.length,
-          revenue: listingBookings.reduce((s, b) => s + b.vendorEarning, 0),
-        };
-      }),
+      listings.map((l) => ({
+        title: l.title,
+        count: bookings.filter((b) => b.listingId === l._id).length,
+      })),
     [listings, bookings]
   );
 
@@ -54,7 +48,7 @@ export default function StatisticsPage() {
     return Math.round((totalDays / bookings.length) * 10) / 10;
   }, [bookings]);
 
-  const maxRevenue = Math.max(1, ...byListing.map((b) => b.revenue));
+  const maxCount = Math.max(1, ...byListing.map((b) => b.count));
 
   return (
     <div className="space-y-6">
@@ -66,26 +60,23 @@ export default function StatisticsPage() {
 
       {error && <p className="rounded-lg bg-rose-50 px-4 py-3 text-xs text-vibe-coral">{error}</p>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total Revenue" value={`₹${totalRevenue.toLocaleString("en-IN")}`} hint="All-time earnings" icon={TrendingUp} accent="violet" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard label="Repeat Customers" value={String(repeatCustomers)} hint="Booked more than once" icon={Users} accent="lime" />
         <StatCard label="Avg. Booking Lead Time" value={`${avgLeadTimeDays} day(s)`} hint="Booking made vs slot date" icon={CalendarRange} accent="amber" />
       </div>
 
-      <SectionCard title="Revenue by Listing" description="Which turfs, games or events are bringing in the most.">
+      <SectionCard title="Bookings by Listing" description="Which turfs, games or events get booked the most.">
         <div className="space-y-4">
           {byListing.map((l) => (
             <div key={l.title}>
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className="font-medium text-ink">{l.title}</span>
-                <span className="text-ink-faint">
-                  ₹{l.revenue.toLocaleString("en-IN")} · {l.count} booking(s)
-                </span>
+                <span className="text-ink-faint">{l.count} booking(s)</span>
               </div>
               <div className="h-2.5 rounded-full bg-cream-300 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-vibe-violet to-vibe-lime"
-                  style={{ width: `${(l.revenue / maxRevenue) * 100}%` }}
+                  style={{ width: `${(l.count / maxCount) * 100}%` }}
                 />
               </div>
             </div>

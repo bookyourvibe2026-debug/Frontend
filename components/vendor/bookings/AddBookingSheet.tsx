@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { X, User, Phone, Building2, IndianRupee, Clock, Trophy } from "lucide-react";
 
+export type AddBookingPayment = "Cash (Offline)" | "UPI";
+
 export interface AddBookingValues {
   customerName: string;
   phone: string;
@@ -11,6 +13,7 @@ export interface AddBookingValues {
   startTime: string;
   endTime: string;
   sport: string;
+  payment: AddBookingPayment;
 }
 
 /**
@@ -43,6 +46,7 @@ export function AddBookingSheet({
     startTime: initial.startTime ?? "",
     endTime: initial.endTime ?? "",
     sport: initial.sport ?? sports[0] ?? "",
+    payment: initial.payment ?? "Cash (Offline)",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -159,6 +163,28 @@ export function AddBookingSheet({
               placeholder="0"
               className={inputCls(!!errors.price)}
             />
+          </Field>
+
+          <Field label="Payment Mode" icon={IndianRupee}>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "Cash (Offline)", label: "Cash" },
+                { value: "UPI", label: "Online / UPI" },
+              ] as { value: AddBookingPayment; label: string }[]).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update("payment", opt.value)}
+                  className={`rounded-xl border py-2.5 text-[11px] font-black transition active:scale-[0.97] ${
+                    form.payment === opt.value
+                      ? "border-vibe-navy bg-vibe-navy text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </Field>
         </div>
 

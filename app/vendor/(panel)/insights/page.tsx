@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Sparkles, TrendingUp, Clock, IndianRupee, CalendarCheck, Percent } from "lucide-react";
 import { getVendorBookings, getVendorListings } from "@/lib/api/vendor";
 import { apiListingToMock } from "@/lib/api/listingAdapter";
@@ -18,6 +19,7 @@ interface InsightBooking {
   status: string;
   sport?: string;
   payment?: string;
+  phone?: string;
 }
 
 const LOOKBACK_DAYS = 30;
@@ -80,6 +82,30 @@ export default function InsightsPage() {
       ? Math.round((cancelled.length / (recent.length + cancelled.length)) * 100)
       : 0;
 
+    // Customer cohorts — how much of the business comes back for more.
+    const byCustomer = new Map<string, number>();
+    for (const b of recent) {
+      if (!b.phone) continue;
+      byCustomer.set(b.phone, (byCustomer.get(b.phone) ?? 0) + 1);
+    }
+    const totalCustomers = byCustomer.size;
+    const repeatCustomers = [...byCustomer.values()].filter((c) => c > 1).length;
+    const repeatShare = totalCustomers > 0 ? Math.round((repeatCustomers / totalCustomers) * 100) : null;
+
+    // Day-of-week pattern — where demand clusters and where it dries up.
+    const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const byDay = new Map<number, number>();
+    for (const b of recent) {
+      const d = new Date(b.dateTime).getDay();
+      byDay.set(d, (byDay.get(d) ?? 0) + 1);
+    }
+    const dayEntries = [...byDay.entries()].sort((a, b) => b[1] - a[1]);
+    const bestDay = dayEntries[0] ? { name: DAY_NAMES[dayEntries[0][0]], count: dayEntries[0][1] } : null;
+    const quietDay =
+      dayEntries.length > 1
+        ? { name: DAY_NAMES[dayEntries[dayEntries.length - 1][0]], count: dayEntries[dayEntries.length - 1][1] }
+        : null;
+
     return {
       revenue,
       count: recent.length,
@@ -88,6 +114,11 @@ export default function InsightsPage() {
       occupancy,
       cancelRate,
       hasSlots: slotsPerDay > 0,
+      repeatShare,
+      repeatCustomers,
+      totalCustomers,
+      bestDay,
+      quietDay,
     };
   }, [bookings, listings]);
 
@@ -143,49 +174,97 @@ export default function InsightsPage() {
             />
           </div>
 
+          {/* Customer cohorts */}
+          {insights.totalCustomers > 0 && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <h2 className="text-[12px] font-black text-slate-900">Customer Cohorts</h2>
+              <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-[17px] font-black text-slate-900">{insights.totalCustomers}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Customers</p>
+                </div>
+                <div>
+                  <p className="text-[17px] font-black text-emerald-600">{insights.repeatCustomers}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Came Back</p>
+                </div>
+                <div>
+                  <p className="text-[17px] font-black text-indigo-600">{insights.repeatShare ?? 0}%</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Repeat Rate</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Suggestions computed from the numbers above — each links to where the vendor acts. */}
           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <h2 className="text-[12px] font-black text-slate-900">What this means</h2>
-            <ul className="mt-2.5 space-y-2">
+            <h2 className="text-[12px] font-black text-slate-900">BYV Suggestions</h2>
+            <div className="mt-2.5 space-y-2.5">
               {insights.peakHour && (
-                <li className="flex gap-2 text-[11px] font-medium leading-relaxed text-slate-600">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                  <span>
-                    <strong className="text-slate-800">{hourLabel(insights.peakHour.hour)}</strong> is your busiest hour.
-                    Consider peak pricing on that slot.
-                  </span>
-                </li>
+                <Suggestion tone="bg-amber-500" href="/vendor/pricing" cta="Set peak pricing">
+                  <strong className="text-slate-800">{hourLabel(insights.peakHour.hour)}</strong> is your busiest hour
+                  ({insights.peakHour.count} bookings). Raise the rate on that slot to capture the demand.
+                </Suggestion>
               )}
               {insights.occupancy !== null && insights.occupancy < 50 && (
-                <li className="flex gap-2 text-[11px] font-medium leading-relaxed text-slate-600">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
-                  <span>
-                    Occupancy is <strong className="text-slate-800">{insights.occupancy}%</strong> — there&apos;s room to fill
-                    off-peak slots with a discount.
-                  </span>
-                </li>
+                <Suggestion tone="bg-indigo-500" href="/vendor/marketing" cta="Create promo code">
+                  Occupancy is <strong className="text-slate-800">{insights.occupancy}%</strong> — a discount code for
+                  off-peak hours can fill empty slots without touching peak rates.
+                </Suggestion>
+              )}
+              {insights.quietDay && insights.bestDay && insights.quietDay.name !== insights.bestDay.name && (
+                <Suggestion tone="bg-sky-500" href="/vendor/pricing" cta="Adjust day pricing">
+                  <strong className="text-slate-800">{insights.bestDay.name}</strong> is your strongest day
+                  ({insights.bestDay.count} bookings); <strong className="text-slate-800">{insights.quietDay.name}</strong> is
+                  the quietest ({insights.quietDay.count}). A lower {insights.quietDay.name} rate can even out the week.
+                </Suggestion>
+              )}
+              {insights.repeatShare !== null && insights.repeatShare < 40 && (
+                <Suggestion tone="bg-emerald-500" href="/vendor/memberships" cta="Create a membership">
+                  Only <strong className="text-slate-800">{insights.repeatShare}%</strong> of customers book again.
+                  A membership or session pack gives them a reason to return.
+                </Suggestion>
               )}
               {insights.topSport && (
-                <li className="flex gap-2 text-[11px] font-medium leading-relaxed text-slate-600">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  <span>
-                    <strong className="text-slate-800">{insights.topSport.name}</strong> is your most-booked sport
-                    ({insights.topSport.count} bookings).
-                  </span>
-                </li>
+                <Suggestion tone="bg-purple-500" href="/vendor/marketing" cta="Promote it">
+                  <strong className="text-slate-800">{insights.topSport.name}</strong> is your most-booked sport
+                  ({insights.topSport.count} bookings) — lead with it in your promotions.
+                </Suggestion>
               )}
               {insights.cancelRate > 20 && (
-                <li className="flex gap-2 text-[11px] font-medium leading-relaxed text-slate-600">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
-                  <span>
-                    Cancellations are at <strong className="text-slate-800">{insights.cancelRate}%</strong> — worth asking
-                    players why at checkout.
-                  </span>
-                </li>
+                <Suggestion tone="bg-rose-500" href="/vendor/notifications" cta="Review bookings">
+                  Cancellations are at <strong className="text-slate-800">{insights.cancelRate}%</strong> — call
+                  pending-payment bookings a few hours before their slot to confirm.
+                </Suggestion>
               )}
-            </ul>
+            </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/** One actionable suggestion row: the finding, plus a link to the page where the vendor can act on it. */
+function Suggestion({
+  tone,
+  href,
+  cta,
+  children,
+}: {
+  tone: string;
+  href: string;
+  cta: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${tone}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-medium leading-relaxed text-slate-600">{children}</p>
+        <Link href={href} className="mt-0.5 inline-block text-[10px] font-black text-indigo-600 hover:text-indigo-700">
+          {cta} →
+        </Link>
+      </div>
     </div>
   );
 }

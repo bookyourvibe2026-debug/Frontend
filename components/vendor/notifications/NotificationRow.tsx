@@ -6,7 +6,7 @@ import { ChevronRight, Clock } from "lucide-react";
  * One booking/activity row.
  *
  * Tone drives the whole row's colour, per the spec:
- *   amber/red → partial payment · green → paid in full · blue → tomorrow's booking
+ *   red → partial payment · green → paid in full · purple → tomorrow's booking
  */
 export type RowTone = "paid" | "partial" | "tomorrow" | "neutral";
 
@@ -16,7 +16,7 @@ export type BookingSource = "O" | "F" | "M";
 const TONES: Record<RowTone, { dot: string; accent: string; chip: string }> = {
   paid: { dot: "bg-emerald-500", accent: "text-emerald-600", chip: "bg-emerald-50 text-emerald-700" },
   partial: { dot: "bg-rose-500", accent: "text-rose-600", chip: "bg-rose-50 text-rose-600" },
-  tomorrow: { dot: "bg-indigo-500", accent: "text-indigo-600", chip: "bg-indigo-50 text-indigo-600" },
+  tomorrow: { dot: "bg-purple-500", accent: "text-purple-600", chip: "bg-purple-50 text-purple-600" },
   neutral: { dot: "bg-slate-400", accent: "text-slate-500", chip: "bg-slate-100 text-slate-600" },
 };
 

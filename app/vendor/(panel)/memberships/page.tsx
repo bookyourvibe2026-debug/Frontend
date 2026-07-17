@@ -23,7 +23,6 @@ const emptyDraft: CreateMembershipInput = {
   price: 0,
   durationDays: 30,
   sessionsIncluded: undefined,
-  turfDimensions: "",
 };
 
 const SUB_TONE: Record<SubscriptionStatus, "success" | "neutral" | "danger"> = {
@@ -143,12 +142,6 @@ export default function MembershipsPage() {
               value={String(draft.price || "")}
               onChange={(v) => setDraft({ ...draft, price: Number(v.replace(/\D/g, "")) || 0 })}
               placeholder="2500"
-            />
-            <Input
-              label="Turf Dimensions"
-              value={draft.turfDimensions ?? ""}
-              onChange={(v) => setDraft({ ...draft, turfDimensions: v })}
-              placeholder="e.g. 60ft x 30ft"
             />
             <Input
               label="Description"

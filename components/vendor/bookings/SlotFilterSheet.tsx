@@ -14,15 +14,12 @@ import {
   LayoutGrid,
   Lock,
   Moon,
-  QrCode,
   RefreshCw,
-  Repeat,
   SlidersHorizontal,
   Sun,
   Sunrise,
   Sunset,
   User,
-  UserPlus,
   Users,
 } from "lucide-react";
 
@@ -30,8 +27,8 @@ import {
 
 export type StatusFilter = "All" | "Available" | "Confirmed" | "Pending" | "Blocked";
 export type TimeOfDayFilter = "All Day" | "Morning" | "Afternoon" | "Evening" | "Night";
-export type SourceFilter = "All" | "Online" | "Walk-in" | "Admin Added" | "QR Booking";
-export type QuickFilter = "Next Booking" | "Empty Slots" | "Today" | "Tomorrow" | "Weekend" | "Recurring";
+export type SourceFilter = "All" | "Online" | "Walk-in";
+export type QuickFilter = "Next Booking" | "Empty Slots" | "Today" | "Tomorrow" | "Weekend";
 
 export interface SlotFilters {
   status: StatusFilter;
@@ -101,8 +98,6 @@ const SOURCE_OPTS: { value: SourceFilter; label: string; icon: typeof Users }[] 
   { value: "All", label: "All", icon: Users },
   { value: "Online", label: "Online", icon: Globe },
   { value: "Walk-in", label: "Walk-in", icon: User },
-  { value: "Admin Added", label: "Admin Added", icon: UserPlus },
-  { value: "QR Booking", label: "QR Booking", icon: QrCode },
 ];
 
 const QUICK_OPTS: { value: QuickFilter; label: string; hint: string; icon: typeof Clock }[] = [
@@ -111,7 +106,6 @@ const QUICK_OPTS: { value: QuickFilter; label: string; hint: string; icon: typeo
   { value: "Today", label: "Today", hint: "All bookings today", icon: CalendarDays },
   { value: "Tomorrow", label: "Tomorrow", hint: "Next day bookings", icon: CalendarCheck },
   { value: "Weekend", label: "Weekend", hint: "Sat & Sun", icon: CalendarRange },
-  { value: "Recurring", label: "Recurring", hint: "Repeat bookings", icon: Repeat },
 ];
 
 /* ─── Pieces ────────────────────────────────────────────────────── */
@@ -233,7 +227,7 @@ export function SlotFilterSheet({
         <div className="mt-5">
           <SectionLabel>Booking Source</SectionLabel>
         </div>
-        <div className="mb-5 mt-3 grid grid-cols-5 gap-2">
+        <div className="mb-5 mt-3 grid grid-cols-3 gap-2">
           {SOURCE_OPTS.map((o) => (
             <Tile
               key={o.value}

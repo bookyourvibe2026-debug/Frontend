@@ -861,7 +861,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;

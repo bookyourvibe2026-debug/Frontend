@@ -11,7 +11,7 @@ function t24m(t: string) {
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
@@ -28,11 +28,14 @@ export function DailyPricingSheet({
   slots,
   onClose,
   onSave,
+  onBookSlot,
 }: {
   dateLabel: string;
   slots: TurfSlot[];
   onClose: () => void;
   onSave: (nextSlots: TurfSlot[]) => Promise<void> | void;
+  /** When provided, each slot row gets a "Book" shortcut that jumps to the booking flow for that slot. */
+  onBookSlot?: (slot: TurfSlot) => void;
 }) {
   const basePrice = useMemo(
     () => (slots.length ? Math.min(...slots.map((s) => s.price)) : 0),
@@ -173,7 +176,7 @@ export function DailyPricingSheet({
                 <span className="text-xs font-semibold text-slate-600">
                   {to12h(slot.startTime)} – {to12h(slot.endTime)}
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <span className="text-xs text-slate-400">₹</span>
                   <input
                     type="text"
@@ -185,6 +188,14 @@ export function DailyPricingSheet({
                     }
                     className="w-20 rounded-lg border border-surface-border bg-cream-200/40 px-2 py-1.5 text-xs font-bold outline-none focus:border-vibe-violet"
                   />
+                  {onBookSlot && !slot.blocked && (
+                    <button
+                      onClick={() => onBookSlot(slot)}
+                      className="rounded-lg bg-vibe-navy px-2.5 py-1.5 text-[10px] font-black text-white transition hover:opacity-90 active:scale-95"
+                    >
+                      Book
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

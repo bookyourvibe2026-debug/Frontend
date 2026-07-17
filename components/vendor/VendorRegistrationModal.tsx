@@ -663,9 +663,10 @@ function PasswordField({
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-bold uppercase tracking-widest text-[#9aa79e]">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-[#10241a]">{value || "—"}</p>
+      {/* break-all keeps long unbroken values (emails, IDs) inside the card. */}
+      <p className="mt-1 break-all text-sm font-semibold text-[#10241a]">{value || "—"}</p>
     </div>
   );
 }

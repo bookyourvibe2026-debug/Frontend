@@ -33,6 +33,8 @@ export default function DashboardPage() {
   const [endDate, setEndDate] = useState("");
   const [showMatchSummary, setShowMatchSummary] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showByvAlerts, setShowByvAlerts] = useState(false);
+  const [showCustomRange, setShowCustomRange] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   
   // Quick Action Modals
@@ -205,38 +207,42 @@ export default function DashboardPage() {
   if (pinMode === "loading") return null;
 
   if (pinMode !== "unlocked") {
+    // Escapes the panel layout's padding so keypad + PIN fit one viewport with no scrolling.
     return (
-      <div className="min-h-screen bg-[#004d40] flex flex-col items-center justify-center p-6 text-white" style={{ background: "linear-gradient(to bottom, #006050, #003020)" }}>
-        <div className="bg-white/10 p-3 rounded-2xl mb-6">
-          <Lock size={28} className="text-emerald-400" />
+      <div
+        className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-64px)] flex-col items-center justify-center overflow-hidden p-5 text-white sm:-mx-6 lg:-mb-6 lg:h-dvh"
+        style={{ background: "linear-gradient(to bottom, #006050, #003020)" }}
+      >
+        <div className="bg-white/10 p-2.5 rounded-2xl mb-4">
+          <Lock size={24} className="text-emerald-400" />
         </div>
-        <h1 className="text-2xl font-extrabold mb-2">Partner Dashboard</h1>
-        <p className="text-emerald-100/80 text-sm text-center max-w-xs mb-10">
-          {pinMode === "create" ? "Create a 4-digit PIN to secure your business analytics and reports." : 
-           pinMode === "create_confirm" ? "Confirm your 4-digit PIN." : 
+        <h1 className="text-xl font-extrabold mb-1.5">Partner Dashboard</h1>
+        <p className="text-emerald-100/80 text-xs text-center max-w-xs mb-5">
+          {pinMode === "create" ? "Create a 4-digit PIN to secure your business analytics and reports." :
+           pinMode === "create_confirm" ? "Confirm your 4-digit PIN." :
            "Enter your 4-digit PIN to securely access business analytics and reports."}
         </p>
 
-        {pinError && <p className="text-rose-400 text-sm mb-4">{pinError}</p>}
+        {pinError && <p className="text-rose-400 text-sm mb-3">{pinError}</p>}
 
-        <div className="flex gap-4 mb-12">
+        <div className="flex gap-4 mb-6">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-colors ${inputPin.length > i ? "bg-emerald-400 border-emerald-400" : "border-emerald-600/50"}`} />
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-x-8 gap-y-6 max-w-[280px] mx-auto">
+        <div className="grid grid-cols-3 gap-x-6 gap-y-3 max-w-[260px] mx-auto">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-            <button key={n} onClick={() => handleDigit(n.toString())} className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-2xl font-bold hover:bg-white/10 transition active:scale-95">
+            <button key={n} onClick={() => handleDigit(n.toString())} className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center text-xl font-bold hover:bg-white/10 transition active:scale-95">
               {n}
             </button>
           ))}
           <div />
-          <button onClick={() => handleDigit("0")} className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-2xl font-bold hover:bg-white/10 transition active:scale-95">
+          <button onClick={() => handleDigit("0")} className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center text-xl font-bold hover:bg-white/10 transition active:scale-95">
             0
           </button>
-          <button onClick={handleBackspace} className="w-16 h-16 rounded-full flex items-center justify-center text-emerald-200/50 hover:bg-white/5 transition active:scale-95">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+          <button onClick={handleBackspace} className="w-14 h-14 rounded-full flex items-center justify-center text-emerald-200/50 hover:bg-white/5 transition active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
           </button>
         </div>
       </div>
@@ -260,6 +266,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* BYV Alert — messages the BYV team pushes to venue owners. */}
+            <button
+              onClick={() => setShowByvAlerts(true)}
+              aria-label="BYV Alert"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 border border-white/20 text-emerald-100 hover:bg-white/20 transition active:scale-95"
+            >
+              <Bell size={18} />
+            </button>
             <div className="w-10 h-10 rounded-full bg-amber-400 text-amber-900 flex items-center justify-center font-black text-lg border-[3px] border-white shadow-md uppercase">
               {vendorName.charAt(0)}
             </div>
@@ -290,18 +304,36 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <div>
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">End Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-                  </div>
-                  <button onClick={() => { setDateRange("Custom"); setShowDateDropdown(false); }} className="w-full bg-slate-900 text-white rounded-xl py-3 text-xs font-bold mt-2 shadow-md hover:bg-slate-800 transition">
-                    Apply Changes
-                  </button>
+                {/* Custom range stays collapsed so the presets read as a simple picker. */}
+                <div className="pt-3 border-t border-slate-100">
+                  {!showCustomRange ? (
+                    <button
+                      onClick={() => setShowCustomRange(true)}
+                      className={`w-full py-2 px-3 text-xs font-bold rounded-lg transition-colors ${dateRange === "Custom" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-50"}`}
+                    >
+                      Custom Range…
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Start</label>
+                          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">End</label>
+                          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { setDateRange("Custom"); setShowDateDropdown(false); setShowCustomRange(false); }}
+                        disabled={!startDate || !endDate}
+                        className="w-full bg-slate-900 text-white rounded-xl py-2.5 text-xs font-bold shadow-md hover:bg-slate-800 transition disabled:opacity-50"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -371,8 +403,9 @@ export default function DashboardPage() {
 
       <div className="px-5 space-y-5">
         {/* ── METRICS GRID ── */}
+        {/* Each metric links to the page where the vendor can act on it. */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+          <Link href="/vendor/payments" className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden transition hover:shadow-md active:scale-[0.98]">
             <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-emerald-50 to-transparent" />
             <div className="flex justify-between items-start mb-2 relative">
               <p className="text-[10px] font-extrabold text-emerald-500 tracking-wider uppercase">Revenue</p>
@@ -386,9 +419,9 @@ export default function DashboardPage() {
                 <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
               </span>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+          </Link>
+
+          <Link href="/vendor/bookings" className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden transition hover:shadow-md active:scale-[0.98]">
             <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-blue-50 to-transparent" />
             <div className="flex justify-between items-start mb-2 relative">
               <p className="text-[10px] font-extrabold text-blue-500 tracking-wider uppercase">Bookings</p>
@@ -402,9 +435,9 @@ export default function DashboardPage() {
                 <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
               </span>
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+          <Link href="/vendor/bookings" className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden transition hover:shadow-md active:scale-[0.98]">
             <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-amber-50 to-transparent" />
             <div className="flex justify-between items-start mb-2 relative">
               <p className="text-[10px] font-extrabold text-amber-500 tracking-wider uppercase">Occupancy</p>
@@ -418,9 +451,9 @@ export default function DashboardPage() {
                 <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
               </span>
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+          <Link href="/vendor/statistics" className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden transition hover:shadow-md active:scale-[0.98]">
             <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-purple-50 to-transparent" />
             <div className="flex justify-between items-start mb-2 relative">
               <p className="text-[10px] font-extrabold text-purple-500 tracking-wider uppercase">Customers</p>
@@ -434,7 +467,7 @@ export default function DashboardPage() {
                 <span className={`font-medium opacity-70 ml-1`}>vs prev</span>
               </span>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* ── BYV EARNINGS + EXPENSES ── */}
@@ -579,6 +612,33 @@ export default function DashboardPage() {
                     <p className="text-[10px] text-slate-500 mt-0.5">Download a detailed XLSX sheet of all your historical bookings data easily.</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── BYV ALERT — messages from the BYV team to the venue owner ── */}
+        {showByvAlerts && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in" onClick={() => setShowByvAlerts(false)}>
+            <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+              <button onClick={() => setShowByvAlerts(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full p-1 transition" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+
+              <div className="flex items-center gap-2.5 mb-4">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  <Bell size={17} />
+                </span>
+                <h2 className="text-lg font-black text-slate-900">BYV Alert</h2>
+              </div>
+
+              <p className="text-xs font-medium text-slate-500 mb-5 leading-relaxed">
+                Alerts and messages from the BYV team about your venue — payouts, policy updates, and demand tips — will appear here.
+              </p>
+
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+                <p className="text-sm font-bold text-slate-600">No alerts right now</p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">You&apos;re all caught up. New messages from BYV will show up here.</p>
               </div>
             </div>
           </div>
