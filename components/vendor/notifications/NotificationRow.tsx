@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Clock } from "lucide-react";
+import { CheckCheck, ChevronRight, Clock } from "lucide-react";
 
 /**
  * One booking/activity row.
@@ -91,12 +91,8 @@ export function NotificationRow({
         {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
       </div>
 
-      {/* Card — unread keeps full contrast; read rows recede. */}
-      <div
-        className={`mb-2.5 min-w-0 flex-1 rounded-2xl border bg-white shadow-sm transition ${
-          unread ? "border-slate-100" : "border-slate-100 opacity-60"
-        }`}
-      >
+      {/* Card — every row keeps full contrast; viewed rows show a blue double-tick instead of fading. */}
+      <div className="mb-2.5 min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white shadow-sm transition">
         <button type="button" onClick={onToggle} className="flex w-full items-start gap-3 p-3.5 text-left">
           {/* Profile of whoever booked, with an O / F / M source badge */}
           <div className="relative shrink-0">
@@ -126,14 +122,19 @@ export function NotificationRow({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 pt-0.5">
+          <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
             <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400">
               <Clock size={9} /> {when}
+              <ChevronRight
+                size={13}
+                className={`text-slate-300 transition-transform ${expanded ? "rotate-90" : ""}`}
+              />
             </span>
-            <ChevronRight
-              size={13}
-              className={`text-slate-300 transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
+            {!unread && (
+              <span title="Seen" className="flex items-center gap-0.5 text-[8px] font-black text-sky-500">
+                <CheckCheck size={12} /> Seen
+              </span>
+            )}
           </div>
         </button>
 

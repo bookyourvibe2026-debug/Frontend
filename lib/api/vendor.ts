@@ -347,6 +347,8 @@ export function listMemberships() {
 }
 
 export interface CreateMembershipInput {
+  /** Turf/listing this plan belongs to; omit to apply to all turfs. */
+  listingId?: string;
   name: string;
   description?: string;
   planType: MembershipPlanType;

@@ -47,7 +47,8 @@ function VenuesPageInner() {
           <div className="flex flex-col gap-3">
             {venues.map((venue) => (
               <MobileCard key={venue._id} className="!p-4">
-                <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                {/* Banner opens the venue too — not just the "View details" button */}
+                <Link href={`/venues/${venue._id}`} className="relative block overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
                   {venue.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
@@ -56,7 +57,7 @@ function VenuesPageInner() {
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
                     <h2 className="mt-1 text-lg font-extrabold">{venue.title}</h2>
                   </div>
-                </div>
+                </Link>
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="flex items-center gap-1 text-xs text-slate-500">
@@ -112,7 +113,8 @@ function VenuesPageInner() {
                 index === 0 ? "md:col-span-2 xl:col-span-1" : ""
               }`}
             >
-              <div className="relative overflow-hidden rounded-[1.5rem] bg-slate-900 p-5 text-white">
+              {/* Banner opens the venue too — not just the "View details" button */}
+              <Link href={`/venues/${venue._id}`} className="relative block overflow-hidden rounded-[1.5rem] bg-slate-900 p-5 text-white">
                 {venue.coverImage && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
@@ -121,7 +123,7 @@ function VenuesPageInner() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
                   <h2 className="mt-2 text-2xl font-black">{venue.title}</h2>
                 </div>
-              </div>
+              </Link>
 
               <div className="mt-5 flex items-center justify-between gap-3">
                 <div>

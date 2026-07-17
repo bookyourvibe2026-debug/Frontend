@@ -85,6 +85,8 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  /** API failure from Finish Setup — must render inside the modal, or the user sees nothing happen. */
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [captcha, setCaptcha] = useState(() => makeCaptcha());
   const [captchaAnswer, setCaptchaAnswer] = useState("");
@@ -195,8 +197,11 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   async function finishSetup() {
     if (!validatePhase(5)) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onSubmit(data);
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -552,6 +557,21 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
               </>
             )}
           </div>
+
+          {submitError && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
+              {submitError}
+              {/already exists/i.test(submitError) && (
+                <>
+                  {" "}
+                  <a href="/vendor/login" className="font-bold underline">
+                    Log in to that account
+                  </a>{" "}
+                  instead, or register with a different email and phone number.
+                </>
+              )}
+            </div>
+          )}
 
           <div className="mt-8 flex items-center justify-between border-t border-[#e4ded0] pt-6">
             {phase > 1 ? (

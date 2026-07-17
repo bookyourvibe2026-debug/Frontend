@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
 import { NAV_ITEMS_BY_VERTICAL, SHARED_NAV_ITEMS, MOBILE_NAV_ORDER } from "@/components/vendor/Sidebar";
+import { LastMinBoostSheet } from "@/components/vendor/LastMinBoostSheet";
 import type { VendorVertical } from "@/lib/api/types";
 import { 
   Zap, 
@@ -53,6 +54,7 @@ export default function MorePage() {
 
   const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
   const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
+  const [boostOpen, setBoostOpen] = useState(false);
 
   useEffect(() => {
     if (!vendor) return;
@@ -235,13 +237,13 @@ export default function MorePage() {
 
       {/* Actions */}
       <div className="space-y-3 mb-6">
-        <Link
-          href="/vendor/marketing#boost"
+        <button
+          onClick={() => setBoostOpen(true)}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#dc2626] py-3 text-sm font-semibold text-white shadow-md hover:bg-red-700 transition-colors"
         >
           <Zap size={16} className="fill-white" />
           Last Min Boost
-        </Link>
+        </button>
 
         <a
           href="mailto:support@bookyourvibes.com?subject=Vendor Support Request"
@@ -295,6 +297,8 @@ export default function MorePage() {
           </a>
         </div>
       </div>
+
+      {boostOpen && <LastMinBoostSheet onClose={() => setBoostOpen(false)} />}
     </div>
   );
 }

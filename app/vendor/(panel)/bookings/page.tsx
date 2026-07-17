@@ -720,7 +720,16 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
-                  renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
+                  renderSeeBooking={(closeFullscreen) => (
+                    <SeeBookingButton
+                      resolvedSlots={resolvedSlots}
+                      onPick={(f) => {
+                        // The grouped list renders in the page body, so leave fullscreen first.
+                        closeFullscreen();
+                        setGroupedFilter(f);
+                      }}
+                    />
+                  )}
                 />
               </div>
             )}

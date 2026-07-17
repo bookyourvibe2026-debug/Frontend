@@ -112,7 +112,8 @@ export function ClockSlotsWidget({
   slots: ClockSlotItem[];
   onSelectSlot?: (slot: ClockSlotItem) => void;
   onSelectHour?: (hour: number) => void;
-  renderSeeBooking?: () => React.ReactNode;
+  /** Receives a callback that exits fullscreen — call it before opening any page-level UI. */
+  renderSeeBooking?: (closeFullscreen: () => void) => React.ReactNode;
 }) {
   const [hoveredSlot, setHoveredSlot] = useState<ClockSlotItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -149,6 +150,18 @@ export function ClockSlotsWidget({
     return halfStart + h;
   }
 
+  // The fullscreen overlay sits above the page's modals, so any selection made
+  // while fullscreen must exit fullscreen first or the booking form opens
+  // invisibly behind the clock.
+  const selectSlot = (slot: ClockSlotItem) => {
+    setIsFullscreen(false);
+    onSelectSlot?.(slot);
+  };
+  const selectHour = (hour: number) => {
+    setIsFullscreen(false);
+    onSelectHour?.(hour);
+  };
+
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if ((e.target as SVGElement).tagName === "path") return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -160,7 +173,7 @@ export function ClockSlotsWidget({
     if (angleDeg < 0) angleDeg += 360;
 
     const positionHour = Math.round(angleDeg / 30) % 12;
-    onSelectHour?.(toRealHour(positionHour));
+    selectHour(toRealHour(positionHour));
   };
 
   const clockTicks = useMemo(() => {
@@ -290,7 +303,7 @@ export function ClockSlotsWidget({
               className="cursor-pointer transition-all duration-200 hover:opacity-85"
               stroke="#ffffff"
               strokeWidth="2"
-              onClick={() => onSelectSlot?.(seg.slot)}
+              onClick={() => selectSlot(seg.slot)}
               onMouseEnter={(e) => {
                 setHoveredSlot(seg.slot);
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -321,7 +334,7 @@ export function ClockSlotsWidget({
               className="cursor-pointer hover:fill-vibe-violet transition-all"
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectHour?.(toRealHour(tick.position));
+                selectHour(toRealHour(tick.position));
               }}
             >
               {tick.label}
@@ -410,7 +423,7 @@ export function ClockSlotsWidget({
       {/* See booking slot */}
       <div className="mt-4">
         {renderSeeBooking ? (
-          renderSeeBooking()
+          renderSeeBooking(() => setIsFullscreen(false))
         ) : (
           <button
             type="button"

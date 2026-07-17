@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, ThumbsUp } from "lucide-react";
+import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, ThumbsUp, Trophy, X } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
-import { getVendorListings, updateVendorListing } from "@/lib/api/vendor";
+import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
-import { Listing, TurfSlot } from "@/lib/types";
+import { Booking, Listing, TurfSlot } from "@/lib/types";
 import { INDIAN_HOLIDAYS } from "@/components/vendor/PackageStudio";
+
+/** Vendor bookings carry more than the shared mock type models. */
+type ApiBooking = Booking & { listingId?: string; sport?: string };
+
+/** The sport tag that marks a multi-day corporate/tournament booking. */
+const EVENT_SPORT = "Corporate/Tournament";
 
 type BulkTarget = "weekdays" | "weekends" | "holidays";
 
@@ -63,6 +69,8 @@ export default function PriceSettingPage() {
   const bulkPrice = Number(bulkPriceInput) || 0;
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<ApiBooking[]>([]);
+  const [eventSheetOpen, setEventSheetOpen] = useState(false);
 
   /** Vendor opted in to BYV managing this turf's dynamic pricing (local until a backend field exists). */
   const [byvManaged, setByvManaged] = useState(false);
@@ -91,7 +99,26 @@ export default function PriceSettingPage() {
       })
       .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load"))
       .finally(() => setLoading(false));
+    refreshBookings();
   }, []);
+
+  function refreshBookings() {
+    getVendorBookings({ limit: 500 })
+      .then((b) => setBookings(b.items as unknown as ApiBooking[]))
+      .catch(() => {});
+  }
+
+  /** Dates (ISO) on which the selected turf has a corporate/tournament booking, with the organiser's name. */
+  const eventDates = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of bookings) {
+      if (b.status === "Cancelled") continue;
+      if (b.sport !== EVENT_SPORT) continue;
+      if ((b.listingId ?? b.listing) !== selectedTurfId) continue;
+      m.set(toIso(new Date(b.dateTime)), b.customer ?? "Event");
+    }
+    return m;
+  }, [bookings, selectedTurfId]);
 
   const selectedTurf = useMemo(() => listings.find((l) => l.id === selectedTurfId), [listings, selectedTurfId]);
 
@@ -294,33 +321,6 @@ export default function PriceSettingPage() {
         </div>
       ) : (
         <>
-          {/* Hand pricing over to BYV — mirrors the "Let BYV handle this" action on notifications. */}
-          <div className={`rounded-2xl border-2 p-4 transition ${byvManaged ? "border-indigo-300 bg-indigo-50/60" : "border-slate-200 bg-white"}`}>
-            <div className="flex items-center gap-3">
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${byvManaged ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600"}`}>
-                <Sparkles size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900">Dynamic Pricing by BYV</p>
-                <p className="text-[11px] font-medium text-slate-500">
-                  {byvManaged
-                    ? "BYV is managing this turf's rates — weekends, holidays and peak hours adjust automatically."
-                    : "Let the BYV team adjust your rates for demand, weekends and holidays."}
-                </p>
-              </div>
-              <button
-                onClick={toggleByvManaged}
-                className={`shrink-0 rounded-xl px-3.5 py-2.5 text-[11px] font-black transition active:scale-[0.97] ${
-                  byvManaged ? "bg-indigo-600 text-white" : "border border-indigo-200 bg-indigo-50 text-indigo-600"
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <ThumbsUp size={12} /> {byvManaged ? "BYV is handling this" : "Let BYV handle this"}
-                </span>
-              </button>
-            </div>
-          </div>
-
           <SectionCard title="Bulk Pricing" description="Applies as a rolling rule for the next 6 months.">
             <div className="grid grid-cols-3 gap-2">
               {(["weekdays", "weekends", "holidays"] as BulkTarget[]).map((t) => (
@@ -355,6 +355,23 @@ export default function PriceSettingPage() {
               </div>
             )}
           </SectionCard>
+
+          {/* ── CORPORATE / TOURNAMENT BOOKING — take a multi-day booking straight from here ── */}
+          <div className="flex items-center gap-3 rounded-2xl border-2 border-violet-200 bg-violet-50/50 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+              <Trophy size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-slate-900">Corporate / Tournament Booking</p>
+              <p className="text-[11px] font-medium text-slate-500">Take a 2–3 day (or longer) booking — it shows on the calendar below.</p>
+            </div>
+            <button
+              onClick={() => setEventSheetOpen(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
+            >
+              <CalendarRange size={13} /> Take Booking
+            </button>
+          </div>
 
           <SectionCard title={`${monthNames[calMonth]} ${calYear}`}>
             <div className="flex gap-1.5 overflow-x-auto pb-3 mb-3 scrollbar-none">
@@ -419,15 +436,25 @@ export default function PriceSettingPage() {
                     {/* Price / Status Tag */}
                     {price !== null && (
                       <span className={`text-[9px] font-black uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded-md ${
-                        isSelected 
-                          ? "text-[#005e4b] scale-95" 
+                        isSelected
+                          ? "text-[#005e4b] scale-95"
                           : hasOverride
                           ? "bg-teal-100 text-teal-800 border border-teal-200"
-                          : isPeak 
-                          ? "bg-rose-50 text-rose-600 border border-rose-100" 
+                          : isPeak
+                          ? "bg-rose-50 text-rose-600 border border-rose-100"
                           : "text-slate-400"
                       }`}>
                         {isSelected ? `Selected` : ""} {formatPrice(price)}
+                      </span>
+                    )}
+
+                    {/* Corporate / tournament booking marker */}
+                    {eventDates.has(day.dateStr) && (
+                      <span
+                        title={eventDates.get(day.dateStr)}
+                        className="mt-0.5 rounded border border-violet-200 bg-violet-100 px-1 text-[7px] font-black uppercase tracking-wide text-violet-700"
+                      >
+                        Event
                       </span>
                     )}
                   </button>
@@ -500,7 +527,63 @@ export default function PriceSettingPage() {
               {applyingPeak ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
             </button>
           </div>
+
+          {/* ── DYNAMIC PRICING BY BYV — hand pricing over to the BYV team ── */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-5 shadow-lg">
+            <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-fuchsia-400/20 blur-2xl" />
+            <div className="relative">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white backdrop-blur">
+                  <Sparkles size={20} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-black text-white">Dynamic Pricing by BYV</p>
+                  <p className="text-[11px] font-medium text-indigo-100">
+                    {byvManaged
+                      ? "BYV is managing this turf's rates — weekends, holidays and peak hours adjust automatically."
+                      : "Let the BYV team adjust your rates for demand, weekends and holidays."}
+                  </p>
+                </div>
+                {byvManaged && (
+                  <span className="shrink-0 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-200">
+                    Active
+                  </span>
+                )}
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                {["Demand surges", "Weekends", "Holidays"].map((chip) => (
+                  <span key={chip} className="rounded-xl bg-white/10 px-2 py-2 text-[9px] font-bold uppercase tracking-wide text-indigo-100">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={toggleByvManaged}
+                className={`mt-4 flex w-full items-center justify-center gap-1.5 rounded-2xl py-3 text-[11px] font-black transition active:scale-[0.98] ${
+                  byvManaged ? "bg-white/15 text-white backdrop-blur" : "bg-white text-indigo-700 shadow-md"
+                }`}
+              >
+                <ThumbsUp size={13} /> {byvManaged ? "BYV is handling this — tap to take back control" : "Let BYV handle this"}
+              </button>
+            </div>
+          </div>
         </>
+      )}
+
+      {eventSheetOpen && selectedTurf && (
+        <EventBookingSheet
+          turf={selectedTurf}
+          onClose={() => setEventSheetOpen(false)}
+          onCreated={(days, firstDate) => {
+            setEventSheetOpen(false);
+            refreshBookings();
+            const d = new Date(firstDate + "T00:00:00");
+            setCalYear(d.getFullYear());
+            setCalMonth(d.getMonth());
+            setToast(`Booked ${days} day${days === 1 ? "" : "s"} — marked as "Event" on the calendar.`);
+          }}
+        />
       )}
 
       {activeDate && selectedTurf && (
@@ -520,6 +603,160 @@ export default function PriceSettingPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** Longest event we'll book in one go — guards against a mistyped year-long range. */
+const MAX_EVENT_DAYS = 14;
+
+/**
+ * Multi-day corporate/tournament booking. Creates one confirmed offline booking
+ * per day spanning the turf's full operating hours, tagged so the calendar can
+ * mark those dates as "Event".
+ */
+function EventBookingSheet({
+  turf,
+  onClose,
+  onCreated,
+}: {
+  turf: Listing;
+  onClose: () => void;
+  onCreated: (days: number, firstDate: string) => void;
+}) {
+  const todayIso = toIso(new Date());
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [startDate, setStartDate] = useState(todayIso);
+  const [endDate, setEndDate] = useState(todayIso);
+  const [amountInput, setAmountInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dayList = useMemo(() => {
+    const days: string[] = [];
+    if (!startDate || !endDate || endDate < startDate) return days;
+    const d = new Date(startDate + "T00:00:00");
+    const end = new Date(endDate + "T00:00:00");
+    while (d <= end && days.length <= MAX_EVENT_DAYS) {
+      days.push(toIso(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return days;
+  }, [startDate, endDate]);
+
+  const amountPerDay = Number(amountInput) || 0;
+
+  async function handleSubmit() {
+    if (name.trim().length < 2) return setError("Enter the organisation or customer name.");
+    if (!/^[6-9]\d{9}$/.test(phone)) return setError("Enter a valid 10-digit phone number.");
+    if (dayList.length === 0) return setError("The end date must be on or after the start date.");
+    if (dayList.length > MAX_EVENT_DAYS) return setError(`Bookings can span at most ${MAX_EVENT_DAYS} days.`);
+    if (amountPerDay <= 0) return setError("Enter the amount per day.");
+
+    setSaving(true);
+    setError(null);
+    try {
+      for (const dateIso of dayList) {
+        const daySlots = [...resolveSlotsForDate(turf, dateIso)].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        const dayStart = daySlots[0]?.startTime ?? "06:00";
+        const dayEnd = daySlots[daySlots.length - 1]?.endTime ?? "22:00";
+        await createVendorBooking({
+          listingId: turf.id,
+          customerName: name.trim(),
+          phone,
+          sport: EVENT_SPORT,
+          dateTime: new Date(`${dateIso}T${dayStart}:00`).toISOString(),
+          endTime: dayEnd,
+          totalAmount: amountPerDay,
+          payment: "Cash (Offline)",
+          status: "Confirmed",
+        });
+      }
+      onCreated(dayList.length, dayList[0]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.describe() : "Couldn't create the booking. Please try again.");
+      setSaving(false);
+    }
+  }
+
+  const field =
+    "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-violet-500";
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+              <Trophy size={18} />
+            </span>
+            <div>
+              <h3 className="text-[14px] font-black text-slate-900">Corporate / Tournament Booking</h3>
+              <p className="text-[10px] font-medium text-slate-400">{turf.title} — books the full day for each selected date.</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {error && <p className="rounded-xl bg-rose-50 px-3 py-2.5 text-[11px] font-bold text-rose-600">{error}</p>}
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">Organisation / Customer Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corporate League" className={field} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">Phone Number</label>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              inputMode="numeric"
+              placeholder="9812345670"
+              className={field}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">From</label>
+              <input type="date" value={startDate} min={todayIso} onChange={(e) => setStartDate(e.target.value)} className={field} />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">To</label>
+              <input type="date" value={endDate} min={startDate || todayIso} onChange={(e) => setEndDate(e.target.value)} className={field} />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">Amount per day (₹)</label>
+            <input
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              placeholder="15000"
+              className={field}
+            />
+          </div>
+
+          {dayList.length > 0 && (
+            <p className="rounded-xl bg-violet-50 px-3 py-2.5 text-[11px] font-bold text-violet-700">
+              {dayList.length} day{dayList.length === 1 ? "" : "s"}
+              {amountPerDay > 0 ? ` · Total ₹${(amountPerDay * dayList.length).toLocaleString("en-IN")}` : ""}
+            </p>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-violet-600 py-3 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.98] disabled:opacity-60"
+          >
+            <CalendarRange size={13} /> {saving ? "Booking…" : "Confirm Booking"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

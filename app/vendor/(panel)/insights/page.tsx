@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, TrendingUp, Clock, IndianRupee, CalendarCheck, Percent } from "lucide-react";
+import { Sparkles, TrendingUp, Clock, CalendarCheck, Percent } from "lucide-react";
 import { getVendorBookings, getVendorListings } from "@/lib/api/vendor";
 import { apiListingToMock } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
@@ -53,8 +53,6 @@ export default function InsightsPage() {
 
     const recent = bookings.filter((b) => new Date(b.dateTime) >= since && b.status !== "Cancelled");
     const cancelled = bookings.filter((b) => new Date(b.dateTime) >= since && b.status === "Cancelled");
-
-    const revenue = recent.reduce((s, b) => s + (b.totalAmount || 0), 0);
 
     // Busiest hour by booking count.
     const byHour = new Map<number, number>();
@@ -107,7 +105,6 @@ export default function InsightsPage() {
         : null;
 
     return {
-      revenue,
       count: recent.length,
       peakHour: peak ? { hour: peak[0], count: peak[1] } : null,
       topSport: topSport ? { name: topSport[0], count: topSport[1] } : null,
@@ -143,13 +140,14 @@ export default function InsightsPage() {
         </div>
       ) : (
         <>
+          {/* Decision metrics only — no revenue figure here, per the owner's request. */}
           <div className="grid grid-cols-2 gap-3">
             <StatCard
-              icon={IndianRupee}
+              icon={CalendarCheck}
               tone="emerald"
-              label="Revenue"
-              value={`₹${insights.revenue.toLocaleString("en-IN")}`}
-              sub={`${insights.count} bookings`}
+              label="Bookings"
+              value={`${insights.count}`}
+              sub={`in the last ${LOOKBACK_DAYS} days`}
             />
             <StatCard
               icon={Percent}

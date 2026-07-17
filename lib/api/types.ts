@@ -548,6 +548,8 @@ export type MembershipPlanType = "duration" | "sessions";
 export interface Membership {
   _id: string;
   vendorId: string;
+  /** Turf/listing this plan belongs to; unset = applies to all of the vendor's turfs. */
+  listingId?: string;
   name: string;
   description?: string;
   planType: MembershipPlanType;
