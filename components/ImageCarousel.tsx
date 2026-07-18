@@ -20,12 +20,14 @@ export function ImageCarousel({
   const [active, setActive] = useState(0);
   const resumeAt = useRef(0);
 
-  function goTo(index: number) {
+  function goTo(index: number, isUserInteraction = false) {
     const track = trackRef.current;
     const slide = track?.children[index] as HTMLElement | undefined;
     if (!track || !slide) return;
     track.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
-    resumeAt.current = Date.now() + 5000;
+    if (isUserInteraction) {
+      resumeAt.current = Date.now() + 5000;
+    }
   }
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export function ImageCarousel({
         <>
           <button
             type="button"
-            onClick={() => goTo(Math.max(0, active - 1))}
+            onClick={() => goTo((active - 1 + images.length) % images.length, true)}
             aria-label="Previous image"
             className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
           >
@@ -80,24 +82,12 @@ export function ImageCarousel({
           </button>
           <button
             type="button"
-            onClick={() => goTo(Math.min(images.length - 1, active + 1))}
+            onClick={() => goTo((active + 1) % images.length, true)}
             aria-label="Next image"
             className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 z-10">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => goTo(i)}
-                aria-label={`Go to image ${i + 1}`}
-                className={`h-1.5 rounded-full transition-all ${active === i ? "w-5 bg-white shadow-sm" : "w-1.5 bg-white/50"}`}
-              />
-            ))}
-          </div>
         </>
       )}
     </div>
