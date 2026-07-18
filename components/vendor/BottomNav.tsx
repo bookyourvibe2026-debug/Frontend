@@ -17,6 +17,9 @@ const SHORT_LABELS: Record<string, string> = {
   "Ticket Scanner": "Scanner",
   "Manage Coaches": "Coaches",
   "Menu Management": "Menu",
+  "Events Dashboard": "Dashboard",
+  "Food Dashboard": "Dashboard",
+  "Coaches Dashboard": "Dashboard",
 };
 
 export default function BottomNav({
