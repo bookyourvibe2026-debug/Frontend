@@ -381,7 +381,17 @@ export default function VenueDetailPage() {
 
               <button
                 type="button"
-                onClick={() => setBooking(true)}
+                onClick={() => {
+                  // Always let the player pick the sport first — even without scrolling
+                  // to "Sports Available" they must know what they're booking.
+                  const sports = venueSports(venue);
+                  if (!isEvent && sports.length > 1) {
+                    setSportModalOpen(true);
+                  } else {
+                    setSelectedSportForBooking(sports.length === 1 ? categoryLabel(sports[0]) : "");
+                    setBooking(true);
+                  }
+                }}
                 className="mt-5 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.01]"
               >
                 Book Now
@@ -443,20 +453,20 @@ export default function VenueDetailPage() {
 /*  SHARED venue sections — rendered on BOTH mobile and desktop         */
 /* ------------------------------------------------------------------ */
 
-/** Emoji + court-count copy per sport. Single source for the grid and the picker sheet. */
-function sportMeta(sportName: string): { emoji: string; courts: string } {
+/** Emoji per sport. Single source for the grid and the picker sheet. */
+function sportEmoji(sportName: string): string {
   const l = sportName.toLowerCase();
-  if (l.includes("badminton")) return { emoji: "🏸", courts: "4 Courts" };
-  if (l.includes("cricket")) return { emoji: "🏏", courts: "2 Nets" };
-  if (l.includes("turf") || l.includes("football")) return { emoji: "⚽", courts: "1 Turf" };
-  if (l.includes("pickleball")) return { emoji: "🏓", courts: "2 Courts" };
-  if (l.includes("tennis")) return { emoji: "🎾", courts: "3 Courts" };
-  return { emoji: "🎯", courts: "1 Court" };
+  if (l.includes("badminton")) return "🏸";
+  if (l.includes("cricket")) return "🏏";
+  if (l.includes("turf") || l.includes("football")) return "⚽";
+  if (l.includes("pickleball")) return "🏓";
+  if (l.includes("tennis")) return "🎾";
+  return "🎯";
 }
 
-/** Categories to show, falling back to a sensible default set. */
+/** Only the sports this vendor actually added on the listing — no invented defaults. */
 function venueSports(venue: Listing): string[] {
-  return venue.categories?.length > 0 ? venue.categories : ["badminton", "cricket", "football", "pickleball"];
+  return venue.categories ?? [];
 }
 
 /** Self-contained so both layouts can drop it in without duplicating the fetch. */
@@ -516,8 +526,50 @@ function VenueInfoSections({
         </div>
       )}
 
+      {/* Sports available — only what the vendor added on this listing */}
+      {venueSports(venue).length > 0 && (
+        <section className="mt-6">
+          <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            {venueSports(venue).map((catId) => {
+              const sportName = categoryLabel(catId);
+              return (
+                <button
+                  key={catId}
+                  onClick={() => onPickSport(sportName)}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:border-brand-200"
+                >
+                  <span className="text-3xl">{sportEmoji(sportName)}</span>
+                  <div className="mt-1 text-center">
+                    <span className="block text-sm font-bold text-slate-800">{sportName}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400">Tap to book</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Amenities */}
+      {amenities.length > 0 && (
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {amenities.map(({ label, Icon }) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+              >
+                <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Technical / venue highlights */}
-      <section className="mt-6">
+      <section className="mt-5">
         <h2 className="text-base font-black tracking-tight text-slate-900">Technical Specifications</h2>
         <p className="mt-0.5 text-xs font-medium text-slate-400">What makes this venue play-ready.</p>
         <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -546,47 +598,6 @@ function VenueInfoSections({
         <h2 className="text-sm font-extrabold text-slate-900">Local Weather</h2>
         <LocalWeatherCard city={venue.city} />
       </section>
-
-      {/* Sports available */}
-      <section className="mt-5">
-        <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-          {venueSports(venue).map((catId) => {
-            const sportName = categoryLabel(catId);
-            const { emoji, courts } = sportMeta(sportName);
-            return (
-              <button
-                key={catId}
-                onClick={() => onPickSport(sportName)}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:border-brand-200"
-              >
-                <span className="text-3xl">{emoji}</span>
-                <div className="mt-1 text-center">
-                  <span className="block text-sm font-bold text-slate-800">{sportName}</span>
-                  <span className="block text-[10px] font-semibold text-slate-400">{courts}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Amenities */}
-      {amenities.length > 0 && (
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {amenities.map(({ label, Icon }) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-              >
-                <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Top players */}
       <section className="mt-5">
@@ -641,7 +652,6 @@ function SportPickerSheet({
         <div className="space-y-3">
           {venueSports(venue).map((catId) => {
             const sportName = categoryLabel(catId);
-            const { emoji, courts } = sportMeta(sportName);
             const isSelected = selectedSport === sportName;
             return (
               <button
@@ -653,11 +663,10 @@ function SportPickerSheet({
               >
                 <div className="flex items-center gap-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-2xl shadow-sm">
-                    {emoji}
+                    {sportEmoji(sportName)}
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-slate-900">{sportName}</p>
-                    <p className="mt-0.5 text-[10px] font-medium text-slate-500">{courts} Available</p>
                   </div>
                 </div>
                 <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${isSelected ? "border-[#0b9c65]" : "border-slate-300"}`}>
@@ -871,8 +880,13 @@ function MobileVenueDetail({
                 // Events: skip sport picker, go directly to booking
                 onOpenBooking("");
               } else {
-                // Turf/Game: pick a sport first
-                onOpenBooking(venue.categories.length > 0 ? categoryLabel(venue.categories[0]) : "");
+                // Turf/Game: show sport picker if multiple sports, else go directly
+                const sports = venueSports(venue);
+                if (sports.length > 1) {
+                  setSportModalOpen(true);
+                } else {
+                  onOpenBooking(sports.length === 1 ? categoryLabel(sports[0]) : "");
+                }
               }
             }}
             className={`rounded-xl px-6 py-3 text-xs font-bold uppercase tracking-wide transition bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30`}

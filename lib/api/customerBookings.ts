@@ -11,6 +11,8 @@ export interface CreateBookingInput {
   phone?: string;
   email?: string;
   payment: PaymentMethod;
+  /** Which sport the player is booking (venues can host several). */
+  sport?: string;
   durationMinutes?: number;
 }
 

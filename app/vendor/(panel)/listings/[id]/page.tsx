@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Camera, ClipboardList, FileText, Pencil,
+  ArrowLeft, Camera, ClipboardList, FileText, Pencil, Plus,
   LayoutGrid, Clock as ClockIcon, ChevronDown, X,
   Ban, BookOpen, Pause, Clock3, CalendarDays, Phone, User, CalendarCheck, Check,
 } from "lucide-react";
@@ -69,9 +69,24 @@ export default function ListingDetailPage() {
   async function replaceImage(index: number, file: File) {
     try {
       const { url } = await uploadVendorImage(file, "listings");
-      const images = listing!.images.map((img, i) => (i === index ? { ...img, url } : img));
+      const existing = listing!.images;
+      // Appending (index beyond the end) must work too: a listing created
+      // without photos has an empty gallery, and mapping over it silently
+      // discarded the vendor's upload.
+      const images =
+        index < existing.length
+          ? existing.map((img, i) => (i === index ? { ...img, url } : img))
+          : [
+              ...existing,
+              {
+                id: `img-${Date.now()}`,
+                url,
+                label: existing.length === 0 ? "Poster" : existing.length === 1 ? "Banner" : `Photo ${existing.length + 1}`,
+              },
+            ];
       const saved = await updateVendorListing(listing!.id, { images });
       setListing(apiListingToMock(saved));
+      setToast("Photo saved — it's now live on your venue page.");
     } catch (err) {
       setToast(err instanceof ApiError ? err.describe() : "Failed to update photo");
     }
@@ -310,18 +325,27 @@ function ImageGallery({
 }) {
   const [active, setActive] = useState(0);
   const fileInputs = useRef<Record<number, HTMLInputElement | null>>({});
+  const addInput = useRef<HTMLInputElement | null>(null);
 
   const activeImage = images[active] ?? images[0];
 
   return (
     <div className="rounded-xl2 border border-surface-border bg-white p-4 shadow-panel">
       <div className="relative h-64 overflow-hidden rounded-xl bg-cream-300 sm:h-80">
-        {activeImage && <img src={activeImage.url} alt={activeImage.label} className="h-full w-full object-cover" />}
+        {activeImage ? (
+          <img src={activeImage.url} alt={activeImage.label} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center text-ink-faint">
+            <Camera size={28} />
+            <p className="text-sm font-semibold text-ink-soft">No photos yet</p>
+            <p className="text-xs">Add a poster and banner — players see these on your venue page.</p>
+          </div>
+        )}
         <button
           onClick={() => fileInputs.current[active]?.click()}
           className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-2 text-xs font-semibold text-white hover:bg-black/75"
         >
-          <Camera size={14} /> Change photo
+          <Camera size={14} /> {activeImage ? "Change photo" : "Add photo"}
         </button>
         <input
           ref={(el) => {
@@ -338,7 +362,7 @@ function ImageGallery({
         />
       </div>
 
-      {images.length > 1 && (
+      {images.length > 0 && (
         <div className="mt-3 flex gap-2 overflow-x-auto">
           {images.map((img, i) => (
             <button
@@ -354,6 +378,25 @@ function ImageGallery({
               </span>
             </button>
           ))}
+          {/* Append another photo (banner, gallery shots…) instead of only replacing */}
+          <button
+            onClick={() => addInput.current?.click()}
+            className="flex h-16 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-surface-border text-ink-faint transition hover:border-vibe-violet hover:text-vibe-violet"
+          >
+            <Plus size={16} />
+            <span className="text-[9px] font-semibold">Add photo</span>
+          </button>
+          <input
+            ref={addInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onReplace(images.length, file);
+              e.target.value = "";
+            }}
+          />
         </div>
       )}
     </div>
@@ -866,7 +909,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;

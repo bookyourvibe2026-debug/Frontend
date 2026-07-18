@@ -53,7 +53,7 @@ function formatListedOn(date: Date) {
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
@@ -896,6 +896,9 @@ const TIME_OPTIONS = [
   { value: "23:00", label: "11:00 PM" },
 ];
 
+/** "Closes At" choices: same hours minus 00:00 (a venue can't close when the day starts), plus 24:00 so the last slot can run until midnight. */
+const END_TIME_OPTIONS = [...TIME_OPTIONS.slice(1), { value: "24:00", label: "12:00 AM" }];
+
 /* ─── Indian Festival / Holiday lookup ──────────────────────────── */
 export const INDIAN_HOLIDAYS: Record<string, string> = {
   "2026-01-01": "New Year's Day",
@@ -1018,7 +1021,7 @@ function BookingStep({ draft, update }: StepProps) {
   function to12h(t: string) {
     if (!t) return "";
     const [hS, mS] = t.split(":");
-    let h = Number(hS);
+    let h = Number(hS) % 24; // "24:00" (midnight close) → 12:00 AM
     const ap = h >= 12 ? "PM" : "AM";
     h = h % 12 || 12;
     return `${String(h).padStart(2, "0")}:${mS} ${ap}`;
@@ -1353,7 +1356,7 @@ function BookingStep({ draft, update }: StepProps) {
             <div className="mb-4">
               <FieldLabel>Closes At *</FieldLabel>
               <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                {TIME_OPTIONS.map((t) => {
+                {END_TIME_OPTIONS.map((t) => {
                   const isSelected = bulkEndTime === t.value;
                   return (
                     <button key={t.value} type="button" onClick={() => setBulkEndTime(t.value)}

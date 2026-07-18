@@ -48,7 +48,7 @@ import {
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  let h = Number(hStr) % 24; // "24:00" (midnight close) → 12:00 AM
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
@@ -171,6 +171,21 @@ export default function BookingsPage() {
   );
   const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
 
+  /* ── Deep link from Price Setting: ?date&start&end&price opens Add Booking prefilled ── */
+  const bookingLinkHandled = useRef(false);
+  useEffect(() => {
+    if (bookingLinkHandled.current || turfListings.length === 0) return;
+    bookingLinkHandled.current = true;
+    const sp = new URLSearchParams(window.location.search);
+    const date = sp.get("date");
+    const start = sp.get("start");
+    if (!date || !start) return;
+    jumpToDate(date);
+    setAddBookingInitial({ startTime: start, endTime: sp.get("end") ?? "", price: sp.get("price") ?? "" });
+    setAddBookingOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turfListings]);
+
   /* ── Resolve slots for selected date ── */
   const resolvedSlots = useMemo<AgendaSlot[]>(() => {
     if (!selectedTurf) return [];
@@ -260,8 +275,6 @@ export default function BookingsPage() {
 
       if (filters.source === "Walk-in" && s.status !== "Offline Booked") return false;
       if (filters.source === "Online" && s.status !== "Booked") return false;
-      // "Admin Added" / "QR Booking" have no backing field on a booking yet.
-      if (filters.source === "Admin Added" || filters.source === "QR Booking") return false;
 
       if (filters.quick === "Empty Slots" && s.status !== "Available") return false;
       if (filters.quick === "Next Booking" && s.startTime !== nextBookedStart) return false;
@@ -512,7 +525,7 @@ export default function BookingsPage() {
         dateTime: dt.toISOString(),
         endTime: v.endTime || undefined,
         totalAmount: Number(v.price) || 0,
-        payment: "Cash (Offline)",
+        payment: v.payment,
         status: "Confirmed",
       });
       const fresh = await getVendorBookings({ limit: 500 });
@@ -696,6 +709,7 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSlotClick={setActiveSlot}
                   onAction={handleSlotAction}
+                  scrollToNow={isToday}
                 />
                 <TimelineLegend />
               </>
@@ -706,7 +720,16 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
-                  renderSeeBooking={() => <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />}
+                  renderSeeBooking={(closeFullscreen) => (
+                    <SeeBookingButton
+                      resolvedSlots={resolvedSlots}
+                      onPick={(f) => {
+                        // The grouped list renders in the page body, so leave fullscreen first.
+                        closeFullscreen();
+                        setGroupedFilter(f);
+                      }}
+                    />
+                  )}
                 />
               </div>
             )}

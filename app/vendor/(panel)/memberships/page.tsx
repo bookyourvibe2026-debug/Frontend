@@ -8,22 +8,25 @@ import {
   createMembership,
   createSubscription,
   deleteMembership,
+  getVendorListings,
   listMemberships,
   listSubscriptions,
   updateSubscriptionStatus,
   CreateMembershipInput,
 } from "@/lib/api/vendor";
+import { apiListingToMock } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Membership, MembershipPlanType, Subscription, SubscriptionStatus } from "@/lib/api/types";
+import type { Listing } from "@/lib/types";
 
 const emptyDraft: CreateMembershipInput = {
+  listingId: undefined,
   name: "",
   description: "",
   planType: "duration",
   price: 0,
   durationDays: 30,
   sessionsIncluded: undefined,
-  turfDimensions: "",
 };
 
 const SUB_TONE: Record<SubscriptionStatus, "success" | "neutral" | "danger"> = {
@@ -35,10 +38,12 @@ const SUB_TONE: Record<SubscriptionStatus, "success" | "neutral" | "danger"> = {
 export default function MembershipsPage() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [turfs, setTurfs] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<CreateMembershipInput>(emptyDraft);
   const [saving, setSaving] = useState(false);
-  const [enrollFor, setEnrollFor] = useState<Membership | null>(null);
+  /** Enroll sheet open state; `plan` preselects one, null lets the vendor pick. */
+  const [enroll, setEnroll] = useState<{ plan: Membership | null } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -53,7 +58,12 @@ export default function MembershipsPage() {
 
   useEffect(() => {
     refresh();
+    getVendorListings()
+      .then((l) => setTurfs(l.map(apiListingToMock).filter((x) => x.type === "Turf")))
+      .catch(() => {});
   }, [refresh]);
+
+  const turfName = (listingId?: string) => turfs.find((t) => t.id === listingId)?.title;
 
   async function handleCreate() {
     if (!draft.name.trim() || draft.price < 0) {
@@ -102,15 +112,38 @@ export default function MembershipsPage() {
         title="Membership Management"
         description="Create membership plans, sell packages, and track active and expired members."
         right={
-          <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold">
-            <CreditCard size={16} /> {activeCount} Active Member(s)
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold">
+              <CreditCard size={16} /> {activeCount} Active Member(s)
+            </span>
+            <button
+              onClick={() => setEnroll({ plan: null })}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-vibe-violet shadow-md transition hover:bg-violet-50"
+            >
+              <UserPlus size={16} /> Add Member
+            </button>
+          </div>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard title="Create Plan" description="Duration-based or session-count plans." className="lg:col-span-1">
           <div className="space-y-3">
+            {turfs.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">Turf</label>
+                <select
+                  value={draft.listingId ?? ""}
+                  onChange={(e) => setDraft({ ...draft, listingId: e.target.value || undefined })}
+                  className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
+                >
+                  <option value="">All turfs</option>
+                  {turfs.map((t) => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Input label="Plan Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Monthly Unlimited" />
             <div>
               <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">Plan Type</label>
@@ -145,12 +178,6 @@ export default function MembershipsPage() {
               placeholder="2500"
             />
             <Input
-              label="Turf Dimensions"
-              value={draft.turfDimensions ?? ""}
-              onChange={(v) => setDraft({ ...draft, turfDimensions: v })}
-              placeholder="e.g. 60ft x 30ft"
-            />
-            <Input
               label="Description"
               value={draft.description ?? ""}
               onChange={(v) => setDraft({ ...draft, description: v })}
@@ -175,6 +202,7 @@ export default function MembershipsPage() {
                     <p className="font-semibold text-ink text-sm">{m.name}</p>
                     <p className="text-xs text-ink-faint mt-0.5">
                       {m.planType === "duration" ? `${m.durationDays} days` : `${m.sessionsIncluded} sessions`}
+                      {turfName(m.listingId) ? ` · ${turfName(m.listingId)}` : ""}
                     </p>
                   </div>
                   <Badge tone={m.status === "Active" ? "success" : "neutral"}>{m.status}</Badge>
@@ -184,7 +212,7 @@ export default function MembershipsPage() {
                 <p className="mt-2 font-display text-lg font-bold text-ink">₹{m.price.toLocaleString("en-IN")}</p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
-                    onClick={() => setEnrollFor(m)}
+                    onClick={() => setEnroll({ plan: m })}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-300"
                   >
                     <UserPlus size={13} /> Enroll Member
@@ -204,7 +232,18 @@ export default function MembershipsPage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Members" description="Everyone subscribed to one of your plans.">
+      <SectionCard
+        title="Members"
+        description="Everyone subscribed to one of your plans."
+        action={
+          <button
+            onClick={() => setEnroll({ plan: null })}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-vibe-violet px-3 py-2 text-xs font-semibold text-white hover:bg-vibe-violetSoft"
+          >
+            <UserPlus size={13} /> Add Member
+          </button>
+        }
+      >
         <div className="divide-y divide-surface-border">
           {subscriptions.map((s) => (
             <div key={s._id} className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -231,12 +270,14 @@ export default function MembershipsPage() {
         </div>
       </SectionCard>
 
-      {enrollFor && (
+      {enroll && (
         <EnrollModal
-          membership={enrollFor}
-          onClose={() => setEnrollFor(null)}
+          memberships={memberships.filter((m) => m.status === "Active")}
+          initial={enroll.plan}
+          turfName={turfName}
+          onClose={() => setEnroll(null)}
           onEnrolled={() => {
-            setEnrollFor(null);
+            setEnroll(null);
             refresh();
           }}
         />
@@ -248,28 +289,45 @@ export default function MembershipsPage() {
 }
 
 function EnrollModal({
-  membership,
+  memberships,
+  initial,
+  turfName,
   onClose,
   onEnrolled,
 }: {
-  membership: Membership;
+  memberships: Membership[];
+  /** Plan to preselect; null lets the vendor pick one in the modal. */
+  initial: Membership | null;
+  turfName: (listingId?: string) => string | undefined;
   onClose: () => void;
   onEnrolled: () => void;
 }) {
+  const [planId, setPlanId] = useState(initial?._id ?? memberships[0]?._id ?? "");
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
-  const [amountPaid, setAmountPaid] = useState(String(membership.price));
+  const plan = memberships.find((m) => m._id === planId) ?? null;
+  const [amountPaid, setAmountPaid] = useState(String(initial?.price ?? memberships[0]?.price ?? ""));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function selectPlan(id: string) {
+    setPlanId(id);
+    const next = memberships.find((m) => m._id === id);
+    if (next) setAmountPaid(String(next.price));
+  }
+
   async function handleSubmit() {
+    if (!plan) {
+      setError("Pick a membership plan first.");
+      return;
+    }
     if (!customerName.trim() || !/^[6-9]\d{9}$/.test(phone)) {
-      setError("Enter a name and a valid 10-digit phone number.");
+      setError("Enter the member's full name and a valid 10-digit phone number.");
       return;
     }
     setSaving(true);
     try {
-      await createSubscription({ membershipId: membership._id, customerName: customerName.trim(), phone, amountPaid: Number(amountPaid) || 0 });
+      await createSubscription({ membershipId: plan._id, customerName: customerName.trim(), phone, amountPaid: Number(amountPaid) || 0 });
       onEnrolled();
     } catch (err) {
       setError(err instanceof ApiError ? err.describe() : "Failed to enroll member");
@@ -282,23 +340,42 @@ function EnrollModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <p className="font-display font-semibold text-ink">Enroll Member — {membership.name}</p>
+          <p className="font-display font-semibold text-ink">Add Member</p>
           <button onClick={onClose} className="text-ink-faint hover:text-ink">
             <X size={16} />
           </button>
         </div>
         <div className="space-y-3">
           {error && <p className="text-xs text-vibe-coral">{error}</p>}
-          <Input label="Customer Name" value={customerName} onChange={setCustomerName} placeholder="Aarav Mehta" />
-          <Input label="Phone" value={phone} onChange={(v) => setPhone(v.replace(/\D/g, "").slice(0, 10))} placeholder="9812345670" />
-          <Input label="Amount Paid (₹)" value={amountPaid} onChange={setAmountPaid} placeholder={String(membership.price)} />
+          {memberships.length === 0 ? (
+            <p className="text-sm text-ink-faint">Create a membership plan first, then add members to it.</p>
+          ) : (
+            <div>
+              <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">Membership Plan</label>
+              <select
+                value={planId}
+                onChange={(e) => selectPlan(e.target.value)}
+                className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
+              >
+                {memberships.map((m) => (
+                  <option key={m._id} value={m._id}>
+                    {m.name} — ₹{m.price.toLocaleString("en-IN")}
+                    {turfName(m.listingId) ? ` (${turfName(m.listingId)})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <Input label="Full Name" value={customerName} onChange={setCustomerName} placeholder="Aarav Mehta" />
+          <Input label="Phone Number" value={phone} onChange={(v) => setPhone(v.replace(/\D/g, "").slice(0, 10))} placeholder="9812345670" />
+          <Input label="Amount Paid (₹)" value={amountPaid} onChange={(v) => setAmountPaid(v.replace(/\D/g, ""))} placeholder={plan ? String(plan.price) : "0"} />
         </div>
         <button
           onClick={handleSubmit}
-          disabled={saving}
+          disabled={saving || memberships.length === 0}
           className="mt-5 w-full rounded-lg bg-vibe-violet py-2.5 text-sm font-semibold text-white hover:bg-vibe-violetSoft disabled:opacity-60"
         >
-          {saving ? "Enrolling..." : "Enroll Member"}
+          {saving ? "Adding member..." : "Add Member"}
         </button>
       </div>
     </div>

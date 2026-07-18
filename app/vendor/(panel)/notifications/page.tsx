@@ -13,7 +13,7 @@ import {
   CheckCheck,
   Settings,
   History,
-  ThumbsUp,
+  FileText,
   CalendarDays,
 } from "lucide-react";
 import { MessageTemplatesModal, type MessageTemplateContext } from "@/components/vendor/MessageTemplatesModal";
@@ -56,8 +56,8 @@ export default function NotificationsPage() {
   const [tab, setTab] = useState<Tab>("All");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [read, setRead] = useState<Set<string>>(new Set());
-  /** Bookings the vendor handed to BYV to chase (local until a backend field exists). */
-  const [handled, setHandled] = useState<Set<string>>(new Set());
+  /** Order id of the booking whose full detail sheet is open. */
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [messageCtx, setMessageCtx] = useState<MessageTemplateContext | null>(null);
 
@@ -321,21 +321,10 @@ export default function NotificationsPage() {
 
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() =>
-                    setHandled((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(r.key)) next.delete(r.key);
-                      else next.add(r.key);
-                      return next;
-                    })
-                  }
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[10px] font-black transition active:scale-[0.97] ${
-                    handled.has(r.key)
-                      ? "bg-indigo-600 text-white"
-                      : "border border-indigo-200 bg-indigo-50 text-indigo-600"
-                  }`}
+                  onClick={() => setDetailKey(r.key)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-[10px] font-black text-indigo-600 transition active:scale-[0.97]"
                 >
-                  <ThumbsUp size={11} /> {handled.has(r.key) ? "BYV is handling this" : "Let BYV handle this 👍"}
+                  <FileText size={11} /> See Full Booking Detail
                 </button>
 
                 <button
@@ -349,6 +338,57 @@ export default function NotificationsPage() {
           </NotificationRow>
         ))
       )}
+
+      {/* Full booking detail sheet */}
+      {(() => {
+        const r = rows.find((x) => x.key === detailKey);
+        if (!r) return null;
+        const fields: { label: string; value: React.ReactNode }[] = [
+          { label: "Customer", value: r.name },
+          { label: "Status", value: r.statusLine },
+          {
+            label: "Date",
+            value: r.start.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" }),
+          },
+          { label: "Time", value: `${fmtTime(r.start)} – ${fmtTime(r.end)}` },
+          ...(courtName(r.booking) ? [{ label: "Court", value: courtName(r.booking) }] : []),
+          { label: "Amount", value: `₹${r.booking.totalAmount.toLocaleString("en-IN")}` },
+          { label: "Payment", value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : "Pending"}` },
+          { label: "Source", value: r.source === "F" ? "Offline / walk-in" : "Online booking" },
+          { label: "Times played here", value: `${r.playedTimes}` },
+          ...(r.booking.checkedIn
+            ? [{ label: "Check-in", value: r.booking.checkedInAt ? `Checked in at ${fmtTime(new Date(r.booking.checkedInAt))}` : "Checked in" }]
+            : []),
+          { label: "Booking ID", value: r.booking.orderId },
+        ];
+        return (
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => setDetailKey(null)}>
+            <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-[14px] font-black text-slate-900">Full Booking Detail</h3>
+              <p className="mt-0.5 text-[10px] font-medium text-slate-400">Everything BYV has on this booking.</p>
+              <div className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-100">
+                {fields.map((f) => (
+                  <div key={f.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{f.label}</span>
+                    <span className="text-right text-[11px] font-black text-slate-800">{f.value}</span>
+                  </div>
+                ))}
+              </div>
+              {r.booking.phone && (
+                <a
+                  href={`tel:${r.booking.phone}`}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-slate-900 py-3 text-[11px] font-black text-white"
+                >
+                  <Phone size={12} /> Call {r.booking.phone}
+                </a>
+              )}
+              <button onClick={() => setDetailKey(null)} className="mt-2 w-full rounded-2xl bg-slate-100 py-3 text-[11px] font-black uppercase tracking-wide text-slate-600">
+                Close
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Booking history drill-down */}
       {historyFor && (

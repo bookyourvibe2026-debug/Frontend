@@ -13,7 +13,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useState, type MutableRefObject } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
@@ -36,7 +36,58 @@ const START_TIMES = [
 ];
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  // Local date, NOT toISOString(): UTC lags IST by 5.5 hrs, which kept
+  // yesterday visible in the date strip every morning.
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Emoji per sport — mirrors the venue page's grid so both surfaces match. */
+function sportEmoji(sportName: string): string {
+  const l = sportName.toLowerCase();
+  if (l.includes("badminton")) return "🏸";
+  if (l.includes("cricket")) return "🏏";
+  if (l.includes("turf") || l.includes("football")) return "⚽";
+  if (l.includes("pickleball")) return "🏓";
+  if (l.includes("tennis")) return "🎾";
+  return "🎯";
+}
+
+/** Horizontally scrollable game selector — the player always sees (and can change) what they're booking. */
+function SportChips({
+  listing,
+  sport,
+  onSelect,
+  className = "",
+}: {
+  listing: Listing;
+  sport?: string;
+  onSelect: (s: string) => void;
+  className?: string;
+}) {
+  if (!listing.categories || listing.categories.length === 0) return null;
+  return (
+    <div
+      className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+    >
+      {listing.categories.map((catId) => {
+        const name = categoryLabel(catId);
+        const active = sport === name;
+        return (
+          <button
+            key={catId}
+            type="button"
+            onClick={() => onSelect(name)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] font-bold transition ${
+              active ? "border-[#0b9c65] bg-[#0b9c65] text-white shadow-sm" : "border-slate-200 bg-white text-slate-600"
+            }`}
+          >
+            <span>{sportEmoji(name)}</span> {name}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function to24Hour(time12: string) {
@@ -94,7 +145,8 @@ export default function BookingFlow({
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
   const [durationMin, setDurationMin] = useState(120); // Default 2 hours (120 mins)
-  const [activeDaypart, setActiveDaypart] = useState<string>("Morning");
+  // "All" by default so every time slot shows up before the player narrows down.
+  const [activeDaypart, setActiveDaypart] = useState<string>("All");
   const [time, setTime] = useState(START_TIMES[6]);
   const [endTime, setEndTime] = useState(START_TIMES[8]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(-1);
@@ -105,6 +157,9 @@ export default function BookingFlow({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [booking, setBooking] = useState<Booking | null>(null);
+  // The game being booked — seeded from whatever the player picked outside,
+  // but changeable from the chips inside the flow.
+  const [sport, setSport] = useState(selectedSport ?? "");
 
   // Helper to format a Date to ISO (yyyy-mm-dd)
   function localDateISO(date: Date) {
@@ -182,6 +237,14 @@ export default function BookingFlow({
     return { startMin: minVal, endMin: maxVal, baseHourlyRate: Math.round(sum / slotsConfig.length), isDateHoliday: false, holidayReason: "" };
   }, [listing, date]);
 
+  // The stepper can go all the way up to the venue's full day for the selected
+  // date (e.g. 6 AM–11 PM = 1020 mins), in 30-min steps.
+  const maxDurationMin = Math.max(30, Math.min(1440, Math.floor((endMin - startMin) / 30) * 30));
+  useEffect(() => {
+    if (durationMin > maxDurationMin) setDurationMin(maxDurationMin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxDurationMin]);
+
   // Generate slots dynamically based on durationMin selection
   const generatedSlots = useMemo(() => {
     if (listing.type !== "Turf" || !date || isDateHoliday) return [];
@@ -234,16 +297,35 @@ export default function BookingFlow({
       return slots;
     }
 
-    // Build slots from configured slot windows (per-date or global)
-    let idx = 0;
-    for (const cfg of slotsConfig) {
-      const cfgStart = time24ToMinutes(cfg.startTime);
-      let cfgEnd = time24ToMinutes(cfg.endTime);
-      if (cfgEnd <= cfgStart) cfgEnd += 1440;
+    // Build slots from configured slot windows (per-date or global).
+    // Contiguous windows are merged into one continuous range so long durations
+    // can span across them — a 6 AM–11 PM venue can take a 1020-min booking.
+    const windows = slotsConfig
+      .map((cfg) => {
+        const start = time24ToMinutes(cfg.startTime);
+        let end = time24ToMinutes(cfg.endTime);
+        if (end <= start) end += 1440;
+        const hourly = typeof cfg.price === "number" && cfg.price > 0 ? cfg.price : baseHourlyRate;
+        return { start, end, hourly };
+      })
+      .sort((a, b) => a.start - b.start);
 
+    const ranges: { start: number; end: number; segments: { start: number; end: number; hourly: number }[] }[] = [];
+    for (const w of windows) {
+      const last = ranges[ranges.length - 1];
+      if (last && w.start <= last.end) {
+        last.end = Math.max(last.end, w.end);
+        last.segments.push(w);
+      } else {
+        ranges.push({ start: w.start, end: w.end, segments: [w] });
+      }
+    }
+
+    let idx = 0;
+    for (const range of ranges) {
       // step in 15-minute increments to offer more choices
-      let current = cfgStart;
-      while (current + durationMin <= cfgEnd) {
+      let current = range.start;
+      while (current + durationMin <= range.end) {
         const slotStart = current;
         const slotEnd = current + durationMin;
         const startTime24 = minutesToTime24(slotStart % 1440);
@@ -256,9 +338,13 @@ export default function BookingFlow({
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
 
-        // Use cfg.price when available (assumed hourly rate), otherwise fallback to baseHourlyRate
-        const hourly = typeof cfg.price === "number" && cfg.price > 0 ? cfg.price : baseHourlyRate;
-        const price = Math.round((durationMin / 60) * hourly);
+        // Price = each covered window's hourly rate, pro-rated by the minutes used in it.
+        let priceRaw = 0;
+        for (const seg of range.segments) {
+          const overlap = Math.min(seg.end, slotEnd) - Math.max(seg.start, slotStart);
+          if (overlap > 0) priceRaw += (overlap / 60) * seg.hourly;
+        }
+        const price = Math.round(priceRaw);
 
         const str = `${listing._id}_${date}_${startTime24}`;
         let hash = 0;
@@ -289,13 +375,14 @@ export default function BookingFlow({
     return slots;
   }, [listing, date, startMin, endMin, durationMin, baseHourlyRate, isDateHoliday]);
 
-  // Filter generated slots by activeDaypart select filter
+  // Filter generated slots by activeDaypart select filter — "All" shows every time of day.
   const filteredGeneratedSlots = useMemo(() => {
+    if (activeDaypart === "All") return generatedSlots;
     return generatedSlots.filter((s) => s.label === activeDaypart);
   }, [generatedSlots, activeDaypart]);
 
   useEffect(() => {
-    // Only auto-select a slot when the date changes (new venue day selected)
+    // Re-select when the date or duration changes and the current pick is gone/unavailable.
     if (listing.type === "Turf" && date) {
       const currentSlot = generatedSlots[selectedSlotIndex];
       if (currentSlot && currentSlot.status === "Available") return;
@@ -303,7 +390,7 @@ export default function BookingFlow({
       setSelectedSlotIndex(firstAvail ? firstAvail.originalIndex : -1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, listing.type]);
+  }, [date, listing.type, durationMin]);
 
   const activePrice = useMemo(() => {
     if (listing.type === "Turf") {
@@ -358,10 +445,11 @@ export default function BookingFlow({
       } else {
         dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
       }
-      const created = await createMyBooking({ 
-        listingId: listing._id, 
-        dateTime, 
+      const created = await createMyBooking({
+        listingId: listing._id,
+        dateTime,
         payment,
+        sport: sport || undefined,
         durationMinutes: listing.type === "Turf" ? durationMin : undefined
       });
       setBooking(created);
@@ -404,6 +492,7 @@ export default function BookingFlow({
           setDateSelected={setDateSelected}
           durationMin={durationMin}
           setDurationMin={setDurationMin}
+          maxDurationMin={maxDurationMin}
           activeDaypart={activeDaypart}
           setActiveDaypart={setActiveDaypart}
           generatedSlots={generatedSlots}
@@ -417,7 +506,8 @@ export default function BookingFlow({
           visibleYear={visibleYear}
           setVisibleMonth={setVisibleMonth}
           setVisibleYear={setVisibleYear}
-          selectedSport={selectedSport}
+          selectedSport={sport}
+          onSelectSport={setSport}
         />
       )}
 
@@ -468,6 +558,7 @@ function ReviewStep(props: {
   setDateSelected: (v: boolean) => void;
   durationMin: number;
   setDurationMin: (v: number) => void;
+  maxDurationMin: number;
   activeDaypart: string;
   setActiveDaypart: (v: string) => void;
   generatedSlots: any[];
@@ -482,6 +573,7 @@ function ReviewStep(props: {
   setVisibleMonth: (v: number | ((n: number) => number)) => void;
   setVisibleYear: (v: number | ((n: number) => number)) => void;
   selectedSport?: string;
+  onSelectSport: (s: string) => void;
 }) {
   const {
     embedded,
@@ -511,6 +603,7 @@ function ReviewStep(props: {
     setDateSelected,
     durationMin,
     setDurationMin,
+    maxDurationMin,
     activeDaypart,
     setActiveDaypart,
     generatedSlots,
@@ -525,10 +618,29 @@ function ReviewStep(props: {
     setVisibleMonth,
     setVisibleYear,
     selectedSport,
+    onSelectSport,
   } = props;
 
   const today = new Date();
   const [mobileStep, setMobileStep] = useState<"slots" | "checkout">("slots");
+  /** Playo-style toggle between the compact date strip and the full month grid. */
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
+
+  const selectedSlot = selectedSlotIndex >= 0 ? generatedSlots[selectedSlotIndex] : undefined;
+
+  // Full month grid (Monday start) for the expanded calendar; past days stay visible but disabled.
+  const monthGrid = useMemo(() => {
+    const firstDayIndex = (new Date(visibleYear, visibleMonth, 1).getDay() + 6) % 7;
+    const daysInMonth = new Date(visibleYear, visibleMonth + 1, 0).getDate();
+    const minIso = todayISO();
+    const cells: ({ iso: string; dayNum: number; isPast: boolean } | null)[] = [];
+    for (let i = 0; i < firstDayIndex; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${visibleYear}-${String(visibleMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({ iso, dayNum: d, isPast: iso < minIso });
+    }
+    return cells;
+  }, [visibleMonth, visibleYear]);
 
   const formatDurationText = (min: number) => {
     const hrs = Math.floor(min / 60);
@@ -542,7 +654,8 @@ function ReviewStep(props: {
       className={
         embedded
           ? "w-full"
-          : "relative flex h-full max-h-[92vh] w-full max-w-4xl flex-col bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
+          : // Full screen on mobile ("page poora khule"); modal-sized on desktop.
+            "relative flex h-full w-full max-w-4xl flex-col bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
       }
     >
       {!embedded && (
@@ -558,16 +671,22 @@ function ReviewStep(props: {
 
       {/* Mobile Header */}
       {!embedded && (
-        <div className="flex items-center gap-3 p-4 lg:hidden border-b border-slate-100 bg-white">
-          <button
-            onClick={() => (mobileStep === "checkout" ? setMobileStep("slots") : onClose())}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            {mobileStep === "slots" ? listing.title : "Checkout"}
-          </h3>
+        <div className="p-4 lg:hidden border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => (mobileStep === "checkout" ? setMobileStep("slots") : onClose())}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              {mobileStep === "slots" ? listing.title : "Checkout"}
+            </h3>
+          </div>
+          {/* Game selector in the header — the player picks the sport they're booking. */}
+          {mobileStep === "slots" && (
+            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" />
+          )}
         </div>
       )}
 
@@ -596,94 +715,91 @@ function ReviewStep(props: {
 
             {/* Date & Time section */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <p className={selectedSport ? "text-xl font-extrabold text-slate-900" : "text-xs font-bold text-slate-900"}>
-                  {selectedSport ? "Select Slots" : "Select Date & Time"}
-                </p>
-                {selectedSport && (
-                  <span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm">
-                    {selectedSport}
-                  </span>
-                )}
+              <p className={selectedSport ? "text-xl font-extrabold text-slate-900" : "text-xs font-bold text-slate-900"}>
+                {selectedSport ? "Select Slots" : "Select Date & Time"}
+              </p>
+              {/* Mobile shows the game chips in the page header; desktop/embedded show them here. */}
+              <div className={embedded ? "mt-2" : "mt-2 hidden lg:block"}>
+                <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} />
               </div>
 
-              {/* Date Slider */}
-              <div className="mt-3 flex items-center justify-between border-b border-slate-100 pb-1.5">
-                <div className="flex items-center gap-2">
+              {/* Month header — year locked to the running year; expand icon opens the full calendar */}
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    disabled={visibleYear === today.getFullYear() && visibleMonth === today.getMonth()}
+                    disabled={visibleMonth === today.getMonth()}
                     onClick={() => {
-                      // prev month
-                      if (visibleMonth === 0) {
-                        setVisibleMonth(11);
-                        setVisibleYear((y) => y - 1);
-                      } else {
-                        setVisibleMonth((m) => m - 1);
-                      }
+                      // prev month — never earlier than the current month, year stays locked
+                      if (visibleMonth > today.getMonth()) setVisibleMonth((m) => m - 1);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    <ChevronLeft size={14} />
+                    <ChevronLeft size={16} />
                   </button>
-
-                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                  <span className="text-lg font-extrabold uppercase tracking-wide text-slate-900">
                     {activeMonthLabel}
                   </span>
-
-                  <select
-                    value={visibleYear}
-                    onChange={(e) => {
-                      const yr = Number(e.target.value);
-                      setVisibleYear(yr);
-                      if (yr === today.getFullYear() && visibleMonth < today.getMonth()) {
-                        setVisibleMonth(today.getMonth());
-                      }
-                    }}
-                    className="ml-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg outline-none cursor-pointer"
-                  >
-                    {Array.from({ length: 5 }).map((_, i) => {
-                      const yr = today.getFullYear() + i;
-                      return (
-                        <option key={yr} value={yr}>{yr}</option>
-                      );
-                    })}
-                  </select>
-
                   <button
                     type="button"
+                    disabled={visibleMonth === 11}
                     onClick={() => {
-                      // next month
-                      if (visibleMonth === 11) {
-                        setVisibleMonth(0);
-                        setVisibleYear((y) => y + 1);
-                      } else {
-                        setVisibleMonth((m) => m + 1);
-                      }
+                      // next month — stops at December so the year can't roll over
+                      if (visibleMonth < 11) setVisibleMonth((m) => m + 1);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    <ChevronRight size={14} />
+                    <ChevronRight size={16} />
                   </button>
                 </div>
-              </div>
-
-              <div className="relative flex items-center gap-1 mt-2 overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => {
-                    const el = document.getElementById("date-scroll-container");
-                    if (el) el.scrollBy({ left: -80, behavior: "smooth" });
-                  }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100"
+                  onClick={() => setCalendarExpanded((v) => !v)}
+                  aria-label={calendarExpanded ? "Collapse calendar" : "Expand calendar"}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-50"
                 >
-                  <ChevronLeft size={14} />
+                  {calendarExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
+              </div>
 
-                <div
-                  id="date-scroll-container"
-                  className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-1 min-w-0"
-                >
+              {calendarExpanded ? (
+                /* Full month calendar */
+                <div className="mt-2">
+                  <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase text-slate-400">
+                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                      <span key={`${d}-${i}`} className="py-1.5">{d}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-1.5">
+                    {monthGrid.map((cell, i) =>
+                      cell ? (
+                        <button
+                          key={cell.iso}
+                          type="button"
+                          disabled={cell.isPast}
+                          onClick={() => {
+                            setDate(cell.iso);
+                            setDateSelected(true);
+                          }}
+                          className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold transition ${
+                            date === cell.iso
+                              ? "bg-slate-900 text-white shadow-md"
+                              : cell.isPast
+                              ? "cursor-not-allowed text-slate-300"
+                              : "text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {cell.dayNum}
+                        </button>
+                      ) : (
+                        <span key={`blank-${i}`} />
+                      )
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Compact date strip — weekday over a big date number, dot under the selected day */
+                <div className="mt-2 flex gap-3 overflow-x-auto pb-1 scrollbar-none">
                   {dateOptions.map((opt) => {
                     const isSelected = date === opt.iso;
                     return (
@@ -694,34 +810,24 @@ function ReviewStep(props: {
                           setDate(opt.iso);
                           setDateSelected(true);
                         }}
-                        className={`flex flex-col items-center justify-center min-w-[52px] h-14 shrink-0 rounded-xl border transition ${
-                          isSelected
-                            ? "border-slate-900 bg-slate-900 shadow-md"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
+                        className="flex w-12 shrink-0 flex-col items-center gap-1"
                       >
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? "text-emerald-500" : "text-slate-400"}`}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           {opt.weekday}
                         </span>
-                        <span className={`text-base font-extrabold mt-px ${isSelected ? "text-white" : "text-slate-700"}`}>
+                        <span
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg font-extrabold transition ${
+                            isSelected ? "bg-slate-900 text-white shadow-md" : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
                           {opt.dayNum}
                         </span>
+                        <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-slate-900" : "bg-transparent"}`} />
                       </button>
                     );
                   })}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById("date-scroll-container");
-                    if (el) el.scrollBy({ left: 80, behavior: "smooth" });
-                  }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100"
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
+              )}
 
               {!dateSelected ? (
                 <div className="mt-4 text-center py-4 bg-slate-50 border border-dashed rounded-2xl">
@@ -737,6 +843,7 @@ function ReviewStep(props: {
                       onChange={(e) => setActiveDaypart(e.target.value)}
                       className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg outline-none cursor-pointer"
                     >
+                      <option value="All">All Times</option>
                       <option value="Morning">Morning</option>
                       <option value="Afternoon">Afternoon</option>
                       <option value="Evening">Evening</option>
@@ -751,83 +858,99 @@ function ReviewStep(props: {
                     </div>
                   ) : (
                     <>
-                      <div className="relative flex items-center gap-1.5 mt-2 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const el = document.getElementById("slots-scroll-container");
-                            if (el) el.scrollBy({ left: -100, behavior: "smooth" });
-                          }}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100 hover:bg-slate-50"
-                        >
-                          <ChevronLeft size={14} />
-                        </button>
-
-                        <div
-                          id="slots-scroll-container"
-                          className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-1 min-w-0"
-                        >
-                          {filteredGeneratedSlots.length === 0 ? (
-                            <p className="text-xs text-slate-500 italic py-3 w-full text-center">No slots available for {activeDaypart}.</p>
-                          ) : (
-                            filteredGeneratedSlots.map((slot) => {
-                              const isSelected = selectedSlotIndex === slot.originalIndex;
-                              const isAvailable = slot.status === "Available";
-                              const isBooked = slot.status === "Booked";
-                              const isPartPaid = slot.status === "Part Paid";
-
-                              let cardStyle = "border-2 border-dashed border-emerald-200 bg-white hover:border-emerald-400 text-emerald-700 cursor-pointer";
-                              let statusIcon = <Plus className="h-3.5 w-3.5 text-emerald-500 font-bold" />;
-                              let statusLabel = "FREE";
-
-                              if (isSelected) {
-                                cardStyle = "border-2 border-solid border-[#0b1226] bg-[#0b1226] text-white shadow-md cursor-pointer font-extrabold";
-                                statusIcon = <Check className="h-3.5 w-3.5 text-emerald-400 font-bold" />;
-                              } else if (isBooked) {
-                                cardStyle = "border-2 border-solid border-rose-100 bg-rose-50/50 text-rose-600 cursor-not-allowed opacity-65";
-                                statusIcon = <X className="h-3.5 w-3.5 text-rose-500" />;
-                                statusLabel = "Booked";
-                              } else if (isPartPaid) {
-                                cardStyle = "border-2 border-solid border-amber-100 bg-amber-50/50 text-amber-700 cursor-not-allowed opacity-65";
-                                statusIcon = <Clock className="h-3.5 w-3.5 text-amber-500" />;
-                                statusLabel = "Part Paid";
-                              }
-
-                              return (
-                                <button
-                                  key={slot.originalIndex}
-                                  type="button"
-                                  disabled={!isAvailable}
-                                  onClick={() => setSelectedSlotIndex(slot.originalIndex)}
-                                  className={`flex flex-col items-center justify-center rounded-2xl p-2.5 text-center transition min-w-[105px] h-[92px] shrink-0 ${cardStyle}`}
-                                >
-                                  <p className={`text-[10px] uppercase font-extrabold tracking-wide leading-tight ${isSelected ? "text-white/90" : "text-slate-800"}`}>
-                                    {slot.startTime12.replace(":00", "")}
-                                    <br />
-                                    {slot.endTime12.replace(":00", "")}
-                                  </p>
-                                  <div className="my-1 flex flex-col items-center justify-center">
-                                    {statusIcon}
-                                    <span className={`text-[8px] uppercase font-extrabold tracking-wider mt-0.5 ${isSelected ? "text-emerald-300" : ""}`}>{statusLabel}</span>
-                                  </div>
-                                  <p className={`text-[11px] font-bold ${isSelected ? "text-white" : "text-slate-700"}`}>₹{slot.price}</p>
-                                </button>
-                              );
-                            })
-                          )}
+                      {/* Time card — selected range on the left, duration stepper on the right */}
+                      <div className="mt-2 flex items-stretch overflow-hidden rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex-1 rounded-r-3xl bg-gradient-to-r from-sky-100/90 via-sky-50 to-white p-3.5">
+                          <p className="text-[15px] font-bold text-slate-800">Time</p>
+                          <p className="mt-0.5 text-[13px] font-semibold text-slate-600">
+                            {selectedSlot ? `${selectedSlot.startTime12} - ${selectedSlot.endTime12}` : "Pick a start time below"}
+                          </p>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const el = document.getElementById("slots-scroll-container");
-                            if (el) el.scrollBy({ left: 100, behavior: "smooth" });
-                          }}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow border border-slate-100 hover:bg-slate-50"
-                        >
-                          <ChevronRight size={14} />
-                        </button>
+                        <div className="flex items-center gap-2.5 px-3.5">
+                          <button
+                            type="button"
+                            disabled={durationMin <= 30}
+                            onClick={() => setDurationMin(Math.max(30, durationMin - 30))}
+                            aria-label="Decrease duration"
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="whitespace-nowrap text-[13px] font-bold text-slate-800">{durationMin} Mins</span>
+                          <button
+                            type="button"
+                            disabled={durationMin >= maxDurationMin}
+                            onClick={() => setDurationMin(Math.min(maxDurationMin, durationMin + 30))}
+                            aria-label="Increase duration"
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Time ruler — tap a time to set the start; the green band shows the selected range */}
+                      {filteredGeneratedSlots.length === 0 ? (
+                        <p className="mt-3 py-3 text-center text-xs italic text-slate-500">
+                          {activeDaypart === "All" ? "No slots available on this date." : `No slots available for ${activeDaypart}.`}
+                        </p>
+                      ) : (
+                        <div className="mt-3 overflow-x-auto pb-1 scrollbar-none">
+                          {(() => {
+                            const selStartM = selectedSlot ? time24ToMinutes(selectedSlot.startTime) : -1;
+                            const selEndM = selectedSlot ? selStartM + durationMin : -1;
+                            const cols = filteredGeneratedSlots.map((slot) => {
+                              const m = time24ToMinutes(slot.startTime);
+                              return { slot, inRange: selectedSlot ? m >= selStartM && m < selEndM : false };
+                            });
+                            const lastInRange = cols.reduce((acc, c, i) => (c.inRange ? i : acc), -1);
+                            return (
+                              <div className="flex min-w-max">
+                                {cols.map(({ slot, inRange }, i) => {
+                                  const available = slot.status === "Available";
+                                  const isStartCol = selectedSlot && slot.originalIndex === selectedSlotIndex;
+                                  const isEndCol = i === lastInRange;
+                                  return (
+                                    <button
+                                      key={slot.originalIndex}
+                                      type="button"
+                                      disabled={!available}
+                                      title={available ? `${slot.startTime12} · ₹${slot.price}` : `${slot.startTime12} · ${slot.status}`}
+                                      onClick={() => setSelectedSlotIndex(slot.originalIndex)}
+                                      className="flex w-[74px] shrink-0 flex-col items-stretch"
+                                    >
+                                      <span
+                                        className={`text-center text-[11px] font-bold ${
+                                          !available ? "text-slate-300 line-through" : inRange ? "text-slate-900" : "text-slate-500"
+                                        }`}
+                                      >
+                                        {slot.startTime12}
+                                      </span>
+                                      <span className="mx-auto mt-1 h-2 w-px bg-slate-300" />
+                                      <span className={`mt-1 h-1.5 w-full ${inRange ? "bg-emerald-500" : "bg-slate-200"}`} />
+                                      <span className="relative h-5">
+                                        {isStartCol && (
+                                          <span className="absolute left-0 top-0 -translate-x-1/2 text-[13px] leading-none text-slate-800">▲</span>
+                                        )}
+                                        {isEndCol && (
+                                          <span className="absolute right-0 top-0 translate-x-1/2 text-[13px] leading-none text-slate-800">▲</span>
+                                        )}
+                                      </span>
+                                      <span
+                                        className={`text-center text-[9px] font-bold ${
+                                          available ? "text-slate-400" : slot.status === "Booked" ? "text-rose-400" : "text-amber-500"
+                                        }`}
+                                      >
+                                        {available ? `₹${slot.price}` : slot.status}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
 
                       {selectedSlotIndex !== -1 && generatedSlots[selectedSlotIndex] && (
                         <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
@@ -836,28 +959,6 @@ function ReviewStep(props: {
                         </div>
                       )}
 
-                      {/* Duration slider */}
-                      <div className="mt-3 border-t border-slate-100 pt-3">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Duration</span>
-                          <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-                            {formatDurationText(durationMin)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">30m</span>
-                          <input
-                            type="range"
-                            min={30}
-                            max={240}
-                            step={30}
-                            value={durationMin}
-                            onChange={(e) => setDurationMin(Number(e.target.value))}
-                            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
-                          />
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">4 hrs</span>
-                        </div>
-                      </div>
                     </>
                   )}
                 </>
@@ -899,15 +1000,12 @@ function ReviewStep(props: {
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900">{listing.title}</h3>
                   <p className="mt-0.5 text-xs font-medium text-slate-500">
-                    {selectedSport ? `${selectedSport} • ` : ""}{listing.type === "Turf" ? `Court 2 (Synthetic)` : listing.type}
+                    {selectedSport ? `${selectedSport} • ` : ""}{listing.type}
                   </p>
                 </div>
                 {selectedSport && (
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 text-lg">
-                    {selectedSport.toLowerCase().includes("badminton") ? "🏸" : 
-                     selectedSport.toLowerCase().includes("cricket") ? "🏏" : 
-                     selectedSport.toLowerCase().includes("pickleball") ? "🏓" : 
-                     selectedSport.toLowerCase().includes("tennis") ? "🎾" : "⚽"}
+                    {sportEmoji(selectedSport)}
                   </span>
                 )}
               </div>

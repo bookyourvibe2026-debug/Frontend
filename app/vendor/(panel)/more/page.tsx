@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
 import { NAV_ITEMS_BY_VERTICAL, SHARED_NAV_ITEMS, MOBILE_NAV_ORDER } from "@/components/vendor/Sidebar";
+import { LastMinBoostSheet } from "@/components/vendor/LastMinBoostSheet";
 import type { VendorVertical } from "@/lib/api/types";
 import { 
   Zap, 
@@ -54,6 +55,7 @@ export default function MorePage() {
 
   const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
   const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
+  const [boostOpen, setBoostOpen] = useState(false);
 
   useEffect(() => {
     if (!vendor) return;
@@ -192,42 +194,70 @@ export default function MorePage() {
         <ChevronRight size={16} className="text-ink-faint" />
       </Link>
 
-      {/* Links List */}
-      <div className="bg-white border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden mb-5 shadow-sm">
-        {overflowItems.map(({ href, label, icon: Icon, external }) => {
-          const body = (
-            <>
-              <div className="flex items-center gap-3">
-                <Icon size={18} strokeWidth={2} className="text-ink-faint" />
-                <span>{label}</span>
+      {/* Links list, grouped by what the vendor is trying to do. */}
+      {(() => {
+        const CATEGORY_BY_HREF: Record<string, string> = {
+          "/vendor/payments": "Business",
+          "/vendor/memberships": "Business",
+          "/vendor/statistics": "Business",
+          "/vendor/listings": "Business",
+          "/vendor/insights": "Business",
+          "/vendor/role-access": "Account",
+          "/vendor/profile": "Account",
+          "/vendor/privacy-security": "Account",
+        };
+        const groups: { title: string; items: MoreLink[] }[] = [
+          { title: "Business", items: [] },
+          { title: "Account", items: [] },
+          { title: "Support", items: [] },
+        ];
+        for (const item of overflowItems) {
+          const title = item.external ? "Support" : CATEGORY_BY_HREF[item.href] ?? "Business";
+          groups.find((g) => g.title === title)!.items.push(item);
+        }
+        return groups
+          .filter((g) => g.items.length > 0)
+          .map((g) => (
+            <div key={g.title} className="mb-5">
+              <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-ink-faint">{g.title}</p>
+              <div className="bg-white border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden shadow-sm">
+                {g.items.map(({ href, label, icon: Icon, external }) => {
+                  const body = (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Icon size={18} strokeWidth={2} className="text-ink-faint" />
+                        <span>{label}</span>
+                      </div>
+                      <ChevronRight size={16} className="text-ink-faint/60" />
+                    </>
+                  );
+                  const cls =
+                    "flex items-center justify-between px-4 py-3.5 hover:bg-cream-200/40 transition-colors text-sm font-medium text-ink-soft";
+                  // WhatsApp support leaves the app, so it needs a plain anchor.
+                  return external ? (
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+                      {body}
+                    </a>
+                  ) : (
+                    <Link key={href} href={href} className={cls}>
+                      {body}
+                    </Link>
+                  );
+                })}
               </div>
-              <ChevronRight size={16} className="text-ink-faint/60" />
-            </>
-          );
-          const cls =
-            "flex items-center justify-between px-4 py-3.5 hover:bg-cream-200/40 transition-colors text-sm font-medium text-ink-soft";
-          // WhatsApp support leaves the app, so it needs a plain anchor.
-          return external ? (
-            <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={cls}>
-              {body}
-            </a>
-          ) : (
-            <Link key={href} href={href} className={cls}>
-              {body}
-            </Link>
-          );
-        })}
-      </div>
+            </div>
+          ));
+      })()}
 
       {/* Actions */}
       <div className="space-y-3 mb-6">
-        <Link
-          href="/vendor/marketing#boost"
+        <button
+          onClick={() => setBoostOpen(true)}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#dc2626] py-3 text-sm font-semibold text-white shadow-md hover:bg-red-700 transition-colors"
         >
           <Zap size={16} className="fill-white" />
           Last Min Boost
-        </Link>
+        </button>
 
         <a
           href="mailto:support@bookyourvibes.com?subject=Vendor Support Request"
@@ -281,6 +311,8 @@ export default function MorePage() {
           </a>
         </div>
       </div>
+
+      {boostOpen && <LastMinBoostSheet onClose={() => setBoostOpen(false)} />}
     </div>
   );
 }
