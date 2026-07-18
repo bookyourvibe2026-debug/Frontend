@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, MapPin, Plus, Ticket, Users } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye } from "lucide-react";
 import { PageHero } from "@/components/vendor/ui";
-import { PackageStudio } from "@/components/vendor/PackageStudio";
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { Toast } from "@/components/admin/Toast";
 import { getVendorListings, createVendorListing } from "@/lib/api/vendor";
 import { mockListingToApiInput } from "@/lib/api/listingAdapter";
@@ -39,9 +40,8 @@ export default function EventListingsPage() {
   if (creating) {
     return (
       <>
-        <PackageStudio
+        <EventStudio
           mode="create"
-          initialType="Event"
           audience="vendor"
           onClose={() => setCreating(false)}
           onSave={handleSave}
@@ -95,15 +95,27 @@ export default function EventListingsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {listings.map((l) => (
             <div key={l._id} className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
-              <div className="h-32 w-full bg-cream-300">
-                {l.coverImage ? (
+              <div className="h-32 w-full bg-cream-300 relative">
+                {l.coverImage || l.images?.[0]?.url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={l.coverImage} alt={l.title} className="h-full w-full object-cover" />
+                  <img src={l.coverImage || l.images[0].url} alt={l.title} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-ink-faint">
                     <Ticket size={28} />
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/venues/${l.slug || l._id}`;
+                    navigator.clipboard.writeText(shareUrl);
+                    setToast("Event link copied to clipboard!");
+                  }}
+                  className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition hover:bg-black/80"
+                  title="Share Event"
+                >
+                  <Share2 size={13} />
+                </button>
               </div>
               <div className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -125,6 +137,14 @@ export default function EventListingsPage() {
                 <p className="pt-1 text-sm font-semibold text-ink">
                   {l.price === 0 ? "Free entry" : `₹${l.price.toLocaleString("en-IN")}`}
                 </p>
+                <div className="pt-3 border-t border-slate-100">
+                  <Link
+                    href={`/vendor/listings/${l._id}`}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-vibe-violet text-white text-xs font-semibold py-2 hover:bg-vibe-violetSoft transition-colors"
+                  >
+                    <Eye size={14} /> Manage Event
+                  </Link>
+                </div>
               </div>
             </div>
           ))}

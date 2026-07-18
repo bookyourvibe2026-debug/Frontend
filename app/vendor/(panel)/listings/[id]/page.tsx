@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { uploadVendorImage } from "@/lib/api/uploads";
 import { Listing } from "@/lib/types";
@@ -105,7 +106,11 @@ export default function ListingDetailPage() {
       </div>
 
       {studioOpen && (
-        <PackageStudio mode="edit" initialListing={listing} onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />
+        listing.type === "Event" ? (
+          <EventStudio mode="edit" initialListing={listing} onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />
+        ) : (
+          <PackageStudio mode="edit" initialListing={listing} onClose={() => setStudioOpen(false)} onSave={handleStudioSave} />
+        )
       )}
 
       <Toast message={toast} onDone={() => setToast(null)} />

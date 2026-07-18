@@ -169,7 +169,8 @@ export default function VenueDetailPage() {
   // gallery built from the banner + any extra photos (images[1..]), falling back to
   // the poster alone when nothing else was uploaded.
   const allImageUrls = venue.images.map((img) => img.url).filter(Boolean);
-  const galleryImages = (allImageUrls.length > 1 ? allImageUrls.slice(1) : allImageUrls).slice(0, 4);
+  const galleryImages = allImageUrls.slice(0, 10);
+  console.log("DEBUG VENUE:", venue.title, "images:", venue.images, "allImageUrls:", allImageUrls, "galleryImages:", galleryImages);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -229,6 +230,32 @@ export default function VenueDetailPage() {
               <h2 className="text-lg font-extrabold text-slate-900">Summary</h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{venue.description}</p>
             </section>
+
+            {venue.videoUrl && (
+              <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
+                  🎥 Event Video
+                </h2>
+                <div className="mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-black border border-slate-100 shadow-sm">
+                  {venue.videoUrl.includes("youtube.com") || venue.videoUrl.includes("youtu.be") ? (
+                    <iframe
+                      src={getYouTubeEmbedUrl(venue.videoUrl)}
+                      className="h-full w-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : venue.videoUrl.includes("vimeo.com") ? (
+                    <iframe
+                      src={getVimeoEmbedUrl(venue.videoUrl)}
+                      className="h-full w-full border-0"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video src={venue.videoUrl} controls className="h-full w-full" />
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* Same info the mobile view shows — specs, weather, sports, amenities, players, reviews. */}
             {!isEvent && (
@@ -896,6 +923,30 @@ function MobileVenueDetail({
           <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
         </section>
 
+        {venue.videoUrl && (
+          <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-extrabold text-slate-900">🎥 Event Video</h2>
+            <div className="mt-3 aspect-video w-full overflow-hidden rounded-2xl bg-black border border-slate-100 shadow-sm">
+              {venue.videoUrl.includes("youtube.com") || venue.videoUrl.includes("youtu.be") ? (
+                <iframe
+                  src={getYouTubeEmbedUrl(venue.videoUrl)}
+                  className="h-full w-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : venue.videoUrl.includes("vimeo.com") ? (
+                <iframe
+                  src={getVimeoEmbedUrl(venue.videoUrl)}
+                  className="h-full w-full border-0"
+                  allowFullScreen
+                />
+              ) : (
+                <video src={venue.videoUrl} controls className="h-full w-full" />
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Itinerary + FAQs from the event form */}
         {venue.type === "Event" && <EventItineraryFaqs itinerary={venue.itinerary} faqs={venue.faqs} />}
           </>
@@ -935,4 +986,30 @@ function MobileVenueDetail({
       )}
     </div>
   );
+}
+
+function getYouTubeEmbedUrl(url: string): string {
+  try {
+    let videoId = "";
+    if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1].split(/[?#]/)[0];
+    } else if (url.includes("youtube.com/watch")) {
+      const match = url.match(/[?&]v=([^&#]+)/);
+      videoId = match ? match[1] : "";
+    } else if (url.includes("youtube.com/embed/")) {
+      videoId = url.split("youtube.com/embed/")[1].split(/[?#]/)[0];
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  } catch {
+    return url;
+  }
+}
+
+function getVimeoEmbedUrl(url: string): string {
+  try {
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? `https://player.vimeo.com/video/${match[1]}` : url;
+  } catch {
+    return url;
+  }
 }

@@ -8,6 +8,7 @@ import type { AdminListingInput } from "./admin";
 export function apiListingToMock(listing: ApiListing): MockListing {
   return {
     id: listing._id,
+    slug: listing.slug,
     title: listing.title,
     type: listing.type,
     categories: listing.categories,
@@ -21,6 +22,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     ownerName: listing.ownerName,
     sharedWithVendors: listing.sharedWithVendors,
     coverImage: listing.coverImage,
+    videoUrl: listing?.videoUrl,
     images: listing.images,
     country: listing.country,
     city: listing.city,
@@ -40,6 +42,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     faqs: listing.faqs,
     tags: listing.tags,
     priceTiers: listing.priceTiers,
+    capacity: listing.capacity,
     addOns: listing.addOns,
     coupons: listing.coupons,
     bookingType: listing.bookingType,

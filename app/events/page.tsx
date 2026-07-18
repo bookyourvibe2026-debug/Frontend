@@ -39,7 +39,7 @@ export default function EventsPage() {
 
           <div className="flex flex-col gap-3">
             {events.map((event) => (
-              <Link key={event._id} href={`/venues/${event._id}`}>
+              <Link key={event._id} href={`/venues/${event.slug || event._id}`}>
                 <MobileCard className="!p-4">
                   <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
                     {event.coverImage && (
@@ -119,7 +119,7 @@ export default function EventsPage() {
                   )}
                 </div>
                 <Link
-                  href={`/venues/${event._id}`}
+                  href={`/venues/${event.slug || event._id}`}
                   className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
                 >
                   RSVP

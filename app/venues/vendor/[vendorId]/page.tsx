@@ -112,7 +112,7 @@ export default function VendorProfilePage() {
               {filteredListings.map((listing) => (
                 <Link
                   key={listing._id}
-                  href={`/venues/${listing._id}`}
+                  href={`/venues/${listing.slug || listing._id}`}
                   className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-5 text-white">

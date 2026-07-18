@@ -40,6 +40,7 @@ export interface Faq {
 
 export interface Listing {
   _id: string;
+  slug?: string;
   title: string;
   type: ListingType;
   categories: string[];
@@ -73,6 +74,7 @@ export interface Listing {
   inclusions: string[];
   exclusions: string[];
   itinerary: ItineraryDay[];
+  videoUrl: string;
   faqs: Faq[];
   tags: string[];
   priceTiers: PriceTier[];

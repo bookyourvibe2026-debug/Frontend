@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PackageStudio } from "@/components/vendor/PackageStudio";
-import { HostEventForm } from "@/components/vendor/HostEventForm";
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { Listing as MockListing, ListingType } from "@/lib/types";
 import { Listing } from "@/lib/api/types";
 import { createVendorListing } from "@/lib/api/vendor";
@@ -27,12 +27,14 @@ function NewListingStudio() {
     }
   }
 
-  function handleEventSaved(listing: Listing) {
-    router.push(`/vendor/listings/${listing._id}`);
-  }
-
   if (kind === "event") {
-    return <HostEventForm onClose={() => router.push("/vendor/listings")} onSaved={handleEventSaved} />;
+    return (
+      <EventStudio
+        mode="create"
+        onClose={() => router.push("/vendor/listings")}
+        onSave={handleSave}
+      />
+    );
   }
 
   return (

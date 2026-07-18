@@ -41,6 +41,7 @@ export type BookingType = "Recurring" | "Trips" | "Courses";
 
 export interface Listing {
   id: string;
+  slug?: string;
   title: string;
   type: ListingType;
   gameVenue?: "indoor" | "outdoor" | "both";
@@ -55,6 +56,7 @@ export interface Listing {
   ownerName?: string;
   sharedWithVendors?: boolean;
   coverImage?: string;
+  videoUrl?: string;
   images: ListingImage[];
   country?: string;
   city: string;
@@ -74,6 +76,7 @@ export interface Listing {
   faqs: ListingFAQ[];
   tags: string[];
   priceTiers: PriceTier[];
+  capacity?: number;
   addOns?: AddOn[];
   coupons?: Coupon[];
   bookingType: BookingType;

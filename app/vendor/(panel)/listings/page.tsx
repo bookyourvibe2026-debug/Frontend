@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Eye, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, Eye, Plus, Search, Share2, Trash2 } from "lucide-react";
 import { PageHero, Badge } from "@/components/vendor/ui";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { Toast } from "@/components/admin/Toast";
@@ -139,6 +139,11 @@ export default function ListingsPage() {
             listing={listing}
             onClone={() => handleClone(listing)}
             onDelete={() => handleDelete(listing)}
+            onShare={() => {
+              const shareUrl = `${window.location.origin}/venues/${listing.slug || listing.id}`;
+              navigator.clipboard.writeText(shareUrl);
+              setToast("Listing link copied to clipboard!");
+            }}
           />
         ))}
         {loading && (
@@ -184,10 +189,12 @@ function ListingCard({
   listing,
   onClone,
   onDelete,
+  onShare,
 }: {
   listing: Listing;
   onClone: () => void;
   onDelete: () => void;
+  onShare: () => void;
 }) {
   return (
     <div className="rounded-xl2 border border-surface-border bg-white overflow-hidden shadow-panel flex flex-col">
@@ -198,6 +205,14 @@ function ListingCard({
             {listing.status}
           </Badge>
         </div>
+        <button
+          type="button"
+          onClick={onShare}
+          className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/40"
+          title="Share Link"
+        >
+          <Share2 size={13} />
+        </button>
         <p className="text-white/80 text-[11px] font-semibold tracking-wide uppercase">
           {listing.categories.map(categoryLabel).join(", ") || "Uncategorized"}
         </p>

@@ -74,27 +74,27 @@ export function ImageCarousel({
             type="button"
             onClick={() => goTo(Math.max(0, active - 1))}
             aria-label="Previous image"
-            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             type="button"
             onClick={() => goTo(Math.min(images.length - 1, active + 1))}
             aria-label="Next image"
-            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           </button>
 
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 z-10">
             {images.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => goTo(i)}
                 aria-label={`Go to image ${i + 1}`}
-                className={`h-1.5 rounded-full transition-all ${active === i ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+                className={`h-1.5 rounded-full transition-all ${active === i ? "w-5 bg-white shadow-sm" : "w-1.5 bg-white/50"}`}
               />
             ))}
           </div>

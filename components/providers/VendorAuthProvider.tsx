@@ -8,7 +8,7 @@ interface VendorAuthContextValue {
   logout: () => Promise<void>;
 }
 
-const VendorAuthContext = createContext<VendorAuthContextValue | null>(null);
+export const VendorAuthContext = createContext<VendorAuthContextValue | null>(null);
 
 export function VendorAuthProvider({
   vendor,

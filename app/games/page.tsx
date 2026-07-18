@@ -118,7 +118,7 @@ export default function GamesPage() {
                         <p className="mt-1 text-sm font-bold text-slate-900">₹{event.price.toLocaleString("en-IN")}</p>
                       </div>
                       <Link
-                        href={`/venues/${event._id}`}
+                        href={`/venues/${event.slug || event._id}`}
                         className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
                       >
                         View details
@@ -159,7 +159,7 @@ export default function GamesPage() {
                       <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
                     </div>
                     <Link
-                      href={`/venues/${venue._id}`}
+                      href={`/venues/${venue.slug || venue._id}`}
                       className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
                     >
                       View details
@@ -271,7 +271,7 @@ export default function GamesPage() {
               {events.map((event) => (
                 <Link
                   key={event._id}
-                  href={`/venues/${event._id}`}
+                  href={`/venues/${event.slug || event._id}`}
                   className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
@@ -313,7 +313,7 @@ export default function GamesPage() {
             {venues.map((venue) => (
               <Link
                 key={venue._id}
-                href={`/venues/${venue._id}`}
+                href={`/venues/${venue.slug || venue._id}`}
                 className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">

@@ -65,7 +65,7 @@ function VenuesPageInner() {
                     <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
                   </div>
                   <Link
-                    href={`/venues/${venue._id}`}
+                    href={`/venues/${venue.slug || venue._id}`}
                     className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
                   >
                     View details
@@ -131,7 +131,7 @@ function VenuesPageInner() {
                   <p className="mt-1 text-lg font-bold text-slate-950">₹{venue.price.toLocaleString("en-IN")}/hr</p>
                 </div>
                 <Link
-                  href={`/venues/${venue._id}`}
+                  href={`/venues/${venue.slug || venue._id}`}
                   className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
                 >
                   View details
