@@ -45,7 +45,7 @@ export default function GamesPage() {
   useEffect(() => {
     Promise.all([
       browseVenues({ type: "Event", limit: 4 }),
-      browseVenues({ limit: 8 }),
+      browseVenues({ type: "Turf", limit: 8 }),  // Only Turf/Game — Events have their own section above
     ])
       .then(([eventsResult, venuesResult]) => {
         setEvents(eventsResult.items);
