@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -80,6 +80,15 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [appMode, setAppMode] = useState<VendorVertical>(verticals[0] ?? "turf");
+
+  useEffect(() => {
+    const matched = verticals.find((v) =>
+      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
+    );
+    if (matched) {
+      setAppMode(matched);
+    }
+  }, [pathname, verticals]);
 
   const activeMode = verticals.includes(appMode) ? appMode : verticals[0] ?? "turf";
   const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...SHARED_NAV_ITEMS];

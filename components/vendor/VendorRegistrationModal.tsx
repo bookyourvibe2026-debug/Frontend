@@ -85,6 +85,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [captcha, setCaptcha] = useState(() => makeCaptcha());
   const [captchaAnswer, setCaptchaAnswer] = useState("");
@@ -112,8 +113,18 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
       if (!data.ownerName.trim()) e.ownerName = "Owner name is required.";
     }
     if (p === 2) {
-      if (data.password.length < 8) e.password = "Password must be at least 8 characters.";
-      if (data.password !== data.confirmPassword) e.confirmPassword = "Passwords do not match.";
+      if (data.password.length < 8) {
+        e.password = "Password must be at least 8 characters.";
+      } else if (!/[a-z]/.test(data.password)) {
+        e.password = "Password must contain a lowercase letter.";
+      } else if (!/[A-Z]/.test(data.password)) {
+        e.password = "Password must contain an uppercase letter.";
+      } else if (!/[0-9]/.test(data.password)) {
+        e.password = "Password must contain a number.";
+      }
+      if (data.password !== data.confirmPassword) {
+        e.confirmPassword = "Passwords do not match.";
+      }
     }
     if (p === 3) {
       // Bank details are optional at registration — only validate format if the vendor chose to fill them in.
@@ -195,8 +206,11 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   async function finishSetup() {
     if (!validatePhase(5)) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onSubmit(data);
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.describe() : err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -549,6 +563,12 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                   </span>
                 </label>
                 {errors.acceptedTerms && <p className="text-xs text-red-600">{errors.acceptedTerms}</p>}
+
+                {submitError && (
+                  <p className="mt-4 text-xs font-semibold text-red-600 rounded-xl bg-red-500/10 px-4 py-3">
+                    {submitError}
+                  </p>
+                )}
               </>
             )}
           </div>

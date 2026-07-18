@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Lock, Bell, Info, Cloud, ArrowUpRight, ArrowDownRight, UserPlus, FileText, Plus, Ban, Trophy, Megaphone, MoreVertical, Calendar, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getMpinStatus, setMpin, verifyMpin, getVendorDashboardStats, exportVendorBookings, updateVendorProfile, getVendorListings, getVendorProfile, type VendorDashboardStats } from "@/lib/api/vendor";
 import type { Listing } from "@/lib/api/types";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
@@ -11,6 +12,22 @@ import { EarningsAndExpenses } from "@/components/vendor/dashboard/EarningsAndEx
 
 export default function DashboardPage() {
   const { vendor } = useVendorAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (vendor && !vendor.verticals.includes("turf")) {
+      const landingByVertical: Record<string, string> = {
+        food: "/vendor/food/dashboard",
+        events: "/vendor/events/dashboard",
+        coaches: "/vendor/coaches/dashboard",
+      };
+      const path = landingByVertical[vendor.verticals[0]];
+      if (path) {
+        router.replace(path);
+      }
+    }
+  }, [vendor, router]);
+
   const vendorName = isVendorOwner(vendor) ? vendor.businessName : vendor.holderName;
   const [stats, setStats] = useState<VendorDashboardStats | null>(null);
   const [pinMode, setPinMode] = useState<"loading" | "create" | "create_confirm" | "enter" | "unlocked">("loading");

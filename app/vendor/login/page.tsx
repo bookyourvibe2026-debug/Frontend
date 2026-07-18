@@ -70,7 +70,17 @@ function VendorLoginInner() {
     restoreVendorSession().then((vendor) => {
       if (vendor) {
         setRedirecting(true);
-        router.replace(redirectTo);
+        let targetPath = redirectTo;
+        if (redirectTo === "/vendor/dashboard") {
+          const landingByVertical: Record<string, string> = {
+            turf: "/vendor/dashboard",
+            food: "/vendor/food/dashboard",
+            events: "/vendor/events/dashboard",
+            coaches: "/vendor/coaches/dashboard",
+          };
+          targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/dashboard";
+        }
+        router.replace(targetPath);
       }
     });
   }, [redirectTo, router]);
@@ -96,8 +106,18 @@ function VendorLoginInner() {
 
     setLoading(true);
     try {
-      await vendorLogin({ email: identifier.trim(), password });
-      router.replace(redirectTo);
+      const vendor = await vendorLogin({ email: identifier.trim(), password });
+      let targetPath = redirectTo;
+      if (redirectTo === "/vendor/dashboard") {
+        const landingByVertical: Record<string, string> = {
+          turf: "/vendor/dashboard",
+          food: "/vendor/food/dashboard",
+          events: "/vendor/events/dashboard",
+          coaches: "/vendor/coaches/dashboard",
+        };
+        targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/dashboard";
+      }
+      router.replace(targetPath);
     } catch (err) {
       setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     } finally {
