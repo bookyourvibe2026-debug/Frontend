@@ -71,7 +71,7 @@ export default function BottomNav({
             <Link
               key={href}
               href={href}
-              className="flex flex-1 flex-col items-center justify-end gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
+              className="flex flex-1 flex-col items-center justify-end text-center gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
             >
               <span
                 className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-colors ${
@@ -80,7 +80,7 @@ export default function BottomNav({
               >
                 <Icon size={22} strokeWidth={2} className="text-white" />
               </span>
-              <span className={active ? "text-vibe-violet" : "text-ink-faint"}>{label}</span>
+              <span className={active ? "text-vibe-violet" : "text-ink-faint"}>{SHORT_LABELS[label] ?? label}</span>
             </Link>
           );
         }
@@ -89,7 +89,7 @@ export default function BottomNav({
           <Link
             key={href}
             href={href}
-            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${
+            className={`flex flex-1 flex-col items-center text-center gap-1 py-2.5 text-[11px] font-medium ${
               active ? "text-vibe-violet" : "text-ink-faint"
             }`}
           >
