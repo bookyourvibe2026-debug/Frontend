@@ -70,26 +70,22 @@ export function ImageCarousel({
         ))}
       </div>
 
-      {images.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={() => goTo((active - 1 + images.length) % images.length, true)}
-            aria-label="Previous image"
-            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => goTo((active + 1) % images.length, true)}
-            aria-label="Next image"
-            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </>
-      )}
+      <button
+        type="button"
+        onClick={() => goTo((active - 1 + images.length) % images.length, true)}
+        aria-label="Previous image"
+        className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => goTo((active + 1) % images.length, true)}
+        aria-label="Next image"
+        className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/75 z-10 shadow-md"
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
     </div>
   );
 }

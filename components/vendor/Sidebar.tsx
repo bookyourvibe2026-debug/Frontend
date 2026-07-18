@@ -56,6 +56,7 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
 /** Mobile bottom-nav order, when it should differ from the desktop sidebar's reading order. */
 export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
   turf: ["/vendor/bookings", "/vendor/notifications", "/vendor/dashboard", "/vendor/pricing"],
+  events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard", "/vendor/profile"],
 };
 
 const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {
