@@ -18,7 +18,8 @@ function VenuesPageInner() {
 
   useEffect(() => {
     setLoading(true);
-    browseVenues({ limit: 24, category: category || undefined })
+    // Venues page shows only Turf & Game listings — Events have their own /events page
+    browseVenues({ limit: 24, category: category || undefined, type: category ? undefined : "Turf" })
       .then((result) => setVenues(result.items))
       .finally(() => setLoading(false));
   }, [category]);

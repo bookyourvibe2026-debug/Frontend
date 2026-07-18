@@ -860,11 +860,21 @@ function MobileVenueDetail({
         <div id="price-block" className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-black text-slate-900">₹{venue.price.toLocaleString("en-IN")}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              {venue.type === "Event" ? "Per person" : "Starting price"}
+            </p>
           </div>
           <button
             type="button"
-            onClick={() => onOpenBooking(venue.categories.length > 0 ? categoryLabel(venue.categories[0]) : "")}
+            onClick={() => {
+              if (venue.type === "Event") {
+                // Events: skip sport picker, go directly to booking
+                onOpenBooking("");
+              } else {
+                // Turf/Game: pick a sport first
+                onOpenBooking(venue.categories.length > 0 ? categoryLabel(venue.categories[0]) : "");
+              }
+            }}
             className={`rounded-xl px-6 py-3 text-xs font-bold uppercase tracking-wide transition bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30`}
           >
             Book Now
@@ -889,66 +899,144 @@ function MobileVenueDetail({
 
         {activeTab === "home" && (
           <>
-
-        <VenueInfoSections
-          venue={venue}
-          highlights={highlights}
-          amenities={amenities}
-          onPickSport={(sport) => { setSelectedSport(sport); setSportModalOpen(true); }}
-        />
-
-        {/* Map Location */}
-        {venue.address && (
-          <div className="mt-5 space-y-2">
-            <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" /> {venue.address}
-            </p>
-            <div className="relative h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-              <iframe
-                title="Venue Location Map"
-                src={`https://maps.google.com/maps?q=${mapsQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                className="absolute inset-0 h-full w-full border-0"
-                loading="lazy"
+            {/* ── TURF / GAME — show specs, weather, sports, amenities, players, reviews ── */}
+            {venue.type !== "Event" && (
+              <VenueInfoSections
+                venue={venue}
+                highlights={highlights}
+                amenities={amenities}
+                onPickSport={(sport) => { setSelectedSport(sport); setSportModalOpen(true); }}
               />
-              <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold uppercase text-white">
-                Satellite View
-              </span>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Description */}
-        <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
-        </section>
+            {/* ── EVENT — show event-specific sections ── */}
+            {venue.type === "Event" && (
+              <>
+                {/* Date & time */}
+                {venue.availableFrom && (
+                  <div className="mt-4 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                    <CalendarDays className="h-4 w-4 text-brand-500" />
+                    <span className="text-xs font-bold text-slate-700">
+                      {new Date(venue.availableFrom).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      {venue.reportingStartTime && ` · ${venue.reportingStartTime}`}
+                      {venue.reportingEndTime && `–${venue.reportingEndTime}`}
+                    </span>
+                  </div>
+                )}
 
-        {venue.videoUrl && (
-          <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-extrabold text-slate-900">🎥 Event Video</h2>
-            <div className="mt-3 aspect-video w-full overflow-hidden rounded-2xl bg-black border border-slate-100 shadow-sm">
-              {venue.videoUrl.includes("youtube.com") || venue.videoUrl.includes("youtu.be") ? (
-                <iframe
-                  src={getYouTubeEmbedUrl(venue.videoUrl)}
-                  className="h-full w-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : venue.videoUrl.includes("vimeo.com") ? (
-                <iframe
-                  src={getVimeoEmbedUrl(venue.videoUrl)}
-                  className="h-full w-full border-0"
-                  allowFullScreen
-                />
-              ) : (
-                <video src={venue.videoUrl} controls className="h-full w-full" />
-              )}
-            </div>
-          </section>
-        )}
+                {/* Highlights */}
+                {highlights.length > 0 && (
+                  <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <h2 className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+                      <CheckCircle2 className="h-4 w-4 text-brand-500" /> Highlights
+                    </h2>
+                    <ul className="mt-3 space-y-2">
+                      {highlights.map((h) => (
+                        <li key={h} className="flex items-center gap-2 text-xs text-slate-700">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-brand-500" /> {h}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
 
-        {/* Itinerary + FAQs from the event form */}
-        {venue.type === "Event" && <EventItineraryFaqs itinerary={venue.itinerary} faqs={venue.faqs} />}
+                {/* Inclusions / Exclusions */}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <h3 className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Included
+                    </h3>
+                    <ul className="mt-2 space-y-1.5">
+                      {inclusions.map((i) => (
+                        <li key={i} className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                          <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" /> {i}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <h3 className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900">
+                      <XCircle className="h-3.5 w-3.5 text-accent-500" /> Not Included
+                    </h3>
+                    <ul className="mt-2 space-y-1.5">
+                      {venue.exclusions.map((e) => (
+                        <li key={e} className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                          <XCircle className="h-3 w-3 shrink-0 text-accent-400" /> {e}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+
+                {/* Amenities (inclusions as tags) */}
+                {amenities.length > 0 && (
+                  <section className="mt-4">
+                    <h2 className="text-xs font-extrabold text-slate-900">Amenities</h2>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {amenities.map(({ label, Icon }) => (
+                        <span key={label} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+                          <Icon className="h-3 w-3 text-brand-500" /> {label}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+
+            {/* Map Location — shown for all types */}
+            {venue.address && (
+              <div className="mt-5 space-y-2">
+                <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" /> {venue.address}
+                </p>
+                <div className="relative h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                  <iframe
+                    title="Venue Location Map"
+                    src={`https://maps.google.com/maps?q=${mapsQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    className="absolute inset-0 h-full w-full border-0"
+                    loading="lazy"
+                  />
+                  <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold uppercase text-white">
+                    Satellite View
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Description */}
+            <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
+            </section>
+
+            {/* Video — shown for all types when videoUrl exists */}
+            {venue.videoUrl && (
+              <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-extrabold text-slate-900">🎥 {venue.type === "Event" ? "Event Video" : "Venue Video"}</h2>
+                <div className="mt-3 aspect-video w-full overflow-hidden rounded-2xl bg-black border border-slate-100 shadow-sm">
+                  {venue.videoUrl.includes("youtube.com") || venue.videoUrl.includes("youtu.be") ? (
+                    <iframe
+                      src={getYouTubeEmbedUrl(venue.videoUrl)}
+                      className="h-full w-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : venue.videoUrl.includes("vimeo.com") ? (
+                    <iframe
+                      src={getVimeoEmbedUrl(venue.videoUrl)}
+                      className="h-full w-full border-0"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video src={venue.videoUrl} controls className="h-full w-full" />
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Itinerary + FAQs — only for Events */}
+            {venue.type === "Event" && <EventItineraryFaqs itinerary={venue.itinerary} faqs={venue.faqs} />}
           </>
         )}
 

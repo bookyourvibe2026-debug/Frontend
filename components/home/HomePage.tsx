@@ -61,7 +61,8 @@ export default function HomePage() {
   }, [status]);
 
   useEffect(() => {
-    browseVenues({ limit: 12 })
+    // Trending Venues section shows only Turf/Game — Events appear in their own section
+    browseVenues({ limit: 12, type: "Turf" })
       .then((result) => setVenues(result.items.map(listingToVenue)))
       .catch(() => setVenues([]));
   }, []);

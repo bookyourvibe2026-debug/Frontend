@@ -73,7 +73,7 @@ export default function BottomNav({
               href={href}
               className="flex flex-1 flex-col items-center justify-end text-center gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
             >
-              <span
+              <span 
                 className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-colors ${
                   active ? "bg-vibe-violet" : "bg-vibe-navy"
                 }`}
