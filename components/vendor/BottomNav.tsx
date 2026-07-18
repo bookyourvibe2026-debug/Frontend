@@ -13,6 +13,8 @@ const SHORT_LABELS: Record<string, string> = {
   "Bookings Management": "Bookings",
   "Payment Settled": "Payments",
   "Manage Tournaments": "Tournaments",
+  "Event Listings": "Events",
+  "Ticket Scanner": "Scanner",
   "Manage Coaches": "Coaches",
   "Menu Management": "Menu",
 };

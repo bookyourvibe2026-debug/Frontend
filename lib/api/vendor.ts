@@ -1,4 +1,4 @@
-import { apiRequest, type Paginated } from "./client";
+import { apiRequest, buildApiUrl, getAccessToken, type Paginated } from "./client";
 import type {
   Booking,
   BookingStatus,
@@ -25,6 +25,7 @@ import type {
   VendorCoachesDashboard,
   VendorDashboard,
   VendorEventsDashboard,
+  EventBookingSummary,
   VendorFoodDashboard,
   VendorStaff,
 } from "./types";
@@ -42,27 +43,17 @@ export function getVendorSettledPayments() {
 }
 
 export async function exportVendorBookings() {
-  const token = localStorage.getItem("vendorToken");
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
-  const response = await fetch(`${baseUrl}/vendor/bookings/export`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+  const token = getAccessToken("vendor");
+  const response = await fetch(buildApiUrl("/vendor/bookings/export"), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
   });
 
   if (!response.ok) {
     throw new Error("Failed to export bookings");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "bookings_report.xlsx";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await downloadBlob(await response.blob(), "bookings_report.xlsx");
 }
 
 /* ---- Profile ---- */
@@ -438,6 +429,78 @@ export function getVendorFoodDashboard(period: "day" | "week" | "month" | "year"
 
 export function getVendorEventsDashboard() {
   return apiRequest<VendorEventsDashboard>("/vendor/events-dashboard", { audience: AUD });
+}
+
+export function getVendorEventBookings(
+  params: {
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    paymentStatus?: string;
+  } = {}
+) {
+  return apiRequest<{ items: EventBookingSummary[] }>("/vendor/events-dashboard/bookings", {
+    query: params,
+    audience: AUD,
+  });
+}
+
+export interface EventArrival {
+  orderId: string;
+  customerName: string;
+  listingTitle: string;
+  totalAmount?: number;
+  checkedInAt: string;
+}
+
+export function getVendorEventArrivals(params: { limit?: number } = {}) {
+  return apiRequest<{ items: EventArrival[] }>("/vendor/events-dashboard/arrivals", {
+    query: params,
+    audience: AUD,
+  });
+}
+
+/** Scans a ticket QR (order id) and marks the attendee arrived. Throws on invalid/unknown tickets. */
+export function checkInEventBooking(orderId: string) {
+  return apiRequest<{
+    alreadyCheckedIn: boolean;
+    booking: { orderId: string; customerName: string; listingTitle: string; checkedInAt: string };
+  }>(`/vendor/events-dashboard/bookings/${encodeURIComponent(orderId)}/checkin`, {
+    method: "POST",
+    audience: AUD,
+  });
+}
+
+/** Downloads an .xlsx of event bookings, optionally filtered by a createdAt date range. */
+export async function exportVendorEventBookings(params: { startDate?: string; endDate?: string } = {}) {
+  const token = getAccessToken("vendor");
+  const url = buildApiUrl("/vendor/events-dashboard/bookings/export", {
+    startDate: params.startDate,
+    endDate: params.endDate,
+  });
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to export event bookings");
+  }
+
+  await downloadBlob(await response.blob(), "event_bookings_report.xlsx");
+}
+
+/** Triggers a browser download for a fetched blob. */
+async function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function getVendorCoachesDashboard() {

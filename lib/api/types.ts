@@ -328,11 +328,34 @@ export interface VendorFoodDashboard {
   allTimeOrderCount: number;
 }
 
+export interface EventBookingSummary {
+  orderId?: string;
+  customerName: string;
+  listingTitle: string;
+  totalAmount: number;
+  status: string;
+  paymentStatus: string;
+  createdAt: string;
+}
+
+export interface EventsDashboardChartPoint {
+  date: string;
+  label: string;
+  revenue: number;
+  bookings: number;
+}
+
 export interface VendorEventsDashboard {
   tournamentsByStatus: Partial<Record<TournamentStatus, number>>;
   upcomingTournamentCount: number;
+  upcomingEventCount: number;
   totalRevenue: number;
+  bookingCount: number;
   registrationCount: number;
+  checkedInCount: number;
+  activeEventCount: number;
+  chart: EventsDashboardChartPoint[];
+  recentBookings: EventBookingSummary[];
 }
 
 export interface VendorCoachesDashboard {

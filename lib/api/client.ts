@@ -131,6 +131,21 @@ function joinApiPath(path: string): string {
   return `${API_BASE_URL}${prefixedPath}`;
 }
 
+/**
+ * Builds a fully-qualified API URL (base + /api/v1 + path + query). Use this for raw
+ * fetch()es that need a blob/stream response instead of apiRequest's JSON parsing —
+ * e.g. Excel exports. Keeps them on the same base URL as every other call.
+ */
+export function buildApiUrl(path: string, query?: Record<string, string | number | undefined>): string {
+  const base = joinApiPath(path);
+  if (!query) return base;
+  const url = new URL(base);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  }
+  return url.toString();
+}
+
 function normalizeApiBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.replace(/\/+$/, "");
   return trimmed.endsWith(API_PREFIX) ? trimmed.slice(0, -API_PREFIX.length) : trimmed;

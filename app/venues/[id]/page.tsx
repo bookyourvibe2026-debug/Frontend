@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   XCircle,
   MapPin,
+  CalendarDays,
+  ChevronDown,
+  ListChecks,
+  HelpCircle,
   Share2,
   ArrowLeft,
   Building2,
@@ -51,6 +55,53 @@ import { categoryLabel } from "@/lib/taxonomy";
 const DEFAULT_HIGHLIGHTS = ["Well-maintained facility", "Floodlit for evening play", "Easy online booking"];
 const DEFAULT_INCLUSIONS = ["Venue access", "Drinking water", "Changing room"];
 const DEFAULT_EXCLUSIONS = ["Personal gear", "Food & beverages", "Coaching"];
+
+/** Itinerary (day-by-day plan) + FAQs added in the event form. Shared by the desktop and
+ * mobile event views so whatever an organizer fills in shows to the customer. */
+function EventItineraryFaqs({ itinerary, faqs }: Pick<Listing, "itinerary" | "faqs">) {
+  if ((itinerary?.length ?? 0) === 0 && (faqs?.length ?? 0) === 0) return null;
+  return (
+    <>
+      {itinerary?.length > 0 && (
+        <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900 sm:text-lg">
+            <ListChecks className="h-5 w-5 text-brand-500" /> Itinerary
+          </h2>
+          <ol className="mt-4 space-y-4">
+            {itinerary.map((d, i) => (
+              <li key={i} className="relative border-l-2 border-brand-100 pl-5">
+                <span className="absolute -left-[11px] top-0 flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
+                  {d.day || i + 1}
+                </span>
+                <p className="text-sm font-bold text-slate-900">{d.title || `Day ${d.day || i + 1}`}</p>
+                {d.description && <p className="mt-1 text-sm leading-relaxed text-slate-600">{d.description}</p>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {faqs?.length > 0 && (
+        <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900 sm:text-lg">
+            <HelpCircle className="h-5 w-5 text-brand-500" /> FAQs
+          </h2>
+          <div className="mt-3 divide-y divide-slate-100">
+            {faqs.map((f, i) => (
+              <details key={i} className="group py-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800">
+                  {f.question}
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" />
+                </summary>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
 
 export default function VenueDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -238,6 +289,9 @@ export default function VenueDetailPage() {
                     </ul>
                   </div>
                 </section>
+
+                {/* Itinerary + FAQs from the event form */}
+                <EventItineraryFaqs itinerary={venue.itinerary} faqs={venue.faqs} />
               </>
             )}
 
@@ -281,6 +335,17 @@ export default function VenueDetailPage() {
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Starting price</p>
 
               <div className="mt-4 space-y-2 border-y border-slate-100 py-4 text-sm text-slate-600">
+                {isEvent && venue.availableFrom && (
+                  <p className="flex items-center gap-2 font-semibold text-slate-800">
+                    <CalendarDays className="h-4 w-4 text-brand-500" />
+                    {new Date(venue.availableFrom).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                    {(venue.reportingStartTime || venue.reportingEndTime) && (
+                      <span className="text-slate-500">
+                        · {venue.reportingStartTime ?? "—"}{venue.reportingEndTime ? `–${venue.reportingEndTime}` : ""}
+                      </span>
+                    )}
+                  </p>
+                )}
                 <p className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-brand-500" />
                   {venue.city} · {venue.address}
@@ -830,6 +895,9 @@ function MobileVenueDetail({
           <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
         </section>
+
+        {/* Itinerary + FAQs from the event form */}
+        {venue.type === "Event" && <EventItineraryFaqs itinerary={venue.itinerary} faqs={venue.faqs} />}
           </>
         )}
 

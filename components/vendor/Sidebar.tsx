@@ -19,6 +19,8 @@ import {
   UserRoundCog,
   Trophy,
   Tag,
+  Ticket,
+  ScanLine,
   X,
   Bell,
 } from "lucide-react";
@@ -36,7 +38,9 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
   ],
   events: [
     { href: "/vendor/events/dashboard", label: "Events Dashboard", icon: LayoutDashboard },
-    { href: "/vendor/tournaments", label: "Manage Tournaments", icon: Trophy },
+    { href: "/vendor/events/listings", label: "Event Listings", icon: Ticket },
+    { href: "/vendor/events/scanner", label: "Ticket Scanner", icon: ScanLine },
+    { href: "/vendor/profile", label: "Profile", icon: Settings2 },
   ],
   food: [
     { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
@@ -91,7 +95,12 @@ export default function Sidebar({
   }, [pathname, verticals]);
 
   const activeMode = verticals.includes(appMode) ? appMode : verticals[0] ?? "turf";
-  const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...SHARED_NAV_ITEMS];
+  // Events organizers don't use Role Access, and Profile is already in their main nav
+  // (so it also shows in the mobile bottom nav) — drop both from the shared list here.
+  const sharedItems = activeMode === "events"
+    ? SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/role-access" && item.href !== "/vendor/profile")
+    : SHARED_NAV_ITEMS;
+  const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...sharedItems];
 
   return (
     <>

@@ -19,6 +19,7 @@ import {
   PhoneCall,
   Sparkles,
   MessageCircle,
+  KeyRound,
   LayoutGrid,
   GraduationCap,
   UtensilsCrossed,
@@ -68,14 +69,27 @@ export default function MorePage() {
       : allItems.slice(0, MAX_PRIMARY_ITEMS);
     const primaryHrefs = new Set(primaryItems.map((item) => item.href));
     
-    // Filter out primary items and don't double include "Marketing" if it's already shown as a big card
-    const list = [
+    // Events organizers don't use Role Access, My Listings or BYV Insights — hide them there.
+    const isEvents = activeVertical === "events";
+
+    // Filter out primary items and don't double include "Marketing" if it's already shown as a big card.
+    // For events, Profile lives in the bottom nav, so it's dropped from this list here.
+    const list: MoreLink[] = [
       ...allItems.filter((item) => !primaryHrefs.has(item.href) && item.href !== "/vendor/marketing"),
-      ...SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/marketing"),
-      { href: "/vendor/listings", label: "My Listings", icon: ClipboardList },
-      { href: "/vendor/insights", label: "BYV Insights", icon: Sparkles },
+      ...SHARED_NAV_ITEMS.filter(
+        (item) =>
+          item.href !== "/vendor/marketing" &&
+          !(isEvents && (item.href === "/vendor/role-access" || item.href === "/vendor/profile"))
+      ),
+      ...(isEvents
+        ? []
+        : [
+            { href: "/vendor/listings", label: "My Listings", icon: ClipboardList },
+            { href: "/vendor/insights", label: "BYV Insights", icon: Sparkles },
+          ]),
       { href: "/vendor/privacy-security", label: "Privacy & Security", icon: ShieldCheck },
       { href: SUPPORT_WHATSAPP_URL, label: "Chat with Us", icon: MessageCircle, external: true },
+      { href: "/vendor/forgot-password", label: "Forgot Password", icon: KeyRound },
     ];
     setOverflowItems(list);
   }, [vendor]);

@@ -31,6 +31,21 @@ const STEPS = [
   { id: 6, label: "Publish", hint: "Review details & save" },
 ] as const;
 
+/** Event-friendly labels for the same step components (BookingStep renders booking
+ * setup for events, PricingStep renders participant tiers, etc.). */
+const EVENT_STEPS = [
+  { id: 1, label: "Event photos", hint: "Poster & banner" },
+  { id: 2, label: "Booking", hint: "Dates & timezone" },
+  { id: 3, label: "Details", hint: "Name & category" },
+  { id: 4, label: "Location", hint: "Venue & map" },
+  { id: 5, label: "Pricing", hint: "Rates & add-ons" },
+  { id: 6, label: "Launch", hint: "Publish your event" },
+] as const;
+
+function stepsFor(type: ListingType) {
+  return type === "Event" ? EVENT_STEPS : STEPS;
+}
+
 function formatListedOn(date: Date) {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -2240,9 +2255,13 @@ export function PackageStudio({
       <div className="sticky top-0 z-10 flex items-center justify-between bg-gradient-to-r from-vibe-indigo via-vibe-violet to-vibe-violetSoft px-4 py-4 text-white shadow-pop sm:px-8">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-            {mode === "edit" ? "Edit Package" : "New Package"}
+            {draft.type === "Event"
+              ? mode === "edit" ? "Edit Event" : "New Event"
+              : mode === "edit" ? "Edit Package" : "New Package"}
           </p>
-          <h2 className="font-display text-lg font-semibold sm:text-xl">Package Studio</h2>
+          <h2 className="font-display text-lg font-semibold sm:text-xl">
+            {draft.type === "Event" ? "Event Studio" : "Package Studio"}
+          </h2>
         </div>
         <button
           onClick={onClose}
@@ -2254,7 +2273,7 @@ export function PackageStudio({
 
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
         <div className="mb-6 flex flex-wrap gap-2">
-          {STEPS.map((s) => (
+          {stepsFor(draft.type).map((s) => (
             <button
               key={s.id}
               onClick={() => goTo(s.id)}
@@ -2294,7 +2313,7 @@ export function PackageStudio({
       </div>
 
       <div className="sticky bottom-0 flex items-center justify-between border-t border-surface-border bg-white px-4 py-4 sm:px-8">
-        <p className="text-xs text-ink-faint">Step {step} of 5</p>
+        <p className="text-xs text-ink-faint">Step {step} of 6</p>
         <div className="flex gap-3">
           {step > 1 && (
             <button
@@ -2311,7 +2330,11 @@ export function PackageStudio({
             onClick={handlePrimary}
             className="rounded-lg bg-vibe-violet px-5 py-2 text-sm font-semibold text-white hover:bg-vibe-violetSoft"
           >
-            {step < 5 ? "Save & Next" : mode === "edit" ? "Update Package" : "Create Listing"}
+            {step < 6
+              ? "Save & Next"
+              : mode === "edit"
+              ? draft.type === "Event" ? "Update Event" : "Update Package"
+              : draft.type === "Event" ? "Publish Event" : "Create Listing"}
           </button>
         </div>
       </div>

@@ -324,34 +324,37 @@ export default function ProfilePage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Supported Sports"
-        description="Select the sports or games you provide at your facility"
-        action={
-          <span className="text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 px-3 py-1">
-            {vendor.sports?.length || 0} Selected
-          </span>
-        }
-      >
-        <div className="flex flex-wrap gap-2">
-          {DEFAULT_SPORTS.map((sport) => {
-            const active = vendor.sports?.includes(sport);
-            return (
-              <button
-                key={sport}
-                onClick={() => toggleSport(sport)}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                  active
-                    ? "bg-indigo-500 text-white shadow-sm border border-indigo-600"
-                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-                }`}
-              >
-                {sport}
-              </button>
-            );
-          })}
-        </div>
-      </SectionCard>
+      {/* Supported Sports is only relevant to turf/facility vendors — hidden for events organizers. */}
+      {vendor.verticals?.includes("turf") && (
+        <SectionCard
+          title="Supported Sports"
+          description="Select the sports or games you provide at your facility"
+          action={
+            <span className="text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 px-3 py-1">
+              {vendor.sports?.length || 0} Selected
+            </span>
+          }
+        >
+          <div className="flex flex-wrap gap-2">
+            {DEFAULT_SPORTS.map((sport) => {
+              const active = vendor.sports?.includes(sport);
+              return (
+                <button
+                  key={sport}
+                  onClick={() => toggleSport(sport)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                    active
+                      ? "bg-indigo-500 text-white shadow-sm border border-indigo-600"
+                      : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                  }`}
+                >
+                  {sport}
+                </button>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
     </div>
   );
 }
