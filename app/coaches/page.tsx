@@ -48,7 +48,7 @@ export default function CoachesPage() {
 
           <div className="flex flex-col gap-3">
             {coaches.map((coach) => (
-              <Link key={coach._id} href={`/coaches/${coach._id}`}>
+              <Link key={coach._id} href={`/coaches/${coach.slug || coach._id}`}>
                 <MobileCard className="flex items-center gap-4">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
                     {coach.photoUrl ? (
@@ -96,7 +96,7 @@ export default function CoachesPage() {
           {coaches.map((coach) => (
             <Link
               key={coach._id}
-              href={`/coaches/${coach._id}`}
+              href={`/coaches/${coach.slug || coach._id}`}
               className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="flex items-center gap-4">

@@ -408,7 +408,7 @@ export default function GamesPage() {
 function CoachMiniCard({ coach }: { coach: Coach }) {
   return (
     <Link
-      href={`/coaches/${coach._id}`}
+      href={`/coaches/${coach.slug || coach._id}`}
       className="flex w-44 shrink-0 flex-col items-center rounded-2xl border border-slate-100 bg-white p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
     >
       <div className="relative h-16 w-16 overflow-hidden rounded-full bg-slate-100">

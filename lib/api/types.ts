@@ -179,6 +179,7 @@ export interface CoachLocation {
 export interface Coach {
   _id: string;
   vendorId: string;
+  slug?: string;
   name: string;
   category: string;
   categories: string[];
