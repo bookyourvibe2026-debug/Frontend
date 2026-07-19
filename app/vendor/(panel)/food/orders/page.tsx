@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ClipboardList, QrCode } from "lucide-react";
+import { CheckCircle2, ClipboardList, QrCode, ScanLine } from "lucide-react";
 import { PageHero, Badge } from "@/components/vendor/ui";
+import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
 import { checkInVendorFoodOrder, getVendorFoodOrders, updateVendorFoodOrderStatus } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import { FoodOrder, FoodOrderStatus } from "@/lib/api/types";
@@ -36,6 +37,7 @@ export default function VendorFoodOrdersPage() {
   const [scanOrderId, setScanOrderId] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
 
   const refresh = useCallback(() => {
     getVendorFoodOrders({ status: status === "All" ? undefined : status, limit: 200 })
@@ -63,6 +65,15 @@ export default function VendorFoodOrdersPage() {
     }
   }
 
+  /** Scan a food-order ticket QR → mark delivered. Reuses the shared scanner modal. */
+  async function handleQrCheckIn(orderId: string): Promise<string> {
+    const order = await checkInVendorFoodOrder(orderId).catch((e) => {
+      throw new Error(e instanceof ApiError ? e.describe() : "Order not found");
+    });
+    refresh();
+    return `${order.customerName} — order marked delivered`;
+  }
+
   async function handleStatusChange(order: FoodOrder, next: FoodOrderStatus) {
     try {
       await updateVendorFoodOrderStatus(order.orderId, next);
@@ -86,10 +97,18 @@ export default function VendorFoodOrdersPage() {
       />
 
       <div className="rounded-xl2 border border-surface-border bg-white p-4 shadow-panel sm:p-5">
-        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-vibe-violet">
-          <QrCode size={13} /> Mark Delivered
-        </p>
-        <p className="mt-0.5 text-xs text-ink-faint">Enter the Order ID from the customer&apos;s order ticket to mark it delivered.</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-vibe-violet">
+            <QrCode size={13} /> Mark Delivered
+          </p>
+          <button
+            onClick={() => setQrOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-vibe-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-vibe-navyDark"
+          >
+            <ScanLine size={14} /> Scan Ticket
+          </button>
+        </div>
+        <p className="mt-0.5 text-xs text-ink-faint">Scan the QR on the customer&apos;s order ticket, or type the Order ID, to mark it delivered.</p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
             value={scanOrderId}
@@ -226,6 +245,8 @@ export default function VendorFoodOrdersPage() {
           </table>
         </div>
       </div>
+
+      {qrOpen && <QrScannerModal onClose={() => setQrOpen(false)} onCheckIn={handleQrCheckIn} />}
     </div>
   );
 }

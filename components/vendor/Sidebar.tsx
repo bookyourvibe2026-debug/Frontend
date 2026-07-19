@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Briefcase,
@@ -90,6 +90,7 @@ export default function Sidebar({
   verticals: VendorVertical[];
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [appMode, setAppMode] = useState<VendorVertical>(verticals[0] ?? "turf");
 
   useEffect(() => {
@@ -102,6 +103,15 @@ export default function Sidebar({
   }, [pathname, verticals]);
 
   const activeMode = verticals.includes(appMode) ? appMode : verticals[0] ?? "turf";
+
+  /** Switch panels: jump straight to that vertical's dashboard (its first nav item). */
+  function switchVertical(v: VendorVertical) {
+    setAppMode(v);
+    localStorage.setItem("byv_vendor_active_vertical", v);
+    const home = NAV_ITEMS_BY_VERTICAL[v][0]?.href ?? "/vendor/dashboard";
+    router.push(home);
+    onClose();
+  }
   // Events organizers don't use Role Access, and Profile is already in their main nav
   // (so it also shows in the mobile bottom nav) — drop both from the shared list here.
   const sharedItems = activeMode === "events"
@@ -154,6 +164,7 @@ export default function Sidebar({
 
         {verticals.length > 1 && (
           <div className="p-3 border-b border-surface-border">
+            <p className="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-faint">Switch panel</p>
             <div
               className="grid gap-1 rounded-xl bg-cream-200 p-1 text-xs font-semibold"
               style={{ gridTemplateColumns: `repeat(${verticals.length}, minmax(0, 1fr))` }}
@@ -161,9 +172,9 @@ export default function Sidebar({
               {verticals.map((v) => (
                 <button
                   key={v}
-                  onClick={() => setAppMode(v)}
+                  onClick={() => switchVertical(v)}
                   className={`rounded-lg py-2 transition ${
-                    activeMode === v ? "bg-white text-vibe-violet shadow" : "text-ink-faint"
+                    activeMode === v ? "bg-white text-vibe-violet shadow" : "text-ink-faint hover:text-ink-soft"
                   }`}
                 >
                   {VERTICAL_TAB_LABELS[v]}

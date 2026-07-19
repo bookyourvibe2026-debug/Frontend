@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/vendor/Sidebar";
 import BottomNav from "@/components/vendor/BottomNav";
+import { VendorPanelSwitcher } from "@/components/vendor/VendorPanelSwitcher";
 
 import { isVendorOwner, restoreVendorSession, vendorLogout, type VendorProfile } from "@/lib/api/auth";
 import { VendorAuthProvider } from "@/components/providers/VendorAuthProvider";
@@ -58,6 +59,7 @@ export default function VendorPanelLayout({
           verticals={session.verticals}
         />
         <div className="flex-1 min-w-0 flex flex-col">
+          <VendorPanelSwitcher verticals={session.verticals} />
           <main className="flex-1 px-4 sm:px-6 py-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto">
             {children}
           </main>
