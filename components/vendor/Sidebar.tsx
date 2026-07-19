@@ -50,6 +50,8 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
   coaches: [
     { href: "/vendor/coaches/dashboard", label: "Coaches Dashboard", icon: LayoutDashboard },
     { href: "/vendor/coaches", label: "Manage Coaches", icon: UserRoundCog },
+    { href: "/vendor/coaches/schedule", label: "Schedule Manager", icon: CalendarCheck2 },
+    { href: "/vendor/coaches/notifications", label: "Notifications", icon: Bell },
   ],
 };
 
@@ -57,6 +59,8 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
 export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
   turf: ["/vendor/bookings", "/vendor/notifications", "/vendor/dashboard", "/vendor/pricing"],
   events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard", "/vendor/profile"],
+  // Dashboard sits 3rd so the bottom-nav floats it to the centre.
+  coaches: ["/vendor/coaches", "/vendor/coaches/schedule", "/vendor/coaches/dashboard", "/vendor/coaches/notifications"],
 };
 
 const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {
@@ -102,6 +106,12 @@ export default function Sidebar({
     ? SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/role-access" && item.href !== "/vendor/profile")
     : SHARED_NAV_ITEMS;
   const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...sharedItems];
+
+  // Longest-prefix match so /vendor/coaches doesn't stay active on its sub-routes.
+  const bestHref = navItems
+    .map((i) => i.href)
+    .filter((h) => pathname === h || pathname?.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0];
 
   return (
     <>
@@ -166,7 +176,7 @@ export default function Sidebar({
             Navigation
           </p>
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname?.startsWith(href);
+            const active = href === bestHref;
             return (
               <Link
                 key={href}

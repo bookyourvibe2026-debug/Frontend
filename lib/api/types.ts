@@ -139,12 +139,41 @@ export interface Booking {
   updatedAt: string;
 }
 
-export interface CoachSlot {
-  id: string;
+export interface CoachWeeklyDay {
+  day: number; // 0 = Sunday … 6 = Saturday
+  isOpen: boolean;
+  startTime: string; // "HH:mm"
+  endTime: string;
+}
+
+export interface CoachLeave {
   date: string;
+  type: "full" | "half";
+  reason?: string;
+}
+
+export interface CoachBatch {
+  id: string;
+  name: string;
   startTime: string;
   endTime: string;
-  isBooked: boolean;
+  days: number[];
+  capacity: number;
+  priceMonthly: number;
+  priceYearly: number;
+  demoAvailable: boolean;
+  active: boolean;
+  /** Present on the public coach detail response. */
+  enrolled?: number;
+  spotsLeft?: number;
+}
+
+export interface CoachLocation {
+  address?: string;
+  area?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface Coach {
@@ -152,40 +181,49 @@ export interface Coach {
   vendorId: string;
   name: string;
   category: string;
+  categories: string[];
   subCategory?: string;
+  phone?: string;
+  email?: string;
   experienceYears?: number;
-  fees: number;
+  fees?: number;
   bio?: string;
   photoUrl?: string;
+  gallery: string[];
   status: "Active" | "Inactive";
-  slots: CoachSlot[];
+  location: CoachLocation;
+  weeklyAvailability: CoachWeeklyDay[];
+  leaves: CoachLeave[];
+  batches: CoachBatch[];
+  /** Present on nearby (geo) browse responses. */
+  distanceKm?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export type CoachBookingStatus = "Confirmed" | "Cancelled" | "Completed";
+export type CoachSubscriptionPlan = "demo" | "monthly" | "yearly";
+export type CoachSubscriptionStatus = "Active" | "Cancelled" | "Expired";
 
-export interface CoachBooking {
+export interface CoachSubscription {
   _id: string;
   orderId: string;
   coachId: string;
   vendorId: string;
+  batchId: string;
+  batchName: string;
   customerId?: string | null;
   customerName: string;
   phone: string;
   email?: string;
-  slotId: string;
-  slotDate: string;
-  slotStartTime: string;
-  slotEndTime: string;
+  plan: CoachSubscriptionPlan;
   amount: number;
+  startDate: string;
+  endDate?: string | null;
   payment: PaymentMethod;
   paymentStatus: PaymentStatus;
   paymentOrderId?: string;
-  status: CoachBookingStatus;
+  status: CoachSubscriptionStatus;
   cancellationReason?: string;
-  checkedIn: boolean;
-  checkedInAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -360,11 +398,33 @@ export interface VendorEventsDashboard {
   recentBookings: EventBookingSummary[];
 }
 
+export interface CoachDashboardChartPoint {
+  date: string;
+  label: string;
+  enrolments: number;
+  revenue: number;
+}
+
+export interface CoachSubscriptionSummary {
+  orderId: string;
+  customerName: string;
+  batchName: string;
+  plan: CoachSubscriptionPlan;
+  amount: number;
+  paymentStatus: PaymentStatus;
+  status: CoachSubscriptionStatus;
+  createdAt: string;
+}
+
 export interface VendorCoachesDashboard {
   activeCoachCount: number;
-  bookingsByStatus: Partial<Record<CoachBookingStatus, number>>;
+  coachCount: number;
+  batchCount: number;
+  subscriptionsByStatus: Partial<Record<CoachSubscriptionStatus, number>>;
   totalEarnings: number;
-  bookingCount: number;
+  subscriptionCount: number;
+  chart: CoachDashboardChartPoint[];
+  recentSubscriptions: CoachSubscriptionSummary[];
 }
 
 export type VendorStatus = "pending" | "approved" | "suspended";

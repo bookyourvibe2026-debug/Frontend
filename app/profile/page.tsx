@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import { Calendar, Camera, Clock, Download, Mail, Phone, Ticket, Trophy, UserRoundCog, X } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { getMyBookings } from "@/lib/api/customerBookings";
-import { cancelMyCoachBooking, getMyCoachBookings } from "@/lib/api/coaches";
+import { cancelMyCoachSubscription, getMyCoachSubscriptions } from "@/lib/api/coaches";
 import { cancelMyRegistration, getMyRegistrations } from "@/lib/api/tournaments";
 import { uploadCustomerImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import type {
   Booking,
   BookingStatus,
-  CoachBooking,
-  CoachBookingStatus,
+  CoachSubscription,
+  CoachSubscriptionStatus,
   TournamentRegistration,
   TournamentRegistrationStatus,
 } from "@/lib/api/types";
@@ -28,10 +28,10 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   Completed: "bg-slate-100 text-slate-600",
 };
 
-const COACH_STATUS_STYLES: Record<CoachBookingStatus, string> = {
-  Confirmed: "bg-emerald-100 text-emerald-700",
+const COACH_STATUS_STYLES: Record<CoachSubscriptionStatus, string> = {
+  Active: "bg-emerald-100 text-emerald-700",
   Cancelled: "bg-accent-100 text-accent-600",
-  Completed: "bg-slate-100 text-slate-600",
+  Expired: "bg-slate-100 text-slate-600",
 };
 
 const REGISTRATION_STATUS_STYLES: Record<TournamentRegistrationStatus, string> = {
@@ -45,8 +45,8 @@ export default function ProfilePage() {
   const { customer, status: authStatus, updateProfile } = useCustomerAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [coachBookings, setCoachBookings] = useState<CoachBooking[]>([]);
-  const [coachBookingsLoading, setCoachBookingsLoading] = useState(true);
+  const [coachSubs, setCoachSubs] = useState<CoachSubscription[]>([]);
+  const [coachSubsLoading, setCoachSubsLoading] = useState(true);
   const [registrations, setRegistrations] = useState<TournamentRegistration[]>([]);
   const [registrationsLoading, setRegistrationsLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -84,20 +84,20 @@ export default function ProfilePage() {
       .then((res) => setBookings(res.items))
       .catch(() => setBookings([]))
       .finally(() => setLoading(false));
-    getMyCoachBookings({ limit: 50 })
-      .then((res) => setCoachBookings(res.items))
-      .catch(() => setCoachBookings([]))
-      .finally(() => setCoachBookingsLoading(false));
+    getMyCoachSubscriptions({ limit: 50 })
+      .then((res) => setCoachSubs(res.items))
+      .catch(() => setCoachSubs([]))
+      .finally(() => setCoachSubsLoading(false));
     getMyRegistrations({ limit: 50 })
       .then((res) => setRegistrations(res.items))
       .catch(() => setRegistrations([]))
       .finally(() => setRegistrationsLoading(false));
   }, [authStatus]);
 
-  async function handleCancelCoachBooking(orderId: string) {
+  async function handleCancelCoachSubscription(orderId: string) {
     try {
-      const updated = await cancelMyCoachBooking(orderId);
-      setCoachBookings((prev) => prev.map((b) => (b.orderId === orderId ? updated : b)));
+      const updated = await cancelMyCoachSubscription(orderId);
+      setCoachSubs((prev) => prev.map((b) => (b.orderId === orderId ? updated : b)));
     } catch {
       // Surfacing this inline would need its own toast plumbing — the button
       // simply stays actionable so the player can retry.
@@ -243,28 +243,29 @@ export default function ProfilePage() {
           )}
         </section>
 
-        {/* My Coach Sessions */}
+        {/* My Coaching Subscriptions */}
         <section className="mt-8 sm:mt-10">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-extrabold text-slate-900">
-            <UserRoundCog className="h-5 w-5 text-brand-500" /> My Coach Sessions
+            <UserRoundCog className="h-5 w-5 text-brand-500" /> My Coaching
           </h2>
 
-          {coachBookingsLoading ? (
-            <p className="text-sm text-slate-500">Loading your sessions…</p>
-          ) : coachBookings.length === 0 ? (
+          {coachSubsLoading ? (
+            <p className="text-sm text-slate-500">Loading your enrolments…</p>
+          ) : coachSubs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-              No coach sessions yet — book one from the Coaches page.
+              Not enrolled anywhere yet — join a batch from the Coaches page.
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              {coachBookings.map((b) => (
+              {coachSubs.map((b) => (
                 <div
                   key={b._id}
                   className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-bold text-slate-900">Coaching Session</p>
+                      <p className="text-base font-bold text-slate-900">{b.batchName}</p>
+                      <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold capitalize text-brand-600">{b.plan}</span>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${COACH_STATUS_STYLES[b.status]}`}>
                         {b.status}
                       </span>
@@ -272,23 +273,20 @@ export default function ProfilePage() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5" />
-                        {new Date(b.slotDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {b.slotStartTime} – {b.slotEndTime}
+                        {new Date(b.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        {b.endDate ? ` – ${new Date(b.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
                       </span>
                       <span>Order #{b.orderId}</span>
                       <span className="font-semibold text-slate-700">₹{b.amount}</span>
                     </div>
                   </div>
 
-                  {b.status === "Confirmed" && (
+                  {b.status === "Active" && (
                     <button
-                      onClick={() => handleCancelCoachBooking(b.orderId)}
+                      onClick={() => handleCancelCoachSubscription(b.orderId)}
                       className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-accent-300 hover:text-accent-600 sm:w-auto"
                     >
-                      <X className="h-4 w-4" /> Cancel Session
+                      <X className="h-4 w-4" /> Cancel
                     </button>
                   )}
                 </div>

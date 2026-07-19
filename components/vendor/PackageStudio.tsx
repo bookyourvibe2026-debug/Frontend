@@ -665,7 +665,11 @@ function LocationStep({ draft, update }: StepProps) {
       const cc = countryCodes[draft.country ?? "India"] || "in";
 
       fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(venueInput)}&countrycodes=${cc}&limit=5&addressdetails=1`, {
-        headers: { "Accept-Language": "en" }
+        // Nominatim requires a Referer or identifying User-Agent to accept a request;
+        // some browsers/extensions drop Referer on cross-origin fetches by default,
+        // causing a silent 403 — force it via referrerPolicy.
+        headers: { "Accept-Language": "en" },
+        referrerPolicy: "origin",
       })
         .then((res) => res.json())
         .then((data) => {

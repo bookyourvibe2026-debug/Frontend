@@ -714,7 +714,8 @@ function LocationStep({ draft, update, updateMany }: StepProps) {
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           venueInput
         )}&countrycodes=${cc}&limit=5&addressdetails=1`,
-        { headers: { "Accept-Language": "en" } }
+        // Force the Referer header — see note in PackageStudio's identical call.
+        { headers: { "Accept-Language": "en" }, referrerPolicy: "origin" }
       )
         .then((res) => res.json())
         .then((data) => {

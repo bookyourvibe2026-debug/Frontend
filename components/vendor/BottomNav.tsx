@@ -16,6 +16,7 @@ const SHORT_LABELS: Record<string, string> = {
   "Event Listings": "Events",
   "Ticket Scanner": "Scanner",
   "Manage Coaches": "Coaches",
+  "Schedule Manager": "Schedule",
   "Menu Management": "Menu",
   "Events Dashboard": "Dashboard",
   "Food Dashboard": "Dashboard",
@@ -57,13 +58,20 @@ export default function BottomNav({
 
   const isMoreActive = pathname === "/vendor/more";
 
+  // Pick the single best (longest) matching nav href so prefix routes like
+  // /vendor/coaches don't also light up when on /vendor/coaches/schedule.
+  const bestHref = allItems
+    .map((i) => i.href)
+    .filter((h) => pathname === h || pathname?.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-white lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {primaryItems.map(({ href, label, icon: Icon }) => {
-        const active = pathname?.startsWith(href) && !isMoreActive;
+        const active = href === bestHref && !isMoreActive;
         const isDashboard = href.endsWith("/dashboard");
 
         if (isDashboard) {

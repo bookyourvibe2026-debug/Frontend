@@ -3,8 +3,9 @@ import type {
   Booking,
   BookingStatus,
   Coach,
-  CoachBooking,
-  CoachBookingStatus,
+  CoachSubscription,
+  CoachSubscriptionStatus,
+  CoachWeeklyDay,
   FoodOrder,
   FoodOrderStatus,
   Listing,
@@ -225,15 +226,30 @@ export function getVendorCoachById(id: string) {
   return apiRequest<Coach>(`/vendor/coaches/${id}`, { audience: AUD });
 }
 
+export interface CoachLocationInput {
+  address?: string;
+  area?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
+}
+
 export interface CreateCoachInput {
   name: string;
   category: string;
+  categories?: string[];
   subCategory?: string;
+  phone?: string;
+  email?: string;
   experienceYears?: number;
-  fees: number;
+  fees?: number;
   bio?: string;
   photoUrl?: string;
+  gallery?: string[];
   status?: "Active" | "Inactive";
+  location?: CoachLocationInput;
+  /** Slots/batches to create together with the coach in one save. */
+  batches?: CoachBatchInput[];
 }
 
 export function createCoach(input: CreateCoachInput) {
@@ -248,20 +264,53 @@ export function deleteCoach(id: string) {
   return apiRequest<null>(`/vendor/coaches/${id}`, { method: "DELETE", audience: AUD });
 }
 
-export function addCoachSlot(coachId: string, input: { date: string; startTime: string; endTime: string }) {
-  return apiRequest<Coach>(`/vendor/coaches/${coachId}/slots`, { method: "POST", body: input, audience: AUD });
+/* Weekly availability */
+export function setCoachAvailability(coachId: string, days: CoachWeeklyDay[]) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/availability`, { method: "PUT", body: { days }, audience: AUD });
 }
 
-export function removeCoachSlot(coachId: string, slotId: string) {
-  return apiRequest<Coach>(`/vendor/coaches/${coachId}/slots/${slotId}`, { method: "DELETE", audience: AUD });
+/* Batches */
+export interface CoachBatchInput {
+  name: string;
+  startTime: string;
+  endTime: string;
+  days: number[];
+  capacity: number;
+  priceMonthly: number;
+  priceYearly: number;
+  demoAvailable?: boolean;
+  active?: boolean;
 }
 
-export function listVendorCoachBookings(params: { status?: CoachBookingStatus; coachId?: string; page?: number; limit?: number } = {}) {
-  return apiRequest<Paginated<CoachBooking>>("/vendor/coaches/bookings", { query: params, audience: AUD });
+export function addCoachBatch(coachId: string, input: CoachBatchInput) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/batches`, { method: "POST", body: input, audience: AUD });
 }
 
-export function checkInVendorCoachBooking(orderId: string) {
-  return apiRequest<CoachBooking>(`/vendor/coaches/bookings/${orderId}/checkin`, { method: "POST", audience: AUD });
+export function updateCoachBatch(coachId: string, batchId: string, input: Partial<CoachBatchInput>) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/batches/${batchId}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function removeCoachBatch(coachId: string, batchId: string) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/batches/${batchId}`, { method: "DELETE", audience: AUD });
+}
+
+/* Leaves (emergency / one-off holidays) */
+export function addCoachLeave(coachId: string, input: { date: string; type?: "full" | "half"; reason?: string }) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/leaves`, { method: "POST", body: input, audience: AUD });
+}
+
+export function removeCoachLeave(coachId: string, isoDate: string) {
+  return apiRequest<Coach>(`/vendor/coaches/${coachId}/leaves/${encodeURIComponent(isoDate)}`, {
+    method: "DELETE",
+    audience: AUD,
+  });
+}
+
+/* Subscriptions (enrolled students) */
+export function listVendorCoachSubscriptions(
+  params: { status?: CoachSubscriptionStatus; coachId?: string; page?: number; limit?: number } = {}
+) {
+  return apiRequest<Paginated<CoachSubscription>>("/vendor/coaches/subscriptions", { query: params, audience: AUD });
 }
 
 /* ---- Tournaments ---- */

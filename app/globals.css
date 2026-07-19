@@ -226,6 +226,9 @@
   --color-ink-faint: #8a899b;
   --color-vibe-violet: #4c1d95;
   --color-vibe-violetSoft: #6d28d9;
+  /* Chocolate accent — scoped to the Coaches section (used via bg/text/border-vibe-cocoa*). */
+  --color-vibe-cocoa: #5c3a21;
+  --color-vibe-cocoaSoft: #7b4f2e;
   --color-vibe-indigo: #312e81;
   --color-vibe-lime: #a3e635;
   --color-vibe-limeDark: #65a30d;

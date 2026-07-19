@@ -2,11 +2,22 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Award, UserRoundCog } from "lucide-react";
+import { Award } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { browsePublicCoaches } from "@/lib/api/coaches";
 import { Coach } from "@/lib/api/types";
+
+function startingPrice(coach: Coach): number | null {
+  const monthly = coach.batches?.filter((b) => b.active).map((b) => b.priceMonthly).filter((p) => p > 0) ?? [];
+  if (monthly.length) return Math.min(...monthly);
+  return coach.fees ?? null;
+}
+
+function priceLabel(coach: Coach): string {
+  const p = startingPrice(coach);
+  return p != null ? `₹${p.toLocaleString("en-IN")}/mo` : "View plans";
+}
 
 export default function CoachesPage() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -55,7 +66,7 @@ export default function CoachesPage() {
                       {coach.category}
                       {coach.subCategory ? ` · ${coach.subCategory}` : ""}
                     </p>
-                    <p className="mt-1 text-sm font-bold text-slate-900">₹{coach.fees.toLocaleString("en-IN")}/session</p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">{priceLabel(coach)}</p>
                   </div>
                 </MobileCard>
               </Link>
@@ -113,7 +124,7 @@ export default function CoachesPage() {
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="text-lg font-bold text-slate-950">₹{coach.fees.toLocaleString("en-IN")}</span>
+                <span className="text-lg font-bold text-slate-950">{priceLabel(coach)}</span>
                 <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">View & Book</span>
               </div>
             </Link>
