@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, User, Phone, Building2, IndianRupee, Clock, Trophy } from "lucide-react";
+import { X, User, Phone, Building2, IndianRupee, Clock, Trophy, Users, UtensilsCrossed } from "lucide-react";
 
 export type AddBookingPayment = "Cash (Offline)" | "UPI";
 
@@ -13,6 +13,8 @@ export interface AddBookingValues {
   startTime: string;
   endTime: string;
   sport: string;
+  numberOfPlayers: string;
+  foodIncluded: boolean;
   payment: AddBookingPayment;
 }
 
@@ -46,6 +48,8 @@ export function AddBookingSheet({
     startTime: initial.startTime ?? "",
     endTime: initial.endTime ?? "",
     sport: initial.sport ?? sports[0] ?? "",
+    numberOfPlayers: initial.numberOfPlayers ?? "",
+    foodIncluded: initial.foodIncluded ?? false,
     payment: initial.payment ?? "Cash (Offline)",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -136,6 +140,32 @@ export function AddBookingSheet({
               />
             )}
           </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="No. of Players" icon={Users}>
+              <input
+                inputMode="numeric"
+                value={form.numberOfPlayers}
+                onChange={(e) => update("numberOfPlayers", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                placeholder="e.g. 10"
+                className={inputCls()}
+              />
+            </Field>
+            <Field label="Food & Beverage" icon={UtensilsCrossed}>
+              <button
+                type="button"
+                onClick={() => update("foodIncluded", !form.foodIncluded)}
+                className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-[12px] font-black transition ${
+                  form.foodIncluded ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"
+                }`}
+              >
+                {form.foodIncluded ? "Included" : "Not included"}
+                <span className={`relative flex h-5 w-9 items-center rounded-full transition ${form.foodIncluded ? "bg-emerald-500" : "bg-slate-300"}`}>
+                  <span className={`absolute h-4 w-4 rounded-full bg-white shadow transition-all ${form.foodIncluded ? "left-[18px]" : "left-0.5"}`} />
+                </span>
+              </button>
+            </Field>
+          </div>
 
           <Field label="Timing" icon={Clock} error={errors.startTime}>
             <div className="flex items-center gap-2">

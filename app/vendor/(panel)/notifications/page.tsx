@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getVendorBookings, getVendorListings, updateVendorBookingStatus } from "@/lib/api/vendor";
+import { getVendorBookings, getVendorListings, listSubscriptions, updateVendorBookingStatus } from "@/lib/api/vendor";
 import { apiListingToMock } from "@/lib/api/listingAdapter";
 import { Booking, Listing } from "@/lib/types";
 import {
@@ -52,6 +52,8 @@ function relative(target: Date, now: number) {
 export default function NotificationsPage() {
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
+  /** Phones of customers with an active membership — drives the "Member" flag. */
+  const [memberPhones, setMemberPhones] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("All");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -69,10 +71,15 @@ export default function NotificationsPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([getVendorBookings({ limit: 100 }), getVendorListings()])
-      .then(([b, l]) => {
+    Promise.all([
+      getVendorBookings({ limit: 100 }),
+      getVendorListings(),
+      listSubscriptions().catch(() => []),
+    ])
+      .then(([b, l, subs]) => {
         setBookings(b.items as unknown as ApiBooking[]);
         setListings(l.map(apiListingToMock));
+        setMemberPhones(new Set(subs.filter((s) => s.status === "active").map((s) => s.phone)));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -143,10 +150,11 @@ export default function NotificationsPage() {
           isPast,
           paidInFull,
           playedTimes: playCounts.get(b.phone ?? name) ?? 1,
+          isMember: b.phone ? memberPhones.has(b.phone) : false,
         };
       })
       .sort((a, z) => a.start.getTime() - z.start.getTime());
-  }, [bookings, now, playCounts]);
+  }, [bookings, now, playCounts, memberPhones]);
 
   const counts = useMemo(
     () => ({
@@ -324,7 +332,7 @@ export default function NotificationsPage() {
                   onClick={() => setDetailKey(r.key)}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-[10px] font-black text-indigo-600 transition active:scale-[0.97]"
                 >
-                  <FileText size={11} /> See Full Booking Detail
+                  <FileText size={11} /> Full detail
                 </button>
 
                 <button
@@ -343,19 +351,29 @@ export default function NotificationsPage() {
       {(() => {
         const r = rows.find((x) => x.key === detailKey);
         if (!r) return null;
+        const durMins = Math.round((r.end.getTime() - r.start.getTime()) / 60_000);
+        const durationLabel =
+          durMins >= 60 ? `${(durMins / 60).toFixed(durMins % 60 === 0 ? 0 : 1)} hr` : `${durMins} min`;
+        const foodLabel =
+          r.booking.foodIncluded === true ? "Included" : r.booking.foodIncluded === false ? "Not included" : "Not recorded";
         const fields: { label: string; value: React.ReactNode }[] = [
           { label: "Customer", value: r.name },
           { label: "Status", value: r.statusLine },
+          { label: "Member", value: r.isMember ? "★ Member" : "Not a member" },
           {
             label: "Date",
             value: r.start.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" }),
           },
           { label: "Time", value: `${fmtTime(r.start)} – ${fmtTime(r.end)}` },
+          { label: "Duration", value: durationLabel },
+          { label: "No. of players", value: r.booking.numberOfPlayers ? `${r.booking.numberOfPlayers}` : "Not recorded" },
           ...(courtName(r.booking) ? [{ label: "Court", value: courtName(r.booking) }] : []),
+          ...(r.booking.sport ? [{ label: "Sport", value: r.booking.sport }] : []),
           { label: "Amount", value: `₹${r.booking.totalAmount.toLocaleString("en-IN")}` },
           { label: "Payment", value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : "Pending"}` },
           { label: "Source", value: r.source === "F" ? "Offline / walk-in" : "Online booking" },
-          { label: "Times played here", value: `${r.playedTimes}` },
+          { label: "Food & beverage", value: foodLabel },
+          { label: "Times played at your turf", value: `${r.playedTimes}` },
           ...(r.booking.checkedIn
             ? [{ label: "Check-in", value: r.booking.checkedInAt ? `Checked in at ${fmtTime(new Date(r.booking.checkedInAt))}` : "Checked in" }]
             : []),
@@ -374,15 +392,7 @@ export default function NotificationsPage() {
                   </div>
                 ))}
               </div>
-              {r.booking.phone && (
-                <a
-                  href={`tel:${r.booking.phone}`}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-slate-900 py-3 text-[11px] font-black text-white"
-                >
-                  <Phone size={12} /> Call {r.booking.phone}
-                </a>
-              )}
-              <button onClick={() => setDetailKey(null)} className="mt-2 w-full rounded-2xl bg-slate-100 py-3 text-[11px] font-black uppercase tracking-wide text-slate-600">
+              <button onClick={() => setDetailKey(null)} className="mt-3 w-full rounded-2xl bg-slate-100 py-3 text-[11px] font-black uppercase tracking-wide text-slate-600">
                 Close
               </button>
             </div>

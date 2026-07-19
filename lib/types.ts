@@ -111,6 +111,9 @@ export interface Booking {
   customer: string;
   phone: string;
   listing: string;
+  sport?: string;
+  numberOfPlayers?: number;
+  foodIncluded?: boolean;
   dateTime: string;
   totalAmount: number;
   platformFee: number;

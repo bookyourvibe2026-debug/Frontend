@@ -44,6 +44,7 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
   ],
   food: [
     { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/food/profile", label: "Restaurants", icon: Briefcase },
     { href: "/vendor/food/menu", label: "Menu Management", icon: UtensilsCrossed },
     { href: "/vendor/food/orders", label: "Food Orders", icon: ClipboardList },
   ],
@@ -61,6 +62,7 @@ export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
   events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard", "/vendor/profile"],
   // Dashboard sits 3rd so the bottom-nav floats it to the centre.
   coaches: ["/vendor/coaches", "/vendor/coaches/schedule", "/vendor/coaches/dashboard", "/vendor/coaches/notifications"],
+  food: ["/vendor/food/menu", "/vendor/food/orders", "/vendor/food/dashboard", "/vendor/food/profile"],
 };
 
 const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {

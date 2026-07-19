@@ -1,4 +1,4 @@
-import { apiRequest, buildApiUrl, getAccessToken, type Paginated } from "./client";
+import { apiRequest, buildApiUrl, getAccessToken, uploadRequest, type Paginated } from "./client";
 import type {
   Booking,
   BookingStatus,
@@ -8,11 +8,14 @@ import type {
   CoachWeeklyDay,
   FoodOrder,
   FoodOrderStatus,
+  FoodOutlet,
   Listing,
   ListingType,
   Membership,
   MembershipPlanType,
   MenuItem,
+  OutletWeeklyDay,
+  PriceVariant,
   ModulePermissionKey,
   PermissionsMap,
   SettledPayment,
@@ -192,6 +195,10 @@ export interface CreateVendorBookingInput {
   phone: string;
   /** Sport the slot is booked for (manual/walk-in bookings). */
   sport?: string;
+  /** How many players are coming (manual/walk-in bookings). */
+  numberOfPlayers?: number;
+  /** Whether food & beverage is included with the booking. */
+  foodIncluded?: boolean;
   dateTime: string;
   /** Slot end as "HH:mm". */
   endTime?: string;
@@ -432,13 +439,77 @@ export function checkInVendorBooking(orderId: string) {
   return apiRequest<Booking>(`/vendor/bookings/${orderId}/checkin`, { method: "POST", audience: AUD });
 }
 
+/* ---- Food Outlets (Restaurants) ---- */
+
+export interface OutletLocationInput {
+  address?: string;
+  area?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface CreateOutletInput {
+  name: string;
+  kind?: "dining" | "venue";
+  offer?: string;
+  description?: string;
+  cuisines?: string[];
+  logo?: string;
+  banner?: string;
+  poster?: string;
+  gallery?: string[];
+  location?: OutletLocationInput;
+  status?: "Active" | "Inactive";
+}
+
+export function listVendorOutlets() {
+  return apiRequest<FoodOutlet[]>("/vendor/food-outlets", { audience: AUD });
+}
+
+export function getVendorOutletById(id: string) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${id}`, { audience: AUD });
+}
+
+export function createVendorOutlet(input: CreateOutletInput) {
+  return apiRequest<FoodOutlet>("/vendor/food-outlets", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateVendorOutlet(id: string, input: Partial<CreateOutletInput>) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function deleteVendorOutlet(id: string) {
+  return apiRequest<null>(`/vendor/food-outlets/${id}`, { method: "DELETE", audience: AUD });
+}
+
+export function setOutletAvailability(outletId: string, days: OutletWeeklyDay[]) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${outletId}/availability`, {
+    method: "PUT",
+    body: { days },
+    audience: AUD,
+  });
+}
+
+export function addOutletLeave(outletId: string, input: { date: string; type?: "full" | "half"; reason?: string }) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${outletId}/leaves`, { method: "POST", body: input, audience: AUD });
+}
+
+export function removeOutletLeave(outletId: string, isoDate: string) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${outletId}/leaves/${encodeURIComponent(isoDate)}`, {
+    method: "DELETE",
+    audience: AUD,
+  });
+}
+
 /* ---- Menu (Food Owner) ---- */
 
-export function listVendorMenu() {
-  return apiRequest<MenuItem[]>("/vendor/menu", { audience: AUD });
+export function listVendorMenu(params: { outletId?: string } = {}) {
+  return apiRequest<MenuItem[]>("/vendor/menu", { query: params, audience: AUD });
 }
 
 export interface MenuItemInput {
+  outletId?: string;
   name: string;
   description?: string;
   price: number;
@@ -446,6 +517,18 @@ export interface MenuItemInput {
   photo?: string;
   inStock?: boolean;
   prepTimeMins?: number;
+  priceVariants?: PriceVariant[];
+}
+
+export interface BulkMenuUploadResult {
+  created: number;
+  errors: { row: number; reason: string }[];
+}
+
+export function bulkUploadMenuItems(outletId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return uploadRequest<BulkMenuUploadResult>(`/vendor/menu/bulk-upload/${outletId}`, form, AUD);
 }
 
 export function createVendorMenuItem(input: MenuItemInput) {

@@ -152,7 +152,12 @@ export default function VendorFoodOrdersPage() {
                     <p className="text-[11px] text-ink-faint">{o.phone}</p>
                   </td>
                   <td className="px-5 py-4 text-xs text-ink-soft">
-                    {o.items.map((i) => `${i.name} x${i.quantity}`).join(", ")}
+                    {o.items.map((i, idx) => (
+                      <p key={idx} className="whitespace-nowrap">
+                        {i.name}
+                        {i.variantLabel ? ` (${i.variantLabel})` : ""} ×{i.quantity}
+                      </p>
+                    ))}
                   </td>
                   <td className="px-5 py-4 text-right font-medium text-ink">₹{o.totalAmount.toLocaleString("en-IN")}</td>
                   <td className="px-5 py-4">

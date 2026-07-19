@@ -121,6 +121,9 @@ export interface Booking {
   customerName: string;
   phone: string;
   email?: string;
+  sport?: string;
+  numberOfPlayers?: number;
+  foodIncluded?: boolean;
   dateTime: string;
   totalAmount: number;
   platformFee: number;
@@ -309,16 +312,69 @@ export interface TournamentRegistration {
   updatedAt: string;
 }
 
+export interface PriceVariant {
+  label: string;
+  price: number;
+}
+
 export interface MenuItem {
   _id: string;
   vendorId: string;
+  outletId?: string;
   name: string;
   description?: string;
+  /** Flat price, or "starting from" when priceVariants exist. */
   price: number;
   category: string;
   photo?: string;
   inStock: boolean;
   prepTimeMins?: number;
+  /** When non-empty, the customer must pick one when ordering. */
+  priceVariants: PriceVariant[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutletWeeklyDay {
+  day: number; // 0 = Sunday … 6 = Saturday
+  isOpen: boolean;
+  startTime: string; // "HH:mm"
+  endTime: string;
+}
+
+export interface OutletLeave {
+  date: string;
+  type: "full" | "half";
+  reason?: string;
+}
+
+export interface OutletLocation {
+  address?: string;
+  area?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
+}
+
+export type FoodOutletKind = "dining" | "venue";
+
+export interface FoodOutlet {
+  _id: string;
+  vendorId: string;
+  slug?: string;
+  name: string;
+  kind: FoodOutletKind;
+  offer?: string;
+  description?: string;
+  cuisines: string[];
+  logo?: string;
+  banner?: string;
+  poster?: string;
+  gallery: string[];
+  location: OutletLocation;
+  weeklyAvailability: OutletWeeklyDay[];
+  leaves: OutletLeave[];
+  status: "Active" | "Inactive";
   createdAt: string;
   updatedAt: string;
 }
@@ -330,12 +386,14 @@ export interface FoodOrderItem {
   name: string;
   price: number;
   quantity: number;
+  variantLabel?: string;
 }
 
 export interface FoodOrder {
   _id: string;
   orderId: string;
   vendorId: string;
+  outletId?: string;
   customerId: string;
   customerName: string;
   phone: string;
@@ -361,12 +419,30 @@ export interface FoodVendor {
   categories: string[];
 }
 
+export interface FoodDashboardChartPoint {
+  date: string;
+  label: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface FoodOrderSummary {
+  orderId: string;
+  customerName: string;
+  items: FoodOrderItem[];
+  totalAmount: number;
+  status: FoodOrderStatus;
+  createdAt: string;
+}
+
 export interface VendorFoodDashboard {
   period: "day" | "week" | "month" | "year";
   ordersByStatus: Partial<Record<FoodOrderStatus, number>>;
   totalRevenue: number;
   deliveredOrderCount: number;
   allTimeOrderCount: number;
+  chart: FoodDashboardChartPoint[];
+  recentOrders: FoodOrderSummary[];
 }
 
 export interface EventBookingSummary {

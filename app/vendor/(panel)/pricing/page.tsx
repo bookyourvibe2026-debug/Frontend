@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, ThumbsUp, Trophy, X } from "lucide-react";
+import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, Trophy, X } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -357,20 +357,30 @@ export default function PriceSettingPage() {
           </SectionCard>
 
           {/* ── CORPORATE / TOURNAMENT BOOKING — take a multi-day booking straight from here ── */}
-          <div className="flex items-center gap-3 rounded-2xl border-2 border-violet-200 bg-violet-50/50 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
-              <Trophy size={18} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-slate-900">Corporate / Tournament Booking</p>
-              <p className="text-[11px] font-medium text-slate-500">Take a 2–3 day (or longer) booking — it shows on the calendar below.</p>
+          <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-5 shadow-sm">
+            <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
+            <div className="relative flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30">
+                <Trophy size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[15px] font-black text-slate-900">Corporate / Tournament</p>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-violet-700">
+                    Multi-day
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-500">
+                  Block a 2–3 day (or longer) booking in one go — it reserves those dates and shows as an event on the calendar below.
+                </p>
+                <button
+                  onClick={() => setEventSheetOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
+                >
+                  <CalendarRange size={13} /> Take a Booking
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setEventSheetOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
-            >
-              <CalendarRange size={13} /> Take Booking
-            </button>
           </div>
 
           <SectionCard title={`${monthNames[calMonth]} ${calYear}`}>
@@ -545,11 +555,20 @@ export default function PriceSettingPage() {
                       : "Let the BYV team adjust your rates for demand, weekends and holidays."}
                   </p>
                 </div>
-                {byvManaged && (
-                  <span className="shrink-0 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-200">
-                    Active
-                  </span>
-                )}
+                {/* On/off switch — replaces the old "tap to take back control" button */}
+                <button
+                  role="switch"
+                  aria-checked={byvManaged}
+                  aria-label="Toggle BYV dynamic pricing"
+                  onClick={toggleByvManaged}
+                  className={`relative flex h-7 w-12 shrink-0 items-center rounded-full transition ${
+                    byvManaged ? "bg-emerald-400" : "bg-white/25"
+                  }`}
+                >
+                  <span
+                    className={`absolute h-5 w-5 rounded-full bg-white shadow transition-all ${byvManaged ? "left-6" : "left-1"}`}
+                  />
+                </button>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 {["Demand surges", "Weekends", "Holidays"].map((chip) => (
@@ -558,14 +577,10 @@ export default function PriceSettingPage() {
                   </span>
                 ))}
               </div>
-              <button
-                onClick={toggleByvManaged}
-                className={`mt-4 flex w-full items-center justify-center gap-1.5 rounded-2xl py-3 text-[11px] font-black transition active:scale-[0.98] ${
-                  byvManaged ? "bg-white/15 text-white backdrop-blur" : "bg-white text-indigo-700 shadow-md"
-                }`}
-              >
-                <ThumbsUp size={13} /> {byvManaged ? "BYV is handling this — tap to take back control" : "Let BYV handle this"}
-              </button>
+              <p className="mt-4 flex items-center gap-1.5 text-[11px] font-black text-white">
+                <span className={`h-2 w-2 rounded-full ${byvManaged ? "bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" : "bg-white/40"}`} />
+                {byvManaged ? "ON — BYV is handling your pricing" : "OFF — you're managing pricing yourself"}
+              </p>
             </div>
           </div>
         </>

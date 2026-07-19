@@ -62,6 +62,14 @@ function durHrs(start: string, end: string) {
   const d = t24m(end) - t24m(start);
   return d > 0 ? +(d / 60).toFixed(1) : 0;
 }
+/** Day-part label for a newly-added slot, from its start hour. */
+function slotLabel(start: string) {
+  const h = Number(start.split(":")[0]);
+  if (h >= 5 && h < 12) return "Morning";
+  if (h >= 12 && h < 17) return "Afternoon";
+  if (h >= 17 && h < 21) return "Evening";
+  return "Night";
+}
 type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
 
 /**
@@ -142,6 +150,9 @@ export default function BookingsPage() {
   const [setupSportsSaving, setSetupSportsSaving] = useState(false);
 
   const ALL_SPORTS = ["Football", "Cricket", "Tennis", "Badminton", "Basketball", "Volleyball", "Hockey", "Rugby", "Kabaddi", "Handball", "Futsal", "Box Cricket", "Pickleball", "Squash", "Padel"];
+
+  // "Add a time slot" modal (e.g. an extra late-night slot for this date)
+  const [addSlotOpen, setAddSlotOpen] = useState(false);
 
   // Block-reason picker (available slot → "Block Slot")
   const [blockReasonOpen, setBlockReasonOpen] = useState(false);
@@ -371,6 +382,32 @@ export default function BookingsPage() {
     } catch { alert(`Failed to ${blocked ? "block" : "unblock"} slot`); }
   }
 
+  /** Append a custom slot (e.g. late-night 1–2 AM) to the selected date's slot list. */
+  async function addCustomSlot(start: string, end: string, price: number) {
+    if (!selectedTurf) return;
+    try {
+      const overrides = [...(selectedTurf.dateOverrides || [])];
+      const idx = overrides.findIndex((o) => o.date === selectedDate);
+      const currentSlots = idx > -1 ? [...(overrides[idx].slots || [])] : [...(selectedTurf.slotsList || [])];
+      if (currentSlots.some((s) => s.startTime === start)) {
+        alert("A slot already starts at that time.");
+        return;
+      }
+      const next = [...currentSlots, { startTime: start, endTime: end, label: slotLabel(start), price }].sort((a, b) =>
+        a.startTime.localeCompare(b.startTime)
+      );
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride;
+      else overrides.push(newOverride);
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      setAddSlotOpen(false);
+    } catch {
+      alert("Failed to add the slot");
+    }
+  }
+
   async function startOfflineBooking(slot: AgendaSlot) {
     if (!selectedTurf) return;
     if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
@@ -522,6 +559,8 @@ export default function BookingsPage() {
         customerName: v.customerName.trim(),
         phone: v.phone,
         sport: v.sport || undefined,
+        numberOfPlayers: v.numberOfPlayers ? Number(v.numberOfPlayers) : undefined,
+        foodIncluded: v.foodIncluded,
         dateTime: dt.toISOString(),
         endTime: v.endTime || undefined,
         totalAmount: Number(v.price) || 0,
@@ -711,6 +750,12 @@ export default function BookingsPage() {
                   onAction={handleSlotAction}
                   scrollToNow={isToday}
                 />
+                <button
+                  onClick={() => setAddSlotOpen(true)}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-vibe-navy/30 bg-white py-3 text-[11px] font-black text-vibe-navy transition hover:bg-slate-50 active:scale-[0.99]"
+                >
+                  <CalendarDays size={13} /> Add a time slot (e.g. late night 1–2 AM)
+                </button>
                 <TimelineLegend />
               </>
             )}
@@ -785,6 +830,16 @@ export default function BookingsPage() {
       {/* ── QR SCANNER — scans the ticket QR and checks the player in ── */}
       {qrScannerOpen && (
         <QrScannerModal onClose={() => setQrScannerOpen(false)} onCheckIn={handleQrCheckIn} />
+      )}
+
+      {/* ── ADD A TIME SLOT ── */}
+      {addSlotOpen && (
+        <AddSlotModal
+          dateLabel={headerDateLabel}
+          defaultPrice={resolvedSlots[0]?.price ?? 0}
+          onClose={() => setAddSlotOpen(false)}
+          onAdd={addCustomSlot}
+        />
       )}
 
       {/* ── SLOT ACTION MODAL (available / blocked) ── */}
@@ -1052,6 +1107,71 @@ function ActionRow({ icon, title, sub, onClick, color }: {
         <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
       </div>
     </button>
+  );
+}
+
+/* ─── ADD A TIME SLOT MODAL ────────────────────────────────────── */
+function AddSlotModal({
+  dateLabel,
+  defaultPrice,
+  onClose,
+  onAdd,
+}: {
+  dateLabel: string;
+  defaultPrice: number;
+  onClose: () => void;
+  onAdd: (start: string, end: string, price: number) => void;
+}) {
+  const [start, setStart] = useState("01:00");
+  const [end, setEnd] = useState("02:00");
+  const [price, setPrice] = useState(defaultPrice ? String(defaultPrice) : "");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    if (!start || !end) return setError("Set the start and end time.");
+    if (t24m(end) <= t24m(start)) return setError("End time must be after the start time.");
+    if (price === "" || Number(price) < 0) return setError("Enter a valid price.");
+    onAdd(start, end, Number(price));
+  }
+
+  const field = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-vibe-violet";
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h3 className="text-[15px] font-black text-slate-900">Add a time slot</h3>
+            <p className="mt-0.5 text-[10px] font-medium text-slate-400">{dateLabel} — for late-night or extra hours.</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"><X size={15} /></button>
+        </div>
+
+        {error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2.5 text-[11px] font-bold text-rose-600">{error}</p>}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">From</label>
+            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className={field} />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">To</label>
+            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={field} />
+          </div>
+        </div>
+        <div className="mt-3">
+          <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Price ₹</label>
+          <input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} placeholder="0" className={field} />
+        </div>
+
+        <button
+          onClick={submit}
+          className="mt-5 w-full rounded-2xl bg-vibe-navy py-3.5 text-[12px] font-black uppercase tracking-wide text-white transition active:scale-[0.98]"
+        >
+          Add Slot
+        </button>
+      </div>
+    </div>
   );
 }
 
