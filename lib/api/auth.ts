@@ -141,6 +141,11 @@ export async function vendorLogout() {
     await apiRequest<null>("/auth/vendor/logout", { method: "POST" });
   } finally {
     setAccessToken("vendor", null);
+    // Clear the per-session MPIN unlock + active-panel so the next vendor on this device starts fresh.
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("byv_vendor_mpin_ok");
+      localStorage.removeItem("byv_vendor_active_vertical");
+    }
   }
 }
 

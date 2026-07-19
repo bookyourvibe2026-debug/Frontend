@@ -6,6 +6,9 @@ import { getMpinStatus, setMpin, verifyMpin } from "@/lib/api/vendor";
 
 type PinMode = "loading" | "create" | "create_confirm" | "enter" | "unlocked";
 
+/** Session flag so the MPIN is entered once, not on every dashboard. See VendorAuth logout, which clears it. */
+export const MPIN_SESSION_KEY = "byv_vendor_mpin_ok";
+
 /** A 4-digit MPIN gate. Renders `children` only once unlocked. Reuses the shared
  * vendor MPIN endpoints, so the same PIN works across the turf and events dashboards. */
 export function MpinGate({
@@ -15,13 +18,19 @@ export function MpinGate({
   title?: string;
   children: React.ReactNode;
 }) {
-  const [pinMode, setPinMode] = useState<PinMode>("loading");
+  const [pinMode, setPinMode] = useState<PinMode>(() =>
+    typeof window !== "undefined" && sessionStorage.getItem(MPIN_SESSION_KEY) === "1" ? "unlocked" : "loading"
+  );
   const [inputPin, setInputPin] = useState("");
   const [firstPin, setFirstPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Already unlocked this session (see the lazy initial state) — skip the check so a
+    // multi-vertical vendor enters the MPIN once and can flip between all their
+    // dashboards (turf/food/coaches/events) without being re-prompted. Cleared on logout.
+    if (typeof window !== "undefined" && sessionStorage.getItem(MPIN_SESSION_KEY) === "1") return;
     getMpinStatus()
       .then(({ hasPin }) => setPinMode(hasPin ? "enter" : "create"))
       .catch(() => setPinMode("create"));
@@ -40,6 +49,11 @@ export function MpinGate({
     setPinError("");
   }
 
+  function unlock() {
+    if (typeof window !== "undefined") sessionStorage.setItem(MPIN_SESSION_KEY, "1");
+    setPinMode("unlocked");
+  }
+
   async function processPin(pin: string) {
     if (submitting) return;
     setSubmitting(true);
@@ -56,11 +70,11 @@ export function MpinGate({
           setPinMode("create");
         } else {
           await setMpin(pin);
-          setPinMode("unlocked");
+          unlock();
         }
       } else if (pinMode === "enter") {
         await verifyMpin(pin);
-        setPinMode("unlocked");
+        unlock();
       }
     } catch (error) {
       const e = error as { describe?: () => string; message?: string };
