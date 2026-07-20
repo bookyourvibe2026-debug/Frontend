@@ -240,9 +240,14 @@ export function ClockSlotsWidget({
     };
   }, [activeSlotsList]);
 
-  // Fixed hands positions at 7:30 (Hour hand at 225 deg, Minute hand at 180 deg)
-  const hourHandAngle = 225;
-  const minuteHandAngle = 180;
+  // Hands follow the real current time, refreshed every 30s.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const hourHandAngle = ((now.getHours() % 12) + now.getMinutes() / 60) * 30;
+  const minuteHandAngle = now.getMinutes() * 6;
 
   const body = (
     <>
@@ -420,19 +425,9 @@ export function ClockSlotsWidget({
         ))}
       </div>
 
-      {/* See booking slot */}
-      <div className="mt-4">
-        {renderSeeBooking ? (
-          renderSeeBooking(() => setIsFullscreen(false))
-        ) : (
-          <button
-            type="button"
-            className="flex items-center gap-2 bg-slate-900 text-white text-sm font-bold px-6 py-3 rounded-full shadow-xl hover:bg-slate-800 transition"
-          >
-            SEE BOOKING
-          </button>
-        )}
-      </div>
+      {/* See booking slot — only rendered when the host page wires it up; a button
+          with no action (e.g. in the Package Studio preview) would just confuse. */}
+      {renderSeeBooking && <div className="mt-4">{renderSeeBooking(() => setIsFullscreen(false))}</div>}
     </>
   );
 

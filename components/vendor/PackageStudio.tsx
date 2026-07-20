@@ -59,8 +59,18 @@ function to12h(t: string) {
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
 }
 
+/** Starter template for new venue packages — vendors edit or remove whatever doesn't apply.
+ * Events start blank since Included/Excluded mean trip inclusions there, not venue facilities. */
+const DEFAULT_PACKAGE_DESCRIPTION =
+  "A well-maintained venue with a quality playing surface and proper lighting. " +
+  "Perfect for casual games, regular practice sessions and small tournaments. " +
+  "Easy to reach, with an on-ground team ready to help you get started.";
+const DEFAULT_AMENITIES_PROVIDED = ["Washrooms", "Parking", "Floodlights", "Drinking Water", "First Aid Kit", "Seating Area"];
+const DEFAULT_AMENITIES_NOT_PROVIDED = ["Equipment Rental", "Cafeteria"];
+
 function emptyListing(type: ListingType): Listing {
   const now = new Date();
+  const isEvent = type === "Event";
   return {
     id: `byv-${now.getTime()}`,
     title: "",
@@ -84,10 +94,10 @@ function emptyListing(type: ListingType): Listing {
     endingPoint: "",
     reportingStartTime: "",
     reportingEndTime: "",
-    description: "",
+    description: isEvent ? "" : DEFAULT_PACKAGE_DESCRIPTION,
     highlights: [],
-    inclusions: [],
-    exclusions: [],
+    inclusions: isEvent ? [] : [...DEFAULT_AMENITIES_PROVIDED],
+    exclusions: isEvent ? [] : [...DEFAULT_AMENITIES_NOT_PROVIDED],
     itinerary: [],
     faqs: [],
     tags: [],
