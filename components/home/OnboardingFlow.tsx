@@ -99,24 +99,34 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
         {step === "role" && (
           <div className="fixed inset-0 z-0 flex flex-col items-center justify-center animate-in fade-in duration-500 bg-[#041510]">
-             {/* Grid & Football Background */}
-             <div className="absolute inset-0 z-0 overflow-hidden">
+             {/* Grid, orbiting rings & floating sport icons */}
+             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px]" />
                <div className="absolute left-[-20%] top-[40%] h-[80%] w-[120%] opacity-10 blur-sm mix-blend-screen">
-                  {/* Faint background elements */}
-                  <div className="absolute inset-0 rounded-full border-[1px] border-emerald-500/20" />
-                  <div className="absolute inset-10 rounded-full border-[1px] border-emerald-500/20" />
+                  {/* Faint background rings — slow counter-rotating orbit for depth */}
+                  <div className="absolute inset-0 rounded-full border-[1px] border-emerald-500/20 [animation:spin_28s_linear_infinite]" />
+                  <div className="absolute inset-10 rounded-full border-[1px] border-emerald-500/20 [animation:spin_20s_linear_infinite_reverse]" />
                </div>
+               {/* Drifting sport emoji — subtle, low-opacity, staggered timing so they never sync */}
+               <span className="absolute left-[12%] top-[20%] text-3xl opacity-[0.08] [animation:float-y_7s_ease-in-out_infinite]">⚽</span>
+               <span className="absolute right-[14%] top-[28%] text-3xl opacity-[0.08] [animation:float-y_8s_ease-in-out_infinite_1.2s]">🏸</span>
+               <span className="absolute left-[18%] bottom-[24%] text-3xl opacity-[0.08] [animation:float-y_6.5s_ease-in-out_infinite_0.6s]">🎾</span>
+               <span className="absolute right-[10%] bottom-[18%] text-3xl opacity-[0.08] [animation:float-y_7.5s_ease-in-out_infinite_2s]">🏓</span>
              </div>
-             
+
              {/* Main content */}
              <div className="relative z-10 flex w-full flex-col items-center justify-center gap-16 px-6">
-               
-               {/* Center Glow Circle */}
-               <div className="relative flex h-[120px] w-[120px] items-center justify-center rounded-full bg-emerald-500 shadow-[0_0_80px_rgba(16,185,129,0.4)]">
-                 <div className="absolute -inset-3 rounded-full border border-emerald-400/20" />
-                 <div className="text-center text-xs font-black leading-tight tracking-[0.25em] text-white">
-                   BOOK<br />YOUR<br />VIBE
+
+               {/* Center Glow Circle — breathing glow with an orbiting dashed ring.
+                   The one-time mount animation and the perpetual pulse live on separate
+                   elements so their `animation` properties don't fight each other. */}
+               <div className="animate-in zoom-in duration-700">
+                 <div className="relative flex h-[120px] w-[120px] items-center justify-center rounded-full bg-emerald-500 [animation:pulse-glow_3s_ease-in-out_infinite]">
+                   <div className="absolute -inset-3 rounded-full border border-emerald-400/20" />
+                   <div className="absolute -inset-6 rounded-full border border-dashed border-emerald-400/30 [animation:spin_14s_linear_infinite]" />
+                   <div className="text-center text-xs font-black leading-tight tracking-[0.25em] text-white">
+                     BOOK<br />YOUR<br />VIBE
+                   </div>
                  </div>
                </div>
 
@@ -124,7 +134,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                  {/* Player Card */}
                  <button
                    onClick={() => setStep("player-login")}
-                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform active:scale-95"
+                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform animate-in slide-in-from-bottom-4 fade-in duration-500 fill-mode-both active:scale-95"
                  >
                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#273832] text-xl shadow-inner">🏏</span>
                    <div className="text-left">
@@ -136,7 +146,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                  {/* Vendor Card */}
                  <button
                    onClick={() => router.push("/vendor/login")}
-                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform active:scale-95"
+                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform animate-in slide-in-from-bottom-4 fade-in duration-500 delay-150 fill-mode-both active:scale-95"
                  >
                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#273832] text-emerald-400 shadow-inner">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.04-4.04M22 7l-4.04-4.04M2 7l2.1 10.45c.14.72.8 1.25 1.54 1.25h12.72c.74 0 1.4-.53 1.54-1.25L22 7M2 7h20"/><path d="M10 22v-3a2 2 0 0 1 2-2v0a2 2 0 0 1 2 2v3"/></svg>
@@ -148,7 +158,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                  </button>
                </div>
 
-               <button onClick={onComplete} className="text-sm font-bold text-slate-400 hover:text-white transition-colors underline decoration-slate-600 underline-offset-4">
+               <button onClick={onComplete} className="text-sm font-bold text-slate-400 hover:text-white transition-colors underline decoration-slate-600 underline-offset-4 animate-in fade-in duration-700 delay-300 fill-mode-both">
                  Skip for now
                </button>
              </div>
