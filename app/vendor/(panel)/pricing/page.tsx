@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, Trophy, X } from "lucide-react";
+import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -151,6 +151,23 @@ export default function PriceSettingPage() {
     }
     return days;
   }, [calYear, calMonth, todayIso]);
+
+  /** Dates that are part of a run of 3+ consecutive calendar-day holidays (e.g. a long weekend
+   * stretch) — flagged so those cells can be visually called out beyond a single-day holiday. */
+  const holidayStreakDates = useMemo(() => {
+    const set = new Set<string>();
+    let run: string[] = [];
+    const flushRun = () => {
+      if (run.length >= 3) run.forEach((d) => set.add(d));
+      run = [];
+    };
+    for (const day of calendarDays) {
+      if (day && day.isHoliday) run.push(day.dateStr);
+      else flushRun();
+    }
+    flushRun();
+    return set;
+  }, [calendarDays]);
 
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); } else setCalMonth((m) => m - 1);
@@ -410,7 +427,10 @@ export default function PriceSettingPage() {
                 const slots = resolveSlotsForDate(selectedTurf, day.dateStr);
                 const price = minPrice(slots);
                 const isSelected = activeDate === day.dateStr;
-                const isPeak = day.isWeekend || day.isHoliday;
+                const isEvent = eventDates.has(day.dateStr);
+                const inStreak = holidayStreakDates.has(day.dateStr);
+                const isHolidayOnly = day.isHoliday;
+                const isWeekendOnly = day.isWeekend;
                 const hasOverride = selectedTurf?.dateOverrides?.some((o) => o.date === day.dateStr);
 
                 return (
@@ -423,21 +443,33 @@ export default function PriceSettingPage() {
                         ? "border-slate-100 bg-slate-50/50 opacity-30 cursor-not-allowed"
                         : isSelected
                         ? "border-2 border-[#005e4b] bg-[#005e4b]/5 text-[#005e4b] ring-4 ring-[#005e4b]/15 scale-105 z-10"
+                        : isEvent
+                        ? "border-2 border-violet-400 bg-violet-50/50 hover:bg-violet-50 hover:border-violet-500 scale-[1.02] z-10"
+                        : inStreak
+                        ? "border-2 border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500 scale-[1.02] z-10"
+                        : isHolidayOnly
+                        ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-300"
                         : hasOverride
                         ? "border-2 border-teal-400 bg-teal-50/40 hover:bg-teal-50 hover:border-teal-500 scale-[1.02] z-10"
-                        : isPeak
+                        : isWeekendOnly
                         ? "border-rose-100 bg-rose-50/40 hover:bg-rose-50"
                         : "border-slate-100 bg-white hover:border-slate-200"
                     }`}
                   >
                     {/* Date Number Display */}
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                      isSelected 
+                      isSelected
                         ? "bg-[#005e4b] text-white shadow-md"
+                        : isEvent
+                        ? "text-violet-800 bg-violet-100/60"
+                        : inStreak
+                        ? "text-orange-800 bg-orange-100/60"
+                        : isHolidayOnly
+                        ? "text-amber-700 bg-amber-100/50"
                         : hasOverride
                         ? "text-teal-800 bg-teal-100/50"
-                        : isPeak 
-                        ? "text-rose-600" 
+                        : isWeekendOnly
+                        ? "text-rose-600"
                         : "text-slate-500"
                     }`}>
                       {day.dayNumber}
@@ -448,9 +480,15 @@ export default function PriceSettingPage() {
                       <span className={`text-[9px] font-black uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded-md ${
                         isSelected
                           ? "text-[#005e4b] scale-95"
+                          : isEvent
+                          ? "bg-violet-100 text-violet-800 border border-violet-200"
+                          : inStreak
+                          ? "bg-orange-100 text-orange-800 border border-orange-200"
+                          : isHolidayOnly
+                          ? "bg-amber-50 text-amber-700 border border-amber-100"
                           : hasOverride
                           ? "bg-teal-100 text-teal-800 border border-teal-200"
-                          : isPeak
+                          : isWeekendOnly
                           ? "bg-rose-50 text-rose-600 border border-rose-100"
                           : "text-slate-400"
                       }`}>
@@ -459,17 +497,52 @@ export default function PriceSettingPage() {
                     )}
 
                     {/* Corporate / tournament booking marker */}
-                    {eventDates.has(day.dateStr) && (
+                    {isEvent && (
                       <span
                         title={eventDates.get(day.dateStr)}
-                        className="mt-0.5 rounded border border-violet-200 bg-violet-100 px-1 text-[7px] font-black uppercase tracking-wide text-violet-700"
+                        className="mt-0.5 flex items-center gap-0.5 rounded border border-violet-200 bg-violet-100 px-1 text-[7px] font-black uppercase tracking-wide text-violet-700"
                       >
-                        Event
+                        <Trophy size={7} /> Corporate
+                      </span>
+                    )}
+
+                    {/* 3+ day holiday stretch — called out beyond a single-day holiday */}
+                    {!isEvent && inStreak && (
+                      <span
+                        title={INDIAN_HOLIDAYS[day.dateStr]}
+                        className="mt-0.5 flex items-center gap-0.5 rounded border border-orange-200 bg-orange-100 px-1 text-[7px] font-black uppercase tracking-wide text-orange-700"
+                      >
+                        <Flame size={7} /> Long Weekend
+                      </span>
+                    )}
+
+                    {/* Single-day holiday */}
+                    {!isEvent && !inStreak && isHolidayOnly && (
+                      <span
+                        title={INDIAN_HOLIDAYS[day.dateStr]}
+                        className="mt-0.5 flex items-center gap-0.5 rounded border border-amber-200 bg-amber-100 px-1 text-[7px] font-black uppercase tracking-wide text-amber-700"
+                      >
+                        <PartyPopper size={7} /> Holiday
                       </span>
                     )}
                   </button>
                 );
               })}
+            </div>
+
+            {/* Legend */}
+            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3">
+              {[
+                { swatch: "bg-violet-400", label: "Corporate booking" },
+                { swatch: "bg-orange-400", label: "3+ day holiday stretch" },
+                { swatch: "bg-amber-300", label: "Holiday" },
+                { swatch: "bg-teal-400", label: "Custom price" },
+                { swatch: "bg-rose-200", label: "Weekend" },
+              ].map((l) => (
+                <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                  <span className={`h-2 w-2 rounded-full ${l.swatch}`} /> {l.label}
+                </span>
+              ))}
             </div>
           </SectionCard>
 

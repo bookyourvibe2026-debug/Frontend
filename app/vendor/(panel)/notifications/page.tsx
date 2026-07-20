@@ -15,6 +15,20 @@ import {
   History,
   FileText,
   CalendarDays,
+  User,
+  Star,
+  Clock,
+  Timer,
+  Users as UsersIcon,
+  MapPin,
+  Tag,
+  IndianRupee,
+  CreditCard,
+  Globe,
+  UtensilsCrossed,
+  Repeat,
+  QrCode,
+  Hash,
 } from "lucide-react";
 import { MessageTemplatesModal, type MessageTemplateContext } from "@/components/vendor/MessageTemplatesModal";
 import { NotificationRow, type RowTone, type BookingSource } from "@/components/vendor/notifications/NotificationRow";
@@ -40,13 +54,23 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-/** Relative label from now, e.g. "in 15 min" / "Just now" / "2 hr ago". */
+/** Relative label from now, e.g. "in 15 min" / "Just now" / "2 hr ago". Used for payment due labels. */
 function relative(target: Date, now: number) {
   const diff = target.getTime() - now;
   const mins = Math.round(Math.abs(diff) / 60_000);
   if (mins < 1) return "Just now";
   const fmt = mins < 60 ? `${mins} min` : mins < 1440 ? `${Math.round(mins / 60)} hr` : `${Math.round(mins / 1440)} day`;
   return diff > 0 ? `in ${fmt}` : `${fmt} ago`;
+}
+
+/** Countdown to a booking's slot start, e.g. "30 min left" / "4 hr left" — updates live via the
+ * `now` tick. Past slots (already played/checked in) fall back to "X ago" instead of "left". */
+function arrivalLabel(target: Date, now: number) {
+  const diff = target.getTime() - now;
+  const mins = Math.round(Math.abs(diff) / 60_000);
+  if (mins < 1) return diff > 0 ? "Arriving now" : "Just now";
+  const fmt = mins < 60 ? `${mins} min` : mins < 1440 ? `${Math.round(mins / 60)} hr` : `${Math.round(mins / 1440)} day`;
+  return diff > 0 ? `${fmt} left` : `${fmt} ago`;
 }
 
 export default function NotificationsPage() {
@@ -262,7 +286,7 @@ export default function NotificationsPage() {
             statusLine={r.statusLine}
             timeRange={`${fmtTime(r.start)} – ${fmtTime(r.end)}`}
             courtName={courtName(r.booking)}
-            when={relative(r.start, now)}
+            when={arrivalLabel(r.start, now)}
             tone={r.tone}
             source={r.source}
             playedTimes={r.playedTimes}
@@ -356,39 +380,117 @@ export default function NotificationsPage() {
           durMins >= 60 ? `${(durMins / 60).toFixed(durMins % 60 === 0 ? 0 : 1)} hr` : `${durMins} min`;
         const foodLabel =
           r.booking.foodIncluded === true ? "Included" : r.booking.foodIncluded === false ? "Not included" : "Not recorded";
-        const fields: { label: string; value: React.ReactNode }[] = [
-          { label: "Customer", value: r.name },
-          { label: "Status", value: r.statusLine },
-          { label: "Member", value: r.isMember ? "★ Member" : "Not a member" },
+
+        type DetailItem = { icon: typeof User; label: string; value: React.ReactNode; valueClass?: string };
+        type DetailSection = { title: string; accent: string; iconBg: string; iconColor: string; items: DetailItem[] };
+
+        const sections: DetailSection[] = [
           {
-            label: "Date",
-            value: r.start.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" }),
+            title: "Player",
+            accent: "border-indigo-100",
+            iconBg: "bg-indigo-50",
+            iconColor: "text-indigo-600",
+            items: [
+              { icon: User, label: "Customer", value: r.name },
+              {
+                icon: Star,
+                label: "Member",
+                value: r.isMember ? "Member" : "Not a member",
+                valueClass: r.isMember ? "text-amber-600" : undefined,
+              },
+              { icon: Repeat, label: "Times played here", value: `${r.playedTimes}` },
+            ],
           },
-          { label: "Time", value: `${fmtTime(r.start)} – ${fmtTime(r.end)}` },
-          { label: "Duration", value: durationLabel },
-          { label: "No. of players", value: r.booking.numberOfPlayers ? `${r.booking.numberOfPlayers}` : "Not recorded" },
-          ...(courtName(r.booking) ? [{ label: "Court", value: courtName(r.booking) }] : []),
-          ...(r.booking.sport ? [{ label: "Sport", value: r.booking.sport }] : []),
-          { label: "Amount", value: `₹${r.booking.totalAmount.toLocaleString("en-IN")}` },
-          { label: "Payment", value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : "Pending"}` },
-          { label: "Source", value: r.source === "F" ? "Offline / walk-in" : "Online booking" },
-          { label: "Food & beverage", value: foodLabel },
-          { label: "Times played at your turf", value: `${r.playedTimes}` },
-          ...(r.booking.checkedIn
-            ? [{ label: "Check-in", value: r.booking.checkedInAt ? `Checked in at ${fmtTime(new Date(r.booking.checkedInAt))}` : "Checked in" }]
-            : []),
-          { label: "Booking ID", value: r.booking.orderId },
+          {
+            title: "Schedule",
+            accent: "border-sky-100",
+            iconBg: "bg-sky-50",
+            iconColor: "text-sky-600",
+            items: [
+              {
+                icon: CalendarDays,
+                label: "Date",
+                value: r.start.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" }),
+              },
+              { icon: Clock, label: "Time", value: `${fmtTime(r.start)} – ${fmtTime(r.end)}` },
+              { icon: Timer, label: "Duration", value: durationLabel },
+              ...(courtName(r.booking) ? [{ icon: MapPin, label: "Court", value: courtName(r.booking)! }] : []),
+              ...(r.booking.sport ? [{ icon: Tag, label: "Sport", value: r.booking.sport }] : []),
+              {
+                icon: UsersIcon,
+                label: "No. of players",
+                value: r.booking.numberOfPlayers ? `${r.booking.numberOfPlayers}` : "Not recorded",
+              },
+            ],
+          },
+          {
+            title: "Payment",
+            accent: r.paidInFull ? "border-emerald-100" : "border-rose-100",
+            iconBg: r.paidInFull ? "bg-emerald-50" : "bg-rose-50",
+            iconColor: r.paidInFull ? "text-emerald-600" : "text-rose-600",
+            items: [
+              { icon: IndianRupee, label: "Amount", value: `₹${r.booking.totalAmount.toLocaleString("en-IN")}` },
+              {
+                icon: CreditCard,
+                label: "Payment",
+                value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : "Pending"}`,
+                valueClass: r.paidInFull ? "text-emerald-600" : "text-rose-600",
+              },
+              {
+                icon: Globe,
+                label: "Source",
+                value: r.source === "F" ? "Offline / walk-in" : "Online booking",
+                valueClass: r.source === "F" ? "text-amber-600" : "text-emerald-600",
+              },
+            ],
+          },
+          {
+            title: "Activity",
+            accent: "border-slate-100",
+            iconBg: "bg-slate-100",
+            iconColor: "text-slate-500",
+            items: [
+              { icon: CheckCircle2, label: "Status", value: r.statusLine },
+              { icon: UtensilsCrossed, label: "Food & beverage", value: foodLabel },
+              ...(r.booking.checkedIn
+                ? [
+                    {
+                      icon: QrCode,
+                      label: "Check-in",
+                      value: r.booking.checkedInAt ? `Checked in at ${fmtTime(new Date(r.booking.checkedInAt))}` : "Checked in",
+                      valueClass: "text-emerald-600",
+                    },
+                  ]
+                : []),
+              { icon: Hash, label: "Booking ID", value: r.booking.orderId },
+            ],
+          },
         ];
+
         return (
           <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => setDetailKey(null)}>
             <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-[14px] font-black text-slate-900">Full Booking Detail</h3>
               <p className="mt-0.5 text-[10px] font-medium text-slate-400">Everything BYV has on this booking.</p>
-              <div className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-100">
-                {fields.map((f) => (
-                  <div key={f.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{f.label}</span>
-                    <span className="text-right text-[11px] font-black text-slate-800">{f.value}</span>
+              <div className="mt-3 space-y-3">
+                {sections.map((s) => (
+                  <div key={s.title} className={`overflow-hidden rounded-xl border ${s.accent}`}>
+                    <p className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-widest ${s.iconColor} ${s.iconBg}`}>
+                      {s.title}
+                    </p>
+                    <div className="divide-y divide-slate-100 bg-white">
+                      {s.items.map((it) => (
+                        <div key={it.label} className="flex items-center gap-2.5 px-3 py-2.5">
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${s.iconBg} ${s.iconColor}`}>
+                            <it.icon size={12} />
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{it.label}</span>
+                          <span className={`ml-auto text-right text-[11px] font-black ${it.valueClass ?? "text-slate-800"}`}>
+                            {it.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

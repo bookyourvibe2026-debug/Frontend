@@ -108,7 +108,15 @@ export function NotificationRow({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[12px] font-black text-slate-900">{name}</p>
+            <p className="flex items-center gap-1.5 truncate text-[12px] font-black text-slate-900">
+              {source !== "F" && (
+                <span
+                  title="Online booking"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"
+                />
+              )}
+              <span className="truncate">{name}</span>
+            </p>
             <p className={`mt-0.5 truncate text-[10px] font-black ${t.accent}`}>{statusLine}</p>
             <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
               {timeRange}
