@@ -100,39 +100,8 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
         {step === "role" && (
           <div className="fixed inset-0 z-0 overflow-y-auto bg-neutral-950">
-             {/* Faint grid texture */}
-             <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_35%,black_10%,transparent_75%)]" />
-
-             {/* Scattered spark particles */}
-             <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-               {[
-                 { top: "8%", left: "10%", size: 5, color: "bg-brand-500", delay: "0s" },
-                 { top: "18%", left: "88%", size: 4, color: "bg-brand-400", delay: "1.4s" },
-                 { top: "34%", left: "6%", size: 3, color: "bg-white/60", delay: "0.7s" },
-                 { top: "48%", left: "92%", size: 4, color: "bg-violet-400", delay: "2s" },
-                 { top: "70%", left: "4%", size: 3, color: "bg-brand-400", delay: "1s" },
-                 { top: "82%", left: "94%", size: 5, color: "bg-violet-400", delay: "0.3s" },
-               ].map((p, i) => (
-                 <span
-                   key={i}
-                   className={`absolute rounded-full ${p.color} opacity-70 [animation:float-y_6s_ease-in-out_infinite]`}
-                   style={{ top: p.top, left: p.left, width: p.size, height: p.size, animationDelay: p.delay }}
-                 />
-               ))}
-             </div>
-
-             {/* Bottom decorative swoosh — orange fading into violet */}
-             <svg className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-40 w-full opacity-60" viewBox="0 0 1440 200" preserveAspectRatio="none">
-               <defs>
-                 <linearGradient id="byv-swoosh" x1="0" y1="0" x2="1" y2="0">
-                   <stop offset="0%" stopColor="var(--brand-500)" stopOpacity="0" />
-                   <stop offset="35%" stopColor="var(--brand-500)" />
-                   <stop offset="65%" stopColor="#8b5cf6" />
-                   <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
-                 </linearGradient>
-               </defs>
-               <path d="M0,140 Q720,20 1440,140" stroke="url(#byv-swoosh)" strokeWidth="2.5" fill="none" />
-             </svg>
+             {/* Background artwork — supplied as-is, scoped to this screen only. */}
+             <Image src="/bg.png" alt="" fill priority className="pointer-events-none z-0 object-cover" />
 
              {/* Main content */}
              <div className="relative z-10 flex min-h-full w-full flex-col items-center px-6 py-12">
