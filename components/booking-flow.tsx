@@ -289,6 +289,14 @@ export default function BookingFlow({
     const override = listing.dateOverrides?.find((o) => o.date === date && !o.isHoliday);
     const slotsConfig = override?.slots && override.slots.length > 0 ? override.slots : (listing.slotsList || []);
 
+    // Vendor-blocked windows count as unavailable, exactly like real bookings.
+    const unavailableRanges: BookedRange[] = [
+      ...bookedRanges,
+      ...slotsConfig
+        .filter((c) => c.blocked)
+        .map((c) => ({ startTime: c.startTime, endTime: c.endTime, status: "Confirmed" as const })),
+    ];
+
     // If no structured slots config, fall back to continuous window using startMin/endMin
     if (!slotsConfig || slotsConfig.length === 0) {
       let current = startMin;
@@ -306,7 +314,7 @@ export default function BookingFlow({
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
         const price = Math.round((durationMin / 60) * baseHourlyRate);
-        const slotStatus = slotStatusFor(slotStart, slotEnd, bookedRanges);
+        const slotStatus = slotStatusFor(slotStart, slotEnd, unavailableRanges);
         slots.push({
           startTime: startTime24,
           endTime: endTime24,
@@ -372,7 +380,7 @@ export default function BookingFlow({
         }
         const price = Math.round(priceRaw);
 
-        const slotStatus = slotStatusFor(slotStart, slotEnd, bookedRanges);
+        const slotStatus = slotStatusFor(slotStart, slotEnd, unavailableRanges);
 
         slots.push({
           startTime: startTime24,
