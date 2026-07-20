@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { ChevronRight, CalendarCheck2, ShieldCheck, Users, Zap } from "lucide-react";
 import { LoginModal } from "./modals/LoginModal";
 import { SignupModal } from "./modals/SignupModal";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
@@ -51,12 +52,12 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-900 text-white">
-      {/* Background for splash 1 & 2 */}
+    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950 text-white">
+      {/* Background for splash 1 & 2 — neutral so it works under any brand colour the site owner picks. */}
       {(step === "splash1" || step === "splash2") && (
-        <div className="absolute inset-0 z-0 bg-[#071310]">
-          <Image src="/splash.jpeg" alt="Splash Background" fill className="object-cover opacity-60" priority unoptimized />
-          <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 z-0 bg-neutral-950">
+          <Image src="/splash.jpeg" alt="Splash Background" fill className="object-cover opacity-40" priority unoptimized />
+          <div className="absolute inset-0 bg-black/50" />
         </div>
       )}
 
@@ -91,76 +92,141 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             <h1 className="text-5xl font-bold tracking-tight text-white drop-shadow-md">
               Book<br />Your Vibe
             </h1>
-            <p className="mt-4 text-sm font-extrabold uppercase tracking-[0.2em] text-[#001711] opacity-70">
+            <p className="mt-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white/50">
               Your Venue. Your Game.
             </p>
           </div>
         )}
 
         {step === "role" && (
-          <div className="fixed inset-0 z-0 flex flex-col items-center justify-center animate-in fade-in duration-500 bg-[#041510]">
-             {/* Grid, orbiting rings & floating sport icons */}
-             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-               <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px]" />
-               <div className="absolute left-[-20%] top-[40%] h-[80%] w-[120%] opacity-10 blur-sm mix-blend-screen">
-                  {/* Faint background rings — slow counter-rotating orbit for depth */}
-                  <div className="absolute inset-0 rounded-full border-[1px] border-emerald-500/20 [animation:spin_28s_linear_infinite]" />
-                  <div className="absolute inset-10 rounded-full border-[1px] border-emerald-500/20 [animation:spin_20s_linear_infinite_reverse]" />
-               </div>
-               {/* Drifting sport emoji — subtle, low-opacity, staggered timing so they never sync */}
-               <span className="absolute left-[12%] top-[20%] text-3xl opacity-[0.08] [animation:float-y_7s_ease-in-out_infinite]">⚽</span>
-               <span className="absolute right-[14%] top-[28%] text-3xl opacity-[0.08] [animation:float-y_8s_ease-in-out_infinite_1.2s]">🏸</span>
-               <span className="absolute left-[18%] bottom-[24%] text-3xl opacity-[0.08] [animation:float-y_6.5s_ease-in-out_infinite_0.6s]">🎾</span>
-               <span className="absolute right-[10%] bottom-[18%] text-3xl opacity-[0.08] [animation:float-y_7.5s_ease-in-out_infinite_2s]">🏓</span>
+          <div className="fixed inset-0 z-0 overflow-y-auto bg-neutral-950">
+             {/* Faint grid texture */}
+             <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_35%,black_10%,transparent_75%)]" />
+
+             {/* Scattered spark particles */}
+             <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+               {[
+                 { top: "8%", left: "10%", size: 5, color: "bg-brand-500", delay: "0s" },
+                 { top: "18%", left: "88%", size: 4, color: "bg-brand-400", delay: "1.4s" },
+                 { top: "34%", left: "6%", size: 3, color: "bg-white/60", delay: "0.7s" },
+                 { top: "48%", left: "92%", size: 4, color: "bg-violet-400", delay: "2s" },
+                 { top: "70%", left: "4%", size: 3, color: "bg-brand-400", delay: "1s" },
+                 { top: "82%", left: "94%", size: 5, color: "bg-violet-400", delay: "0.3s" },
+               ].map((p, i) => (
+                 <span
+                   key={i}
+                   className={`absolute rounded-full ${p.color} opacity-70 [animation:float-y_6s_ease-in-out_infinite]`}
+                   style={{ top: p.top, left: p.left, width: p.size, height: p.size, animationDelay: p.delay }}
+                 />
+               ))}
              </div>
 
-             {/* Main content */}
-             <div className="relative z-10 flex w-full flex-col items-center justify-center gap-16 px-6">
+             {/* Bottom decorative swoosh — orange fading into violet */}
+             <svg className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-40 w-full opacity-60" viewBox="0 0 1440 200" preserveAspectRatio="none">
+               <defs>
+                 <linearGradient id="byv-swoosh" x1="0" y1="0" x2="1" y2="0">
+                   <stop offset="0%" stopColor="var(--brand-500)" stopOpacity="0" />
+                   <stop offset="35%" stopColor="var(--brand-500)" />
+                   <stop offset="65%" stopColor="#8b5cf6" />
+                   <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+                 </linearGradient>
+               </defs>
+               <path d="M0,140 Q720,20 1440,140" stroke="url(#byv-swoosh)" strokeWidth="2.5" fill="none" />
+             </svg>
 
-               {/* Center Glow Circle — breathing glow with an orbiting dashed ring.
-                   The one-time mount animation and the perpetual pulse live on separate
-                   elements so their `animation` properties don't fight each other. */}
-               <div className="animate-in zoom-in duration-700">
-                 <div className="relative flex h-[120px] w-[120px] items-center justify-center rounded-full bg-emerald-500 [animation:pulse-glow_3s_ease-in-out_infinite]">
-                   <div className="absolute -inset-3 rounded-full border border-emerald-400/20" />
-                   <div className="absolute -inset-6 rounded-full border border-dashed border-emerald-400/30 [animation:spin_14s_linear_infinite]" />
-                   <div className="text-center text-xs font-black leading-tight tracking-[0.25em] text-white">
-                     BOOK<br />YOUR<br />VIBE
+             {/* Main content */}
+             <div className="relative z-10 flex min-h-full w-full flex-col items-center px-6 py-12">
+
+               {/* Wordmark — real BYV logo with a breathing brand-colour glow behind it */}
+               <div className="flex flex-col items-center animate-in fade-in slide-in-from-top-3 duration-700 fill-mode-both">
+                 <div className="relative mb-6 flex h-24 w-24 items-center justify-center">
+                   <div
+                     className="absolute inset-[-55%] rounded-full blur-2xl [animation:glow-breathe_4s_ease-in-out_infinite]"
+                     style={{ background: "radial-gradient(circle, var(--brand-500) 0%, transparent 70%)" }}
+                   />
+                   <div className="absolute inset-[-14%] rounded-[28px] border border-brand-500/20" />
+                   <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[26px] bg-white p-2.5 shadow-xl shadow-brand-900/40">
+                     <Image src="/logo.jpg" alt="Book Your Vibe" width={80} height={80} className="h-full w-full object-contain" priority />
                    </div>
                  </div>
+                 <h1 className="text-4xl font-extrabold tracking-tight">
+                   <span className="text-white">Book </span>
+                   <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent">Your</span>
+                   <span className="text-white"> Vibe</span>
+                 </h1>
+                 <p className="mt-2.5 text-[11px] font-bold uppercase tracking-[0.3em] text-white/40">Your Venue. Your Game.</p>
+                 <span className="mt-4 h-px w-16 bg-gradient-to-r from-transparent via-brand-500 to-transparent" />
                </div>
 
-               <div className="w-full max-w-sm space-y-4">
-                 {/* Player Card */}
+               <div className="mt-9 w-full max-w-sm space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150 fill-mode-both">
+                 {/* Player Card — brand/orange accent */}
                  <button
                    onClick={() => setStep("player-login")}
-                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform animate-in slide-in-from-bottom-4 fade-in duration-500 fill-mode-both active:scale-95"
+                   className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-brand-500/30 bg-gradient-to-r from-brand-500/10 via-white/[0.03] to-white/[0.03] p-4 text-left shadow-lg shadow-brand-950/30 backdrop-blur-xl transition-all hover:border-brand-500/50 hover:from-brand-500/15 active:scale-[0.98]"
                  >
-                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#273832] text-xl shadow-inner">🏏</span>
-                   <div className="text-left">
-                     <p className="text-[17px] font-bold text-white">I am a Player</p>
-                     <p className="mt-1 text-xs font-medium text-slate-400">Book venues, find games & playpals.</p>
+                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500/25 to-brand-600/15 text-xl shadow-inner">🏏</span>
+                   <div className="min-w-0 flex-1">
+                     <p className="text-[15px] font-bold text-white">I am a Player</p>
+                     <p className="mt-0.5 text-xs text-white/45">Book venues, find games & playpals.</p>
                    </div>
+                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-500/40 text-brand-400 transition-transform group-hover:translate-x-0.5">
+                     <ChevronRight className="h-4 w-4" />
+                   </span>
                  </button>
 
-                 {/* Vendor Card */}
+                 {/* Vendor Card — violet accent, matching the vendor panel's own colour language */}
                  <button
                    onClick={() => router.push("/vendor/login")}
-                   className="flex w-full items-center gap-5 rounded-[1.5rem] border border-white/5 bg-[#172520] p-5 shadow-lg backdrop-blur-md transition-transform animate-in slide-in-from-bottom-4 fade-in duration-500 delay-150 fill-mode-both active:scale-95"
+                   className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-white/[0.03] to-white/[0.03] p-4 text-left shadow-lg shadow-violet-950/30 backdrop-blur-xl transition-all hover:border-violet-500/50 hover:from-violet-500/15 active:scale-[0.98]"
                  >
-                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#273832] text-emerald-400 shadow-inner">
+                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/25 to-violet-600/15 text-violet-300 shadow-inner">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.04-4.04M22 7l-4.04-4.04M2 7l2.1 10.45c.14.72.8 1.25 1.54 1.25h12.72c.74 0 1.4-.53 1.54-1.25L22 7M2 7h20"/><path d="M10 22v-3a2 2 0 0 1 2-2v0a2 2 0 0 1 2 2v3"/></svg>
                    </span>
-                   <div className="text-left">
-                     <p className="text-[17px] font-bold text-white">I am a Venue Owner</p>
-                     <p className="mt-1 text-xs font-medium text-slate-400">Manage bookings & pricing.</p>
+                   <div className="min-w-0 flex-1">
+                     <p className="text-[15px] font-bold text-white">I am a Venue Owner</p>
+                     <p className="mt-0.5 text-xs text-white/45">Manage bookings & pricing.</p>
                    </div>
+                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-500/40 text-violet-300 transition-transform group-hover:translate-x-0.5">
+                     <ChevronRight className="h-4 w-4" />
+                   </span>
                  </button>
                </div>
 
-               <button onClick={onComplete} className="text-sm font-bold text-slate-400 hover:text-white transition-colors underline decoration-slate-600 underline-offset-4 animate-in fade-in duration-700 delay-300 fill-mode-both">
+               {/* or divider */}
+               <div className="mt-6 flex w-full max-w-[220px] items-center gap-3 animate-in fade-in duration-700 delay-200 fill-mode-both">
+                 <span className="h-px flex-1 bg-white/10" />
+                 <span className="text-[11px] font-semibold text-white/30">or</span>
+                 <span className="h-px flex-1 bg-white/10" />
+               </div>
+
+               <button
+                 onClick={onComplete}
+                 className="mt-5 rounded-full border border-white/15 px-6 py-2.5 text-xs font-bold text-white/70 transition-colors hover:border-white/30 hover:text-white animate-in fade-in duration-700 delay-300 fill-mode-both"
+               >
                  Skip for now
                </button>
+
+               {/* Feature highlights */}
+               <div className="mt-14 grid w-full max-w-lg grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 animate-in fade-in duration-700 delay-500 fill-mode-both">
+                 {[
+                   { icon: CalendarCheck2, label: "Easy Booking", sub: "Book in just a few taps", accent: "brand" as const },
+                   { icon: ShieldCheck, label: "Trusted Venues", sub: "Verified & reliable", accent: "violet" as const },
+                   { icon: Users, label: "Play Together", sub: "Connect. Play. Repeat.", accent: "brand" as const },
+                   { icon: Zap, label: "Fast & Secure", sub: "Seamless experience", accent: "violet" as const },
+                 ].map((f) => (
+                   <div key={f.label} className="flex flex-col items-center text-center">
+                     <span
+                       className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                         f.accent === "brand" ? "bg-brand-500/15 text-brand-400" : "bg-violet-500/15 text-violet-300"
+                       }`}
+                     >
+                       <f.icon size={17} />
+                     </span>
+                     <p className="mt-2 text-xs font-bold text-white">{f.label}</p>
+                     <p className="mt-0.5 text-[10px] text-white/40">{f.sub}</p>
+                   </div>
+                 ))}
+               </div>
              </div>
           </div>
         )}

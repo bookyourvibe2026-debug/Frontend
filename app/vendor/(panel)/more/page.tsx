@@ -25,10 +25,42 @@ import {
   GraduationCap,
   UtensilsCrossed,
   Trophy,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Award,
 } from "lucide-react";
 
 const MAX_PRIMARY_ITEMS = 4;
+
+/** Colour chip per menu item, keyed by href — keeps the list scannable at a glance
+ * instead of a wall of identical grey icons. Falls back to violet for anything unlisted. */
+const ICON_COLOR_BY_HREF: Record<string, { bg: string; text: string }> = {
+  "/vendor/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
+  "/vendor/notifications": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/bookings": { bg: "bg-emerald-50", text: "text-emerald-600" },
+  "/vendor/pricing": { bg: "bg-violet-50", text: "text-violet-600" },
+  "/vendor/payments": { bg: "bg-lime-50", text: "text-lime-700" },
+  "/vendor/memberships": { bg: "bg-fuchsia-50", text: "text-fuchsia-600" },
+  "/vendor/statistics": { bg: "bg-blue-50", text: "text-blue-600" },
+  "/vendor/events/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
+  "/vendor/events/listings": { bg: "bg-rose-50", text: "text-rose-600" },
+  "/vendor/events/scanner": { bg: "bg-cyan-50", text: "text-cyan-600" },
+  "/vendor/food/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
+  "/vendor/food/profile": { bg: "bg-orange-50", text: "text-orange-600" },
+  "/vendor/food/menu": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/food/orders": { bg: "bg-emerald-50", text: "text-emerald-600" },
+  "/vendor/coaches/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
+  "/vendor/coaches": { bg: "bg-teal-50", text: "text-teal-600" },
+  "/vendor/coaches/schedule": { bg: "bg-violet-50", text: "text-violet-600" },
+  "/vendor/coaches/notifications": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/role-access": { bg: "bg-indigo-50", text: "text-indigo-600" },
+  "/vendor/profile": { bg: "bg-indigo-50", text: "text-indigo-600" },
+  "/vendor/listings": { bg: "bg-violet-50", text: "text-violet-600" },
+  "/vendor/insights": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/privacy-security": { bg: "bg-blue-50", text: "text-blue-600" },
+  "/vendor/why-us": { bg: "bg-rose-50", text: "text-rose-600" },
+  "/vendor/forgot-password": { bg: "bg-rose-50", text: "text-rose-600" },
+};
+const DEFAULT_ICON_COLOR = { bg: "bg-violet-50", text: "text-violet-600" };
 /** Support line vendors can WhatsApp directly. */
 const SUPPORT_WHATSAPP_URL = "https://wa.me/916350651667?text=Hi%20BYV%20team%2C%20I%20need%20help%20with%20my%20venue.";
 
@@ -182,7 +214,7 @@ export default function MorePage() {
       {/* Marketing Center Card */}
       <Link
         href="/vendor/marketing"
-        className="flex items-center justify-between p-4 mb-5 bg-white border border-surface-border rounded-2xl shadow-sm hover:bg-cream-200/40 transition-colors"
+        className="flex items-center justify-between p-4 mb-3 bg-white border border-surface-border rounded-2xl shadow-sm hover:bg-cream-200/40 transition-colors"
       >
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-vibe-amber/10 border border-vibe-amber/20 text-vibe-amber">
@@ -191,6 +223,23 @@ export default function MorePage() {
           <div>
             <h4 className="font-semibold text-sm text-ink">Marketing Center</h4>
             <p className="text-[11px] text-ink-faint mt-0.5 leading-none">Coupons, promos, push notes</p>
+          </div>
+        </div>
+        <ChevronRight size={16} className="text-ink-faint" />
+      </Link>
+
+      {/* Why BYV Card */}
+      <Link
+        href="/vendor/why-us"
+        className="flex items-center justify-between p-4 mb-5 bg-white border border-surface-border rounded-2xl shadow-sm hover:bg-cream-200/40 transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-50 border border-rose-100 text-rose-600">
+            <Award size={20} strokeWidth={2} />
+          </div>
+          <div>
+            <h4 className="font-semibold text-sm text-ink">Why Book Your Vibe?</h4>
+            <p className="text-[11px] text-ink-faint mt-0.5 leading-none">What BYV gives you that others don&apos;t</p>
           </div>
         </div>
         <ChevronRight size={16} className="text-ink-faint" />
@@ -224,10 +273,13 @@ export default function MorePage() {
               <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-ink-faint">{g.title}</p>
               <div className="bg-white border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden shadow-sm">
                 {g.items.map(({ href, label, icon: Icon, external }) => {
+                  const color = external ? { bg: "bg-green-50", text: "text-green-600" } : ICON_COLOR_BY_HREF[href] ?? DEFAULT_ICON_COLOR;
                   const body = (
                     <>
                       <div className="flex items-center gap-3">
-                        <Icon size={18} strokeWidth={2} className="text-ink-faint" />
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color.bg} ${color.text}`}>
+                          <Icon size={15} strokeWidth={2.25} />
+                        </span>
                         <span>{label}</span>
                       </div>
                       <ChevronRight size={16} className="text-ink-faint/60" />
