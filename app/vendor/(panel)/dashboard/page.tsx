@@ -9,6 +9,7 @@ import type { Listing } from "@/lib/api/types";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
 import { EarningsAndExpenses } from "@/components/vendor/dashboard/EarningsAndExpenses";
+import { LastMinuteBoostCard } from "@/components/vendor/dashboard/LastMinuteBoostCard";
 
 export default function DashboardPage() {
   const { vendor } = useVendorAuth();
@@ -662,6 +663,9 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* ── LAST MIN BOOST ── */}
+        <LastMinuteBoostCard listings={listings} onListingUpdated={(updated) => setListings((ls) => ls.map((x) => (x._id === updated._id ? updated : x)))} />
 
         {/* ── FINANCIAL REPORTS ── */}
         <div>

@@ -29,6 +29,14 @@ export default function PaymentsPage() {
   const totalOffline = offline.reduce((s, p) => s + p.yourEarning, 0);
   const visible = tab === "online" ? online : offline;
 
+  // The two-way ledger between the venue and BYV:
+  //  - Online bookings: BYV collects payment via gateway and owes the vendor their earning share.
+  //  - Offline/cash bookings: the vendor collects the full cash directly, so BYV never deducted
+  //    its commission at the point of sale — the vendor owes that platform fee back to BYV.
+  const owedByByv = totalOnline;
+  const owedToByv = offline.reduce((s, p) => s + p.platformFee, 0);
+  const netSettlement = owedByByv - owedToByv;
+
   function handleExport() {
     const rows = visible.map((p) => [p.date, p.listingName, p.orderId, p.totalAmount, p.platformFee, p.yourEarning]);
     const csv = [["Date", "Listing Name", "Order ID", "Total Amount", "Platform Fee", "Your Earning"], ...rows]
@@ -77,20 +85,30 @@ export default function PaymentsPage() {
           accent="violet"
         />
         <StatCard
-          label="Amount Settled"
-          value={`₹${(totalOnline + totalOffline).toLocaleString("en-IN")}`}
-          hint="Paid into your bank account"
-          icon={PiggyBank}
-          accent="lime"
-        />
-        <StatCard
-          label="Remaining Settlement"
-          value="₹0"
-          hint="Pending transfer to your bank"
+          label="Platform Fee Payable"
+          value={`₹${owedToByv.toLocaleString("en-IN")}`}
+          hint="Your commission on offline cash bookings — owed to BYV"
           icon={Landmark}
           accent="coral"
         />
+        <StatCard
+          label={netSettlement >= 0 ? "Net Receivable from BYV" : "Net Payable to BYV"}
+          value={`${netSettlement < 0 ? "-" : ""}₹${Math.abs(netSettlement).toLocaleString("en-IN")}`}
+          hint={
+            netSettlement >= 0
+              ? "Online earnings due to you, after netting off what you owe BYV"
+              : "Your offline commission dues exceed your online earnings this period"
+          }
+          icon={PiggyBank}
+          accent={netSettlement >= 0 ? "lime" : "coral"}
+        />
       </div>
+
+      <p className="text-xs text-ink-faint">
+        <strong className="font-semibold text-ink-soft">How settlement works:</strong> BYV owes you your earning
+        share on every online booking. For offline/cash bookings, you keep the full amount at the venue, so you owe
+        BYV its platform fee on those instead. The two net against each other for your final settlement.
+      </p>
 
       <div className="rounded-xl2 border border-surface-border bg-white shadow-panel">
         <div className="flex gap-1 p-3 border-b border-surface-border">
