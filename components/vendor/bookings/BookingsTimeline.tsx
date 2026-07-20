@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck } from "lucide-react";
+import Image from "next/image";
+import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck, Users } from "lucide-react";
 
 /* ─── Slot model ────────────────────────────────────────────────── */
 
@@ -19,6 +20,8 @@ export interface TimelineSlot {
   blockedReason?: string;
   /** Set once the player's QR ticket has been scanned at the gate. */
   arrived?: boolean;
+  sport?: string;
+  numberOfPlayers?: number;
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -26,14 +29,18 @@ export type SlotAction = "create-booking" | "block-slot" | "make-available" | "c
 
 /* ─── Status → presentation ─────────────────────────────────────── */
 
-/** The five states the legend advertises, derived from the richer internal statuses. */
-type Tone = "available" | "confirmed" | "pending" | "blocked" | "closed";
+/** The tones the legend advertises, derived from the richer internal statuses.
+ * "Booked" (paid online through the customer app) gets its own branded tone,
+ * separate from "Offline Booked" (walk-in), so a vendor can tell at a glance
+ * which slots BYV actually brought them versus ones they entered manually. */
+type Tone = "available" | "onlineBooked" | "confirmed" | "pending" | "blocked" | "closed";
 
 function toneFor(status: TimelineStatus): Tone {
   switch (status) {
     case "Available":
       return "available";
     case "Booked":
+      return "onlineBooked";
     case "Offline Booked":
       return "confirmed";
     case "Part Paid":
@@ -53,6 +60,13 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
     title: "text-emerald-700",
     badge: "bg-emerald-100 text-emerald-700",
     badgeText: "Available",
+  },
+  onlineBooked: {
+    dot: "bg-orange-500",
+    card: "border-orange-200 bg-orange-50/60",
+    title: "text-orange-700",
+    badge: "bg-orange-100 text-orange-700",
+    badgeText: "Online",
   },
   confirmed: {
     dot: "bg-blue-500",
@@ -86,6 +100,7 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
 
 export const TIMELINE_LEGEND: { tone: Tone; label: string }[] = [
   { tone: "available", label: "Available" },
+  { tone: "onlineBooked", label: "Online Booking" },
   { tone: "confirmed", label: "Confirmed" },
   { tone: "pending", label: "Pending" },
   { tone: "blocked", label: "Blocked" },
@@ -278,6 +293,35 @@ export function BookingsTimeline({
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
                     <p className="mt-0.5 text-[10px] font-medium text-slate-400">{slot.blockedReason || "Unavailable"}</p>
                   </>
+                ) : slot.status === "Booked" ? (
+                  // Booked online through the customer app — branded so the vendor can
+                  // see at a glance which bookings BYV actually brought them.
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
+                      <Image src="/logo.jpg" alt="" width={26} height={26} className="h-full w-full object-contain" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-[12px] font-black text-orange-700">Booked via Book Your Vibe</p>
+                        {slot.arrived && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-emerald-700">
+                            <BadgeCheck size={8} /> Arrived
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-medium text-slate-500">
+                        <span className="truncate">
+                          {slot.customerName || "Online Booking"}
+                          {slot.sport ? ` · ${slot.sport}` : ""}
+                        </span>
+                        {slot.numberOfPlayers && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 text-slate-400">
+                            <Users size={9} /> {slot.numberOfPlayers}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     <div className="flex items-center gap-1.5">
@@ -290,7 +334,7 @@ export function BookingsTimeline({
                     </div>
                     <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
                       {slot.phone ? `${slot.phone} · ` : ""}
-                      {slot.status === "Offline Booked" ? "Walk-in" : "BYV Booked"}
+                      Walk-in
                     </p>
                   </>
                 )}

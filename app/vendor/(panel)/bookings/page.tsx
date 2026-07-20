@@ -96,6 +96,8 @@ interface AgendaSlot {
   blockedReason?: string;
   /** True once the player's ticket QR has been scanned in. */
   arrived?: boolean;
+  sport?: string;
+  numberOfPlayers?: number;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -258,6 +260,8 @@ export default function BookingsPage() {
         customerName,
         phone,
         arrived,
+        sport: match?.sport,
+        numberOfPlayers: match?.numberOfPlayers,
       };
     });
   }, [selectedTurf, selectedDate, bookings, selectedTurfId]);

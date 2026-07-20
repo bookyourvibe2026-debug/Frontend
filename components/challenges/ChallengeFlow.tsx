@@ -8,14 +8,17 @@ import {
   Check,
   ChevronDown,
   Clipboard,
+  Crown,
   Download,
   Eye,
   Flame,
+  Medal,
   MessageCircle,
-  Plus,
   Search,
   Send,
   Share2,
+  Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
@@ -646,45 +649,130 @@ function BottomBar({ label, value, actionLabel = "Next step", onNext, disabled }
 }
 
 function Poster({ challenge }: { challenge: Challenge }) {
+  const sportMeta = SPORTS.find((s) => s.label === challenge.sport);
+  const stakeMeta = STAKES.find((s) => s.type === challenge.stakeType);
+
   return (
-    <div className="rounded-[1.8rem] border border-orange-500/50 bg-[#090f19] p-7 shadow-[0_0_40px_rgba(249,115,22,0.16)]">
-      <div className="text-center">
-        <span className="rounded-full bg-orange-500 px-5 py-2 text-[11px] font-extrabold uppercase tracking-[0.28em] text-white">Vibe Challenge</span>
-        <p className="mt-4 text-[10px] font-extrabold uppercase tracking-[0.24em] text-orange-400">Official athletic matchup</p>
+    <div className="relative overflow-hidden rounded-[1.8rem] border border-orange-500/40 bg-gradient-to-b from-[#0a1220] to-[#050a12] p-6 shadow-[0_0_50px_rgba(249,115,22,0.15)]">
+      {/* Ambient corner glows */}
+      <div className="pointer-events-none absolute -left-10 -top-10 h-36 w-36 rounded-full bg-orange-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-500/25 blur-3xl" />
+
+      {/* Brand header */}
+      <div className="relative flex flex-col items-center">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-white p-0.5">
+            <Image src="/logo.jpg" alt="" width={28} height={28} className="h-full w-full object-contain" />
+          </div>
+          <p className="text-sm font-black tracking-tight text-white">
+            BOOK <span className="text-orange-400">YOUR VIBE</span>
+          </p>
+        </div>
+
+        <h1 className="mt-5 text-center text-[28px] font-black uppercase italic leading-[0.95] tracking-tight text-white">
+          Challenge
+          <br />
+          <span className="bg-gradient-to-r from-orange-400 to-emerald-400 bg-clip-text text-transparent">Your Friend</span>
+        </h1>
+
+        <span className="mt-4 inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-orange-300">
+          ★ Official Athletic Matchup ★
+        </span>
       </div>
-      <div className="mt-8 flex items-center justify-between">
+
+      {/* VS block */}
+      <div className="relative mt-7 flex items-center justify-between">
         <PlayerBadge initials={challenge.poster.challengerInitials} name={challenge.challenger?.name ?? "Challenger"} label="Challenger" tone="orange" />
-        <span className="rounded-full bg-gradient-to-br from-orange-500 to-red-700 px-3 py-3 text-sm font-black italic">VS</span>
+        <span className="shrink-0 text-lg font-black italic text-white">VS</span>
         <PlayerBadge initials={challenge.poster.opponentInitials} name={challenge.opponent?.name ?? "Opponent"} label="Opponent" tone="emerald" />
       </div>
-      <div className="mt-8 rounded-2xl border border-white/10 bg-white/7 p-5">
+
+      {/* One match / one goal / bragging rights strip */}
+      <div className="relative mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">
+        <span className="flex items-center gap-1.5">
+          <Flame className="h-3.5 w-3.5 shrink-0 text-orange-400" /> One Match
+        </span>
+        <span className="h-4 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1.5">
+          <Target className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> One Goal
+        </span>
+        <span className="h-4 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1.5">
+          <Crown className="h-3.5 w-3.5 shrink-0 text-orange-300" /> Bragging Rights
+        </span>
+      </div>
+
+      {/* Sport card */}
+      <div className="relative mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
         <div className="flex items-center gap-3">
-          <Plus className="h-8 w-8 text-slate-400" />
-          <p className="text-lg font-black uppercase tracking-wide">{challenge.sport}</p>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+            {sportMeta && "image" in sportMeta ? (
+              <Image src={sportMeta.image} alt="" width={26} height={26} unoptimized className="h-6 w-6 object-contain" />
+            ) : (
+              <span className="text-xl">{sportMeta?.emoji ?? "🏆"}</span>
+            )}
+          </span>
+          <p className="text-lg font-black uppercase tracking-wide text-white">{challenge.sport}</p>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs font-bold">
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs font-bold">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-orange-400">Venue</p>
             <p className="mt-1 text-white">{challenge.venueName}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-orange-400">Schedule</p>
+            <p className="text-[10px] uppercase tracking-wide text-emerald-400">Schedule</p>
             <p className="mt-1 text-white">{challenge.scheduleLabel}</p>
           </div>
         </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.playersCount}</span>
+          {GAME_SUPPORTS_SERIES.has(challenge.sport) && (
+            <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.series}</span>
+          )}
+          <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.matchStyle}</span>
+        </div>
       </div>
-      <div className="mt-8 text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.28em] text-orange-400">The stakes</p>
-        <div className="mx-auto mt-4 inline-flex max-w-full items-center gap-3 rounded-2xl border border-orange-500/35 bg-orange-500/10 px-5 py-4">
-          <Flame className="h-6 w-6 shrink-0 text-orange-400" />
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-black uppercase text-white">{challenge.stakeType} stakes</p>
+
+      {/* Stakes */}
+      <div className="relative mt-6 text-center">
+        <div className="flex items-center gap-3">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-orange-500/40" />
+          <p className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.3em] text-orange-400">The Stakes</p>
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-orange-500/40" />
+        </div>
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-5 py-4 text-left">
+          <span className="shrink-0 text-2xl">{stakeMeta?.icon ?? "🎯"}</span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black uppercase text-white">{challenge.stakeType} Stakes</p>
             <p className="truncate text-xs font-semibold text-slate-300">{challenge.stakeText}</p>
           </div>
         </div>
       </div>
-      <div className="mt-8 border-t border-white/10 pt-5 text-center text-[10px] font-extrabold uppercase tracking-[0.24em] text-slate-500">
-        Powered by Book Your Vibe
+
+      {/* Challenge & share banner — decorative on the exported poster image, mirrors the
+          real "Issue challenge" / share actions that live in the surrounding app UI. */}
+      <div className="relative mt-6 flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-emerald-500 px-5 py-4">
+        <span className="flex items-center gap-3 min-w-0">
+          <Share2 className="h-5 w-5 shrink-0 text-white" />
+          <span className="min-w-0">
+            <span className="block text-sm font-black uppercase tracking-wide text-white">Challenge &amp; Share</span>
+            <span className="block truncate text-[10px] font-semibold text-white/80">Send to your friend &amp; accept the challenge!</span>
+          </span>
+        </span>
+        <Send className="h-5 w-5 shrink-0 text-white" />
+      </div>
+
+      {/* Bottom strip */}
+      <div className="relative mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-[8px] font-extrabold uppercase tracking-wide text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <TrendingUp className="h-3 w-3 shrink-0 text-emerald-400" /> Climb the Ranks
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Medal className="h-3 w-3 shrink-0 text-orange-400" /> Earn Bragging Rights
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Flame className="h-3 w-3 shrink-0 text-emerald-400" /> Play. Win. Repeat.
+        </span>
       </div>
     </div>
   );
