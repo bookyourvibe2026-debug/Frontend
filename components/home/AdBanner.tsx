@@ -86,7 +86,7 @@ export function AdBanner({
       )}
 
       <div
-        className="relative overflow-hidden rounded-2xl"
+        className="relative overflow-hidden rounded-3xl shadow-lg shadow-slate-900/10 ring-1 ring-black/5"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onFocus={() => setPaused(true)}
@@ -129,8 +129,11 @@ export function AdBanner({
                   draggable={false}
                 />
                 {banner.title && (
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                    <p className="text-sm font-bold text-white sm:text-base">{banner.title}</p>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-4 pt-10">
+                    <span className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-brand-500/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-sm">
+                      <Ticket className="h-3 w-3" /> Offer
+                    </span>
+                    <p className="text-sm font-bold text-white drop-shadow sm:text-base">{banner.title}</p>
                   </div>
                 )}
               </>
@@ -177,7 +180,7 @@ export function AdBanner({
           </>
         )}
 
-        {/* ── Dot indicators ── */}
+        {/* ── Dot indicators — the active one fills up as an autoplay progress bar ── */}
         {banners.length > 1 && (
           <div className="mt-4 flex items-center justify-center gap-2">
             {banners.map((banner, i) => (
@@ -186,10 +189,18 @@ export function AdBanner({
                 type="button"
                 aria-label={`Show banner ${i + 1}`}
                 onClick={() => setIndex(i)}
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  i === index ? "w-7 bg-brand-500" : "w-1.5 bg-slate-200 hover:bg-slate-300"
+                className={`h-1.5 overflow-hidden rounded-full bg-slate-200 transition-all duration-500 hover:bg-slate-300 ${
+                  i === index ? "w-7" : "w-1.5"
                 }`}
-              />
+              >
+                {i === index && (
+                  <span
+                    key={index}
+                    className="block h-full rounded-full bg-brand-500 [animation-name:banner-progress] [animation-timing-function:linear] [animation-fill-mode:forwards]"
+                    style={{ animationDuration: "4500ms", animationPlayState: paused ? "paused" : "running" }}
+                  />
+                )}
+              </button>
             ))}
           </div>
         )}

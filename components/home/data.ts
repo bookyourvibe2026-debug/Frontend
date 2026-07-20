@@ -60,7 +60,6 @@ export const SPORTS_CATALOG: Sport[] = [
     label: "Pickleball",
     image: "/pickball.png",
     alt: "Pickleball ball",
-    isNew: true,
     bubble: "from-amber-200 via-yellow-100 to-amber-50",
   },
   {

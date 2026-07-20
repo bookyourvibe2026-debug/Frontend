@@ -6,7 +6,7 @@ import { moduleMeta } from "@/lib/mock-data";
 import { createVendorStaff, deleteVendorStaff, listVendorStaff } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import { ModulePermissionKey, PermissionsMap, VendorStaff } from "@/lib/api/types";
-import { ShieldCheck, ShieldPlus, Trash2, UserRoundPlus } from "lucide-react";
+import { ShieldCheck, ShieldPlus, Sparkles, Trash2, UserRoundPlus } from "lucide-react";
 
 type PermState = Record<ModulePermissionKey, { view: boolean; create: boolean; edit: boolean; delete: boolean }>;
 
@@ -24,6 +24,75 @@ const emptyPermissions: PermState = {
   tournaments: { view: false, create: false, edit: false, delete: false },
 };
 
+/** How broad a module's access is under a preset — respects that module's own
+ * allowed toggle set (e.g. "dashboard" only ever supports "view"). */
+type AccessLevel = "full" | "operate" | "editView" | "view" | "none";
+
+function buildPreset(levels: Partial<Record<ModulePermissionKey, AccessLevel>>): PermState {
+  const result = { ...emptyPermissions };
+  for (const mod of moduleMeta) {
+    const level = levels[mod.key] ?? "none";
+    const perms = { view: false, create: false, edit: false, delete: false };
+    if (level !== "none") {
+      perms.view = mod.toggles.includes("view");
+      if (level === "full") {
+        perms.create = mod.toggles.includes("create");
+        perms.edit = mod.toggles.includes("edit");
+        perms.delete = mod.toggles.includes("delete");
+      } else if (level === "operate") {
+        perms.create = mod.toggles.includes("create");
+        perms.edit = mod.toggles.includes("edit");
+      } else if (level === "editView") {
+        perms.edit = mod.toggles.includes("edit");
+      }
+    }
+    result[mod.key] = perms;
+  }
+  return result;
+}
+
+const ROLE_PRESETS: { key: string; label: string; description: string; levels: Partial<Record<ModulePermissionKey, AccessLevel>> }[] = [
+  {
+    key: "partner",
+    label: "Family / Partner",
+    description: "Full access, same as a co-owner — for trusted family or business partners.",
+    levels: Object.fromEntries(moduleMeta.map((m) => [m.key, "full"])) as Partial<Record<ModulePermissionKey, AccessLevel>>,
+  },
+  {
+    key: "manager",
+    label: "Manager",
+    description: "Runs day-to-day operations and listings — no earnings or account settings access.",
+    levels: {
+      dashboard: "view",
+      bookings: "full",
+      listings: "operate",
+      verification: "editView",
+      settings: "view",
+      membership: "operate",
+      menu: "operate",
+      foodOrders: "editView",
+      coaches: "operate",
+      tournaments: "operate",
+    },
+  },
+  {
+    key: "staff",
+    label: "Staff",
+    description: "Front-desk basics — bookings, check-ins and orders. No pricing, earnings or settings.",
+    levels: {
+      dashboard: "view",
+      bookings: "operate",
+      listings: "view",
+      verification: "editView",
+      membership: "view",
+      menu: "editView",
+      foodOrders: "editView",
+      coaches: "view",
+      tournaments: "view",
+    },
+  },
+];
+
 export default function RoleAccessPage() {
   const [roles, setRoles] = useState<VendorStaff[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +104,14 @@ export default function RoleAccessPage() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  function applyPreset(preset: (typeof ROLE_PRESETS)[number]) {
+    setPermissions(buildPreset(preset.levels));
+    setActivePreset(preset.key);
+    // Only prefill the role name if the vendor hasn't already typed one.
+    if (!roleName.trim()) setRoleName(preset.label);
+  }
 
   const refresh = useCallback(() => {
     listVendorStaff()
@@ -48,6 +125,7 @@ export default function RoleAccessPage() {
   }, [refresh]);
 
   const toggle = (moduleKey: ModulePermissionKey, action: keyof PermState[ModulePermissionKey]) => {
+    setActivePreset(null); // manual edit — no longer exactly matches a preset
     setPermissions((prev) => ({
       ...prev,
       [moduleKey]: { ...prev[moduleKey], [action]: !prev[moduleKey][action] },
@@ -62,6 +140,7 @@ export default function RoleAccessPage() {
 
   function resetForm() {
     setPermissions(emptyPermissions);
+    setActivePreset(null);
     setRoleName("");
     setHolderName("");
     setHolderEmail("");
@@ -131,6 +210,34 @@ export default function RoleAccessPage() {
           description="Role holder details bharo aur module-wise View, Create, Edit, Delete permissions do."
           className="lg:col-span-2"
         >
+          <div className="mb-5">
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">
+              <Sparkles size={13} className="text-vibe-violet" /> Quick Presets
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ROLE_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  title={preset.description}
+                  onClick={() => applyPreset(preset)}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                    activePreset === preset.key
+                      ? "border-vibe-violet bg-vibe-violet text-white"
+                      : "border-surface-border text-ink-soft hover:bg-cream-300"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            {activePreset && (
+              <p className="mt-1.5 text-[11px] text-ink-faint">
+                {ROLE_PRESETS.find((p) => p.key === activePreset)?.description} You can still tweak any toggle below.
+              </p>
+            )}
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4 mb-5">
             <Input label="Role Name" placeholder="Booking Manager" value={roleName} onChange={setRoleName} />
             <Input label="Role Holder Name" placeholder="Rahul Verma" value={holderName} onChange={setHolderName} />

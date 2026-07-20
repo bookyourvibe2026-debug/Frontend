@@ -324,6 +324,15 @@ textarea:focus-visible {
   }
 }
 
+@keyframes banner-progress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
