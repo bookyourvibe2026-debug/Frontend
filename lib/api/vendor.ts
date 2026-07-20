@@ -89,6 +89,11 @@ export function updateVendorProfile(input: UpdateVendorProfileInput) {
 
 /* ---- Dashboard ---- */
 
+export interface FinancialPeriodStat {
+  bookings: number;
+  avgRate: number;
+}
+
 export interface VendorDashboardStats {
   listingsCount: number;
   activeListingsCount: number;
@@ -101,10 +106,22 @@ export interface VendorDashboardStats {
   customersTrend: number;
   occupancyRate: number;
   occupancyTrend: number;
+  financialReport: {
+    today: FinancialPeriodStat;
+    weekdays: FinancialPeriodStat;
+    weekend: FinancialPeriodStat;
+    thisMonth: FinancialPeriodStat;
+    totalYtd: FinancialPeriodStat;
+  };
+  revenueTrend: Array<{ date: string; earnings: number; bookings: number }>;
+  courtStatus: Array<{ listingId: string; title: string; bookings: number }>;
+  peakHourToday: string | null;
+  bookingsToday: number;
 }
 
-export function getVendorDashboardStats(params?: { startDate?: string; endDate?: string; compareWith?: string }) {
-  const query = params ? "?" + new URLSearchParams(params as any).toString() : "";
+export function getVendorDashboardStats(params?: { startDate?: string; endDate?: string; compareWith?: string; listingId?: string; sport?: string }) {
+  const cleaned = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ""));
+  const query = Object.keys(cleaned).length ? "?" + new URLSearchParams(cleaned as Record<string, string>).toString() : "";
   return apiRequest<VendorDashboardStats>(`/vendor/dashboard${query}`, { audience: AUD });
 }
 

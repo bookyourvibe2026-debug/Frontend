@@ -68,7 +68,8 @@ export default function DashboardPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListingId, setSelectedListingId] = useState<string>("");
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
-  const [financialFilter, setFinancialFilter] = useState("All");
+  // Court/sport filter for the Financial Reports table — sent to the API as listingId/sport.
+  const [financialFilter, setFinancialFilter] = useState<{ label: string; listingId?: string; sport?: string }>({ label: "All" });
   const [showFinancialFilter, setShowFinancialFilter] = useState(false);
 
   const DEFAULT_SPORTS = [
@@ -162,7 +163,7 @@ export default function DashboardPage() {
     }
 
     if (dateRange !== "Custom" || (startDate && endDate)) {
-      getVendorDashboardStats({ startDate: start, endDate: end, compareWith })
+      getVendorDashboardStats({ startDate: start, endDate: end, compareWith, listingId: financialFilter.listingId, sport: financialFilter.sport })
         .then(setStats)
         .catch(console.error);
     }
@@ -172,7 +173,7 @@ export default function DashboardPage() {
     if (pinMode === "unlocked") {
       fetchStats();
     }
-  }, [pinMode, dateRange, compareWith, startDate, endDate]);
+  }, [pinMode, dateRange, compareWith, startDate, endDate, financialFilter]);
 
   function handleDigit(d: string) {
     if (inputPin.length < 4) {
@@ -496,40 +497,41 @@ export default function DashboardPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Court Status
           </p>
           <div className="space-y-4 mb-6">
-            {stats && stats.activeListingsCount > 0 ? (
-              Array.from({ length: Math.min(3, stats.activeListingsCount) }).map((_, idx) => {
+            {stats && stats.courtStatus.length > 0 ? (
+              stats.courtStatus.map((court, idx) => {
                 const colors = [
-                  { text: "text-emerald-500", bg: "bg-emerald-500", label: "Premium Court" },
-                  { text: "text-blue-500", bg: "bg-blue-500", label: "Standard Court" },
-                  { text: "text-amber-500", bg: "bg-amber-500", label: "Practice Court" }
+                  { text: "text-emerald-500", bg: "bg-emerald-500" },
+                  { text: "text-blue-500", bg: "bg-blue-500" },
+                  { text: "text-amber-500", bg: "bg-amber-500" }
                 ];
                 const c = colors[idx % colors.length];
-                const util = Math.floor(Math.random() * 50 + 30); // Dynamic dummy for now
+                const maxBookings = Math.max(...stats.courtStatus.map((s) => s.bookings), 1);
+                const share = Math.round((court.bookings / maxBookings) * 100);
                 return (
-                  <div key={idx}>
+                  <div key={court.listingId}>
                     <div className="flex justify-between text-xs font-bold mb-1.5">
-                      <span className="text-slate-600">Court {String.fromCharCode(65 + idx)} ({c.label})</span>
-                      <span className={c.text}>{util}% Utilized</span>
+                      <span className="text-slate-600 truncate pr-2">{court.title}</span>
+                      <span className={`${c.text} shrink-0`}>{court.bookings} booking{court.bookings === 1 ? "" : "s"}</span>
                     </div>
                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${c.bg} rounded-full`} style={{ width: `${util}%` }} />
+                      <div className={`h-full ${c.bg} rounded-full`} style={{ width: `${share}%` }} />
                     </div>
                   </div>
                 );
               })
             ) : (
-              <p className="text-sm text-slate-500">No active courts to display.</p>
+              <p className="text-sm text-slate-500">No paid bookings in this period yet.</p>
             )}
           </div>
-          
+
           <div className="flex justify-between pt-4 border-t border-slate-100">
             <div>
               <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Peak Hour Today</p>
-              <p className="text-sm font-bold text-slate-800">18:00 - 20:00</p>
+              <p className="text-sm font-bold text-slate-800">{stats?.peakHourToday ?? "—"}</p>
             </div>
             <div>
-              <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Available Slots</p>
-              <p className="text-sm font-bold text-slate-800">14 slots left</p>
+              <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Bookings Today</p>
+              <p className="text-sm font-bold text-slate-800">{stats?.bookingsToday ?? 0}</p>
             </div>
           </div>
         </div>
@@ -661,63 +663,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── OCCUPANCY PROJECTION ── */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              Occupancy Projection
-            </h2>
-            <span className="bg-purple-100 text-purple-700 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">Next 14 Days</span>
-          </div>
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
-            <p className="text-xs text-slate-500 font-medium mb-5">
-              AI predicts low traffic on these upcoming days. We recommend activating dynamic pricing or sending targeted offers.
-            </p>
-            
-            <div className="space-y-3">
-              <div className="border border-slate-100 rounded-2xl p-4 flex gap-4 bg-slate-50/50">
-                <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col items-center justify-center shrink-0">
-                  <span className="text-[10px] font-extrabold text-purple-600 uppercase">Tue</span>
-                  <span className="text-lg font-black text-slate-900 leading-none">12</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-sm font-extrabold text-slate-800">35% Projected</p>
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500"><ArrowDownRight size={12}/> Low</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full mb-3">
-                    <div className="h-full bg-rose-500 rounded-full" style={{ width: '35%' }} />
-                  </div>
-                  <button className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition">
-                    <Megaphone size={14} /> Run 20% Discount
-                  </button>
-                </div>
-              </div>
-
-              <div className="border border-slate-100 rounded-2xl p-4 flex gap-4 bg-slate-50/50">
-                <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col items-center justify-center shrink-0">
-                  <span className="text-[10px] font-extrabold text-amber-600 uppercase">Thu</span>
-                  <span className="text-lg font-black text-slate-900 leading-none">14</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-sm font-extrabold text-slate-800">48% Projected</p>
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500"><ArrowDownRight size={12}/> Med</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full mb-3">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: '48%' }} />
-                  </div>
-                  <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-slate-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                    Flash Sale
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ── FINANCIAL REPORTS ── */}
         <div>
           <div className="flex justify-between items-center mb-3 relative">
@@ -725,41 +670,41 @@ export default function DashboardPage() {
               <FileText size={16} className="text-emerald-600" /> Financial Reports
             </h2>
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowFinancialFilter(!showFinancialFilter)}
                 className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all ${
-                  financialFilter !== "All"
+                  financialFilter.label !== "All"
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "text-slate-500 border-slate-200 bg-white hover:bg-slate-50"
                 }`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-                {financialFilter === "All" ? "Filter" : `Filter: ${financialFilter}`}
+                {financialFilter.label === "All" ? "Filter" : `Filter: ${financialFilter.label}`}
               </button>
 
               {showFinancialFilter && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 max-h-60 overflow-y-auto pr-1">
                   <div className="px-3 py-1 text-[8px] font-black uppercase text-slate-400 tracking-wider">Filter By Court/Sport</div>
-                  <button 
-                    onClick={() => { setFinancialFilter("All"); setShowFinancialFilter(false); }}
-                    className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition ${financialFilter === "All" ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                  <button
+                    onClick={() => { setFinancialFilter({ label: "All" }); setShowFinancialFilter(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition ${financialFilter.label === "All" ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
                   >
                     All Courts & Sports
                   </button>
                   {listings.map(l => (
-                    <button 
+                    <button
                       key={l._id}
-                      onClick={() => { setFinancialFilter(l.title); setShowFinancialFilter(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter === l.title ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                      onClick={() => { setFinancialFilter({ label: l.title, listingId: l._id }); setShowFinancialFilter(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter.listingId === l._id ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
                     >
                       Court: {l.title}
                     </button>
                   ))}
                   {savedSports.map(sport => (
-                    <button 
+                    <button
                       key={sport}
-                      onClick={() => { setFinancialFilter(sport); setShowFinancialFilter(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter === sport ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
+                      onClick={() => { setFinancialFilter({ label: sport, sport }); setShowFinancialFilter(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-50 transition truncate ${financialFilter.sport === sport ? "text-emerald-600 bg-emerald-50/50" : "text-slate-700"}`}
                     >
                       Sport: {sport}
                     </button>
@@ -778,44 +723,23 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {(() => {
-                  const getFilteredRow = (period: string, baseBookings: number, baseRate: number) => {
-                    if (financialFilter === "All") {
-                      return { bookings: baseBookings, rate: baseRate };
-                    }
-                    const hash = Array.from(financialFilter).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    const multiplier = 0.25 + (hash % 4) * 0.15; // 0.25, 0.40, 0.55, 0.70
-                    const rateOffset = -40 + (hash % 5) * 20; // -40, -20, 0, 20, 40
-                    
-                    const bookings = Math.max(1, Math.round(baseBookings * multiplier));
-                    const rate = Math.round(baseRate + rateOffset);
-                    return { bookings, rate };
-                  };
-
-                  const today = getFilteredRow("Today", 12, 800);
-                  const weekdays = getFilteredRow("Weekdays", 45, 780);
-                  const weekend = getFilteredRow("Weekend", 44, 850);
-                  const month = getFilteredRow("Month", 342, 810);
-                  
-                  // Calculate Total YTD dynamically based on filtered rows
-                  const totalBookings = today.bookings + weekdays.bookings + weekend.bookings + month.bookings;
-                  const totalAvgRate = Math.round(
-                    (today.bookings * today.rate +
-                     weekdays.bookings * weekdays.rate +
-                     weekend.bookings * weekend.rate +
-                     month.bookings * month.rate) / (totalBookings || 1)
-                  );
-
-                  return (
-                    <>
-                      <tr><td className="py-4 px-4 font-extrabold">Today</td><td className="py-4 px-4 text-right">{today.bookings}</td><td className="py-4 px-4 text-right">₹{today.rate}</td></tr>
-                      <tr><td className="py-4 px-4 font-extrabold">Weekdays (Mon-Thu)</td><td className="py-4 px-4 text-right">{weekdays.bookings}</td><td className="py-4 px-4 text-right">₹{weekdays.rate}</td></tr>
-                      <tr><td className="py-4 px-4 font-extrabold">Weekend (FSS)</td><td className="py-4 px-4 text-right">{weekend.bookings}</td><td className="py-4 px-4 text-right">₹{weekend.rate}</td></tr>
-                      <tr><td className="py-4 px-4 font-extrabold">This Month</td><td className="py-4 px-4 text-right">{month.bookings}</td><td className="py-4 px-4 text-right">₹{month.rate}</td></tr>
-                      <tr className="bg-emerald-50/50"><td className="py-4 px-4 font-black text-slate-900">Total YTD</td><td className="py-4 px-4 text-right font-black text-slate-900">{totalBookings.toLocaleString()}</td><td className="py-4 px-4 text-right font-black text-slate-900">₹{totalAvgRate}</td></tr>
-                    </>
-                  );
-                })()}
+                {[
+                  { label: "Today", row: stats?.financialReport?.today },
+                  { label: "Weekdays (Mon-Thu)", row: stats?.financialReport?.weekdays },
+                  { label: "Weekend (FSS)", row: stats?.financialReport?.weekend },
+                  { label: "This Month", row: stats?.financialReport?.thisMonth },
+                ].map(({ label, row }) => (
+                  <tr key={label}>
+                    <td className="py-4 px-4 font-extrabold">{label}</td>
+                    <td className="py-4 px-4 text-right">{row?.bookings ?? 0}</td>
+                    <td className="py-4 px-4 text-right">₹{(row?.avgRate ?? 0).toLocaleString("en-IN")}</td>
+                  </tr>
+                ))}
+                <tr className="bg-emerald-50/50">
+                  <td className="py-4 px-4 font-black text-slate-900">Total YTD</td>
+                  <td className="py-4 px-4 text-right font-black text-slate-900">{(stats?.financialReport?.totalYtd?.bookings ?? 0).toLocaleString()}</td>
+                  <td className="py-4 px-4 text-right font-black text-slate-900">₹{(stats?.financialReport?.totalYtd?.avgRate ?? 0).toLocaleString("en-IN")}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -862,29 +786,44 @@ export default function DashboardPage() {
             <button className="text-slate-400 hover:text-slate-600"><MoreVertical size={16} /></button>
           </div>
           
-          <div className="h-32 relative flex items-end justify-between border-b border-slate-100 pb-2">
-            {/* Mock Chart Area */}
-            <div className="absolute inset-0 pb-6">
-              <svg viewBox="0 0 100 40" className="w-full h-full preserve-aspect-ratio-none">
-                <defs>
-                  <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="rgb(16 185 129 / 0.2)" />
-                    <stop offset="100%" stopColor="rgb(16 185 129 / 0)" />
-                  </linearGradient>
-                </defs>
-                <path d="M0,30 C20,25 30,32 50,28 C70,24 80,20 100,10 L100,40 L0,40 Z" fill="url(#gradient)" />
-                <path d="M0,30 C20,25 30,32 50,28 C70,24 80,20 100,10" fill="none" stroke="rgb(16 185 129)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Mo</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Tu</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">We</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Th</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Fr</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Sa</span>
-            <span className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">Su</span>
-          </div>
+          {(() => {
+            const trend = stats?.revenueTrend ?? [];
+            const maxEarnings = Math.max(...trend.map((t) => t.earnings), 1);
+            const points = trend.map((t, i) => {
+              const x = trend.length > 1 ? (i / (trend.length - 1)) * 100 : 0;
+              const y = 38 - (t.earnings / maxEarnings) * 34;
+              return { x, y };
+            });
+            const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+            const area = points.length ? `${line} L100,40 L0,40 Z` : "";
+            const dayLabel = (dateStr: string) => ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][new Date(`${dateStr}T00:00:00`).getDay()];
+            const hasEarnings = trend.some((t) => t.earnings > 0);
+
+            return (
+              <div className="h-32 relative flex items-end justify-between border-b border-slate-100 pb-2">
+                {hasEarnings ? (
+                  <div className="absolute inset-0 pb-6">
+                    <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="w-full h-full">
+                      <defs>
+                        <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stopColor="rgb(16 185 129 / 0.2)" />
+                          <stop offset="100%" stopColor="rgb(16 185 129 / 0)" />
+                        </linearGradient>
+                      </defs>
+                      <path d={area} fill="url(#gradient)" />
+                      <path d={line} fill="none" stroke="rgb(16 185 129)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                ) : (
+                  <p className="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-400 pb-6">No earnings in the last 7 days yet.</p>
+                )}
+
+                {trend.map((t) => (
+                  <span key={t.date} className="text-[9px] font-bold text-slate-400 z-10 pt-28 w-6 text-center">{dayLabel(t.date)}</span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
       </div>
