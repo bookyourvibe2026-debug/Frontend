@@ -40,6 +40,17 @@ export async function getVenueById(id: string) {
   return withCoverImage(listing);
 }
 
+export interface BookedRange {
+  startTime: string; // "HH:mm" (24h)
+  endTime: string; // "HH:mm" (24h)
+  status: "Confirmed" | "Pending" | "Completed";
+}
+
+/** Already-booked time ranges for a venue on a given date (YYYY-MM-DD). */
+export function getVenueAvailability(id: string, date: string) {
+  return apiRequest<BookedRange[]>(`/venues/${id}/availability`, { query: { date } });
+}
+
 export async function getVendorProfile(vendorId: string) {
   const result = await apiRequest<{ vendor: VendorPublicProfile; listings: Listing[] }>(
     `/venues/vendors/${vendorId}`

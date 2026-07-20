@@ -18,6 +18,7 @@ import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
 import { createMyBooking } from "@/lib/api/customerBookings";
+import { getVenueAvailability, type BookedRange } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { categoryLabel } from "@/lib/taxonomy";
 import { downloadBookingTicket } from "@/lib/ticket";
@@ -26,6 +27,19 @@ import type { Booking, Listing, PaymentMethod } from "@/lib/api/types";
 type Step = "review" | "confirmed";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)"];
+
+/** A slot is Booked when it overlaps any real booked range for the selected date. */
+function slotStatusFor(slotStart: number, slotEnd: number, booked: BookedRange[]): "Available" | "Booked" {
+  const sStart = slotStart % 1440;
+  const sEnd = sStart + (slotEnd - slotStart);
+  for (const r of booked) {
+    const bStart = time24ToMinutes(r.startTime);
+    let bEnd = time24ToMinutes(r.endTime);
+    if (bEnd <= bStart) bEnd += 1440; // range crosses midnight
+    if (sStart < bEnd && bStart < sEnd) return "Booked";
+  }
+  return "Available";
+}
 
 /* Start times a venue can be booked from. */
 const START_TIMES = [
@@ -136,7 +150,7 @@ export default function BookingFlow({
   payTriggerRef?: MutableRefObject<(() => void) | null>;
   selectedSport?: string;
 }) {
-  const { status } = useCustomerAuth();
+  const { status, customer } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
   const [date, setDate] = useState("");
@@ -160,6 +174,27 @@ export default function BookingFlow({
   // The game being booked — seeded from whatever the player picked outside,
   // but changeable from the chips inside the flow.
   const [sport, setSport] = useState(selectedSport ?? "");
+  // Google/OTP signups may have no phone on file — bookings need one, so collect it inline.
+  const needsPhone = !customer?.phone;
+  const [phone, setPhone] = useState("");
+  // Add-ons the player picked — only ones actually configured on the listing.
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
+  const toggleAddOn = (id: string) =>
+    setSelectedAddOnIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Real booked ranges for the selected date — slots overlapping these are shown as Booked.
+  const [bookedRanges, setBookedRanges] = useState<BookedRange[]>([]);
+
+  useEffect(() => {
+    if (listing.type !== "Turf" || !date) {
+      setBookedRanges([]);
+      return;
+    }
+    let cancelled = false;
+    getVenueAvailability(listing._id, date)
+      .then((ranges) => { if (!cancelled) setBookedRanges(ranges); })
+      .catch(() => { if (!cancelled) setBookedRanges([]); });
+    return () => { cancelled = true; };
+  }, [listing._id, listing.type, date, step]);
 
   // Helper to format a Date to ISO (yyyy-mm-dd)
   function localDateISO(date: Date) {
@@ -271,16 +306,7 @@ export default function BookingFlow({
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
         const price = Math.round((durationMin / 60) * baseHourlyRate);
-        const str = `${listing._id}_${date}_${startTime24}`;
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          hash = (hash << 5) - hash + str.charCodeAt(i);
-          hash |= 0;
-        }
-        const absHash = Math.abs(hash);
-        let simulatedStatus: "Available" | "Booked" | "Part Paid" = "Available";
-        if (absHash % 6 === 0) simulatedStatus = "Booked";
-        else if (absHash % 6 === 1) simulatedStatus = "Part Paid";
+        const slotStatus = slotStatusFor(slotStart, slotEnd, bookedRanges);
         slots.push({
           startTime: startTime24,
           endTime: endTime24,
@@ -288,7 +314,7 @@ export default function BookingFlow({
           endTime12,
           label,
           price,
-          status: simulatedStatus,
+          status: slotStatus,
           originalIndex: idx,
         });
         current = slotEnd;
@@ -346,16 +372,7 @@ export default function BookingFlow({
         }
         const price = Math.round(priceRaw);
 
-        const str = `${listing._id}_${date}_${startTime24}`;
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          hash = (hash << 5) - hash + str.charCodeAt(i);
-          hash |= 0;
-        }
-        const absHash = Math.abs(hash);
-        let simulatedStatus: "Available" | "Booked" | "Part Paid" = "Available";
-        if (absHash % 6 === 0) simulatedStatus = "Booked";
-        else if (absHash % 6 === 1) simulatedStatus = "Part Paid";
+        const slotStatus = slotStatusFor(slotStart, slotEnd, bookedRanges);
 
         slots.push({
           startTime: startTime24,
@@ -364,7 +381,7 @@ export default function BookingFlow({
           endTime12,
           label,
           price,
-          status: simulatedStatus,
+          status: slotStatus,
           originalIndex: idx,
         });
 
@@ -373,7 +390,7 @@ export default function BookingFlow({
       }
     }
     return slots;
-  }, [listing, date, startMin, endMin, durationMin, baseHourlyRate, isDateHoliday]);
+  }, [listing, date, startMin, endMin, durationMin, baseHourlyRate, isDateHoliday, bookedRanges]);
 
   // Filter generated slots by activeDaypart select filter — "All" shows every time of day.
   const filteredGeneratedSlots = useMemo(() => {
@@ -390,17 +407,21 @@ export default function BookingFlow({
       setSelectedSlotIndex(firstAvail ? firstAvail.originalIndex : -1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, listing.type, durationMin]);
+  }, [date, listing.type, durationMin, bookedRanges]);
 
   const activePrice = useMemo(() => {
+    const addOnsTotal = (listing.addOns ?? [])
+      .filter((a) => selectedAddOnIds.includes(a.id))
+      .reduce((sum, a) => sum + a.price, 0);
     if (listing.type === "Turf") {
       const activeSlot = generatedSlots[selectedSlotIndex];
-      return activeSlot ? activeSlot.price : 0;
+      return (activeSlot ? activeSlot.price : 0) + addOnsTotal;
     }
-    return listing.price;
-  }, [listing, generatedSlots, selectedSlotIndex]);
+    return listing.price + addOnsTotal;
+  }, [listing, generatedSlots, selectedSlotIndex, selectedAddOnIds]);
 
-  const canPay = agreed && !!date && (
+  const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
+  const canPay = agreed && phoneValid && !!date && (
     listing.type !== "Turf"
       ? !!time
       : selectedSlotIndex !== -1 && !isDateHoliday && generatedSlots[selectedSlotIndex]?.status === "Available"
@@ -450,6 +471,8 @@ export default function BookingFlow({
         dateTime,
         payment,
         sport: sport || undefined,
+        phone: needsPhone ? phone : undefined,
+        addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
         durationMinutes: listing.type === "Turf" ? durationMin : undefined
       });
       setBooking(created);
@@ -484,6 +507,11 @@ export default function BookingFlow({
           canPay={canPay}
           submitting={submitting}
           error={error}
+          needsPhone={needsPhone}
+          phone={phone}
+          setPhone={setPhone}
+          selectedAddOnIds={selectedAddOnIds}
+          onToggleAddOn={toggleAddOn}
           onClose={onClose}
           onPay={handlePay}
           dateOptions={dateOptions}
@@ -574,6 +602,11 @@ function ReviewStep(props: {
   setVisibleYear: (v: number | ((n: number) => number)) => void;
   selectedSport?: string;
   onSelectSport: (s: string) => void;
+  needsPhone: boolean;
+  phone: string;
+  setPhone: (v: string) => void;
+  selectedAddOnIds: string[];
+  onToggleAddOn: (id: string) => void;
 }) {
   const {
     embedded,
@@ -619,6 +652,11 @@ function ReviewStep(props: {
     setVisibleYear,
     selectedSport,
     onSelectSport,
+    needsPhone,
+    phone,
+    setPhone,
+    selectedAddOnIds,
+    onToggleAddOn,
   } = props;
 
   const today = new Date();
@@ -1064,35 +1102,57 @@ function ReviewStep(props: {
               </label>
             </div>
 
-            {/* Add-ons Mock */}
-            <div className="relative h-28 overflow-hidden rounded-2xl bg-slate-900">
-               {/* eslint-disable-next-line @next/next/no-img-element */}
-               <img src="https://images.unsplash.com/photo-1572916288674-f25b16e45f94?w=500&auto=format&fit=crop&q=60" alt="Background" className="absolute inset-0 h-full w-full object-cover opacity-60" />
-               <div className="absolute inset-0 p-3 flex flex-col justify-between">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-xl">🥤</div>
-                     <div>
-                       <p className="text-xs font-bold text-white">Energy Drink</p>
-                       <p className="text-[10px] font-semibold text-white/80">₹99</p>
-                     </div>
-                   </div>
-                   <button type="button" className="rounded-md border border-brand-400/50 text-brand-400 font-bold text-[10px] px-3 py-1 bg-black/20 backdrop-blur-sm">ADD</button>
-                 </div>
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-xl">🍫</div>
-                     <div>
-                       <p className="text-xs font-bold text-white">Protein Bar</p>
-                       <p className="text-[10px] font-semibold text-white/80">₹60</p>
-                     </div>
-                   </div>
-                   <button type="button" className="rounded-md border border-brand-400/50 text-brand-400 font-bold text-[10px] px-3 py-1 bg-black/20 backdrop-blur-sm">ADD</button>
-                 </div>
-               </div>
-            </div>
+            {/* Add-ons — only the ones the vendor configured on this package. */}
+            {(listing.addOns ?? []).length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                <p className="mb-3 text-sm font-bold text-slate-800">Add-ons</p>
+                <div className="space-y-2">
+                  {listing.addOns.map((addOn) => {
+                    const added = selectedAddOnIds.includes(addOn.id);
+                    return (
+                      <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
+                          <p className="text-[10px] font-semibold text-slate-500">₹{addOn.price.toLocaleString("en-IN")}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onToggleAddOn(addOn.id)}
+                          className={`rounded-md border px-3 py-1 text-[10px] font-bold transition ${
+                            added
+                              ? "border-brand-500 bg-brand-500 text-white"
+                              : "border-brand-400/60 bg-white text-brand-500 hover:bg-brand-50"
+                          }`}
+                        >
+                          {added ? "ADDED" : "ADD"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="hidden lg:block mt-3">
+              {needsPhone && (
+                <div className="mb-3">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Mobile Number *
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="10-digit mobile number"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-brand-500"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Needed for your booking confirmation — we&apos;ll save it to your profile.
+                  </p>
+                </div>
+              )}
               {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
               {!embedded && (
                 <button
