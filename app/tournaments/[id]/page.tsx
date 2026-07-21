@@ -73,8 +73,8 @@ const MOCK_TOURNAMENTS: Tournament[] = [
     registeredTeamsCount: 24,
     status: "Ongoing",
     fixtures: [
-      { id: "fix-1", round: "Quarter Finals Match 1", scheduledAt: new Date().toISOString(), status: "Completed", teamAScore: 3, teamBScore: 1 },
-      { id: "fix-2", round: "Quarter Finals Match 2", scheduledAt: new Date().toISOString(), status: "Scheduled" }
+      { id: "fix-1", round: "Quarter Finals Match 1", scheduledAt: new Date().toISOString(), status: "Completed", teamAScore: 3, teamBScore: 1, teamAId: "team-1", teamBId: "team-2" },
+      { id: "fix-2", round: "Quarter Finals Match 2", scheduledAt: new Date().toISOString(), status: "Scheduled", teamAId: "team-3", teamBId: "team-4" }
     ],
     spotsLeft: 0,
     createdAt: new Date().toISOString(),
