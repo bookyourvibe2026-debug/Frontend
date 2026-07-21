@@ -524,6 +524,10 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint: 
 /* ─── AGENDA TAB COMPONENT ────────────────────────────────────── */
 type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
 
+/** Vendor bookings carry a customerId the shared mock type doesn't model — it's set only
+ * for bookings a registered customer made through the app, never for manual/walk-in ones. */
+type ApiBooking = Booking & { customerId?: string | null };
+
 function SeeBookingsButton({ resolvedSlots, onPick }: { resolvedSlots: AgendaSlot[]; onPick: (f: SlotStatus) => void }) {
   return (
     <div className="relative group">
@@ -551,7 +555,7 @@ interface AgendaSlot {
 
 function AgendaTab({ listing }: { listing: Listing }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [daypart, setDaypart] = useState<"Morning" | "Afternoon" | "Night" | "Mid Night" | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "clock">("grid");
@@ -574,7 +578,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
     setLoading(true);
     getVendorBookings({ limit: 500 })
       .then((b) => {
-        setBookings(b.items as unknown as Booking[]);
+        setBookings(b.items as unknown as ApiBooking[]);
       })
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
@@ -625,11 +629,13 @@ function AgendaTab({ listing }: { listing: Listing }) {
       if (match) {
         bookingId = match.orderId;
         customerName = match.customer;
-        const isOffline = match.payment === "Cash (Offline)";
+        // Walk-in = no customerId (vendor typed it in manually) — not payment method,
+        // since a real BYV customer can still choose to pay cash at the venue.
+        const isWalkIn = !match.customerId;
         const isHold = match.customer === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
-        else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
+        else if (match.status === "Confirmed" && isWalkIn) status = "Offline Booked";
         else status = "Booked";
       }
 
@@ -703,7 +709,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
         status: "Pending",
       });
       const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
+      setBookings(fresh.items as unknown as ApiBooking[]);
       setActiveSlot(null);
     } catch { alert("Failed to hold slot"); }
   }
@@ -724,7 +730,7 @@ function AgendaTab({ listing }: { listing: Listing }) {
         status: "Confirmed",
       });
       const fresh = await getVendorBookings({ limit: 500 });
-      setBookings(fresh.items as unknown as Booking[]);
+      setBookings(fresh.items as unknown as ApiBooking[]);
       setOfflineModal(false);
       setActiveSlot(null);
       setOfflineName("");

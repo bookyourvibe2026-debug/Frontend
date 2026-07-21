@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Trophy, Ban } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Trophy, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid } from "lucide-react";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -101,6 +101,7 @@ function emptyListing(type: ListingType): Listing {
     itinerary: [],
     faqs: [],
     tags: [],
+    technicalSpecs: [],
     priceTiers: [],
     addOns: [],
     coupons: [],
@@ -1992,6 +1993,18 @@ function PricingStep({ draft, update }: StepProps) {
 /* ------------------------------------------------------------------ */
 
 function LaunchStep({ draft, update }: StepProps) {
+  const specs = draft.technicalSpecs ?? [];
+
+  function addSpec() {
+    update("technicalSpecs", [...specs, { label: "", value: "", icon: "crop", color: "purple" }]);
+  }
+  function updateSpec(i: number, patch: Partial<any>) {
+    update("technicalSpecs", specs.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+  function removeSpec(i: number) {
+    update("technicalSpecs", specs.filter((_, idx) => idx !== i));
+  }
+
   function addDay() {
     update("itinerary", [...draft.itinerary, { day: draft.itinerary.length + 1, title: "", description: "" }]);
   }
@@ -2095,6 +2108,86 @@ function LaunchStep({ draft, update }: StepProps) {
             tone="danger"
           />
         </div>
+      </div>
+
+      <div className="rounded-xl2 border border-surface-border p-5">
+        <p className="text-sm font-semibold text-ink">Technical Specifications</p>
+        <p className="mb-4 text-xs text-ink-faint">
+          Define technical metrics for this turf (e.g. Ground Dimensions, Vertical Clearance, Floodlights, Pitch Conditions, Nets etc.)
+        </p>
+        <div className="space-y-4">
+          {specs.map((spec, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-4 rounded-xl border border-surface-border p-4 bg-cream-100/50">
+              <div className="flex-1 min-w-[150px]">
+                <FieldLabel>Specification Title</FieldLabel>
+                <input
+                  type="text"
+                  value={spec.label}
+                  onChange={(e) => updateSpec(i, { label: e.target.value })}
+                  placeholder="e.g. Ground Dimensions"
+                  className={inputClass}
+                  required
+                />
+              </div>
+              <div className="flex-[2] min-w-[200px]">
+                <FieldLabel>Specification Value / Detail</FieldLabel>
+                <input
+                  type="text"
+                  value={spec.value}
+                  onChange={(e) => updateSpec(i, { value: e.target.value })}
+                  placeholder="e.g. Massive 12,500 sq.ft arena..."
+                  className={inputClass}
+                  required
+                />
+              </div>
+              <div className="w-40">
+                <FieldLabel>Icon</FieldLabel>
+                <select
+                  value={spec.icon}
+                  onChange={(e) => updateSpec(i, { icon: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="crop">Dimensions (Crop)</option>
+                  <option value="arrow-up-down">Clearance (Arrow)</option>
+                  <option value="lightbulb">Floodlights (Bulb)</option>
+                  <option value="layers">Pitch Conditions (Layers)</option>
+                  <option value="grid">Nets Gap (Grid)</option>
+                </select>
+              </div>
+              <div className="w-32">
+                <FieldLabel>Color Theme</FieldLabel>
+                <select
+                  value={spec.color || "purple"}
+                  onChange={(e) => updateSpec(i, { color: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="purple">Purple</option>
+                  <option value="blue">Blue</option>
+                  <option value="orange">Orange</option>
+                  <option value="green">Green</option>
+                  <option value="pink">Pink</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeSpec(i)}
+                className="mt-5 text-ink-faint hover:text-vibe-coral shrink-0"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+          {specs.length === 0 && (
+            <p className="text-xs text-ink-faint italic py-2 text-center bg-cream-100 rounded-xl">No technical specifications added yet.</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={addSpec}
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo"
+        >
+          <Plus size={13} /> Add Specification
+        </button>
       </div>
 
       {draft.type === "Event" && (

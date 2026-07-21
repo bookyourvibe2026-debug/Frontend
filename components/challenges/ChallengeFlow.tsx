@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { toPng } from "html-to-image";
+import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 import {
   ArrowLeft,
   Check,
-  ChevronDown,
   Clipboard,
   Crown,
   Download,
   Eye,
   Flame,
+  MapPin,
   Medal,
   MessageCircle,
   Search,
@@ -24,6 +26,9 @@ import {
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
+import { browseVenues, getVenueAvailability } from "@/lib/api/venues";
+import type { Listing } from "@/lib/api/types";
+import { SPORT_CATEGORIES } from "@/lib/taxonomy";
 import {
   createChallenge,
   listChallengePlayers,
@@ -33,12 +38,67 @@ import {
   type ChallengePlayersCount,
   type ChallengeSeries,
   type ChallengeStakeType,
+  type ChallengeTeamMember,
 } from "@/lib/api/challenges";
 
-type Step = "ground" | "opponent" | "sport" | "details" | "stakes" | "poster" | "share";
+type Step = "sport" | "schedule" | "teams" | "details" | "stakes" | "poster" | "share";
 type Opponent = ChallengePlayer & { isInvite?: boolean };
+/** A player added to a team roster in the Team 1 / Team 2 builder. */
+type RosterMember = { id?: string; name: string; phone?: string };
 
 const NO_PLAYERS: Opponent[] = [];
+
+/** Assumed match length for checking whether a turf is free at the chosen time —
+ * challenges aren't billed slots, so this is just a soft availability guide. */
+const CHALLENGE_DURATION_MIN = 60;
+
+function to24h(t12: string): string {
+  const [time, ap] = t12.split(" ");
+  let [h, m] = time.split(":").map(Number);
+  if (ap === "PM" && h !== 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  const aE = aEnd <= aStart ? aEnd + 1440 : aEnd;
+  const bE = bEnd <= bStart ? bEnd + 1440 : bEnd;
+  return aStart < bE && bStart < aE;
+}
+
+/** Next 8 real calendar days — replaces vague "Saturday/Sunday" labels with actual dates. */
+function buildDateOptions(): { iso: string; label: string }[] {
+  const opts: { iso: string; label: string }[] = [];
+  const today = new Date();
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const label =
+      i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+    opts.push({ iso, label });
+  }
+  return opts;
+}
+
+/** Every half-hour from 6 AM to 11 PM — generated, not a fixed handful of presets,
+ * so the player can pick any realistic start time instead of just a few slots. */
+function buildTimeOptions(): string[] {
+  const times: string[] = [];
+  for (let mins = 6 * 60; mins <= 23 * 60; mins += 30) {
+    const h24 = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ap = h24 >= 12 ? "PM" : "AM";
+    const h12 = h24 % 12 || 12;
+    times.push(`${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`);
+  }
+  return times;
+}
 
 const SPORTS = [
   { label: "Cricket", image: "/bat.png" },
@@ -53,37 +113,43 @@ const SPORTS = [
 ] as const;
 
 // Valid player-count options for each sport — only these show up, and the first is the default.
+// Cricket is inherently a team match, so it alone gets the "team" format; every other
+// sport/game is played 1v1 or 2v2.
 const GAME_PLAYER_COUNT_OPTIONS: Record<string, ChallengePlayersCount[]> = {
   Cricket: ["team"],
   Badminton: ["1v1", "2v2"],
   "Table Tennis": ["1v1", "2v2"],
   Pickleball: ["1v1", "2v2"],
-  Football: ["team"],
-  Basketball: ["team"],
-  Pool: ["1v1"],
-  Gaming: ["1v1", "2v2", "team"],
-  "Other Match": ["1v1", "2v2", "team"],
+  Football: ["1v1", "2v2"],
+  Basketball: ["1v1", "2v2"],
+  Pool: ["1v1", "2v2"],
+  Gaming: ["1v1", "2v2"],
+  "Other Match": ["1v1", "2v2"],
 };
 
 // Best-of series only makes sense for game-based sports, not single-match team sports.
 const GAME_SUPPORTS_SERIES = new Set(["Cricket", "Badminton", "Table Tennis", "Pickleball", "Pool"]);
 
+// Venue listings store the taxonomy's category *id* (e.g. "cricket"), not its display
+// label ("Cricket") — this maps the challenge's sport label to that id so venue
+// filtering actually matches. Sports outside the venue taxonomy (Pool, Gaming, Other
+// Match) have no id and fall back to showing every turf.
+function sportCategoryId(sportLabel: string): string | undefined {
+  return SPORT_CATEGORIES.find((c) => c.label === sportLabel)?.id;
+}
+
 const STAKES: { type: ChallengeStakeType; label: string; icon: string; copy: string }[] = [
-  { type: "Pizza", label: "Pizza", icon: "🍕", copy: "Loser buys pizza" },
-  { type: "Coffee", label: "Coffee", icon: "☕", copy: "Loser buys coffee" },
-  { type: "Burger", label: "Burger", icon: "🍔", copy: "Loser buys burgers" },
+  { type: "Treat", label: "Treat", icon: "🍕", copy: "Loser buys a treat (food, coffee, or snacks)" },
   { type: "Movie", label: "Movie", icon: "🎬", copy: "Loser buys movie tickets" },
   { type: "Cash", label: "Cash", icon: "💰", copy: "Loser pays the pool" },
   { type: "Trophy", label: "Trophy", icon: "🏆", copy: "Winner gets trophy rights" },
-  { type: "Insta Story", label: "Insta Story", icon: "📸", copy: "Loser posts winner story" },
-  { type: "Apology", label: "Apology", icon: "🎤", copy: "Loser records an apology" },
+  { type: "Apology Post", label: "Apology Post", icon: "📸", copy: "Loser posts an apology on Instagram" },
   { type: "Reel", label: "Reel", icon: "😂", copy: "Loser makes a reel" },
 ];
 
+const TIME_OPTIONS = buildTimeOptions();
+
 const DETAILS = {
-  venues: ["One Arena, Shobhagpura", "Urban Turf, Udaipur", "BYV Sports Club", "Lakecity Indoor Court"],
-  dates: ["Saturday", "Sunday", "Today", "Tomorrow"],
-  times: ["07:00 PM", "08:00 PM", "09:00 PM", "06:00 AM"],
   playerCounts: ["1v1", "2v2", "team"] as ChallengePlayersCount[],
   series: ["BO1", "BO3", "BO5"] as ChallengeSeries[],
   styles: ["friendly", "competitive", "tournament"] as ChallengeMatchStyle[],
@@ -114,7 +180,8 @@ function initials(name: string) {
 
 function localChallenge(input: {
   challengerName: string;
-  opponent: Opponent;
+  team1: RosterMember[];
+  team2: RosterMember[];
   sport: string;
   venueName: string;
   scheduleLabel: string;
@@ -128,9 +195,10 @@ function localChallenge(input: {
   const code = `CHAL${Math.floor(100 + Math.random() * 900)}`;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://bookyourvibe.com";
   const inviteUrl = `${origin}/challenge/${code}`;
+  const opponent = input.team2[0];
   const shareMessage = [
     "You've been challenged!",
-    `${input.challengerName} has challenged ${input.opponent.name} for a ${input.sport}.`,
+    `${input.challengerName} has challenged ${opponent.name} for a ${input.sport}.`,
     `Venue: ${input.venueName}`,
     `Time: ${input.scheduleLabel}`,
     `Bet: Loser buys ${input.stakeText}`,
@@ -141,7 +209,9 @@ function localChallenge(input: {
     id: code,
     code,
     challenger: { id: "local", name: input.challengerName },
-    opponent: { id: input.opponent.isInvite ? undefined : input.opponent.id, name: input.opponent.name, phone: input.opponent.phone },
+    opponent: { id: opponent.id, name: opponent.name, phone: opponent.phone },
+    team1Members: input.team1,
+    team2Members: input.team2,
     sport: input.sport,
     venueName: input.venueName,
     scheduleLabel: input.scheduleLabel,
@@ -155,7 +225,7 @@ function localChallenge(input: {
     shareMessage,
     status: "pending",
     createdAt: new Date().toISOString(),
-    poster: { challengerInitials: initials(input.challengerName), opponentInitials: initials(input.opponent.name) },
+    poster: { challengerInitials: initials(input.challengerName), opponentInitials: initials(opponent.name) },
   };
 }
 
@@ -166,11 +236,26 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const [players, setPlayers] = useState<Opponent[]>(NO_PLAYERS);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [search, setSearch] = useState("");
-  const [opponent, setOpponent] = useState<Opponent | null>(null);
+  // Team 1 / Team 2 roster builder — replaces the old single-opponent picker.
+  const [team1, setTeam1] = useState<RosterMember[]>([]);
+  const [team2, setTeam2] = useState<RosterMember[]>([]);
   const [sport, setSport] = useState("Other Match");
-  const [venueName, setVenueName] = useState(DETAILS.venues[0]);
-  const [dateLabel, setDateLabel] = useState(DETAILS.dates[0]);
-  const [timeLabel, setTimeLabel] = useState(DETAILS.times[0]);
+  const [venues, setVenues] = useState<Listing[]>([]);
+  const [loadingVenues, setLoadingVenues] = useState(true);
+  const [availableVenues, setAvailableVenues] = useState<Listing[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [venueName, setVenueName] = useState("");
+  // Set only when venueName came from a real listing — lets that venue's vendor verify
+  // the challenge QR at the door. Free-text venues (none currently, but kept defensive) won't have one.
+  const [venueId, setVenueId] = useState("");
+  const dateOptions = useMemo(() => buildDateOptions(), []);
+  const [dateIso, setDateIso] = useState(dateOptions[0].iso);
+  // Default to the next half-hour mark so the picker opens on a realistic upcoming time.
+  const [timeLabel, setTimeLabel] = useState(() => {
+    const now = new Date();
+    const roundedMins = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30;
+    return TIME_OPTIONS.find((t) => timeToMinutes(to24h(t)) >= roundedMins) ?? TIME_OPTIONS[0];
+  });
   const [playersCount, setPlayersCount] = useState<ChallengePlayersCount>("1v1");
   const [series, setSeries] = useState<ChallengeSeries>("BO1");
   const [matchStyle, setMatchStyle] = useState<ChallengeMatchStyle>("competitive");
@@ -191,7 +276,6 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
       .then((items) => {
         if (cancelled) return;
         setPlayers(items);
-        setOpponent((current) => current ?? items[0] ?? null);
       })
       .catch(() => {
         if (!cancelled) setPlayers(NO_PLAYERS);
@@ -203,6 +287,76 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
       cancelled = true;
     };
   }, [search, status]);
+
+  // The challenger is always on Team 1 — seed it once their profile loads.
+  useEffect(() => {
+    if (!customer) return;
+    setTeam1((prev) => (prev.length > 0 ? prev : [{ id: customer.id, name: customer.name, phone: customer.phone }]));
+  }, [customer]);
+
+  // Only venues that actually support the selected sport show up here — "Other Match"
+  // has no fixed venue category, so it shows every active turf.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingVenues(true);
+    browseVenues({ type: "Turf", category: sportCategoryId(sport), limit: 24 })
+      .then((res) => {
+        if (cancelled) return;
+        setVenues(res.items);
+      })
+      .catch(() => {
+        if (!cancelled) setVenues([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVenues(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sport]);
+
+  // Of the sport-matching venues, only ones with no conflicting booking at the chosen
+  // date + time actually show up for selection.
+  useEffect(() => {
+    if (venues.length === 0) {
+      setAvailableVenues([]);
+      setVenueName("");
+      setVenueId("");
+      return;
+    }
+    let cancelled = false;
+    setCheckingAvailability(true);
+    const startMin = timeToMinutes(to24h(timeLabel));
+    Promise.all(
+      venues.map((v) =>
+        getVenueAvailability(v._id, dateIso)
+          .then((ranges) => ({
+            v,
+            free: !ranges.some((r) =>
+              rangesOverlap(startMin, startMin + CHALLENGE_DURATION_MIN, timeToMinutes(r.startTime), timeToMinutes(r.endTime))
+            ),
+          }))
+          .catch(() => ({ v, free: true })) // availability check failing shouldn't block the whole step
+      )
+    )
+      .then((results) => {
+        if (cancelled) return;
+        const free = results.filter((r) => r.free).map((r) => r.v);
+        setAvailableVenues(free);
+        setVenueName((current) => {
+          if (current && free.some((v) => `${v.title}, ${v.city}` === current)) return current;
+          const first = free[0];
+          setVenueId(first?._id ?? "");
+          return first ? `${first.title}, ${first.city}` : "";
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingAvailability(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [venues, dateIso, timeLabel]);
 
   function selectSport(label: string) {
     setSport(label);
@@ -218,11 +372,23 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(inviteMessage)}`, "_blank", "noopener,noreferrer");
   }
 
+  const rosteredIds = useMemo(() => new Set([...team1, ...team2].map((m) => m.id).filter(Boolean)), [team1, team2]);
   const filteredPlayers = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    if (!needle) return players;
-    return players.filter((player) => `${player.name} ${player.phone ?? ""}`.toLowerCase().includes(needle));
-  }, [players, search]);
+    const base = needle ? players.filter((player) => `${player.name} ${player.phone ?? ""}`.toLowerCase().includes(needle)) : players;
+    return base.filter((player) => !rosteredIds.has(player.id));
+  }, [players, search, rosteredIds]);
+
+  function addToTeam(player: Opponent, team: "team1" | "team2") {
+    const member: RosterMember = { id: player.id, name: player.name, phone: player.phone };
+    if (team === "team1") setTeam1((prev) => [...prev, member]);
+    else setTeam2((prev) => [...prev, member]);
+  }
+  function removeFromTeam(id: string | undefined, name: string, team: "team1" | "team2") {
+    const match = (m: RosterMember) => (id ? m.id === id : m.name === name);
+    if (team === "team1") setTeam1((prev) => prev.filter((m) => !match(m)));
+    else setTeam2((prev) => prev.filter((m) => !match(m)));
+  }
 
   if (status === "loading") {
     return (
@@ -240,8 +406,10 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     );
   }
 
+  const dateLabel = dateOptions.find((d) => d.iso === dateIso)?.label ?? dateIso;
   const scheduleLabel = `${dateLabel}, ${timeLabel}`;
   const challengerName = customer?.name ?? "BYV Player";
+  const opponent = team2[0] as RosterMember | undefined;
 
   async function generatePoster() {
     if (!opponent) return;
@@ -249,11 +417,14 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     setNotice("");
     try {
       const created = await createChallenge({
-        opponentId: opponent.isInvite ? undefined : opponent.id,
+        opponentId: opponent.id,
         opponentName: opponent.name,
         opponentPhone: opponent.phone,
+        team1Members: team1.map((m) => ({ name: m.name, phone: m.phone, id: m.id })),
+        team2Members: team2.map((m) => ({ name: m.name, phone: m.phone, id: m.id })),
         sport,
         venueName,
+        venueId: venueId || undefined,
         scheduleLabel,
         playersCount,
         series,
@@ -268,7 +439,8 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     } catch {
       const fallback = localChallenge({
         challengerName,
-        opponent,
+        team1,
+        team2,
         sport,
         venueName,
         scheduleLabel,
@@ -304,17 +476,23 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     setDownloading(true);
     setNotice("");
     try {
-      const dataUrl = await toPng(posterRef.current, {
-        backgroundColor: "#090f19",
+      const node = posterRef.current;
+      const dataUrl = await toPng(node, {
+        backgroundColor: "#02060d",
         pixelRatio: 2,
         cacheBust: true,
       });
-      const link = document.createElement("a");
-      link.download = `byv-challenge-${challenge.code}.png`;
-      link.href = dataUrl;
-      link.click();
+      const width = node.offsetWidth || 380;
+      const height = node.offsetHeight || 675;
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [width, height],
+      });
+      pdf.addImage(dataUrl, "PNG", 0, 0, width, height);
+      pdf.save(`byv-challenge-${challenge.code}.pdf`);
     } catch {
-      setNotice("Couldn't generate the poster image. Please try again.");
+      setNotice("Couldn't generate the poster PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
@@ -357,7 +535,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   }
 
   function goBack() {
-    const order: Step[] = ["sport", "ground", "opponent", "details", "stakes", "poster", "share"];
+    const order: Step[] = ["sport", "schedule", "teams", "details", "stakes", "poster", "share"];
     const index = order.indexOf(step);
     if (index <= 0) onClose();
     else setStep(order[index - 1]);
@@ -395,20 +573,93 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   </button>
                 ))}
               </div>
-              <BottomBar label="Selected match" value={sport} onNext={() => setStep("ground")} />
+              <BottomBar label="Selected match" value={sport} onNext={() => setStep("schedule")} />
             </StepShell>
           )}
 
-          {step === "ground" && (
-            <StepShell eyebrow="Step 02 / Pick your arena" title="Choose the ground" subtitle="Select the venue or turf where the challenge will happen.">
-              <SelectBlock label="Select venue / turf" value={venueName} options={DETAILS.venues} onChange={setVenueName} />
-              <BottomBar label="Selected ground" value={venueName} onNext={() => setStep("opponent")} />
+          {step === "schedule" && (
+            <StepShell eyebrow="Step 02 / Date, time & arena" title="When and where?" subtitle={`Turfs that support ${sport} and are free at the time you pick.`}>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Date</p>
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                {dateOptions.map((d) => (
+                  <button
+                    key={d.iso}
+                    type="button"
+                    onClick={() => setDateIso(d.iso)}
+                    className={`shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-extrabold whitespace-nowrap transition ${
+                      dateIso === d.iso ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-white/7 text-slate-300"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mb-2 mt-5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Start time</p>
+              <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto pr-1">
+                {TIME_OPTIONS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTimeLabel(t)}
+                    className={`rounded-xl px-2 py-2.5 text-[11px] font-extrabold transition ${
+                      timeLabel === t ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-white/7 text-slate-300"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mb-2 mt-6 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Available turfs</p>
+              {loadingVenues || checkingAvailability ? (
+                <p className="py-10 text-center text-xs font-semibold text-slate-500">Checking availability...</p>
+              ) : availableVenues.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-center">
+                  <p className="text-xs font-semibold text-slate-400">
+                    No {sport} turfs are free at {timeLabel} on {dateLabel}. Try another time or date.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {availableVenues.map((v) => {
+                    const label = `${v.title}, ${v.city}`;
+                    const selected = venueName === label;
+                    return (
+                      <button
+                        key={v._id}
+                        type="button"
+                        onClick={() => {
+                          setVenueName(label);
+                          setVenueId(v._id);
+                        }}
+                        className={`relative flex flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition ${
+                          selected ? "border-orange-500 bg-orange-500/10" : "border-white/10 bg-white/7"
+                        }`}
+                      >
+                        {selected && <Check className="absolute right-3 top-3 h-4 w-4 rounded-full bg-orange-500 p-0.5 text-slate-950" />}
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-orange-400">
+                          <MapPin className="h-5 w-5" />
+                        </span>
+                        <span className="mt-1 line-clamp-1 text-sm font-extrabold text-white">{v.title}</span>
+                        <span className="text-xs font-semibold text-slate-400">{v.city}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <BottomBar label="Selected ground" value={venueName || "None"} onNext={() => setStep("teams")} disabled={!venueName} />
             </StepShell>
           )}
 
-          {step === "opponent" && (
-            <StepShell eyebrow="Step 03 / Select duel partner" title="Who are you challenging?" subtitle="Select an opponent from BYV players or invite them via WhatsApp.">
-              <div className="flex items-center gap-2">
+          {step === "teams" && (
+            <StepShell eyebrow="Step 03 / Build the squads" title="Team 1 vs Team 2" subtitle="Search BYV players and add them to a side, or invite friends via WhatsApp.">
+              <div className="grid grid-cols-2 gap-3">
+                <TeamRoster label="Team 1" tone="orange" members={team1} selfId={customer?.id} onRemove={(id, name) => removeFromTeam(id, name, "team1")} />
+                <TeamRoster label="Team 2" tone="emerald" members={team2} onRemove={(id, name) => removeFromTeam(id, name, "team2")} />
+              </div>
+
+              <div className="mt-5 flex items-center gap-2">
                 <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/10 bg-white/7 px-4 py-3.5">
                   <Search className="h-5 w-5 text-slate-500" />
                   <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search username, name, or phone..." className="w-full bg-transparent text-sm font-semibold text-slate-200 outline-none placeholder:text-slate-500" />
@@ -423,17 +674,13 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   <Share2 className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mt-7 flex items-center justify-between">
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-orange-400">Suggested opponents</p>
-                <button type="button" onClick={shareInviteOnWhatsApp} className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-emerald-400">
-                  <Share2 className="h-3.5 w-3.5" /> Invite on WhatsApp
-                </button>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+
+              <p className="mb-2 mt-5 text-[11px] font-extrabold uppercase tracking-[0.22em] text-orange-400">BYV players</p>
+              <div className="space-y-2.5">
                 {loadingPlayers ? (
-                  <p className="col-span-2 py-6 text-center text-xs font-semibold text-slate-500">Loading BYV players...</p>
+                  <p className="py-6 text-center text-xs font-semibold text-slate-500">Loading BYV players...</p>
                 ) : filteredPlayers.length === 0 ? (
-                  <div className="col-span-2 rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-center">
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-center">
                     <p className="text-xs font-semibold text-slate-400">No players found{search ? ` for "${search}"` : " yet"}.</p>
                     <button type="button" onClick={shareInviteOnWhatsApp} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[11px] font-extrabold uppercase text-white">
                       <Share2 className="h-3.5 w-3.5" /> Invite a friend on WhatsApp
@@ -441,26 +688,67 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : (
                   filteredPlayers.map((player) => (
-                    <PlayerCard key={player.id} player={player} selected={opponent?.id === player.id} onSelect={() => setOpponent(player)} />
+                    <div key={player.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/60 to-slate-700 text-xs font-black text-white">
+                        {player.initials}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-extrabold text-white">{player.name}</p>
+                        <p className="truncate text-xs font-semibold text-slate-400">{player.relation}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addToTeam(player, "team1")}
+                        className="shrink-0 rounded-lg border border-orange-500/40 px-2.5 py-1.5 text-[10px] font-black uppercase text-orange-400 transition active:scale-95"
+                      >
+                        + Team 1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addToTeam(player, "team2")}
+                        className="shrink-0 rounded-lg border border-emerald-500/40 px-2.5 py-1.5 text-[10px] font-black uppercase text-emerald-400 transition active:scale-95"
+                      >
+                        + Team 2
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
-              <BottomBar label="Selected opponent" value={opponent?.name ?? "None selected"} onNext={() => setStep("details")} disabled={!opponent} />
+              <BottomBar
+                label="Team 2"
+                value={team2.length > 0 ? team2.map((m) => m.name).join(", ") : "Add at least one opponent"}
+                onNext={() => setStep("details")}
+                disabled={team2.length === 0}
+              />
             </StepShell>
           )}
 
           {step === "details" && (
-            <StepShell eyebrow="Step 04 / Match metrics" title="Set challenge details" subtitle="Lock down the time and rules for the match.">
-              <div className="grid grid-cols-2 gap-4">
-                <SelectBlock label="Date" value={dateLabel} options={DETAILS.dates} onChange={setDateLabel} />
-                <SelectBlock label="Start time" value={timeLabel} options={DETAILS.times} onChange={setTimeLabel} />
-              </div>
-              <Segmented
-                label={`Players count (for ${sport})`}
-                value={playersCount}
-                options={GAME_PLAYER_COUNT_OPTIONS[sport] ?? DETAILS.playerCounts}
-                onChange={setPlayersCount}
-              />
+            <StepShell eyebrow="Step 04 / Match metrics" title="Set challenge details" subtitle="Lock down the format and rules for the match.">
+              {playersCount === "team" ? (
+                // Cricket is always team-vs-team — nothing to actually choose, so show
+                // the two sides as labels rather than a single combined selector button.
+                <div className="mb-5">
+                  <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">
+                    Players count (for {sport})
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <span className="rounded-xl bg-orange-500 px-3 py-3 text-center text-xs font-extrabold uppercase text-white shadow-lg shadow-orange-500/20">
+                      Team 1
+                    </span>
+                    <span className="rounded-xl bg-orange-500 px-3 py-3 text-center text-xs font-extrabold uppercase text-white shadow-lg shadow-orange-500/20">
+                      Team 2
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <Segmented
+                  label={`Players count (for ${sport})`}
+                  value={playersCount}
+                  options={GAME_PLAYER_COUNT_OPTIONS[sport] ?? DETAILS.playerCounts}
+                  onChange={setPlayersCount}
+                />
+              )}
               {GAME_SUPPORTS_SERIES.has(sport) && (
                 <Segmented label="Best of series" value={series} options={DETAILS.series} onChange={setSeries} />
               )}
@@ -495,9 +783,22 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
 
           {(step === "poster" || step === "share") && challenge && (
             <StepShell eyebrow={step === "poster" ? "Final review" : "Deep link ready"} title={step === "poster" ? "Your cinematic poster" : "The gauntlet is thrown!"} subtitle={step === "poster" ? "Review your generated duel flyer." : `Share the challenge with ${opponent?.name ?? "your opponent"} on WhatsApp.`}>
-              <div className={step === "poster" ? "" : "pointer-events-none absolute left-[-9999px] top-0 w-[350px]"}>
-                <div ref={posterRef} className="w-full">
-                  <Poster challenge={challenge} />
+              <div className={step === "poster" ? "relative w-full max-w-[280px] mx-auto h-[380px] overflow-hidden rounded-none border border-white/10 bg-slate-950/60 shadow-2xl flex items-center justify-center mb-4" : "pointer-events-none absolute left-[-9999px] top-0"}>
+                <div 
+                  style={step === "poster" ? { 
+                    transform: 'scale(0.53)', 
+                    transformOrigin: 'center center',
+                    width: '380px',
+                    height: '675px',
+                    position: 'absolute'
+                  } : {
+                    width: '380px',
+                    height: '675px'
+                  }}
+                >
+                  <div ref={posterRef} className="w-[380px] h-[675px] text-white">
+                    <Poster challenge={challenge} />
+                  </div>
                 </div>
               </div>
               {step === "poster" && (
@@ -507,7 +808,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   disabled={downloading}
                   className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-3.5 text-xs font-black uppercase tracking-wide text-slate-200 disabled:opacity-50"
                 >
-                  <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download poster"}
+                  <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download poster (PDF)"}
                 </button>
               )}
               {step === "share" && (
@@ -553,57 +854,45 @@ function StepShell({ eyebrow, title, subtitle, children }: { eyebrow: string; ti
   );
 }
 
-function PlayerCard({ player, selected, onSelect }: { player: Opponent; selected: boolean; onSelect: () => void }) {
-  const isActive = !player.isInvite;
+/** One side's roster in the Team 1 / Team 2 builder. The challenger's own entry
+ * (matched by selfId) can't be removed — everyone else can be. */
+function TeamRoster({
+  label,
+  tone,
+  members,
+  selfId,
+  onRemove,
+}: {
+  label: string;
+  tone: "orange" | "emerald";
+  members: RosterMember[];
+  selfId?: string;
+  onRemove: (id: string | undefined, name: string) => void;
+}) {
+  const isOrange = tone === "orange";
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`relative flex w-full flex-col items-center gap-2.5 rounded-2xl border p-4 text-center transition ${
-        selected ? "border-orange-500 bg-orange-500/10" : "border-white/10 bg-white/[0.07]"
-      }`}
-    >
-      {selected && <Check className="absolute right-3 top-3 h-4 w-4 rounded-full bg-orange-500 p-0.5 text-slate-950" />}
-      <span className="relative">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/60 to-slate-700 text-lg font-black text-white">
-          {player.initials}
-        </span>
-        {isActive && (
-          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[7px] font-black text-white ring-2 ring-[#071018]">BYV</span>
-        )}
-      </span>
-      <span className="w-full min-w-0">
-        <span className="block truncate text-sm font-extrabold text-white">{player.name}</span>
-        <span className={`block truncate text-xs font-semibold ${isActive ? "text-slate-400" : "text-slate-500"}`}>{player.relation}</span>
-      </span>
-      {player.isInvite ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-[10px] font-extrabold uppercase text-white">
-          <Share2 className="h-3 w-3" /> Invite
-        </span>
+    <div className={`rounded-2xl border p-3 ${isOrange ? "border-orange-500/30 bg-orange-500/5" : "border-emerald-500/30 bg-emerald-500/5"}`}>
+      <p className={`text-[10px] font-extrabold uppercase tracking-[0.18em] ${isOrange ? "text-orange-400" : "text-emerald-400"}`}>{label}</p>
+      {members.length === 0 ? (
+        <p className="mt-2 text-xs font-semibold text-slate-500">No one yet</p>
       ) : (
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-extrabold uppercase text-orange-400">
-          {selected ? "Selected" : "Select"}
-        </span>
+        <div className="mt-2 space-y-1.5">
+          {members.map((m) => {
+            const isSelf = !!selfId && m.id === selfId;
+            return (
+              <div key={m.id ?? m.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-2.5 py-1.5">
+                <span className="truncate text-xs font-bold text-white">{isSelf ? "You" : m.name}</span>
+                {!isSelf && (
+                  <button type="button" onClick={() => onRemove(m.id, m.name)} className="shrink-0 text-slate-400 hover:text-white">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
-    </button>
-  );
-}
-
-function SelectBlock({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  return (
-    <label className="mb-5 block">
-      <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">{label}</span>
-      <span className="flex items-center rounded-2xl border border-white/10 bg-white/7 px-4 py-4">
-        <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full appearance-none bg-transparent text-sm font-extrabold text-white outline-none">
-          {options.map((option) => (
-            <option key={option} className="bg-slate-950 text-white">
-              {option}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="h-5 w-5 text-slate-400" />
-      </span>
-    </label>
+    </div>
   );
 }
 
@@ -648,129 +937,411 @@ function BottomBar({ label, value, actionLabel = "Next step", onNext, disabled }
   );
 }
 
+// Deterministic rank generator based on name hash
+function getDeterministicRank(name: string, defaultVal: number): number {
+  if (!name) return defaultVal;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return (Math.abs(hash) % 18) + 3; // Returns consistent rank between 3 and 20
+}
+
+// Sport-specific high fidelity SVG components
+const ShuttlecockSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <path d="M40 75 C40 85, 60 85, 60 75 Z" />
+    <path d="M40 75 L22 25 C22 20, 78 20, 78 25 L60 75 Z" opacity="0.25" />
+    <line x1="42" y1="73" x2="26" y2="25" stroke="currentColor" strokeWidth="2.5" />
+    <line x1="46" y1="74" x2="38" y2="25" stroke="currentColor" strokeWidth="2.5" />
+    <line x1="50" y1="75" x2="50" y2="25" stroke="currentColor" strokeWidth="2.5" />
+    <line x1="54" y1="74" x2="62" y2="25" stroke="currentColor" strokeWidth="2.5" />
+    <line x1="58" y1="73" x2="74" y2="25" stroke="currentColor" strokeWidth="2.5" />
+    <path d="M32 48 Q50 53 68 48" fill="none" stroke="currentColor" strokeWidth="2.5" />
+    <path d="M28 35 Q50 40 72 35" fill="none" stroke="currentColor" strokeWidth="2.5" />
+  </svg>
+);
+
+const CricketBallSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="50" cy="50" r="40" />
+    <path d="M50 10 Q62 50 50 90" fill="none" stroke="#111827" strokeWidth="4" strokeDasharray="3,2" />
+    <path d="M50 10 Q38 50 50 90" fill="none" stroke="#111827" strokeWidth="4" strokeDasharray="3,2" />
+    <path d="M50 10 L50 90" fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.3" />
+  </svg>
+);
+
+const SoccerBallSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="4" />
+    <polygon points="50,40 58,46 55,55 45,55 42,46" />
+    <line x1="50" y1="40" x2="50" y2="20" stroke="currentColor" strokeWidth="4" />
+    <line x1="58" y1="46" x2="75" y2="35" stroke="currentColor" strokeWidth="4" />
+    <line x1="55" y1="55" x2="68" y2="70" stroke="currentColor" strokeWidth="4" />
+    <line x1="45" y1="55" x2="32" y2="70" stroke="currentColor" strokeWidth="4" />
+    <line x1="42" y1="46" x2="25" y2="35" stroke="currentColor" strokeWidth="4" />
+    <polygon points="50,20 62,15 75,25 75,35 58,46 50,40" fill="none" stroke="currentColor" strokeWidth="3" />
+    <polygon points="75,35 88,45 82,60 68,70 55,55 58,46" fill="none" stroke="currentColor" strokeWidth="3" />
+    <polygon points="68,70 60,85 40,85 32,70 45,55 55,55" fill="none" stroke="currentColor" strokeWidth="3" />
+    <polygon points="32,70 18,60 12,45 25,35 42,46 45,55" fill="none" stroke="currentColor" strokeWidth="3" />
+    <polygon points="25,35 25,25 38,15 50,20 42,46 50,40" fill="none" stroke="currentColor" strokeWidth="3" />
+  </svg>
+);
+
+const TableTennisSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="45" cy="45" r="28" />
+    <rect x="42" y="68" width="8" height="24" rx="2" transform="rotate(-45 46 80)" />
+    <circle cx="75" cy="30" r="10" />
+  </svg>
+);
+
+const BasketballSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="4" />
+    <line x1="10" y1="50" x2="90" y2="50" stroke="currentColor" strokeWidth="4" />
+    <line x1="50" y1="10" x2="50" y2="90" stroke="currentColor" strokeWidth="4" />
+    <path d="M20 25 Q50 50 20 75" fill="none" stroke="currentColor" strokeWidth="4" />
+    <path d="M80 25 Q50 50 80 75" fill="none" stroke="currentColor" strokeWidth="4" />
+  </svg>
+);
+
+const PoolBallSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="50" cy="50" r="40" />
+    <circle cx="50" cy="50" r="18" fill="#fff" />
+    <text x="50" y="58" fontFamily="sans-serif" fontSize="24" fontWeight="900" textAnchor="middle" fill="#000">8</text>
+  </svg>
+);
+
+const GameControllerSvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <path d="M20 30h60a15 15 0 0 1 15 15v20a15 15 0 0 1-15 15l-10-5H30l-10 5A15 15 0 0 1 5 65V45A15 15 0 0 1 20 30z" />
+    <path d="M23 46h4v4h-4zm4 4h4v4h-4zm-4 4h4v4h-4zm-4-4h4v4h-4z" fill="#000" />
+    <circle cx="68" cy="48" r="4" fill="#000" />
+    <circle cx="76" cy="56" r="4" fill="#000" />
+    <circle cx="68" cy="64" r="4" fill="#000" />
+  </svg>
+);
+
+const TrophySvg = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <path d="M30 20h40v30c0 10-8 18-18 20v10h12v6H36v-6h12V70c-10-2-18-10-18-20V20z" />
+    <path d="M20 25h10v15H20c-5 0-8-3-8-8v-2c0-5 3-5 8-5zm60 0h-10v15h10c5 0 8-3 8-8v-2c0-5-3-5-8-5z" />
+  </svg>
+);
+
+function GoldTrophySvg({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19,2H5V5H2V10C2,13.5 4.5,16.5 8,17.2V19H5V22H19V19H16V17.2C19.5,16.5 22,13.5 22,10V5H19V2M4,7H5V12H4V7M20,12H19V7H20V12Z" />
+    </svg>
+  );
+}
+
+function GreenTrophySvg({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19,2H5V5H2V10C2,13.5 4.5,16.5 8,17.2V19H5V22H19V19H16V17.2C19.5,16.5 22,13.5 22,10V5H19V2M4,7H5V12H4V7M20,12H19V7H20V12Z" />
+    </svg>
+  );
+}
+
+function PlayerSilhouetteSvg({ sport }: { sport: string }) {
+  const commonClasses = "absolute right-0.5 bottom-0.5 w-24 h-24 text-emerald-500/10 pointer-events-none filter drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+  if (sport === "Badminton") {
+    return (
+      <svg viewBox="0 0 100 100" className={commonClasses} fill="currentColor">
+        <path d="M50 15 C53 15, 55 12, 55 10 C55 8, 53 5, 50 5 C47 5, 45 8, 45 10 C45 12, 47 15, 50 15 Z M48 20 L35 30 L25 22 L20 25 L32 38 L35 55 L42 75 L48 85 L52 85 L48 70 L52 50 L58 45 L68 55 L75 75 L80 75 L72 50 L62 35 L52 20 Z" />
+      </svg>
+    );
+  }
+  if (sport === "Cricket") {
+    return (
+      <svg viewBox="0 0 100 100" className={commonClasses} fill="currentColor">
+        <path d="M45 15 C48 15, 50 12, 50 10 C50 8, 48 5, 45 5 C42 5, 40 8, 40 10 C40 12, 42 15, 45 15 Z M42 20 L30 35 L20 40 L15 38 L28 28 L38 20 Z M45 20 L50 35 L55 55 L62 75 L68 85 L72 85 L65 70 L58 50 L52 35 Z M35 40 L40 60 L45 75 L48 85 L52 85 L42 70 L38 55 Z" />
+      </svg>
+    );
+  }
+  if (sport === "Football") {
+    return (
+      <svg viewBox="0 0 100 100" className={commonClasses} fill="currentColor">
+        <path d="M40 15 C43 15, 45 12, 45 10 C45 8, 43 5, 40 5 C37 5, 35 8, 35 10 C35 12, 37 15, 40 15 Z M38 20 L25 30 L15 25 L10 28 L22 38 L28 55 L35 70 L45 80 L50 78 L40 68 L35 50 L42 40 L52 48 L65 52 Z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 100 100" className={commonClasses} fill="currentColor">
+      <path d="M50 12 C53 12, 55 10, 55 7 C55 4, 53 2, 50 2 C47 2, 45 4, 45 7 C45 10, 47 12, 50 12 Z M45 18 L32 25 L22 20 L18 24 L28 32 L32 45 L38 60 L42 78 L46 78 L40 60 L38 48 L46 38 L54 44 L64 42 L60 36 L52 32 Z" />
+    </svg>
+  );
+}
+
+function FlamingSportIcon({ sport, tone, className }: { sport: string; tone: "orange" | "green"; className: string }) {
+  const isOrange = tone === "orange";
+  
+  const renderSvg = () => {
+    switch (sport) {
+      case "Badminton":
+        return <ShuttlecockSvg className="w-8 h-8 text-white/95" />;
+      case "Cricket":
+        return <CricketBallSvg className="w-8 h-8 text-white/95" />;
+      case "Football":
+        return <SoccerBallSvg className="w-8 h-8 text-white/95" />;
+      case "Table Tennis":
+        return <TableTennisSvg className="w-8 h-8 text-white/95" />;
+      case "Basketball":
+        return <BasketballSvg className="w-8 h-8 text-white/95" />;
+      case "Pool":
+        return <PoolBallSvg className="w-8 h-8 text-white/95" />;
+      case "Gaming":
+        return <GameControllerSvg className="w-8 h-8 text-white/95" />;
+      default:
+        return <TrophySvg className="w-8 h-8 text-white/95" />;
+    }
+  };
+
+  const glowShadow = isOrange 
+    ? "shadow-[0_0_20px_#f97316]" 
+    : "shadow-[0_0_20px_#10b981]";
+    
+  return (
+    <div className={`relative flex items-center justify-center p-2.5 rounded-full bg-slate-950 border-2 ${isOrange ? 'border-orange-500' : 'border-emerald-500'} ${glowShadow} ${className}`}>
+      <span className={`absolute w-full h-full rounded-full ${isOrange ? 'bg-orange-500/20' : 'bg-emerald-500/20'} blur-md -z-10`} />
+      {renderSvg()}
+    </div>
+  );
+}
+
 function Poster({ challenge }: { challenge: Challenge }) {
   const sportMeta = SPORTS.find((s) => s.label === challenge.sport);
   const stakeMeta = STAKES.find((s) => s.type === challenge.stakeType);
 
+  // Real, scannable QR — the venue's vendor scans this at the door to verify + check the
+  // challenge in as "arrived" (same idea as the booking ticket QR, see lib/ticket.ts).
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(JSON.stringify({ challengeCode: challenge.code }), {
+      margin: 0,
+      width: 120,
+      color: { dark: "#0f172a", light: "#00000000" },
+    })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [challenge.code]);
+
   return (
-    <div className="relative overflow-hidden rounded-[1.8rem] border border-orange-500/40 bg-gradient-to-b from-[#0a1220] to-[#050a12] p-6 shadow-[0_0_50px_rgba(249,115,22,0.15)]">
+    <div className="relative w-[380px] h-[675px] overflow-hidden rounded-none border-[3px] border-orange-500/35 bg-[#02060d] p-5 shadow-[0_0_50px_rgba(249,115,22,0.15)] flex flex-col justify-between select-none">
+      {/* Stadium Grid Overlay */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:16px_16px] opacity-60" />
+
       {/* Ambient corner glows */}
-      <div className="pointer-events-none absolute -left-10 -top-10 h-36 w-36 rounded-full bg-orange-500/25 blur-3xl" />
-      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -left-12 -top-12 h-44 w-44 rounded-full bg-orange-500/20 blur-[80px]" />
+      <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-emerald-500/20 blur-[80px]" />
+
+      {/* Stadium spotlights */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-48 h-20 bg-white/[0.08] rounded-full blur-2xl" />
+      
+      {/* Floodlights */}
+      <div className="absolute top-4 left-5 flex gap-1 bg-slate-950/75 px-1.5 py-0.5 rounded border border-white/5 opacity-80">
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+      </div>
+      <div className="absolute top-4 right-5 flex gap-1 bg-slate-950/75 px-1.5 py-0.5 rounded border border-white/5 opacity-80">
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#fff]" />
+      </div>
 
       {/* Brand header */}
       <div className="relative flex flex-col items-center">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-white p-0.5">
-            <Image src="/logo.jpg" alt="" width={28} height={28} className="h-full w-full object-contain" />
+            <img src="/logo.jpg" alt="" className="h-full w-full object-contain" />
           </div>
-          <p className="text-sm font-black tracking-tight text-white">
-            BOOK <span className="text-orange-400">YOUR VIBE</span>
+          <p className="text-xs font-black tracking-tight text-white uppercase">
+            BOOK <span className="text-orange-500">YOUR VIBE</span>
           </p>
         </div>
 
-        <h1 className="mt-5 text-center text-[28px] font-black uppercase italic leading-[0.95] tracking-tight text-white">
-          Challenge
-          <br />
-          <span className="bg-gradient-to-r from-orange-400 to-emerald-400 bg-clip-text text-transparent">Your Friend</span>
+        <h1 className="mt-4 text-center leading-[0.95] tracking-tight">
+          <span className="block text-2xl font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">CHALLENGE</span>
+          <span className="block text-3xl font-black uppercase italic bg-gradient-to-r from-orange-400 via-yellow-300 to-emerald-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.3)]">YOUR FRIEND</span>
         </h1>
 
-        <span className="mt-4 inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-orange-300">
+        {/* Flaming sports balls floating in the header */}
+        <div className="absolute left-1 top-8 rotate-[25deg]">
+          <FlamingSportIcon sport={challenge.sport} tone="orange" className="" />
+        </div>
+        <div className="absolute right-1 top-8 -rotate-[25deg]">
+          <FlamingSportIcon sport={challenge.sport} tone="green" className="" />
+        </div>
+
+        <span className="mt-3.5 inline-flex items-center gap-1.5 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-orange-300 shadow-[0_0_10px_rgba(249,115,22,0.25)]">
           ★ Official Athletic Matchup ★
         </span>
       </div>
 
       {/* VS block */}
-      <div className="relative mt-7 flex items-center justify-between">
-        <PlayerBadge initials={challenge.poster.challengerInitials} name={challenge.challenger?.name ?? "Challenger"} label="Challenger" tone="orange" />
-        <span className="shrink-0 text-lg font-black italic text-white">VS</span>
-        <PlayerBadge initials={challenge.poster.opponentInitials} name={challenge.opponent?.name ?? "Opponent"} label="Opponent" tone="emerald" />
+      <div className="relative mt-4 flex items-center justify-between px-1">
+        <PlayerBadge
+          initials={challenge.poster.challengerInitials}
+          name={challenge.challenger?.name ?? "Challenger"}
+          extraMembers={challenge.team1Members?.slice(1).map((m) => m.name)}
+          label="Challenger"
+          tone="orange"
+        />
+
+        {/* VS slash and element */}
+        <div className="relative flex items-center justify-center h-20 w-12 shrink-0">
+          <div className="absolute w-[2px] h-20 bg-gradient-to-b from-orange-500 via-white to-emerald-500 rotate-[22deg] opacity-75 shadow-[0_0_6px_#fff]" />
+          <div className="absolute w-8 h-8 rounded-full bg-orange-500/15 blur-sm -translate-x-2" />
+          <div className="absolute w-8 h-8 rounded-full bg-emerald-500/15 blur-sm translate-x-2" />
+          <span className="relative z-10 text-2xl font-black italic tracking-wide text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] scale-110">VS</span>
+        </div>
+
+        <PlayerBadge
+          initials={challenge.poster.opponentInitials}
+          name={challenge.opponent?.name ?? "Opponent"}
+          extraMembers={challenge.team2Members?.slice(1).map((m) => m.name)}
+          label="Opponent"
+          tone="emerald"
+        />
       </div>
 
       {/* One match / one goal / bragging rights strip */}
-      <div className="relative mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">
-        <span className="flex items-center gap-1.5">
+      <div className="relative mt-3.5 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[8.5px] font-extrabold uppercase tracking-wide text-slate-300">
+        <span className="flex items-center gap-1">
           <Flame className="h-3.5 w-3.5 shrink-0 text-orange-400" /> One Match
         </span>
-        <span className="h-4 w-px shrink-0 bg-white/10" />
-        <span className="flex items-center gap-1.5">
+        <span className="h-3.5 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1">
           <Target className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> One Goal
         </span>
-        <span className="h-4 w-px shrink-0 bg-white/10" />
-        <span className="flex items-center gap-1.5">
+        <span className="h-3.5 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1">
           <Crown className="h-3.5 w-3.5 shrink-0 text-orange-300" /> Bragging Rights
         </span>
       </div>
 
       {/* Sport card */}
-      <div className="relative mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+      <div className="relative mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden flex flex-col justify-between h-[155px]">
+        {/* Glowing sports silhouette */}
+        <PlayerSilhouetteSvg sport={challenge.sport} />
+        
+        <div className="relative z-10 flex items-center gap-3">
+          <div 
+            className="w-10 h-10 bg-white/10 border border-white/20 flex items-center justify-center text-white" 
+            style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}
+          >
             {sportMeta && "image" in sportMeta ? (
-              <Image src={sportMeta.image} alt="" width={26} height={26} unoptimized className="h-6 w-6 object-contain" />
+              <img src={sportMeta.image} alt="" className="h-5 w-5 object-contain filter invert brightness-200" />
             ) : (
-              <span className="text-xl">{sportMeta?.emoji ?? "🏆"}</span>
+              <span className="text-lg">{sportMeta?.emoji ?? "🏆"}</span>
             )}
-          </span>
-          <p className="text-lg font-black uppercase tracking-wide text-white">{challenge.sport}</p>
+          </div>
+          <p className="text-lg font-black uppercase tracking-wide text-white leading-none">{challenge.sport}</p>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs font-bold">
+
+        <div className="relative z-10 mt-2 grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-orange-400">Venue</p>
-            <p className="mt-1 text-white">{challenge.venueName}</p>
+            <p className="text-[9px] uppercase tracking-wider font-extrabold text-orange-400">Venue</p>
+            <p className="mt-0.5 text-[11px] font-bold text-white line-clamp-2 leading-tight">{challenge.venueName}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-emerald-400">Schedule</p>
-            <p className="mt-1 text-white">{challenge.scheduleLabel}</p>
+            <p className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-400">Schedule</p>
+            <div className="mt-0.5 flex items-start gap-1">
+              <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <div className="text-[11px] leading-tight font-bold text-white">
+                {challenge.scheduleLabel.split(", ").map((part, idx) => (
+                  <p key={idx} className={idx === 1 ? "text-emerald-400" : ""}>{part}</p>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.playersCount}</span>
+
+        <div className="relative z-10 mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.playersCount}</span>
           {GAME_SUPPORTS_SERIES.has(challenge.sport) && (
-            <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.series}</span>
+            <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.series}</span>
           )}
-          <span className="rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">{challenge.matchStyle}</span>
+          <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.matchStyle}</span>
         </div>
       </div>
 
       {/* Stakes */}
-      <div className="relative mt-6 text-center">
+      <div className="relative mt-3 text-center">
         <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-orange-500/40" />
-          <p className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.3em] text-orange-400">The Stakes</p>
-          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-orange-500/40" />
+          <span className="h-[2px] flex-1 bg-gradient-to-r from-transparent to-orange-500/50" />
+          <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-orange-400">The Stakes</p>
+          <span className="h-[2px] flex-1 bg-gradient-to-l from-transparent to-orange-500/50" />
         </div>
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-5 py-4 text-left">
-          <span className="shrink-0 text-2xl">{stakeMeta?.icon ?? "🎯"}</span>
+        <div className="mt-2 flex items-center gap-3.5 rounded-2xl border border-orange-500/30 bg-orange-500/5 px-4 py-3 text-left shadow-[0_0_15px_rgba(249,115,22,0.1)]">
+          <span className="shrink-0 text-3xl filter drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]">{stakeMeta?.icon ?? "🎯"}</span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-black uppercase text-white">{challenge.stakeType} Stakes</p>
-            <p className="truncate text-xs font-semibold text-slate-300">{challenge.stakeText}</p>
+            <p className="truncate text-xs font-black uppercase text-white tracking-wide">{challenge.stakeType} Stakes</p>
+            <p className="truncate text-[11px] font-semibold text-slate-300">{challenge.stakeText}</p>
           </div>
         </div>
       </div>
 
-      {/* Challenge & share banner — decorative on the exported poster image, mirrors the
-          real "Issue challenge" / share actions that live in the surrounding app UI. */}
-      <div className="relative mt-6 flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-emerald-500 px-5 py-4">
-        <span className="flex items-center gap-3 min-w-0">
-          <Share2 className="h-5 w-5 shrink-0 text-white" />
-          <span className="min-w-0">
-            <span className="block text-sm font-black uppercase tracking-wide text-white">Challenge &amp; Share</span>
-            <span className="block truncate text-[10px] font-semibold text-white/80">Send to your friend &amp; accept the challenge!</span>
-          </span>
+      {/* Challenge & share banner */}
+      <div className="relative mt-3.5 flex items-center justify-between gap-2.5 rounded-2xl bg-gradient-to-r from-[#d946ef] via-[#f97316] to-[#10b981] px-4 py-3.5 shadow-[0_4px_15px_rgba(249,115,22,0.25)]">
+        <span className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 rounded-full bg-orange-600/35 border border-white/20 flex items-center justify-center text-white shrink-0">
+            <Share2 className="h-3.5 w-3.5" />
+          </div>
+          <div className="min-w-0">
+            <span className="block text-xs font-black uppercase tracking-wide text-white leading-none">Challenge &amp; Share</span>
+            <span className="block truncate text-[8px] font-medium text-white/95 mt-0.5">Send to your friend &amp; accept the challenge!</span>
+          </div>
         </span>
-        <Send className="h-5 w-5 shrink-0 text-white" />
+        <Send className="h-4 w-4 shrink-0 text-white mr-1" />
+      </div>
+
+      {/* Verification QR — the venue scans this to check the players in as arrived */}
+      <div className="relative mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
+          {qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qrDataUrl} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <div className="h-full w-full animate-pulse rounded bg-slate-200" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-wide text-white">Scan to verify arrival</p>
+          <p className="mt-0.5 text-[9px] font-semibold text-slate-400">Show this at the venue &mdash; they scan it to check you in</p>
+          <p className="mt-1 font-mono text-[10px] font-bold text-orange-400">{challenge.code}</p>
+        </div>
       </div>
 
       {/* Bottom strip */}
-      <div className="relative mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-[8px] font-extrabold uppercase tracking-wide text-slate-500">
-        <span className="flex items-center gap-1.5">
+      <div className="relative mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-[7.5px] font-black uppercase tracking-wider text-slate-500">
+        <span className="flex items-center gap-1">
           <TrendingUp className="h-3 w-3 shrink-0 text-emerald-400" /> Climb the Ranks
         </span>
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1">
           <Medal className="h-3 w-3 shrink-0 text-orange-400" /> Earn Bragging Rights
         </span>
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1">
           <Flame className="h-3 w-3 shrink-0 text-emerald-400" /> Play. Win. Repeat.
         </span>
       </div>
@@ -778,13 +1349,50 @@ function Poster({ challenge }: { challenge: Challenge }) {
   );
 }
 
-function PlayerBadge({ initials, name, label, tone }: { initials: string; name: string; label: string; tone: "orange" | "emerald" }) {
-  const colors = tone === "orange" ? "border-orange-500 bg-orange-500/20 shadow-orange-500/25" : "border-emerald-400 bg-emerald-400/20 shadow-emerald-400/25";
+function PlayerBadge({
+  initials,
+  name,
+  label,
+  tone,
+  extraMembers,
+}: {
+  initials: string;
+  name: string;
+  label: string;
+  tone: "orange" | "emerald";
+  /** Rest of the roster beyond the primary name — shown as a small list for team matches. */
+  extraMembers?: string[];
+}) {
+  const isOrange = tone === "orange";
+  const borderColors = isOrange
+    ? "border-orange-500 bg-orange-950/20 shadow-orange-500/20"
+    : "border-emerald-500 bg-emerald-950/20 shadow-emerald-500/20";
+
+  const rank = getDeterministicRank(name, isOrange ? 12 : 18);
+
   return (
-    <div className="min-w-0 text-center">
-      <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 text-xl font-black text-white shadow-lg ${colors}`}>{initials || "P"}</div>
-      <p className="mt-3 max-w-[110px] truncate text-xs font-black uppercase">{name}</p>
-      <p className={`mt-1 text-[9px] font-extrabold uppercase tracking-wide ${tone === "orange" ? "text-orange-400" : "text-emerald-300"}`}>{label}</p>
+    <div className="min-w-0 flex-1 flex flex-col items-center">
+      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-[3px] text-xl font-black text-white shadow-lg ${borderColors}`}>
+        {initials || "P"}
+      </div>
+      <p className="mt-2 w-full truncate px-1 text-center text-xs font-black uppercase tracking-wide text-white leading-tight">
+        {name}
+      </p>
+      {extraMembers && extraMembers.length > 0 && (
+        <p className="mt-0.5 w-full truncate px-1 text-center text-[9px] font-semibold text-slate-400">
+          + {extraMembers.join(", ")}
+        </p>
+      )}
+      <div>
+        <span className={`inline-block mt-1 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${isOrange ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+          {label}
+        </span>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-slate-400">
+        {isOrange ? <GoldTrophySvg className="w-3.5 h-3.5 text-amber-400" /> : <GreenTrophySvg className="w-3.5 h-3.5 text-emerald-400" />}
+        <span className="text-[8px] uppercase tracking-wider font-extrabold text-slate-500">Rank</span>
+        <span className="font-black text-white">{rank}</span>
+      </div>
     </div>
   );
 }
@@ -828,7 +1436,7 @@ function SharePanel({
           disabled={downloading}
           className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/7 py-4 text-xs font-black uppercase tracking-wide text-slate-200 disabled:opacity-50"
         >
-          <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download"}
+          <Download className="h-4 w-4" /> {downloading ? "Saving..." : "Download PDF"}
         </button>
         <button
           type="button"

@@ -26,16 +26,15 @@ import { SignupModal } from "@/components/home/modals/SignupModal";
 const PRIMARY_TABS = [
   { label: "Home", href: "/", icon: Home },
   { label: "Games", href: "/games", icon: Gamepad2 },
-  { label: "Community", href: "/community", icon: Users },
+  { label: "Events", href: "/events", icon: Calendar },
 ];
 
 const MORE_LINKS = [
-  { label: "Events", href: "/events", icon: Calendar },
   { label: "Coaches", href: "/coaches", icon: GraduationCap },
-  { label: "Tournaments", href: "/tournaments", icon: Trophy },
-  { label: "View Challenges", href: "/challenges", icon: Zap },
   { label: "Community", href: "/community", icon: Users },
+  { label: "Tournaments", href: "/tournaments", icon: Trophy },
   { label: "Blog", href: "/blogs", icon: BookOpen },
+  { label: "View Challenges", href: "/challenges", icon: Zap },
 ];
 
 /** Fixed mobile app-shell bottom tab bar — replaces the desktop footer's nav role on small screens. */

@@ -13,11 +13,11 @@ export type RowTone = "paid" | "partial" | "tomorrow" | "neutral";
 /** How the booking reached us. M (member) needs the memberships API before it can appear. */
 export type BookingSource = "O" | "F" | "M";
 
-const TONES: Record<RowTone, { dot: string; accent: string; chip: string }> = {
-  paid: { dot: "bg-emerald-500", accent: "text-emerald-600", chip: "bg-emerald-50 text-emerald-700" },
-  partial: { dot: "bg-rose-500", accent: "text-rose-600", chip: "bg-rose-50 text-rose-600" },
-  tomorrow: { dot: "bg-purple-500", accent: "text-purple-600", chip: "bg-purple-50 text-purple-600" },
-  neutral: { dot: "bg-slate-400", accent: "text-slate-500", chip: "bg-slate-100 text-slate-600" },
+const TONES: Record<RowTone, { dot: string; accent: string; chip: string; border: string }> = {
+  paid: { dot: "bg-emerald-500", accent: "text-emerald-600", chip: "bg-emerald-50 text-emerald-700", border: "border-l-emerald-400" },
+  partial: { dot: "bg-rose-500", accent: "text-rose-600", chip: "bg-rose-50 text-rose-600", border: "border-l-rose-500" },
+  tomorrow: { dot: "bg-purple-500", accent: "text-purple-600", chip: "bg-purple-50 text-purple-600", border: "border-l-purple-400" },
+  neutral: { dot: "bg-slate-400", accent: "text-slate-500", chip: "bg-slate-100 text-slate-600", border: "border-l-slate-200" },
 };
 
 const SOURCE_STYLE: Record<BookingSource, { bg: string; title: string }> = {
@@ -43,7 +43,6 @@ export function NotificationRow({
   when,
   tone,
   source,
-  playedTimes,
   amount,
   amountNote,
   isLast,
@@ -59,8 +58,6 @@ export function NotificationRow({
   when: string;
   tone: RowTone;
   source: BookingSource;
-  /** How many times this customer has booked at this venue. */
-  playedTimes: number;
   amount?: number;
   amountNote?: string;
   isLast: boolean;
@@ -74,25 +71,17 @@ export function NotificationRow({
 
   return (
     <div className="flex gap-2.5">
-      {/* Left rail — how often this player books here */}
-      <div className="flex w-[52px] shrink-0 flex-col items-center pt-4">
-        <p className="text-center text-[8px] font-black uppercase leading-tight text-slate-400">
-          {playedTimes > 1 ? (
-            <>
-              Played
-              <br />
-              {playedTimes} times
-            </>
-          ) : (
-            "New"
-          )}
-        </p>
-        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.dot}`} />
+      {/* Left rail — just the timeline dot + connector now; the "played X times" label
+          moved inside the card, in the line a mobile number would normally sit on. */}
+      <div className="flex w-3 shrink-0 flex-col items-center pt-4">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${t.dot}`} />
         {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
       </div>
 
-      {/* Card — every row keeps full contrast; viewed rows show a blue double-tick instead of fading. */}
-      <div className="mb-2.5 min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white shadow-sm transition">
+      {/* Card — coloured left border makes payment status readable at a glance, without
+          opening the row (partial payment shows rose even collapsed). Every row keeps
+          full contrast; viewed rows show a blue double-tick instead of fading. */}
+      <div className={`mb-2.5 min-w-0 flex-1 rounded-2xl border border-l-4 border-slate-100 bg-white shadow-sm transition ${t.border}`}>
         <button type="button" onClick={onToggle} className="flex w-full items-start gap-3 p-3.5 text-left">
           {/* Profile of whoever booked, with an O / F / M source badge */}
           <div className="relative shrink-0">
@@ -101,9 +90,9 @@ export function NotificationRow({
             </span>
             <span
               title={s.title}
-              className={`absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white text-[7px] font-black text-white ${s.bg}`}
+              className={`absolute -bottom-0.5 -right-0.5 flex h-4 min-w-[18px] items-center justify-center rounded-full border-2 border-white px-1 text-[6.5px] font-black text-white ${s.bg}`}
             >
-              {source}
+              {source === "O" ? "ON" : source === "F" ? "OFF" : "MEM"}
             </span>
           </div>
 

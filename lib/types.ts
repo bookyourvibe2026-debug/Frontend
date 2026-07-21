@@ -39,6 +39,13 @@ export interface Coupon {
 
 export type BookingType = "Recurring" | "Trips" | "Courses";
 
+export interface TechnicalSpec {
+  label: string;
+  value: string;
+  icon: string;
+  color?: string;
+}
+
 export interface Listing {
   id: string;
   slug?: string;
@@ -86,6 +93,7 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
+  technicalSpecs?: TechnicalSpec[];
 }
 
 export interface TurfSlot {

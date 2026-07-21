@@ -14,13 +14,12 @@ import { BrandLogo } from "@/components/brand-logo";
 
 const MOBILE_NAV_LINKS = [
   { label: "Home", href: "/" },
-  { label: "Find Your Games", href: "/games" },
-  { label: "Venues", href: "/venues" },
+  { label: "Sports", href: "/games" },
   { label: "Events", href: "/events" },
   { label: "Coaches", href: "/coaches" },
+  { label: "Community", href: "/community" },
   { label: "Tournaments", href: "/tournaments" },
   { label: "Blog", href: "/blogs" },
-  { label: "Community", href: "/community" },
 ];
 
 export function MobileTopBar() {

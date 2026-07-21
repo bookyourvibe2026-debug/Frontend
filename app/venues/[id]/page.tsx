@@ -43,6 +43,9 @@ import {
   Layers,
   Users2,
   GraduationCap,
+  Crop,
+  ArrowUpDown,
+  Grid,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
@@ -568,25 +571,23 @@ function VenueInfoSections({
         </section>
       )}
 
-      {/* Technical / venue highlights */}
+      {/* Technical Specifications */}
       <section className="mt-5">
         <h2 className="text-base font-black tracking-tight text-slate-900">Technical Specifications</h2>
         <p className="mt-0.5 text-xs font-medium text-slate-400">What makes this venue play-ready.</p>
-        <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {highlights.map((h, i) => {
-            const Icon = SPEC_ICONS[i % SPEC_ICONS.length];
-            const accent = SPEC_ACCENTS[i % SPEC_ACCENTS.length];
+        <div className="mt-3.5 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
+          {((venue.technicalSpecs && venue.technicalSpecs.length > 0) ? venue.technicalSpecs : DEFAULT_TECHNICAL_SPECS).map((spec) => {
+            const IconComponent = getSpecIcon(spec.icon);
+            const theme = getSpecColorTheme(spec.color || "purple");
             return (
-              <div
-                key={h}
-                className={`flex items-center gap-3.5 rounded-2xl border ${accent.ring} bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
-              >
-                <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.badge} text-white shadow-lg`}
-                >
-                  <Icon className="h-5 w-5 stroke-[2.25]" />
+              <div key={spec.label} className="flex items-start gap-4">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${theme.badge}`}>
+                  <IconComponent className="h-5 w-5 stroke-[2]" />
                 </span>
-                <p className="text-sm font-bold leading-snug text-slate-800">{h}</p>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 leading-none mt-0.5">{spec.label}</h4>
+                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">{spec.value}</p>
+                </div>
               </div>
             );
           })}
@@ -704,6 +705,66 @@ interface WeatherState {
   error: boolean;
   current?: { temp: number; code: number };
   days: WeatherDay[];
+}
+
+const DEFAULT_TECHNICAL_SPECS = [
+  { label: "Ground Dimensions", value: "Massive 12,500 sq.ft arena with plenty of room to pierce the gaps", icon: "crop", color: "purple" },
+  { label: "Vertical Clearance", value: "35 ft roof height—perfect for those massive helicopter shots and top edges", icon: "arrow-up-down", color: "blue" },
+  { label: "Floodlights", value: "800 Lux LED lighting for day-night matches—no chance of dropping dollies here", icon: "lightbulb", color: "orange" },
+  { label: "Pitch Conditions", value: "True bounce artificial turf, a flat track bully's dream with reliable grip for pacers", icon: "layers", color: "green" },
+  { label: "Net-to-Net Clearance", value: "6 ft lateral gap between nets to safely execute those wide square cuts", icon: "grid", color: "pink" },
+];
+
+function getSpecIcon(iconName: string) {
+  switch (iconName) {
+    case "crop":
+      return Crop;
+    case "arrow-up-down":
+      return ArrowUpDown;
+    case "lightbulb":
+      return Lightbulb;
+    case "layers":
+      return Layers;
+    case "grid":
+      return Grid;
+    default:
+      return Crop;
+  }
+}
+
+function getSpecColorTheme(colorName: string) {
+  switch (colorName) {
+    case "purple":
+      return {
+        badge: "bg-violet-50 border-violet-100 text-violet-600",
+        ring: "border-violet-100",
+      };
+    case "blue":
+      return {
+        badge: "bg-blue-50 border-blue-100 text-blue-600",
+        ring: "border-blue-100",
+      };
+    case "orange":
+      return {
+        badge: "bg-orange-50 border-orange-100 text-orange-600",
+        ring: "border-orange-100",
+      };
+    case "green":
+      return {
+        badge: "bg-emerald-50 border-emerald-100 text-emerald-600",
+        ring: "border-emerald-100",
+      };
+    case "pink":
+      return {
+        badge: "bg-pink-50 border-pink-100 text-pink-500",
+        ring: "border-pink-100",
+      };
+    default:
+      return {
+        badge: "bg-violet-50 border-violet-100 text-violet-600",
+        ring: "border-violet-100",
+      };
+  }
 }
 
 const SPEC_ICONS = [Ruler, Lightbulb, Layers, CheckCircle2];

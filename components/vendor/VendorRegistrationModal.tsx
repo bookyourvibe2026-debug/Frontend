@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building,
   Building2,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Hash,
@@ -27,6 +28,7 @@ import {
 import { BusinessVertical, RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
+import { INDIA_STATES, INDIA_STATES_CITIES } from "@/lib/indiaLocations";
 
 const ROLE_LABELS: Record<BusinessVertical, string> = {
   turf: "Turf Owner",
@@ -46,19 +48,6 @@ const VENUE_TYPES: VenueType[] = [
   "Escape Room",
   "Individual",
   "Company",
-];
-
-const INDIAN_STATES = [
-  "Rajasthan",
-  "Delhi",
-  "Maharashtra",
-  "Karnataka",
-  "Gujarat",
-  "Uttar Pradesh",
-  "Telangana",
-  "Tamil Nadu",
-  "West Bengal",
-  "Punjab",
 ];
 
 const CHECKLISTS: Record<number, string[]> = {
@@ -92,6 +81,31 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [captcha, setCaptcha] = useState(() => makeCaptcha());
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [captchaSolved, setCaptchaSolved] = useState(false);
+
+  // Trap the phone's back button: while this modal is open, "back" steps to the
+  // previous phase instead of closing the whole thing. Only Finish or the ×
+  // button (via handleClose) should actually close it.
+  const isClosingRef = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    isClosingRef.current = false;
+    window.history.pushState({ vendorRegistration: true }, "");
+    const onPopState = () => {
+      if (isClosingRef.current) return;
+      setPhase((p) => {
+        window.history.pushState({ vendorRegistration: true }, "");
+        return p > 1 ? p - 1 : p;
+      });
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [open]);
+
+  function handleClose() {
+    isClosingRef.current = true;
+    window.history.back();
+    onClose();
+  }
 
   function makeCaptcha() {
     const a = Math.floor(Math.random() * 20) + 5;
@@ -211,6 +225,8 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
     setSubmitError(null);
     try {
       await onSubmit(data);
+      isClosingRef.current = true;
+      window.history.back();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.describe() : err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -227,7 +243,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c1912]/70 backdrop-blur-sm p-4">
       <div className="relative flex w-full max-w-3xl overflow-hidden rounded-2xl bg-[#f6f3ea] shadow-2xl">
         <button
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Close registration"
           className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-[#10241a] hover:bg-white"
         >
@@ -392,22 +408,13 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 />
 
                 {data.verticals.includes("turf") && (
-                  <div>
-                    <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
-                      <Building className="h-4 w-4 shrink-0 text-[#3f5449]" />
-                      <select
-                        value={data.venueType}
-                        onChange={(e) => update("venueType", e.target.value as VenueType)}
-                        className="w-full bg-transparent text-sm text-[#10241a] outline-none"
-                      >
-                        {VENUE_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  <Dropdown
+                    icon={Building}
+                    placeholder="Select Venue Type"
+                    value={data.venueType}
+                    options={VENUE_TYPES}
+                    onChange={(v) => update("venueType", v as VenueType)}
+                  />
                 )}
               </>
             )}
@@ -471,25 +478,26 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
             {phase === 4 && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <div className="flex items-center gap-2 rounded-xl border border-[#e4ded0] bg-white px-4 py-3">
-                      <MapPin className="h-4 w-4 shrink-0 text-[#3f5449]" />
-                      <select
-                        value={data.state}
-                        onChange={(e) => update("state", e.target.value)}
-                        className="w-full bg-transparent text-sm text-[#10241a] outline-none"
-                      >
-                        <option value="">Select State</option>
-                        {INDIAN_STATES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {errors.state && <p className="mt-1 text-xs text-red-600">{errors.state}</p>}
-                  </div>
-                  <Field icon={MapPinned} placeholder="City" value={data.city} onChange={(v) => update("city", v)} error={errors.city} />
+                  <Dropdown
+                    icon={MapPin}
+                    placeholder="Select State"
+                    value={data.state}
+                    options={INDIA_STATES}
+                    onChange={(v) => {
+                      update("state", v);
+                      update("city", "");
+                    }}
+                    error={errors.state}
+                  />
+                  <Dropdown
+                    icon={MapPinned}
+                    placeholder={data.state ? "Select City" : "Select a state first"}
+                    value={data.city}
+                    options={data.state ? INDIA_STATES_CITIES[data.state] ?? [] : []}
+                    onChange={(v) => update("city", v)}
+                    error={errors.city}
+                    disabled={!data.state}
+                  />
                 </div>
                 <Field
                   icon={Hash}
@@ -704,6 +712,82 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-widest text-[#9aa79e]">{label}</p>
       {/* break-all keeps long unbroken values (emails, IDs) inside the card. */}
       <p className="mt-1 break-all text-sm font-semibold text-[#10241a]">{value || "—"}</p>
+    </div>
+  );
+}
+
+/** Custom dropdown — replaces the native <select> so it looks and behaves
+ * consistently across mobile browsers instead of falling back to each OS's
+ * own picker UI. */
+function Dropdown({
+  icon: Icon,
+  placeholder,
+  value,
+  options,
+  onChange,
+  error,
+  disabled,
+}: {
+  icon: LucideIcon;
+  placeholder: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  error?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div className="w-full">
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen((v) => !v)}
+          className={`flex w-full items-center gap-2 rounded-xl border bg-white px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+            error ? "border-red-400" : "border-[#e4ded0]"
+          }`}
+        >
+          <Icon className="h-4 w-4 shrink-0 text-[#3f5449]" />
+          <span className={`flex-1 truncate text-sm ${value ? "text-[#10241a]" : "text-[#9aa79e]"}`}>{value || placeholder}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-[#3f5449] transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-[#e4ded0] bg-white py-1 shadow-xl">
+            {options.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-[#9aa79e]">No options available</p>
+            ) : (
+              options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt);
+                    setOpen(false);
+                  }}
+                  className={`block w-full px-4 py-2.5 text-left text-sm hover:bg-[#f6f3ea] ${
+                    opt === value ? "font-bold text-[#0c1912]" : "text-[#10241a]"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }

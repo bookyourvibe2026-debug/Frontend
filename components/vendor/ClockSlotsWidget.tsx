@@ -12,34 +12,57 @@ export interface ClockSlotItem {
   customerName?: string;
 }
 
-/* ─── Vibe Cycle: a deliberately simple 3-colour system ──────────
-   green = open to book, red = taken, grey = closed/blocked.
-   Every granular status folds into one of these three buckets.     */
-const GREEN = "#10b981";
-const RED = "#ef4444";
-const GREY = "#94a3b8";
+/* ─── Vibe Cycle: same 6-colour language as the Bookings Timeline ──────
+   available (green) · online booking (orange) · confirmed/walk-in (blue) ·
+   pending (amber) · blocked (rose) · closed/no slot (grey) — so a vendor
+   sees identical colours whether they're on Timeline or Clock view. */
+const TONE_HEX = {
+  available: "#10b981",
+  onlineBooked: "#f97316",
+  confirmed: "#3b82f6",
+  pending: "#f59e0b",
+  blocked: "#f43f5e",
+  closed: "#94a3b8",
+} as const;
 
-type Tone = "open" | "taken" | "closed";
+type Tone = keyof typeof TONE_HEX;
 
 const STATUS_TONE: Record<ClockSlotItem["status"], Tone> = {
-  Available: "open",
-  Booked: "taken",
-  "Part Paid": "taken",
-  "Offline Booked": "taken",
-  "On Hold": "taken",
-  Blocked: "closed",
+  Available: "available",
+  Booked: "onlineBooked",
+  "Offline Booked": "confirmed",
+  "Part Paid": "pending",
+  "On Hold": "pending",
+  Blocked: "blocked",
 };
 
-const TONE_COLOR: Record<Tone, string> = { open: GREEN, taken: RED, closed: GREY };
+const TONE_LEGEND: { tone: Tone; label: string }[] = [
+  { tone: "available", label: "Available" },
+  { tone: "onlineBooked", label: "Online Booking" },
+  { tone: "confirmed", label: "Confirmed" },
+  { tone: "pending", label: "Pending" },
+  { tone: "blocked", label: "Blocked" },
+  { tone: "closed", label: "Closed" },
+];
+
+/** The stat-card summary stays a simple 3-way split (Available / Booked / Blocked)
+ * even though the dial itself now shows the full 6-colour breakdown. */
+type SummaryBucket = "available" | "taken" | "blocked";
+
+function summaryBucket(status: ClockSlotItem["status"]): SummaryBucket {
+  if (status === "Available") return "available";
+  if (status === "Blocked") return "blocked";
+  return "taken";
+}
 
 const STAT_CARD_CFG: {
-  tone: Tone;
+  tone: SummaryBucket;
   label: string;
   cls: { box: string; label: string; value: string };
 }[] = [
-  { tone: "open", label: "Available", cls: { box: "border-emerald-200 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700" } },
-  { tone: "taken", label: "Booked", cls: { box: "border-rose-200 bg-rose-50", label: "text-rose-500", value: "text-rose-700" } },
-  { tone: "closed", label: "Blocked", cls: { box: "border-slate-200 bg-slate-100", label: "text-slate-500", value: "text-slate-700" } },
+  { tone: "available", label: "Available", cls: { box: "border-emerald-200 bg-emerald-50", label: "text-emerald-600", value: "text-emerald-700" } },
+  { tone: "taken", label: "Booked", cls: { box: "border-orange-200 bg-orange-50", label: "text-orange-500", value: "text-orange-700" } },
+  { tone: "blocked", label: "Blocked", cls: { box: "border-slate-200 bg-slate-100", label: "text-slate-500", value: "text-slate-700" } },
 ];
 
 function timeStringToHours(timeStr: string): number {
@@ -96,11 +119,16 @@ function describePieSegment(
 }
 
 function toneOf(status: ClockSlotItem["status"]): Tone {
-  return STATUS_TONE[status] ?? "open";
+  return STATUS_TONE[status] ?? "available";
 }
 
 function statusColor(status: ClockSlotItem["status"]): string {
-  return TONE_COLOR[toneOf(status)];
+  return TONE_HEX[toneOf(status)];
+}
+
+/** Friendly label matching the Timeline's legend wording, e.g. "Offline Booked" → "Confirmed". */
+function toneLabel(status: ClockSlotItem["status"]): string {
+  return TONE_LEGEND.find((l) => l.tone === toneOf(status))?.label ?? status;
 }
 
 export function ClockSlotsWidget({
@@ -228,15 +256,19 @@ export function ClockSlotsWidget({
   }, [activeSlotsList, center, innerRadius, outerRadius, half]);
 
   const stats = useMemo(() => {
-    const hrsByTone: Record<Tone, number> = { open: 0, taken: 0, closed: 0 };
+    const hrsByTone: Record<SummaryBucket, number> = { available: 0, taken: 0, blocked: 0 };
     for (const s of activeSlotsList) {
-      hrsByTone[toneOf(s.status)] += slotDurationHrs(s);
+      hrsByTone[summaryBucket(s.status)] += slotDurationHrs(s);
     }
     const total = activeSlotsList.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 1;
     const pct = (hrs: number) => Math.round((hrs / total) * 100);
     return {
       byTone: hrsByTone,
-      pctByTone: { open: pct(hrsByTone.open), taken: pct(hrsByTone.taken), closed: pct(hrsByTone.closed) } as Record<Tone, number>,
+      pctByTone: {
+        available: pct(hrsByTone.available),
+        taken: pct(hrsByTone.taken),
+        blocked: pct(hrsByTone.blocked),
+      } as Record<SummaryBucket, number>,
     };
   }, [activeSlotsList]);
 
@@ -397,18 +429,19 @@ export function ClockSlotsWidget({
             <p className="text-vibe-lime font-bold">
               {to12h(hoveredSlot.startTime)} - {to12h(hoveredSlot.endTime)}
             </p>
-            <p className="text-[10px] text-slate-300 font-semibold">Status: {hoveredSlot.status}</p>
+            <p className="text-[10px] text-slate-300 font-semibold">Status: {toneLabel(hoveredSlot.status)}</p>
             {hoveredSlot.customerName && <p className="text-[10px] text-slate-300">Customer: {hoveredSlot.customerName}</p>}
           </div>
         )}
       </div>
 
-      {/* Legend — three colours only */}
-      <div className="mt-2 flex items-center gap-3 text-[9px] font-semibold text-slate-500">
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white border border-slate-300" /> No slot</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: GREEN }} /> Available</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: RED }} /> Booked</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: GREY }} /> Blocked</span>
+      {/* Legend — same six colours as the Bookings Timeline */}
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[9px] font-semibold text-slate-500">
+        {TONE_LEGEND.map((l) => (
+          <span key={l.tone} className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full" style={{ background: TONE_HEX[l.tone] }} /> {l.label}
+          </span>
+        ))}
       </div>
 
       {/* Stat cards */}

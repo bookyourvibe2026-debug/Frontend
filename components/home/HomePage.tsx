@@ -192,13 +192,15 @@ export default function HomePage() {
           onViewAllQuickActions={() => router.push("/games")}
         />
 
-        <FoodAndBeverages />
-
         <CommunityMatches
           onJoin={() => showToast("Joining Badminton Doubles match…")}
+          onHost={() => router.push("/community")}
+          onBookCoach={() => router.push("/coaches")}
           onViewAll={() => router.push("/community")}
           onLaunchChallenge={() => setChallengeOpen(true)}
         />
+
+        <FoodAndBeverages />
 
         <HowItWorks />
 

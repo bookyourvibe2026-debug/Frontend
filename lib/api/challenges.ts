@@ -4,17 +4,7 @@ export type ChallengeStatus = "pending" | "accepted" | "rejected" | "cancelled" 
 export type ChallengePlayersCount = "1v1" | "2v2" | "team";
 export type ChallengeSeries = "BO1" | "BO3" | "BO5";
 export type ChallengeMatchStyle = "friendly" | "competitive" | "tournament";
-export type ChallengeStakeType =
-  | "Pizza"
-  | "Coffee"
-  | "Burger"
-  | "Movie"
-  | "Cash"
-  | "Trophy"
-  | "Insta Story"
-  | "Apology"
-  | "Reel"
-  | "Custom";
+export type ChallengeStakeType = "Treat" | "Movie" | "Cash" | "Trophy" | "Apology Post" | "Reel" | "Custom";
 
 export interface ChallengePlayer {
   id: string;
@@ -25,13 +15,26 @@ export interface ChallengePlayer {
   relation: string;
 }
 
+export interface ChallengeTeamMember {
+  name: string;
+  phone?: string;
+  id?: string;
+}
+
 export interface Challenge {
   id: string;
   code: string;
   challenger: { id: string; name: string; phone?: string; avatarUrl?: string } | null;
   opponent: { id?: string; name: string; phone?: string; avatarUrl?: string } | null;
+  /** Full roster for team matches — team1 always includes the challenger, team2 the opponent. */
+  team1Members?: ChallengeTeamMember[];
+  team2Members?: ChallengeTeamMember[];
   sport: string;
   venueName: string;
+  /** Set only when the venue was picked from real listings — enables QR check-in at that venue. */
+  venueId?: string;
+  arrived?: boolean;
+  arrivedAt?: string;
   scheduleLabel: string;
   scheduledAt?: string;
   playersCount: ChallengePlayersCount;
@@ -54,8 +57,11 @@ export interface CreateChallengeInput {
   opponentId?: string;
   opponentName?: string;
   opponentPhone?: string;
+  team1Members?: ChallengeTeamMember[];
+  team2Members?: ChallengeTeamMember[];
   sport: string;
   venueName: string;
+  venueId?: string;
   scheduleLabel: string;
   scheduledAt?: string;
   playersCount: ChallengePlayersCount;

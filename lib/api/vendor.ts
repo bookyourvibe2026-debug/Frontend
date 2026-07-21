@@ -456,6 +456,11 @@ export function checkInVendorBooking(orderId: string) {
   return apiRequest<Booking>(`/vendor/bookings/${orderId}/checkin`, { method: "POST", audience: AUD });
 }
 
+/** Verifies a scanned Challenge QR belongs to one of this vendor's venues and marks it arrived. */
+export function checkInVendorChallenge(code: string) {
+  return apiRequest<import("./challenges").Challenge>(`/vendor/challenges/${code}/check-in`, { method: "POST", audience: AUD });
+}
+
 /* ---- Food Outlets (Restaurants) ---- */
 
 export interface OutletLocationInput {

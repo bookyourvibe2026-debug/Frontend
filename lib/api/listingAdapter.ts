@@ -52,6 +52,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     slotsList: listing.slotsList,
     dailyRoutine: listing.dailyRoutine,
     dateOverrides: listing.dateOverrides,
+    technicalSpecs: listing.technicalSpecs,
   };
 }
 

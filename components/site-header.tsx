@@ -12,10 +12,11 @@ import { SignupModal } from "./home/modals/SignupModal";
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Sports", href: "/games" },
+  { label: "Events", href: "/events" },
   { label: "Coaches", href: "/coaches" },
+  { label: "Community", href: "/community" },
   { label: "Tournaments", href: "/tournaments" },
   { label: "Blog", href: "/blogs" },
-  { label: "Community", href: "/community" },
 ];
 
 /** The one header every page renders — same links, same auth state, same look everywhere. */

@@ -25,6 +25,7 @@ import {
   updateVendorBookingStatus,
   updateVendorListing,
   checkInVendorBooking,
+  checkInVendorChallenge,
 } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
@@ -82,6 +83,11 @@ type ApiBooking = Booking & {
   customerName?: string;
   phone?: string;
   checkedIn?: boolean;
+  /** Set only for bookings made by a registered customer through the app — manual/walk-in
+   * bookings the vendor typed in themselves never get one. This, not payment method, is
+   * what actually distinguishes "Booked via BYV" from "Walk-in" (a BYV customer can still
+   * choose to pay cash at the venue and should still show as an online booking). */
+  customerId?: string | null;
 };
 
 interface AgendaSlot {
@@ -242,11 +248,13 @@ export default function BookingsPage() {
         customerName = match.customerName ?? match.customer;
         phone = match.phone;
         arrived = Boolean(match.checkedIn);
-        const isOffline = match.payment === "Cash (Offline)";
+        // Walk-in = no customerId (the vendor typed this booking in themselves).
+        // Payment method doesn't decide this — a real BYV customer can still pay cash at the venue.
+        const isWalkIn = !match.customerId;
         const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
-        else if (match.status === "Confirmed" && isOffline) status = "Offline Booked";
+        else if (match.status === "Confirmed" && isWalkIn) status = "Offline Booked";
         else status = "Booked";
       }
 
@@ -593,6 +601,15 @@ export default function BookingsPage() {
     return name ? `${name} · ${orderId}` : orderId;
   }
 
+  /* ── QR check-in: scan a Challenge poster → mark it arrived at this venue ── */
+  async function handleChallengeCheckIn(code: string): Promise<string> {
+    const challenge = await checkInVendorChallenge(code).catch((e) => {
+      throw new Error(e instanceof ApiError ? e.describe() : "Check-in failed. Please try again.");
+    });
+    const names = [challenge.challenger?.name, challenge.opponent?.name].filter(Boolean).join(" vs ");
+    return names ? `${names} · ${code}` : code;
+  }
+
   /* ── Timeline row ⋮ menu ── */
   function handleSlotAction(slot: AgendaSlot, action: SlotAction) {
     switch (action) {
@@ -833,7 +850,7 @@ export default function BookingsPage() {
 
       {/* ── QR SCANNER — scans the ticket QR and checks the player in ── */}
       {qrScannerOpen && (
-        <QrScannerModal onClose={() => setQrScannerOpen(false)} onCheckIn={handleQrCheckIn} />
+        <QrScannerModal onClose={() => setQrScannerOpen(false)} onCheckIn={handleQrCheckIn} onChallengeCheckIn={handleChallengeCheckIn} />
       )}
 
       {/* ── ADD A TIME SLOT ── */}

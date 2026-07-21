@@ -38,6 +38,13 @@ export interface Faq {
   answer: string;
 }
 
+export interface TechnicalSpec {
+  label: string;
+  value: string;
+  icon: string;
+  color?: string;
+}
+
 export interface Listing {
   _id: string;
   slug?: string;
@@ -87,6 +94,7 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
+  technicalSpecs?: TechnicalSpec[];
   createdAt: string;
   updatedAt: string;
 }

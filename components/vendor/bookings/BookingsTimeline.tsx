@@ -57,22 +57,22 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
   available: {
     dot: "bg-emerald-500",
     card: "border-emerald-100 bg-emerald-50/50",
-    title: "text-emerald-700",
+    title: "text-emerald-600",
     badge: "bg-emerald-100 text-emerald-700",
     badgeText: "Available",
   },
   onlineBooked: {
-    dot: "bg-orange-500",
-    card: "border-orange-200 bg-orange-50/60",
-    title: "text-orange-700",
-    badge: "bg-orange-100 text-orange-700",
+    dot: "bg-red-500",
+    card: "border-red-100 bg-red-50/50",
+    title: "text-red-500",
+    badge: "bg-red-100 text-red-700",
     badgeText: "Online",
   },
   confirmed: {
-    dot: "bg-blue-500",
-    card: "border-blue-100 bg-blue-50/60",
-    title: "text-slate-900",
-    badge: "bg-blue-100 text-blue-700",
+    dot: "bg-red-500",
+    card: "border-red-100 bg-red-50/50",
+    title: "text-red-500",
+    badge: "bg-red-100 text-red-700",
     badgeText: "Confirmed",
   },
   pending: {
@@ -254,7 +254,7 @@ export function BookingsTimeline({
           >
             {/* Time rail — shows the slot's full duration, exactly as configured. */}
             <div className="w-[68px] shrink-0 pt-3 text-right">
-              <span className="block text-[10px] font-bold leading-tight tabular-nums text-slate-600">
+              <span className="block text-[10px] font-bold leading-tight tabular-nums text-slate-700">
                 {to12h(slot.startTime)}
               </span>
               <span className="block text-[9px] font-semibold leading-tight tabular-nums text-slate-400">
@@ -293,33 +293,26 @@ export function BookingsTimeline({
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
                     <p className="mt-0.5 text-[10px] font-medium text-slate-400">{slot.blockedReason || "Unavailable"}</p>
                   </>
-                ) : slot.status === "Booked" ? (
-                  // Booked online through the customer app — branded so the vendor can
+                ) : (slot.status === "Booked" || slot.status === "Offline Booked") ? (
+                  // Booked online through the customer app or offline confirmed — branded so the vendor can
                   // see at a glance which bookings BYV actually brought them.
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
-                      <Image src="/logo.jpg" alt="" width={26} height={26} className="h-full w-full object-contain" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
+                      <Image src="/logo.jpg" alt="" width={36} height={36} className="h-full w-full object-contain" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <p className="truncate text-[12px] font-black text-orange-700">Booked via Book Your Vibe</p>
+                        <p className={`text-[12px] font-black uppercase tracking-wide ${s.title}`}>BYV</p>
                         {slot.arrived && (
                           <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-emerald-700">
                             <BadgeCheck size={8} /> Arrived
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-medium text-slate-500">
-                        <span className="truncate">
-                          {slot.customerName || "Online Booking"}
-                          {slot.sport ? ` · ${slot.sport}` : ""}
-                        </span>
-                        {slot.numberOfPlayers && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 text-slate-400">
-                            <Users size={9} /> {slot.numberOfPlayers}
-                          </span>
-                        )}
-                      </p>
+                      <div className="mt-0.5 text-[9px] font-medium text-slate-500 leading-tight">
+                        <p>Booked through</p>
+                        <p>Book Your Vibe</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -333,14 +326,14 @@ export function BookingsTimeline({
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
-                      {slot.phone ? `${slot.phone} · ` : ""}
+                      {slot.phone ? `${slot.phone} - ` : ""}
                       Walk-in
                     </p>
                   </>
                 )}
               </div>
 
-              {!isFree && !isBlocked && (
+              {!isFree && !isBlocked && slot.status !== "Booked" && slot.status !== "Offline Booked" && (
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wide ${s.badge}`}>
                   {s.badgeText}
                 </span>

@@ -6,7 +6,6 @@ import { apiListingToMock } from "@/lib/api/listingAdapter";
 import { Booking, Listing } from "@/lib/types";
 import {
   Bell,
-  Phone,
   MessageSquare,
   CheckCircle2,
   SlidersHorizontal,
@@ -41,10 +40,19 @@ type ApiBooking = Booking & {
   checkedIn?: boolean;
   checkedInAt?: string | null;
   endTime?: string;
+  /** Set only for bookings a registered customer made through the app — walk-ins the
+   * vendor typed in manually never get one. This is the real online-vs-walk-in signal,
+   * not payment method (an app customer can still choose to pay cash at the venue). */
+  customerId?: string | null;
 };
 
-type Tab = "All" | "Today" | "Tomorrow" | "Payments" | "Past";
-const TABS: Tab[] = ["All", "Today", "Tomorrow", "Payments", "Past"];
+type Tab = "Upcoming" | "Today" | "Tomorrow" | "Payments" | "Past";
+const TABS: Tab[] = ["Upcoming", "Today", "Tomorrow", "Payments", "Past"];
+type PriceFilter = "Paid" | "Partial" | "Cash";
+
+/** "Reminder sent" = the vendor has tapped Message for this booking at least once.
+ * There's no separate automated reminder system — this is that same action. */
+const MESSAGED_ORDERS_KEY = "byv_vendor_messaged_orders";
 
 function fmtTime(d: Date) {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
@@ -63,14 +71,14 @@ function relative(target: Date, now: number) {
   return diff > 0 ? `in ${fmt}` : `${fmt} ago`;
 }
 
-/** Countdown to a booking's slot start, e.g. "30 min left" / "4 hr left" — updates live via the
- * `now` tick. Past slots (already played/checked in) fall back to "X ago" instead of "left". */
+/** Countdown to a booking's slot start, e.g. "Starts in 30 min" / "Starts in 4 hr" — updates
+ * live via the `now` tick. Past slots (only reachable from the Past filter) show "X ago". */
 function arrivalLabel(target: Date, now: number) {
   const diff = target.getTime() - now;
   const mins = Math.round(Math.abs(diff) / 60_000);
-  if (mins < 1) return diff > 0 ? "Arriving now" : "Just now";
+  if (mins < 1) return diff > 0 ? "Starting now" : "Just started";
   const fmt = mins < 60 ? `${mins} min` : mins < 1440 ? `${Math.round(mins / 60)} hr` : `${Math.round(mins / 1440)} day`;
-  return diff > 0 ? `${fmt} left` : `${fmt} ago`;
+  return diff > 0 ? `Starts in ${fmt}` : `${fmt} ago`;
 }
 
 export default function NotificationsPage() {
@@ -79,7 +87,32 @@ export default function NotificationsPage() {
   /** Phones of customers with an active membership — drives the "Member" flag. */
   const [memberPhones, setMemberPhones] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("All");
+  const [tab, setTab] = useState<Tab>("Upcoming");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [priceFilters, setPriceFilters] = useState<Set<PriceFilter>>(new Set());
+  const [reminderFilter, setReminderFilter] = useState<"Sent" | "Not Sent" | null>(null);
+  /** Order ids the vendor has already messaged — persisted so "reminder sent" survives a reload. */
+  const [messagedOrders, setMessagedOrders] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(MESSAGED_ORDERS_KEY);
+      if (raw) setMessagedOrders(new Set(JSON.parse(raw)));
+    } catch {
+      // localStorage unavailable — reminder-sent tracking just stays empty for this session.
+    }
+  }, []);
+  function markMessaged(orderId: string) {
+    setMessagedOrders((prev) => {
+      if (prev.has(orderId)) return prev;
+      const next = new Set(prev).add(orderId);
+      try {
+        window.localStorage.setItem(MESSAGED_ORDERS_KEY, JSON.stringify([...next]));
+      } catch {
+        // Non-fatal — just won't persist across a reload.
+      }
+      return next;
+    });
+  }
   const [expanded, setExpanded] = useState<string | null>(null);
   const [read, setRead] = useState<Set<string>>(new Set());
   /** Order id of the booking whose full detail sheet is open. */
@@ -157,7 +190,9 @@ export default function NotificationsPage() {
         if (b.checkedIn) statusLine = "QR Check-in Completed";
         if (b.status === "Pending") statusLine = "Booking request";
 
-        const source: BookingSource = b.payment === "Cash (Offline)" ? "F" : "O";
+        // Walk-in = no customerId (vendor typed it in manually) — not payment method,
+        // since an app customer can still choose to pay cash at the venue.
+        const source: BookingSource = b.customerId ? "O" : "F";
         const name = b.customerName ?? b.customer ?? "Guest";
 
         return {
@@ -182,7 +217,7 @@ export default function NotificationsPage() {
 
   const counts = useMemo(
     () => ({
-      All: rows.length,
+      Upcoming: rows.filter((r) => !r.isPast).length,
       Today: rows.filter((r) => r.isToday && !r.isPast).length,
       Tomorrow: rows.filter((r) => r.isTomorrow).length,
       Payments: rows.filter((r) => !r.paidInFull).length,
@@ -192,19 +227,35 @@ export default function NotificationsPage() {
   );
 
   const visible = useMemo(() => {
+    let list: typeof rows;
     switch (tab) {
       case "Today":
-        return rows.filter((r) => r.isToday && !r.isPast);
+        list = rows.filter((r) => r.isToday && !r.isPast);
+        break;
       case "Tomorrow":
-        return rows.filter((r) => r.isTomorrow);
+        list = rows.filter((r) => r.isTomorrow);
+        break;
       case "Payments":
-        return rows.filter((r) => !r.paidInFull);
+        list = rows.filter((r) => !r.paidInFull);
+        break;
       case "Past":
-        return rows.filter((r) => r.isPast);
+        list = rows.filter((r) => r.isPast);
+        break;
       default:
-        return rows;
+        list = rows.filter((r) => !r.isPast);
     }
-  }, [rows, tab]);
+    if (priceFilters.size > 0) {
+      list = list.filter(
+        (r) =>
+          (priceFilters.has("Paid") && r.paidInFull) ||
+          (priceFilters.has("Partial") && !r.paidInFull) ||
+          (priceFilters.has("Cash") && r.booking.payment === "Cash (Offline)")
+      );
+    }
+    if (reminderFilter === "Sent") list = list.filter((r) => messagedOrders.has(r.key));
+    if (reminderFilter === "Not Sent") list = list.filter((r) => !messagedOrders.has(r.key));
+    return list;
+  }, [rows, tab, priceFilters, reminderFilter, messagedOrders]);
 
   async function acknowledge(orderId: string) {
     try {
@@ -234,7 +285,12 @@ export default function NotificationsPage() {
           <h1 className="text-[16px] font-black tracking-tight text-slate-900">Notifications</h1>
           <p className="text-[10px] font-medium text-slate-400">Stay updated on your bookings &amp; venue</p>
         </div>
-        <HeaderAction icon={SlidersHorizontal} label="Filter" onClick={() => setTab(tab === "Payments" ? "All" : "Payments")} />
+        <div className="relative">
+          <HeaderAction icon={SlidersHorizontal} label="Filter" onClick={() => setFilterOpen(true)} />
+          {(priceFilters.size > 0 || reminderFilter !== null || tab === "Past") && (
+            <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+          )}
+        </div>
         <HeaderAction icon={CheckCheck} label="Mark all read" onClick={() => setRead(new Set(rows.map((r) => r.key)))} />
         <HeaderAction icon={Settings} label="Settings" href="/vendor/profile" />
       </div>
@@ -289,7 +345,6 @@ export default function NotificationsPage() {
             when={arrivalLabel(r.start, now)}
             tone={r.tone}
             source={r.source}
-            playedTimes={r.playedTimes}
             amount={!r.paidInFull ? r.booking.totalAmount : undefined}
             amountNote={!r.paidInFull ? `Due ${relative(r.start, now)}` : undefined}
             isLast={i === visible.length - 1}
@@ -302,14 +357,10 @@ export default function NotificationsPage() {
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                {r.booking.phone && (
-                  <a
-                    href={`tel:${r.booking.phone}`}
-                    className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[10px] font-black text-slate-700"
-                  >
-                    <Phone size={10} className="text-slate-400" /> {r.booking.phone}
-                  </a>
-                )}
+                <span className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[10px] font-black text-slate-700">
+                  <Repeat size={10} className="text-slate-400" />
+                  {r.playedTimes > 1 ? `Played ${r.playedTimes} times` : "New player"}
+                </span>
                 <span className="text-[9px] font-black tracking-wide text-slate-400">ID: {r.booking.orderId}</span>
               </div>
 
@@ -334,7 +385,8 @@ export default function NotificationsPage() {
                 )}
 
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    markMessaged(r.booking.orderId);
                     setMessageCtx({
                       customerName: r.name,
                       phone: r.booking.phone ?? "",
@@ -343,8 +395,8 @@ export default function NotificationsPage() {
                       dateLabel: r.start.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "long" }),
                       totalAmount: r.booking.totalAmount,
                       paymentStatus: r.booking.paymentStatus,
-                    })
-                  }
+                    });
+                  }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-[10px] font-black text-white transition active:scale-[0.97]"
                 >
                   <MessageSquare size={11} /> Message
@@ -369,6 +421,94 @@ export default function NotificationsPage() {
             </div>
           </NotificationRow>
         ))
+      )}
+
+      {/* Filter sheet */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => setFilterOpen(false)}>
+          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[14px] font-black text-slate-900">Filters</h3>
+            <p className="mt-0.5 text-[10px] font-medium text-slate-400">Narrow down what shows up in the list.</p>
+
+            <p className="mb-2 mt-4 text-[10px] font-black uppercase tracking-wide text-slate-400">Booking Window</p>
+            <div className="flex gap-2">
+              {(["Upcoming", "Past"] as const).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setTab(w)}
+                  className={`flex-1 rounded-xl py-2.5 text-[11px] font-black transition ${
+                    tab === w ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {w} Bookings
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-wide text-slate-400">Price</p>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "Paid", label: "Paid" },
+                  { key: "Partial", label: "Partially Paid" },
+                  { key: "Cash", label: "Cash" },
+                ] as { key: PriceFilter; label: string }[]
+              ).map(({ key, label }) => {
+                const active = priceFilters.has(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      setPriceFilters((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      })
+                    }
+                    className={`rounded-full px-3.5 py-2 text-[11px] font-black transition ${
+                      active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-wide text-slate-400">Reminder</p>
+            <p className="mb-2 text-[10px] font-medium text-slate-400">Whether you&apos;ve tapped Message for this booking.</p>
+            <div className="flex gap-2">
+              {(["Sent", "Not Sent"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setReminderFilter((cur) => (cur === r ? null : r))}
+                  className={`flex-1 rounded-xl py-2.5 text-[11px] font-black transition ${
+                    reminderFilter === r ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 flex gap-2">
+              <button
+                onClick={() => {
+                  setPriceFilters(new Set());
+                  setReminderFilter(null);
+                  setTab("Upcoming");
+                }}
+                className="flex-1 rounded-2xl border border-slate-200 py-3 text-[11px] font-black uppercase tracking-wide text-slate-600"
+              >
+                Reset
+              </button>
+              <button onClick={() => setFilterOpen(false)} className="flex-1 rounded-2xl bg-slate-900 py-3 text-[11px] font-black uppercase tracking-wide text-white">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Full booking detail sheet */}
