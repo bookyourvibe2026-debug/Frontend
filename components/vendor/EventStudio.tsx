@@ -5,6 +5,7 @@ import { Check, Loader2, Plus, Trash2, Upload, X, Calendar, MapPin, Tag, Landmar
 import { VendorAuthContext } from "@/components/providers/VendorAuthProvider";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
+import { TimeField } from "./TimeField";
 import {
   AddOn,
   Coupon,
@@ -1129,11 +1130,9 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
               </div>
               <div>
                 <span className="sm:hidden block text-[10px] font-bold text-slate-500 mb-1">Time</span>
-                <input
-                  type="time"
-                  value={row.time}
-                  onChange={(e) => updateRow(idx, { time: e.target.value })}
-                  className={inputClass}
+                <TimeField
+                  value={row.time || "12:00"}
+                  onChange={(next) => updateRow(idx, { time: next })}
                 />
               </div>
               <div>

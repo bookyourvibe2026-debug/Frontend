@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { createVendorListing } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
+import { TimeField } from "./TimeField";
 import { Listing } from "@/lib/api/types";
 
 interface Props {
@@ -178,19 +179,15 @@ export function HostEventForm({ onClose, onSaved }: Props) {
               />
             </FormField>
             <FormField label="Reporting Start Time">
-              <input
-                type="time"
-                value={form.reportingStartTime}
-                onChange={(e) => update("reportingStartTime", e.target.value)}
-                className={inputClass(false)}
+              <TimeField
+                value={form.reportingStartTime || "09:00"}
+                onChange={(next) => update("reportingStartTime", next)}
               />
             </FormField>
             <FormField label="Reporting End Time">
-              <input
-                type="time"
-                value={form.reportingEndTime}
-                onChange={(e) => update("reportingEndTime", e.target.value)}
-                className={inputClass(false)}
+              <TimeField
+                value={form.reportingEndTime || "17:00"}
+                onChange={(next) => update("reportingEndTime", next)}
               />
             </FormField>
           </div>

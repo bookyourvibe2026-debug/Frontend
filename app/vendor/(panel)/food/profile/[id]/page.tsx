@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CalendarOff, ChevronLeft, ChevronRight, Clock, Store, Trash2, UtensilsCrossed, X } from "lucide-react";
 import { SectionCard, Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
+import { TimeField } from "@/components/vendor/TimeField";
 import {
   addOutletLeave,
   getVendorOutletById,
@@ -133,18 +134,14 @@ function HoursCard({ outlet, onSaved, onError }: { outlet: FoodOutlet; onSaved: 
             </label>
             {d.isOpen ? (
               <div className="flex items-center gap-2 text-sm">
-                <input
-                  type="time"
-                  value={d.startTime}
-                  onChange={(e) => update(d.day, { startTime: e.target.value })}
-                  className="rounded-lg border border-surface-border px-3 py-2 outline-none focus:border-vibe-violet"
+                <TimeField
+                  value={d.startTime || "09:00"}
+                  onChange={(next) => update(d.day, { startTime: next })}
                 />
                 <span className="text-ink-faint">to</span>
-                <input
-                  type="time"
-                  value={d.endTime}
-                  onChange={(e) => update(d.day, { endTime: e.target.value })}
-                  className="rounded-lg border border-surface-border px-3 py-2 outline-none focus:border-vibe-violet"
+                <TimeField
+                  value={d.endTime || "17:00"}
+                  onChange={(next) => update(d.day, { endTime: next })}
                 />
               </div>
             ) : (

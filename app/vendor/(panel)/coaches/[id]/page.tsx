@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { SectionCard, Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
+import { TimeField } from "@/components/vendor/TimeField";
 import { LocationPicker } from "@/components/coach/LocationPicker";
 import { CoachPhotoUpload } from "@/components/coach/CoachPhotoUpload";
 import { SportsMultiSelect } from "@/components/coach/SportsMultiSelect";

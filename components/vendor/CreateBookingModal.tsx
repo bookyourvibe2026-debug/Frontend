@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { createVendorBooking, getVendorListings } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
+import { TimeField } from "./TimeField";
 import { Booking, Listing, PaymentMethod, BookingStatus } from "@/lib/api/types";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)", "UPI"];
@@ -150,11 +151,9 @@ export default function CreateBookingModal({ open, onClose, onCreate }: Props) {
               />
             </FormField>
             <FormField label="Time" error={errors.time}>
-              <input
-                type="time"
-                value={form.time}
-                onChange={(e) => update("time", e.target.value)}
-                className={inputClass(!!errors.time)}
+              <TimeField
+                value={form.time || "06:00"}
+                onChange={(next) => update("time", next)}
               />
             </FormField>
           </div>

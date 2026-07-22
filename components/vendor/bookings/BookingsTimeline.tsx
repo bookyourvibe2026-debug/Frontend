@@ -334,7 +334,9 @@ export function BookingsTimeline({
                   <div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="flex items-center gap-1">
-                        <img src="/logo.jpg" alt="BYV" className="h-3.5 w-3.5 rounded object-cover" />
+                        {slot.status === "Booked" && (
+                          <img src="/logo.jpg" alt="BYV" className="h-3.5 w-3.5 rounded object-cover shrink-0" />
+                        )}
                         <span className={`text-[12px] font-black uppercase tracking-wide ${s.title}`}>
                           {slot.customerName || "Customer"}
                         </span>
