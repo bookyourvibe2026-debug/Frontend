@@ -41,7 +41,7 @@ import {
   type ChallengeTeamMember,
 } from "@/lib/api/challenges";
 
-type Step = "sport" | "schedule" | "teams" | "details" | "stakes" | "poster" | "share";
+type Step = "sport" | "schedule" | "arena" | "teams" | "details" | "stakes" | "poster" | "share";
 type Opponent = ChallengePlayer & { isInvite?: boolean };
 /** A player added to a team roster in the Team 1 / Team 2 builder. */
 type RosterMember = { id?: string; name: string; phone?: string };
@@ -258,6 +258,29 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     const roundedMins = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30;
     return TIME_OPTIONS.find((t) => timeToMinutes(to24h(t)) >= roundedMins) ?? TIME_OPTIONS[0];
   });
+  const [endTimeLabel, setEndTimeLabel] = useState("");
+
+  const endTimeOptions = useMemo(() => {
+    if (!timeLabel) return [];
+    const startMins = timeToMinutes(to24h(timeLabel));
+    const opts: string[] = [];
+    for (let i = 1; i <= 6; i++) {
+      const mins = startMins + i * 30;
+      const h24 = Math.floor(mins / 60) % 24;
+      const m = mins % 60;
+      const ap = h24 >= 12 ? "PM" : "AM";
+      const h12 = h24 % 12 || 12;
+      opts.push(`${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`);
+    }
+    return opts;
+  }, [timeLabel]);
+
+  useEffect(() => {
+    if (endTimeOptions.length > 0) {
+      setEndTimeLabel(endTimeOptions[1] || endTimeOptions[0]);
+    }
+  }, [endTimeOptions]);
+
   const [playersCount, setPlayersCount] = useState<ChallengePlayersCount>("1v1");
   const [series, setSeries] = useState<ChallengeSeries>("BO1");
   const [matchStyle, setMatchStyle] = useState<ChallengeMatchStyle>("competitive");
@@ -349,15 +372,16 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     };
   }, [venues, dateIso]);
 
-  /** True when a venue has a free 60-min window starting at `startMin` (no booked overlap). */
+  /** True when a venue has a free match window starting at `startMin` (no booked overlap). */
   const isVenueFreeAt = useCallback(
     (id: string, startMin: number) => {
       const ranges = venueRanges[id] ?? [];
+      const endMin = endTimeLabel ? timeToMinutes(to24h(endTimeLabel)) : startMin + 60;
       return !ranges.some((r) =>
-        rangesOverlap(startMin, startMin + CHALLENGE_DURATION_MIN, timeToMinutes(r.startTime), timeToMinutes(r.endTime))
+        rangesOverlap(startMin, endMin, timeToMinutes(r.startTime), timeToMinutes(r.endTime))
       );
     },
-    [venueRanges]
+    [venueRanges, endTimeLabel]
   );
 
   /** How many turfs are actually open at each start time — drives which chips are pickable. */
@@ -372,6 +396,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
 
   /** Turfs free at the currently-selected time. */
   const availableVenues = useMemo(() => {
+    if (!timeLabel) return [];
     const startMin = timeToMinutes(to24h(timeLabel));
     return venues.filter((v) => isVenueFreeAt(v._id, startMin));
   }, [venues, isVenueFreeAt, timeLabel]);
@@ -380,9 +405,13 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   // move to the first time that does — the player never gets stuck on a dead time.
   useEffect(() => {
     if (venues.length === 0 || checkingAvailability) return;
-    if ((timeFreeCount[timeLabel] ?? 0) > 0) return;
+    if (timeLabel && (timeFreeCount[timeLabel] ?? 0) > 0) return;
     const firstFree = TIME_OPTIONS.find((t) => (timeFreeCount[t] ?? 0) > 0);
-    if (firstFree && firstFree !== timeLabel) setTimeLabel(firstFree);
+    if (firstFree) {
+      if (firstFree !== timeLabel) setTimeLabel(firstFree);
+    } else {
+      setTimeLabel("");
+    }
   }, [timeFreeCount, timeLabel, venues.length, checkingAvailability]);
 
   // Keep the picked turf valid for the selected time; default to the first open one.
@@ -442,7 +471,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   }
 
   const dateLabel = dateOptions.find((d) => d.iso === dateIso)?.label ?? dateIso;
-  const scheduleLabel = `${dateLabel}, ${timeLabel}`;
+  const scheduleLabel = endTimeLabel ? `${dateLabel}, ${timeLabel} – ${endTimeLabel}` : `${dateLabel}, ${timeLabel}`;
   const challengerName = customer?.name ?? "BYV Player";
   const opponent = team2[0] as RosterMember | undefined;
 
@@ -607,7 +636,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   }
 
   function goBack() {
-    const order: Step[] = ["sport", "schedule", "teams", "details", "stakes", "poster", "share"];
+    const order: Step[] = ["sport", "schedule", "arena", "teams", "details", "stakes", "poster", "share"];
     const index = order.indexOf(step);
     if (index <= 0) onClose();
     else setStep(order[index - 1]);
@@ -650,7 +679,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
           )}
 
           {step === "schedule" && (
-            <StepShell eyebrow="Step 02 / Date, time & arena" title="When and where?" subtitle={`Turfs that support ${sport} and are free at the time you pick.`}>
+            <StepShell eyebrow="Step 02 / Date & Time" title="When are you playing?" subtitle="Pick a date, start time, and end time for your match.">
               <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Date</p>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                 {dateOptions.map((d) => (
@@ -670,27 +699,24 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
               <div className="mb-2 mt-5 flex items-center justify-between gap-2">
                 <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Start time</p>
                 <span className="text-[10px] font-semibold text-slate-500">
-                  {checkingAvailability ? "Checking availability…" : "Greyed = fully booked"}
+                  {checkingAvailability ? "Checking availability…" : "Only available slots shown"}
                 </span>
               </div>
-              <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto pr-1">
-                {TIME_OPTIONS.map((t) => {
+              <p className="mb-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-300">
+                Note: Already booked slots are hidden. Only available slots are shown below.
+              </p>
+              <div className="grid max-h-36 grid-cols-4 gap-2 overflow-y-auto pr-1">
+                {TIME_OPTIONS.filter((t) => checkingAvailability || (timeFreeCount[t] ?? 0) > 0).map((t) => {
                   const selected = timeLabel === t;
-                  // Until ranges load, every time is tappable; after, only times with an
-                  // actually-open turf are — so the player only ever picks a real slot.
-                  const free = checkingAvailability ? true : (timeFreeCount[t] ?? 0) > 0;
                   return (
                     <button
                       key={t}
                       type="button"
-                      disabled={!free}
                       onClick={() => setTimeLabel(t)}
-                      className={`rounded-xl px-2 py-2.5 text-[11px] font-extrabold transition ${
+                      className={`rounded-xl px-2 py-2 text-[11px] font-extrabold transition ${
                         selected
                           ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
-                          : free
-                          ? "bg-white/7 text-slate-200 hover:bg-white/12"
-                          : "cursor-not-allowed bg-white/[0.03] text-slate-600 line-through"
+                          : "bg-white/7 text-slate-200 hover:bg-white/12"
                       }`}
                     >
                       {t}
@@ -699,19 +725,55 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                 })}
               </div>
 
-              <div className="mb-2 mt-6 flex items-center justify-between gap-2">
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Available turfs</p>
-                <span className="rounded-full bg-white/7 px-2.5 py-1 text-[10px] font-bold text-slate-300">
-                  {dateLabel} · {timeLabel}
-                </span>
-              </div>
-              <p className="mb-2 text-[11px] font-medium text-slate-500">Pick a date and start time above, then tap a turf below to lock your arena.</p>
+              {/* End Time Selection */}
+              {timeLabel && endTimeOptions.length > 0 && (
+                <>
+                  <div className="mb-2 mt-4">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">End time</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {endTimeOptions.map((t) => {
+                      const selected = endTimeLabel === t;
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setEndTimeLabel(t)}
+                          className={`rounded-xl px-2 py-2 text-[11px] font-extrabold transition ${
+                            selected
+                              ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                              : "bg-white/7 text-slate-200 hover:bg-white/12"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <BottomBar
+                label="Selected slot"
+                value={timeLabel ? `${dateLabel} · ${timeLabel} – ${endTimeLabel}` : "No slots available"}
+                onNext={() => setStep("arena")}
+                disabled={!timeLabel || !endTimeLabel}
+              />
+            </StepShell>
+          )}
+
+          {step === "arena" && (
+            <StepShell
+              eyebrow="Step 03 / Pick Available Turf"
+              title="Select Turf Arena"
+              subtitle={`Turfs supporting ${sport} that are free on ${dateLabel} from ${timeLabel} to ${endTimeLabel}.`}
+            >
               {loadingVenues || checkingAvailability ? (
-                <p className="py-10 text-center text-xs font-semibold text-slate-500">Checking availability...</p>
+                <p className="py-10 text-center text-xs font-semibold text-slate-500">Fetching available turfs...</p>
               ) : availableVenues.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-center">
                   <p className="text-xs font-semibold text-slate-400">
-                    No {sport} turfs are free at {timeLabel} on {dateLabel}. Try another time or date.
+                    No {sport} turfs are free at {timeLabel} on {dateLabel}. Try going back to pick another time.
                   </p>
                 </div>
               ) : (
@@ -742,7 +804,12 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                   })}
                 </div>
               )}
-              <BottomBar label="Selected ground" value={venueName || "None"} onNext={() => setStep("teams")} disabled={!venueName} />
+              <BottomBar
+                label="Selected turf"
+                value={venueName || "Pick a turf"}
+                onNext={() => setStep("teams")}
+                disabled={!venueName}
+              />
             </StepShell>
           )}
 
@@ -1288,7 +1355,7 @@ function Poster({ challenge }: { challenge: Challenge }) {
       </div>
 
       {/* VS block */}
-      <div className="relative mt-4 flex items-center justify-between px-1">
+      <div className="relative mt-2.5 flex items-center justify-between px-1">
         <PlayerBadge
           initials={challenge.poster.challengerInitials}
           name={challenge.challenger?.name ?? "Challenger"}
@@ -1298,11 +1365,11 @@ function Poster({ challenge }: { challenge: Challenge }) {
         />
 
         {/* VS slash and element */}
-        <div className="relative flex items-center justify-center h-20 w-12 shrink-0">
-          <div className="absolute w-[2px] h-20 bg-gradient-to-b from-orange-500 via-white to-emerald-500 rotate-[22deg] opacity-75 shadow-[0_0_6px_#fff]" />
-          <div className="absolute w-8 h-8 rounded-full bg-orange-500/15 blur-sm -translate-x-2" />
-          <div className="absolute w-8 h-8 rounded-full bg-emerald-500/15 blur-sm translate-x-2" />
-          <span className="relative z-10 text-2xl font-black italic tracking-wide text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] scale-110">VS</span>
+        <div className="relative flex items-center justify-center h-14 w-12 shrink-0">
+          <div className="absolute w-[2.5px] h-14 bg-gradient-to-b from-orange-500 via-white to-emerald-500 rotate-[22deg] opacity-75 shadow-[0_0_6px_#fff]" />
+          <div className="absolute w-6 h-6 rounded-full bg-orange-500/15 blur-sm -translate-x-2" />
+          <div className="absolute w-6 h-6 rounded-full bg-emerald-500/15 blur-sm translate-x-2" />
+          <span className="relative z-10 text-xl font-black italic tracking-wide text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] scale-100">VS</span>
         </div>
 
         <PlayerBadge
@@ -1315,104 +1382,121 @@ function Poster({ challenge }: { challenge: Challenge }) {
       </div>
 
       {/* One match / one goal / bragging rights strip */}
-      <div className="relative mt-3.5 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[8.5px] font-extrabold uppercase tracking-wide text-slate-300">
-        <span className="flex items-center gap-1">
-          <Flame className="h-3.5 w-3.5 shrink-0 text-orange-400" /> One Match
+      <div className="relative mt-1.5 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-[7.5px] font-extrabold uppercase tracking-wide text-slate-300">
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <Flame className="h-3 w-3 shrink-0 text-orange-400" /> One Match
         </span>
-        <span className="h-3.5 w-px shrink-0 bg-white/10" />
-        <span className="flex items-center gap-1">
-          <Target className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> One Goal
+        <span className="h-3 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <Target className="h-3 w-3 shrink-0 text-emerald-400" /> One Goal
         </span>
-        <span className="h-3.5 w-px shrink-0 bg-white/10" />
-        <span className="flex items-center gap-1">
-          <Crown className="h-3.5 w-3.5 shrink-0 text-orange-300" /> Bragging Rights
+        <span className="h-3 w-px shrink-0 bg-white/10" />
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <Crown className="h-3 w-3 shrink-0 text-orange-300" /> Bragging Rights
         </span>
       </div>
 
       {/* Sport card */}
-      <div className="relative mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden flex flex-col justify-between h-[155px]">
+      <div className="relative mt-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3 overflow-hidden flex flex-col justify-between min-h-[105px]">
         {/* Glowing sports silhouette */}
         <PlayerSilhouetteSvg sport={challenge.sport} />
         
-        <div className="relative z-10 flex items-center gap-3">
+        <div className="relative z-10 flex items-center gap-2">
           <div 
-            className="w-10 h-10 bg-white/10 border border-white/20 flex items-center justify-center text-white" 
+            className="w-8 h-8 bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0" 
             style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}
           >
             {sportMeta && "image" in sportMeta ? (
-              <img src={sportMeta.image} alt="" className="h-5 w-5 object-contain filter invert brightness-200" />
+              <img src={sportMeta.image} alt="" className="h-4 w-4 object-contain filter invert brightness-200" />
             ) : (
-              <span className="text-lg">{sportMeta?.emoji ?? "🏆"}</span>
+              <span className="text-sm">{sportMeta?.emoji ?? "🏆"}</span>
             )}
           </div>
-          <p className="text-lg font-black uppercase tracking-wide text-white leading-none">{challenge.sport}</p>
+          <p className="text-sm font-black uppercase tracking-wide text-white leading-none">{challenge.sport}</p>
         </div>
 
-        <div className="relative z-10 mt-2 grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
+        <div className="relative z-10 mt-1.5 grid grid-cols-2 gap-2 border-t border-white/10 pt-1.5">
           <div>
-            <p className="text-[9px] uppercase tracking-wider font-extrabold text-orange-400">Venue</p>
-            <p className="mt-0.5 text-[11px] font-bold text-white line-clamp-2 leading-tight">{challenge.venueName}</p>
+            <p className="text-[8.5px] uppercase tracking-wider font-extrabold text-orange-400">Venue</p>
+            <p className="mt-0.5 text-[10.5px] font-bold text-white line-clamp-2 leading-tight">{challenge.venueName}</p>
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-400">Schedule</p>
+            <p className="text-[8.5px] uppercase tracking-wider font-extrabold text-emerald-400">Schedule</p>
             <div className="mt-0.5 flex items-start gap-1">
-              <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <div className="text-[11px] leading-tight font-bold text-white">
-                {challenge.scheduleLabel.split(", ").map((part, idx) => (
-                  <p key={idx} className={idx === 1 ? "text-emerald-400" : ""}>{part}</p>
-                ))}
+              <div className="text-[10.5px] leading-tight font-bold text-white">
+                {(() => {
+                  const parts = challenge.scheduleLabel.split(", ");
+                  const dateStr = parts[0] || "Today";
+                  const startStr = parts[1] || "08:00 AM";
+
+                  let rangeStr = startStr;
+                  if (!startStr.includes("-") && !startStr.includes("–")) {
+                    const [t, ap] = startStr.split(" ");
+                    if (t && ap) {
+                      let [h, m] = t.split(":").map(Number);
+                      let endH = (h % 12) + 1;
+                      let endAp = ap;
+                      if (h === 11 && ap === "AM") endAp = "PM";
+                      else if (h === 11 && ap === "PM") endAp = "AM";
+                      rangeStr = `${startStr} – ${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")} ${endAp}`;
+                    }
+                  }
+                  return (
+                    <>
+                      <p className="font-extrabold text-white">{dateStr}</p>
+                      <p className="text-emerald-400 font-extrabold">{rangeStr}</p>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 mt-2 flex flex-wrap gap-1.5">
-          <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.playersCount}</span>
+        <div className="relative z-10 mt-1.5 flex flex-wrap gap-1">
+          <span className="rounded bg-white/8 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.playersCount}</span>
           {GAME_SUPPORTS_SERIES.has(challenge.sport) && (
-            <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.series}</span>
+            <span className="rounded bg-white/8 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.series}</span>
           )}
-          <span className="rounded bg-white/8 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.matchStyle}</span>
+          <span className="rounded bg-white/8 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-300">{challenge.matchStyle}</span>
         </div>
       </div>
 
       {/* Stakes */}
-      <div className="relative mt-3 text-center">
-        <div className="flex items-center gap-3">
-          <span className="h-[2px] flex-1 bg-gradient-to-r from-transparent to-orange-500/50" />
-          <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-orange-400">The Stakes</p>
-          <span className="h-[2px] flex-1 bg-gradient-to-l from-transparent to-orange-500/50" />
+      <div className="relative mt-2 text-center">
+        <div className="flex items-center gap-2">
+          <span className="h-[1.5px] flex-1 bg-gradient-to-r from-transparent to-orange-500/50" />
+          <p className="shrink-0 text-[9.5px] font-black uppercase tracking-[0.2em] text-orange-400">The Stakes</p>
+          <span className="h-[1.5px] flex-1 bg-gradient-to-l from-transparent to-orange-500/50" />
         </div>
-        <div className="mt-2 flex items-center gap-3.5 rounded-2xl border border-orange-500/30 bg-orange-500/5 px-4 py-3 text-left shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-          <span className="shrink-0 text-3xl filter drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]">{stakeMeta?.icon ?? "🎯"}</span>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-black uppercase text-white tracking-wide">{challenge.stakeType} Stakes</p>
-            <p className="truncate text-[11px] font-semibold text-slate-300">{challenge.stakeText}</p>
+        <div className="mt-1.5 flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/5 px-3.5 py-2.5 text-left shadow-[0_0_15px_rgba(249,115,22,0.1)]">
+          <span className="shrink-0 text-2xl filter drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]">{stakeMeta?.icon ?? "🎯"}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-black uppercase text-white tracking-wide">{challenge.stakeType} Stakes</p>
+            <p className="truncate text-[10px] font-semibold text-slate-300">{challenge.stakeText}</p>
           </div>
         </div>
       </div>
 
-      {/* Challenge & share banner */}
-      <div className="relative mt-3.5 flex items-center justify-between gap-2.5 rounded-2xl bg-gradient-to-r from-[#d946ef] via-[#f97316] to-[#10b981] px-4 py-3.5 shadow-[0_4px_15px_rgba(249,115,22,0.25)]">
-        <span className="flex items-center gap-2.5 min-w-0">
-          <div className="h-7 w-7 rounded-full bg-orange-600/35 border border-white/20 flex items-center justify-center text-white shrink-0">
-            <Share2 className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <span className="block text-xs font-black uppercase tracking-wide text-white leading-none">Challenge &amp; Share</span>
-            <span className="block truncate text-[8px] font-medium text-white/95 mt-0.5">Send to your friend &amp; accept the challenge!</span>
-          </div>
-        </span>
-        <Send className="h-4 w-4 shrink-0 text-white mr-1" />
+      {/* Compact 2-Button Action Row — prevents bottom clipping */}
+      <div className="relative mt-2 grid grid-cols-2 gap-2">
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 py-2 text-[9.5px] font-black uppercase text-white shadow-md">
+          <Share2 className="h-3 w-3 shrink-0" /> Share Match
+        </div>
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2.5 py-2 text-[9.5px] font-black uppercase text-white shadow-md">
+          <Send className="h-3 w-3 shrink-0" /> Challenge
+        </div>
       </div>
 
       {/* Verification QR — the venue scans this to check the players in as arrived */}
-      <div className="relative mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
+      <div className="relative mt-2.5 flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={qrDataUrl} alt="" className="h-full w-full object-contain" />
@@ -1420,23 +1504,23 @@ function Poster({ challenge }: { challenge: Challenge }) {
             <div className="h-full w-full animate-pulse rounded bg-slate-200" />
           )}
         </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-wide text-white">Scan to verify arrival</p>
-          <p className="mt-0.5 text-[9px] font-semibold text-slate-400">Show this at the venue &mdash; they scan it to check you in</p>
-          <p className="mt-1 font-mono text-[10px] font-bold text-orange-400">{challenge.code}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9.5px] font-black uppercase tracking-wide text-white">Scan to verify arrival</p>
+          <p className="mt-0.5 text-[8.5px] font-semibold text-slate-400 leading-tight">Show this at the venue to check in</p>
+          <p className="mt-0.5 font-mono text-[9.5px] font-bold text-orange-400">{challenge.code}</p>
         </div>
       </div>
 
       {/* Bottom strip */}
-      <div className="relative mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-[7.5px] font-black uppercase tracking-wider text-slate-500">
+      <div className="relative mt-2 flex items-center justify-between border-t border-white/10 pt-2 text-[7px] font-black uppercase tracking-wider text-slate-500">
         <span className="flex items-center gap-1">
-          <TrendingUp className="h-3 w-3 shrink-0 text-emerald-400" /> Climb the Ranks
+          <TrendingUp className="h-2.5 w-2.5 shrink-0 text-emerald-400" /> Climb the Ranks
         </span>
         <span className="flex items-center gap-1">
-          <Medal className="h-3 w-3 shrink-0 text-orange-400" /> Earn Bragging Rights
+          <Medal className="h-2.5 w-2.5 shrink-0 text-orange-400" /> Earn Bragging Rights
         </span>
         <span className="flex items-center gap-1">
-          <Flame className="h-3 w-3 shrink-0 text-emerald-400" /> Play. Win. Repeat.
+          <Flame className="h-2.5 w-2.5 shrink-0 text-emerald-400" /> Play. Win. Repeat.
         </span>
       </div>
     </div>
@@ -1466,25 +1550,25 @@ function PlayerBadge({
 
   return (
     <div className="min-w-0 flex-1 flex flex-col items-center">
-      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-[3px] text-xl font-black text-white shadow-lg ${borderColors}`}>
+      <div className={`flex h-[45px] w-[45px] items-center justify-center rounded-xl border-[2.5px] text-sm font-black text-white shadow-lg ${borderColors}`}>
         {initials || "P"}
       </div>
-      <p className="mt-2 w-full truncate px-1 text-center text-xs font-black uppercase tracking-wide text-white leading-tight">
+      <p className="mt-1.5 w-full truncate px-1 text-center text-[11px] font-black uppercase tracking-wide text-white leading-tight">
         {name}
       </p>
       {extraMembers && extraMembers.length > 0 && (
-        <p className="mt-0.5 w-full truncate px-1 text-center text-[9px] font-semibold text-slate-400">
+        <p className="mt-0.5 w-full truncate px-1 text-center text-[8px] font-semibold text-slate-400">
           + {extraMembers.join(", ")}
         </p>
       )}
       <div>
-        <span className={`inline-block mt-1 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${isOrange ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+        <span className={`inline-block mt-0.5 text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${isOrange ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
           {label}
         </span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-slate-400">
-        {isOrange ? <GoldTrophySvg className="w-3.5 h-3.5 text-amber-400" /> : <GreenTrophySvg className="w-3.5 h-3.5 text-emerald-400" />}
-        <span className="text-[8px] uppercase tracking-wider font-extrabold text-slate-500">Rank</span>
+      <div className="mt-1 flex items-center gap-1 text-[8.5px] font-bold text-slate-400">
+        {isOrange ? <GoldTrophySvg className="w-3 h-3 text-amber-400" /> : <GreenTrophySvg className="w-3 h-3 text-emerald-400" />}
+        <span className="text-[7.5px] uppercase tracking-wider font-extrabold text-slate-500">Rank</span>
         <span className="font-black text-white">{rank}</span>
       </div>
     </div>

@@ -204,6 +204,16 @@ export default function RoleAccessPage() {
         }
       />
 
+      <div className="flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 text-xs text-indigo-900 shadow-sm">
+        <ShieldCheck className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-extrabold text-sm">Category Verticals &amp; Platform Access Control</p>
+          <p className="mt-0.5 text-indigo-700 font-medium">
+            Business categories (Turf, Events, Food Counter, Coaches) are assigned exclusively by the BYV Admin during onboarding. Vendor partners can create staff roles within their assigned business verticals.
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           title="Create New Role"

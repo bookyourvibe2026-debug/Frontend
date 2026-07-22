@@ -98,6 +98,7 @@ type ApiBooking = Booking & {
   customerName?: string;
   phone?: string;
   checkedIn?: boolean;
+  endTime?: string;
   /** Set only for bookings made by a registered customer through the app — manual/walk-in
    * bookings the vendor typed in themselves never get one. This, not payment method, is
    * what actually distinguishes "Booked via BYV" from "Walk-in" (a BYV customer can still
@@ -131,7 +132,10 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
 
   // Agenda state
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [selectedTurfId, setSelectedTurfId] = useState("");
   // "All Slots" filter — status / time of day / source / quick filters.
@@ -259,16 +263,27 @@ export default function BookingsPage() {
         };
       }
 
-      // Find bookings on this date + turf that match the start time
+      // Find bookings on this date + turf that match the start time or overlap range
       const match = bookings.find((bk) => {
-        const bkDate = new Date(bk.dateTime).toISOString().slice(0, 10);
-        const bkTime = new Date(bk.dateTime).toLocaleTimeString("en-US", {
-          hour12: false, hour: "2-digit", minute: "2-digit",
-        });
-        return (bk.listing === selectedTurfId || bk.listingId === selectedTurfId)
-          && bk.status !== "Cancelled"
-          && bkDate === selectedDate
-          && bkTime === slot.startTime;
+        const d = new Date(bk.dateTime);
+        // Local date formatted as YYYY-MM-DD in IST timezone
+        const bkDate = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        // Start time formatted as HH:mm in IST timezone (24-hour)
+        const bkTime = d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
+        
+        const bkListingId = String(bk.listingId ?? bk.listing ?? "");
+        const targetId = String(selectedTurfId || selectedTurf?.id || "");
+
+        const bkStartMins = t24m(bkTime);
+        const bkEndMins = bk.endTime ? t24m(bk.endTime) : bkStartMins + 60;
+        const slotStartMins = t24m(slot.startTime);
+        const slotEndMins = t24m(slot.endTime);
+
+        const isMatchTurf = bkListingId === targetId || (selectedTurf?.id && bkListingId === String(selectedTurf.id));
+        const isMatchDate = bkDate === selectedDate;
+        const isTimeOverlap = slotStartMins < bkEndMins && bkStartMins < slotEndMins;
+
+        return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap);
       });
 
       let status: SlotStatus = "Available";
@@ -471,6 +486,26 @@ export default function BookingsPage() {
     setOfflineModal(true);
   }
 
+  async function startOfflineBookingTwoSlots(slot1: AgendaSlot, slot2: AgendaSlot) {
+    if (!selectedTurf) return;
+    const combinedSlot: AgendaSlot = {
+      startTime: slot1.startTime,
+      endTime: slot2.endTime,
+      price: slot1.price + slot2.price,
+      status: "Available",
+      label: `${slot1.label} (2 Slots)`,
+    };
+    if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
+      setSetupSportsSelected([]);
+      setSetupSportsOpen(true);
+      return;
+    }
+    setOfflineSport(selectedTurf.categories[0] || "");
+    setOfflineAmount("");
+    setActiveSlot(combinedSlot);
+    setOfflineModal(true);
+  }
+
   async function saveSetupSports() {
     if (!selectedTurf || setupSportsSelected.length === 0) return;
     setSetupSportsSaving(true);
@@ -509,6 +544,7 @@ export default function BookingsPage() {
         customerName: offlineName,
         phone: offlinePhone,
         dateTime: dt.toISOString(),
+        endTime: activeSlot.endTime || undefined,
         totalAmount: activeSlot.price, // API requirement
         payment: "Cash (Offline)",
         status: statusText as BookingStatus,
@@ -519,7 +555,9 @@ export default function BookingsPage() {
       setActiveSlot(null);
       setOfflineName("");
       setOfflinePhone("");
-    } catch { alert("Failed to create offline booking"); }
+    } catch (e) {
+      alert(e instanceof ApiError ? e.describe() : "Failed to create offline booking");
+    }
     setOfflineSubmitting(false);
   }
 
@@ -927,7 +965,7 @@ export default function BookingsPage() {
 
       {/* ── LONG-PRESS QUICK ACTIONS (empty slot → book offline / block fast) ── */}
       {quickActionsOpen && activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -952,6 +990,25 @@ export default function BookingsPage() {
                 <span className="text-[11px] font-black">Block Slot</span>
               </button>
             </div>
+            {(() => {
+              const nextSlot = activeSlot ? resolvedSlots.find(s => s.startTime === activeSlot.endTime) : null;
+              const canBookTwo = nextSlot && nextSlot.status === "Available" && activeSlot?.status === "Available";
+              if (!canBookTwo) return null;
+              return (
+                <button
+                  onClick={() => {
+                    setQuickActionsOpen(false);
+                    if (activeSlot && nextSlot) {
+                      void startOfflineBookingTwoSlots(activeSlot, nextSlot);
+                    }
+                  }}
+                  className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-50 py-3 text-emerald-700 hover:bg-emerald-100 transition active:scale-95 shadow-sm"
+                >
+                  <BookOpen size={16} className="text-emerald-600 shrink-0" />
+                  <span className="text-[11px] font-black">Offline Book 2 Slots Together ({to12h(activeSlot.startTime)} - {to12h(nextSlot.endTime)})</span>
+                </button>
+              );
+            })()}
             <button
               onClick={() => setQuickActionsOpen(false)}
               className="mt-2.5 w-full rounded-xl py-2.5 text-[11px] font-black text-slate-500 hover:bg-slate-50"
@@ -964,7 +1021,7 @@ export default function BookingsPage() {
 
       {/* ── SLOT ACTION MODAL (available / blocked) ── */}
       {activeSlot && !quickActionsOpen && !offlineModal && !blockReasonOpen && !pendingConfirm && !isBookedSlot && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -1040,7 +1097,7 @@ export default function BookingsPage() {
 
       {/* ── SETUP SPORTS MODAL ── */}
       {setupSportsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setSetupSportsOpen(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setSetupSportsOpen(false)}>
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -1082,7 +1139,7 @@ export default function BookingsPage() {
 
       {/* ── OFFLINE BOOKING MODAL ── */}
       {offlineModal && activeSlot && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); }}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); }}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-4xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>

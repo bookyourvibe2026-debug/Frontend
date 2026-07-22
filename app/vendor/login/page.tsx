@@ -43,7 +43,7 @@ const HIGHLIGHTS: { icon: LucideIcon; label: string }[] = [
 function VendorLoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
+  const redirectTo = searchParams.get("redirect") || "/vendor/bookings";
 
   const [tab, setTab] = useState<LoginTab>("email");
   const [identifier, setIdentifier] = useState("");
@@ -71,14 +71,14 @@ function VendorLoginInner() {
       if (vendor) {
         setRedirecting(true);
         let targetPath = redirectTo;
-        if (redirectTo === "/vendor/dashboard") {
+        if (redirectTo === "/vendor/dashboard" || redirectTo === "/vendor/bookings") {
           const landingByVertical: Record<string, string> = {
-            turf: "/vendor/dashboard",
+            turf: "/vendor/bookings",
             food: "/vendor/food/dashboard",
             events: "/vendor/events/dashboard",
             coaches: "/vendor/coaches/dashboard",
           };
-          targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/dashboard";
+          targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/bookings";
         }
         router.replace(targetPath);
       }
@@ -108,14 +108,14 @@ function VendorLoginInner() {
     try {
       const vendor = await vendorLogin({ email: identifier.trim(), password });
       let targetPath = redirectTo;
-      if (redirectTo === "/vendor/dashboard") {
+      if (redirectTo === "/vendor/dashboard" || redirectTo === "/vendor/bookings") {
         const landingByVertical: Record<string, string> = {
-          turf: "/vendor/dashboard",
+          turf: "/vendor/bookings",
           food: "/vendor/food/dashboard",
           events: "/vendor/events/dashboard",
           coaches: "/vendor/coaches/dashboard",
         };
-        targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/dashboard";
+        targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/bookings";
       }
       router.replace(targetPath);
     } catch (err) {

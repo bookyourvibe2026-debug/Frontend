@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield } from "lucide-react";
+import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield, Bell } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { Toast } from "@/components/admin/Toast";
@@ -56,11 +56,15 @@ export default function CommunityPage() {
   const [clubs, setClubs] = useState<Club[]>(INITIAL_CLUBS);
   const [joinedMatches, setJoinedMatches] = useState<string[]>([]);
   const [joinedClubs, setJoinedClubs] = useState<string[]>([]);
+  const [hostNotices, setHostNotices] = useState<{ id: string; matchTitle: string; playerName: string; time: string; status: string }[]>([]);
+  const [noticeModalOpen, setNoticeModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   // Modals state
   const [lobbyModalOpen, setLobbyModalOpen] = useState(false);
   const [clubModalOpen, setClubModalOpen] = useState(false);
+  const [selectedJoinMatch, setSelectedJoinMatch] = useState<Match | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Form states
   const [lobbyTitle, setLobbyTitle] = useState("");
@@ -73,36 +77,76 @@ export default function CommunityPage() {
   const [clubSport, setClubSport] = useState("Badminton");
   const [clubPlace, setClubPlace] = useState("");
 
+  const openJoinModal = (match: Match) => {
+    setSelectedJoinMatch(match);
+    setCopiedLink(false);
+  };
+
+  // Load persisted joined matches and notifications on mount
+  useEffect(() => {
+    try {
+      const savedMatches = localStorage.getItem("byv_joined_matches");
+      if (savedMatches) setJoinedMatches(JSON.parse(savedMatches));
+      const savedClubs = localStorage.getItem("byv_joined_clubs");
+      if (savedClubs) setJoinedClubs(JSON.parse(savedClubs));
+      const savedNotices = localStorage.getItem("byv_host_notifications");
+      if (savedNotices) setHostNotices(JSON.parse(savedNotices));
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const handleJoinMatch = (id: string, title: string) => {
+    let nextJoined: string[] = [];
     if (joinedMatches.includes(id)) {
-      setJoinedMatches((prev) => prev.filter((mid) => mid !== id));
+      nextJoined = joinedMatches.filter((mid) => mid !== id);
+      setJoinedMatches(nextJoined);
       setMatches((prev) =>
         prev.map((m) => (m.id === id ? { ...m, spotsLeft: m.spotsLeft + 1 } : m))
       );
       setToast(`Left the match lobby: ${title}`);
     } else {
-      setJoinedMatches((prev) => [...prev, id]);
+      nextJoined = [...joinedMatches, id];
+      setJoinedMatches(nextJoined);
       setMatches((prev) =>
         prev.map((m) => (m.id === id ? { ...m, spotsLeft: Math.max(0, m.spotsLeft - 1) } : m))
       );
-      setToast(`Joined match lobby! A WhatsApp invite link has been copied to clipboard.`);
+      
+      // Push notification for the match host
+      const newNotice = {
+        id: `notice-${Date.now()}`,
+        matchTitle: title,
+        playerName: "Player (You)",
+        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        status: "Unread",
+      };
+      const updatedNotices = [newNotice, ...hostNotices];
+      setHostNotices(updatedNotices);
+      localStorage.setItem("byv_host_notifications", JSON.stringify(updatedNotices));
+
+      setToast(`Joined match lobby! Host notified.`);
     }
+    localStorage.setItem("byv_joined_matches", JSON.stringify(nextJoined));
   };
 
   const handleJoinClub = (id: string, name: string) => {
+    let nextClubs: string[] = [];
     if (joinedClubs.includes(id)) {
-      setJoinedClubs((prev) => prev.filter((cid) => cid !== id));
+      nextClubs = joinedClubs.filter((cid) => cid !== id);
+      setJoinedClubs(nextClubs);
       setClubs((prev) =>
         prev.map((c) => (c.id === id ? { ...c, members: c.members - 1 } : c))
       );
       setToast(`Left club: ${name}`);
     } else {
-      setJoinedClubs((prev) => [...prev, id]);
+      nextClubs = [...joinedClubs, id];
+      setJoinedClubs(nextClubs);
       setClubs((prev) =>
         prev.map((c) => (c.id === id ? { ...c, members: c.members + 1 } : c))
       );
       setToast(`Joined ${name}! Welcome to the community.`);
     }
+    localStorage.setItem("byv_joined_clubs", JSON.stringify(nextClubs));
   };
 
   const handleCreateLobbySubmit = (e: React.FormEvent) => {
@@ -185,7 +229,22 @@ export default function CommunityPage() {
           </div>
 
           <div>
-            <h2 className="mb-3 text-base font-extrabold text-slate-900">Open Match Lobbies</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-extrabold text-slate-900">Open Match Lobbies</h2>
+              <button
+                type="button"
+                onClick={() => setNoticeModalOpen(true)}
+                className="relative flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                <Bell className="h-3.5 w-3.5 text-brand-600" />
+                <span>Requests</span>
+                {hostNotices.length > 0 && (
+                  <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                    {hostNotices.length}
+                  </span>
+                )}
+              </button>
+            </div>
             <div className="flex flex-col gap-3">
               {matches.map((match) => {
                 const isJoined = joinedMatches.includes(match.id);
@@ -208,7 +267,7 @@ export default function CommunityPage() {
                         {match.spotsLeft > 0 ? `${match.spotsLeft} spots left` : "Lobby Full"}
                       </span>
                       <button
-                        onClick={() => handleJoinMatch(match.id, match.title)}
+                        onClick={() => openJoinModal(match)}
                         className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
                           isJoined
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -334,7 +393,7 @@ export default function CommunityPage() {
                       {match.spotsLeft > 0 ? `${match.spotsLeft} spots remaining` : "Lobby full"}
                     </span>
                     <button
-                      onClick={() => handleJoinMatch(match.id, match.title)}
+                      onClick={() => openJoinModal(match)}
                       className={`flex items-center gap-1 rounded-full px-5 py-2 text-xs font-bold transition ${
                         isJoined
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -563,6 +622,145 @@ export default function CommunityPage() {
                 Create Sports Club
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* JOIN MATCH MODAL */}
+      {selectedJoinMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-600">
+                  {selectedJoinMatch.sport} Lobby
+                </span>
+                <h3 className="text-lg font-extrabold text-slate-900">{selectedJoinMatch.title}</h3>
+              </div>
+              <button
+                onClick={() => setSelectedJoinMatch(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <MapPin className="h-4 w-4 text-brand-500 shrink-0" />
+                <span>{selectedJoinMatch.place} · {selectedJoinMatch.time}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Lobby Invite Link</label>
+                <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5 pl-3">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/community?lobby=${selectedJoinMatch.id}`}
+                    className="w-full bg-transparent text-xs font-mono font-medium text-slate-700 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/community?lobby=${selectedJoinMatch.id}`;
+                      navigator.clipboard?.writeText(url);
+                      setCopiedLink(true);
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition ${
+                      copiedLink ? "bg-emerald-600" : "bg-brand-600 hover:bg-brand-700"
+                    }`}
+                  >
+                    {copiedLink ? "Copied!" : "Copy Link"}
+                  </button>
+                </div>
+              </div>
+
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Hey! Join our ${selectedJoinMatch.sport} match: "${selectedJoinMatch.title}" at ${selectedJoinMatch.place} (${selectedJoinMatch.time}). Click to join: ${typeof window !== "undefined" ? window.location.origin : ""}/community?lobby=${selectedJoinMatch.id}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition"
+              >
+                <MessageSquare className="h-4 w-4" /> Join via WhatsApp Group
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleJoinMatch(selectedJoinMatch.id, selectedJoinMatch.title);
+                  setSelectedJoinMatch(null);
+                }}
+                className={`w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-wide transition ${
+                  joinedMatches.includes(selectedJoinMatch.id)
+                    ? "border border-slate-200 bg-white text-slate-700"
+                    : "bg-slate-950 text-white shadow-lg"
+                }`}
+              >
+                {joinedMatches.includes(selectedJoinMatch.id) ? "Leave Match Lobby" : "Confirm & Lock My Spot"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOST NOTIFICATIONS MODAL */}
+      {noticeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-brand-600" />
+                <h3 className="text-lg font-extrabold text-slate-900">Host Join Requests</h3>
+              </div>
+              <button
+                onClick={() => setNoticeModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3 max-h-72 overflow-y-auto pr-1">
+              {hostNotices.length === 0 ? (
+                <div className="p-8 text-center border border-dashed rounded-2xl">
+                  <Bell className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs font-semibold text-slate-500">No join requests yet.</p>
+                </div>
+              ) : (
+                hostNotices.map((n) => (
+                  <div key={n.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs flex flex-col gap-1">
+                    <div className="flex items-center justify-between font-bold text-slate-900">
+                      <span>{n.playerName}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{n.time}</span>
+                    </div>
+                    <p className="text-slate-600">Requested to join match: <span className="font-bold text-brand-600">{n.matchTitle}</span></p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setHostNotices((prev) => prev.filter((item) => item.id !== n.id));
+                          localStorage.setItem("byv_host_notifications", JSON.stringify(hostNotices.filter((item) => item.id !== n.id)));
+                          setToast("Accepted player into lobby!");
+                        }}
+                        className="flex-1 rounded-xl bg-emerald-600 py-1.5 text-[11px] font-bold text-white shadow-sm"
+                      >
+                        Accept Player
+                      </button>
+                      <button
+                        onClick={() => {
+                          setHostNotices((prev) => prev.filter((item) => item.id !== n.id));
+                          localStorage.setItem("byv_host_notifications", JSON.stringify(hostNotices.filter((item) => item.id !== n.id)));
+                          setToast("Declined request.");
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

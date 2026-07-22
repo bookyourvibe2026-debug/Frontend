@@ -31,9 +31,8 @@ export function useBackDismiss(active: boolean, onDismiss: () => void) {
   useEffect(() => {
     if (!active || typeof window === "undefined") return;
 
-    // Marker so we only ever react to *our* synthetic entry, never a real
-    // navigation the user made before opening the overlay.
-    window.history.pushState({ __byvOverlay: true }, "");
+    const id = Math.random().toString(36).substring(2, 11);
+    window.history.pushState({ __byvOverlay: id }, "");
 
     let dismissed = false;
     const handlePop = () => {
@@ -45,11 +44,14 @@ export function useBackDismiss(active: boolean, onDismiss: () => void) {
 
     return () => {
       window.removeEventListener("popstate", handlePop);
-      // Overlay closed by its own UI (X / tap-out / Escape) rather than Back —
-      // remove the history entry we added so Back doesn't need two presses and
-      // the stack stays balanced.
-      if (!dismissed && (window.history.state as { __byvOverlay?: boolean } | null)?.__byvOverlay) {
-        window.history.back();
+      if (!dismissed) {
+        // Defer checking to allow any synchronous remounts (Strict Mode / Fast Refresh) to complete
+        setTimeout(() => {
+          const currentState = window.history.state as { __byvOverlay?: string } | null;
+          if (currentState && currentState.__byvOverlay === id) {
+            window.history.back();
+          }
+        }, 50);
       }
     };
   }, [active]);

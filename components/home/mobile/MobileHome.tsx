@@ -423,9 +423,11 @@ export function MobileHome({
               <p className="text-[10px] text-slate-500">₹100 / Player</p>
             </div>
           </div>
+          {/* Join = go to the Open Match Lobbies (where matches are actually joinable).
+              Challenge = open the create-a-challenge flow. They must not be the same action. */}
           <button
             type="button"
-            onClick={onJoinCommunity}
+            onClick={onViewAllCommunity}
             className="w-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm"
           >
             Join Now

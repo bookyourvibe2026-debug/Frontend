@@ -47,6 +47,8 @@ import {
   ArrowUpDown,
   Grid,
 } from "lucide-react";
+import { browsePublicCoaches } from "@/lib/api/coaches";
+import type { Coach } from "@/lib/api/types";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
 import { ImageCarousel } from "@/components/ImageCarousel";
@@ -1117,19 +1119,8 @@ function MobileVenueDetail({
 
         {activeTab === "academy" && (
           <section className="mt-5">
-            <h2 className="text-sm font-extrabold text-slate-900">Academy</h2>
-            <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
-              <GraduationCap className="mx-auto h-6 w-6 text-slate-300" />
-              <p className="mt-2 text-xs font-semibold text-slate-500">
-                No academy programs listed at this venue yet.
-              </p>
-              <Link
-                href="/coaches"
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600"
-              >
-                Browse coaches instead
-              </Link>
-            </div>
+            <h2 className="text-sm font-extrabold text-slate-900">Academy &amp; Coaches</h2>
+            <AcademyTabContent venue={venue} />
           </section>
         )}
       </div>
@@ -1147,6 +1138,78 @@ function MobileVenueDetail({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function AcademyTabContent({ venue }: { venue: Listing }) {
+  const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    browsePublicCoaches({ limit: 20 })
+      .then((res) => {
+        if (cancelled) return;
+        const venueCatSet = new Set((venue.categories || []).map((c) => c.toLowerCase()));
+        const matching = res.items.filter((coach) =>
+          (coach.categories || []).some((cat) => venueCatSet.has(cat.toLowerCase()))
+        );
+        setCoaches(matching.length > 0 ? matching : res.items.slice(0, 3));
+      })
+      .catch(() => {
+        if (!cancelled) setCoaches([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [venue]);
+
+  if (loading) {
+    return <div className="mt-3 py-6 text-center text-xs font-semibold text-slate-400">Finding matching coaches for {venue.title}...</div>;
+  }
+
+  if (coaches.length === 0) {
+    return (
+      <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+        <GraduationCap className="mx-auto h-6 w-6 text-slate-300" />
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          No matching academy programs listed at this venue yet.
+        </p>
+        <Link href="/coaches" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600">
+          Browse all coaches instead
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="text-xs font-semibold text-slate-500">Coaches &amp; Programs matching this venue&apos;s games:</p>
+      {coaches.map((coach) => (
+        <div key={coach._id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 font-bold text-sm">
+              {coach.name.charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-extrabold text-slate-900">{coach.name}</p>
+              <p className="truncate text-xs text-slate-500">
+                {(coach.categories || []).map(categoryLabel).join(", ") || "Coach"} · {coach.experienceYears ?? 3}+ yrs exp
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/coaches/${coach._id}`}
+            className="shrink-0 rounded-xl bg-brand-50 border border-brand-200 px-3 py-2 text-xs font-bold text-brand-600 hover:bg-brand-600 hover:text-white transition"
+          >
+            Book Session
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }

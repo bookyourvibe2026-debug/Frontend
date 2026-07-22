@@ -127,107 +127,95 @@ export default function MembershipsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <SectionCard title="Create Plan" description="Duration-based or session-count plans." className="lg:col-span-1">
-          <div className="space-y-3">
-            {turfs.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">Turf</label>
-                <select
-                  value={draft.listingId ?? ""}
-                  onChange={(e) => setDraft({ ...draft, listingId: e.target.value || undefined })}
-                  className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
-                >
-                  <option value="">All turfs</option>
-                  {turfs.map((t) => (
-                    <option key={t.id} value={t.id}>{t.title}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <Input label="Plan Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Monthly Unlimited" />
+        <SectionCard title="Active BYV Partnership" description="Your current vendor subscription tier." className="lg:col-span-1">
+          <div className="space-y-4 rounded-2xl bg-slate-900 p-5 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl" />
+            <span className="inline-block rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 text-[10px] font-black uppercase text-emerald-400">
+              Active Business Plan
+            </span>
             <div>
-              <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase mb-1.5">Plan Type</label>
-              <select
-                value={draft.planType}
-                onChange={(e) => setDraft({ ...draft, planType: e.target.value as MembershipPlanType })}
-                className="w-full rounded-lg border border-surface-border px-3 py-2.5 text-sm outline-none focus:border-vibe-violet"
-              >
-                <option value="duration">Duration (e.g. 30 days)</option>
-                <option value="sessions">Sessions (e.g. 10 visits)</option>
-              </select>
+              <h3 className="text-xl font-extrabold text-white">BYV Starter Partner</h3>
+              <p className="text-xs text-slate-300 mt-1">Standard listing &amp; venue management tools.</p>
             </div>
-            {draft.planType === "duration" ? (
-              <Input
-                label="Duration (days)"
-                value={String(draft.durationDays ?? "")}
-                onChange={(v) => setDraft({ ...draft, durationDays: Number(v.replace(/\D/g, "")) || undefined })}
-                placeholder="30"
-              />
-            ) : (
-              <Input
-                label="Sessions Included"
-                value={String(draft.sessionsIncluded ?? "")}
-                onChange={(v) => setDraft({ ...draft, sessionsIncluded: Number(v.replace(/\D/g, "")) || undefined })}
-                placeholder="10"
-              />
-            )}
-            <Input
-              label="Price (₹)"
-              value={String(draft.price || "")}
-              onChange={(v) => setDraft({ ...draft, price: Number(v.replace(/\D/g, "")) || 0 })}
-              placeholder="2500"
-            />
-            <Input
-              label="Description"
-              value={draft.description ?? ""}
-              onChange={(v) => setDraft({ ...draft, description: v })}
-              placeholder="Optional"
-            />
-            <button
-              onClick={handleCreate}
-              disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-vibe-violet px-4 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violetSoft disabled:opacity-60"
-            >
-              <Plus size={15} /> {saving ? "Creating..." : "Create Plan"}
-            </button>
+            <div className="border-t border-slate-800 pt-3 space-y-2 text-xs font-semibold text-slate-300">
+              <p className="flex items-center gap-2">✓ Direct Customer Bookings</p>
+              <p className="flex items-center gap-2">✓ Venue Agenda &amp; Offline Logs</p>
+              <p className="flex items-center gap-2">✓ Instant Bank Settlements</p>
+            </div>
           </div>
         </SectionCard>
 
-        <SectionCard title="Your Plans" className="lg:col-span-2">
+        <SectionCard title="BYV Partnership Upgrade Tiers" description="Select a BYV partner membership to boost your venue visibility and bookings." className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 gap-4">
-            {memberships.map((m) => (
-              <div key={m._id} className="rounded-xl border border-surface-border p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-ink text-sm">{m.name}</p>
-                    <p className="text-xs text-ink-faint mt-0.5">
-                      {m.planType === "duration" ? `${m.durationDays} days` : `${m.sessionsIncluded} sessions`}
-                      {turfName(m.listingId) ? ` · ${turfName(m.listingId)}` : ""}
-                    </p>
-                  </div>
-                  <Badge tone={m.status === "Active" ? "success" : "neutral"}>{m.status}</Badge>
-                </div>
-                {m.turfDimensions && <p className="text-xs text-ink-faint mt-1">Turf size: {m.turfDimensions}</p>}
-                {m.description && <p className="text-xs text-ink-soft mt-2">{m.description}</p>}
-                <p className="mt-2 font-display text-lg font-bold text-ink">₹{m.price.toLocaleString("en-IN")}</p>
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    onClick={() => setEnroll({ plan: m })}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-300"
-                  >
-                    <UserPlus size={13} /> Enroll Member
-                  </button>
-                  <button
-                    onClick={() => handleDelete(m)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-vibe-coral hover:bg-vibe-coral/10"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {loading && <p className="col-span-full text-sm text-ink-faint">Loading plans...</p>}
-            {!loading && memberships.length === 0 && <p className="col-span-full text-sm text-ink-faint">No plans yet — create one on the left.</p>}
+            <div className="rounded-2xl border-2 border-emerald-500 bg-white p-5 shadow-md relative">
+              <span className="absolute -top-3 right-4 rounded-full bg-emerald-500 px-3 py-0.5 text-[9px] font-extrabold uppercase text-white shadow">
+                Current Plan
+              </span>
+              <p className="font-extrabold text-slate-900 text-base">Starter Partner</p>
+              <p className="text-xs text-slate-500 mt-0.5">Free standard venue listing</p>
+              <p className="mt-3 text-2xl font-black text-slate-900">₹0 <span className="text-xs text-slate-400 font-normal">/ month</span></p>
+              <ul className="mt-4 space-y-2 text-xs text-slate-600 font-medium">
+                <li className="flex items-center gap-1.5">✓ Standard Search Listing</li>
+                <li className="flex items-center gap-1.5">✓ QR Ticket Scanner</li>
+                <li className="flex items-center gap-1.5">✓ Standard Customer Support</li>
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-brand-500 transition">
+              <p className="font-extrabold text-slate-900 text-base">Silver Growth Partner</p>
+              <p className="text-xs text-slate-500 mt-0.5">Accelerate local venue bookings</p>
+              <p className="mt-3 text-2xl font-black text-brand-600">₹1,499 <span className="text-xs text-slate-400 font-normal">/ month</span></p>
+              <ul className="mt-4 space-y-2 text-xs text-slate-600 font-medium">
+                <li className="flex items-center gap-1.5">✓ 1.5x Search Ranking Boost</li>
+                <li className="flex items-center gap-1.5">✓ 2 Last-Minute Boosts / week</li>
+                <li className="flex items-center gap-1.5">✓ Verified Badge on Venue Page</li>
+                <li className="flex items-center gap-1.5">✓ Priority Support</li>
+              </ul>
+              <button
+                onClick={() => setToast("Subscription upgrade request submitted to BYV Sales!")}
+                className="mt-4 w-full rounded-xl bg-brand-600 py-2.5 text-xs font-bold text-white hover:bg-brand-700 transition"
+              >
+                Upgrade to Silver
+              </button>
+            </div>
+
+            <div className="rounded-2xl border-2 border-amber-400 bg-amber-50/30 p-5 shadow-md relative">
+              <span className="absolute -top-3 right-4 rounded-full bg-amber-500 px-3 py-0.5 text-[9px] font-extrabold uppercase text-white shadow">
+                Recommended
+              </span>
+              <p className="font-extrabold text-slate-900 text-base">Gold Premier Partner</p>
+              <p className="text-xs text-slate-500 mt-0.5">Maximum bookings &amp; premium placement</p>
+              <p className="mt-3 text-2xl font-black text-amber-600">₹2,999 <span className="text-xs text-slate-400 font-normal">/ month</span></p>
+              <ul className="mt-4 space-y-2 text-xs text-slate-700 font-semibold">
+                <li className="flex items-center gap-1.5">✓ 3x Search Ranking Boost</li>
+                <li className="flex items-center gap-1.5">✓ Unlimited Last-Minute Boosts</li>
+                <li className="flex items-center gap-1.5">✓ Featured Homepage Banner</li>
+                <li className="flex items-center gap-1.5">✓ Dedicated Account Manager</li>
+              </ul>
+              <button
+                onClick={() => setToast("Subscription upgrade request submitted to BYV Sales!")}
+                className="mt-4 w-full rounded-xl bg-amber-500 py-2.5 text-xs font-bold text-white hover:bg-amber-600 transition shadow"
+              >
+                Upgrade to Gold
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-400 transition">
+              <p className="font-extrabold text-slate-900 text-base">Platinum Enterprise</p>
+              <p className="text-xs text-slate-500 mt-0.5">Multi-turf chains &amp; sports complexes</p>
+              <p className="mt-3 text-2xl font-black text-slate-900">₹5,999 <span className="text-xs text-slate-400 font-normal">/ month</span></p>
+              <ul className="mt-4 space-y-2 text-xs text-slate-600 font-medium">
+                <li className="flex items-center gap-1.5">✓ Multi-Venue Management</li>
+                <li className="flex items-center gap-1.5">✓ AI Peak Hour Price Optimizer</li>
+                <li className="flex items-center gap-1.5">✓ Guaranteed Top Spot in City</li>
+              </ul>
+              <button
+                onClick={() => setToast("Subscription upgrade request submitted to BYV Sales!")}
+                className="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+              >
+                Contact Sales
+              </button>
+            </div>
           </div>
         </SectionCard>
       </div>

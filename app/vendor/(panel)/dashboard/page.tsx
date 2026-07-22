@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [showByvAlerts, setShowByvAlerts] = useState(false);
   const [showCustomRange, setShowCustomRange] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState<"overview" | "settled">("overview");
   
   // Quick Action Modals
   const [showCreateBooking, setShowCreateBooking] = useState(false);
@@ -421,6 +422,92 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-5 space-y-5">
+        {/* Dashboard Navigation Tabs */}
+        <div className="flex rounded-2xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            onClick={() => setDashboardTab("overview")}
+            className={`flex-1 rounded-xl py-2.5 text-xs font-extrabold transition ${
+              dashboardTab === "overview" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            Dashboard Overview
+          </button>
+          <button
+            onClick={() => setDashboardTab("settled")}
+            className={`flex-1 rounded-xl py-2.5 text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+              dashboardTab === "settled" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            Payment Settled
+          </button>
+        </div>
+
+        {dashboardTab === "settled" ? (
+          /* Payment Settled Panel inside Dashboard */
+          <div className="space-y-4 rounded-3xl bg-white p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">BYV Bank Payouts</p>
+                <h3 className="text-lg font-extrabold text-slate-900">Settled Payments Summary</h3>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-700">
+                Verified Bank A/c
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-emerald-50/70 p-4 border border-emerald-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Total Settled</p>
+                <p className="mt-1 text-2xl font-black text-emerald-800">
+                  ₹{(stats?.totalEarnings ?? 0).toLocaleString("en-IN")}
+                </p>
+                <p className="mt-1 text-[9px] font-medium text-emerald-600">Transferred directly to bank</p>
+              </div>
+              <div className="rounded-2xl bg-blue-50/70 p-4 border border-blue-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Settled Orders</p>
+                <p className="mt-1 text-2xl font-black text-blue-800">
+                  {stats?.settledBookingsCount || 0}
+                </p>
+                <p className="mt-1 text-[9px] font-medium text-blue-600">100% payout completed</p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-extrabold text-slate-900 mb-2">Recent Settled Transactions</h4>
+              <div className="space-y-2">
+                {((stats as any)?.recentTransactions || []).length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400 border border-dashed rounded-2xl">
+                    No recent transactions.
+                  </div>
+                ) : (
+                  ((stats as any)?.recentTransactions || []).map((tx: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-900">{tx.customerName || "Online Player"}</p>
+                        <p className="text-[10px] text-slate-500">{tx.date} · {tx.paymentMethod}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-emerald-600">₹{tx.amount}</p>
+                        <span className="text-[8px] font-extrabold text-emerald-700 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">
+                          Settled
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <Link
+              href="/vendor/payments"
+              className="flex items-center justify-center gap-1.5 w-full rounded-2xl bg-slate-950 py-3 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition"
+            >
+              View Full Bank Statement &amp; Reports →
+            </Link>
+          </div>
+        ) : (
+          <>
         {/* ── METRICS GRID ── */}
         {/* Each metric links to the page where the vendor can act on it. */}
         <div className="grid grid-cols-2 gap-3">
@@ -492,6 +579,14 @@ export default function DashboardPage() {
         {/* ── BYV EARNINGS + EXPENSES ── */}
         <EarningsAndExpenses byvEarnings={stats?.totalEarnings ?? 0} />
 
+        {/* ── LAST MINUTE BOOST CARD ── */}
+        <LastMinuteBoostCard
+          listings={listings}
+          onListingUpdated={(updated) =>
+            setListings((prev) => prev.map((l) => (l._id === updated._id ? updated : l)))
+          }
+        />
+
         {/* ── LIVE COURT STATUS ── */}
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
           <p className="text-[11px] font-extrabold text-slate-700 tracking-widest uppercase flex items-center gap-1.5 mb-5">
@@ -536,6 +631,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
 
         {/* ── MATCH SUMMARY MODAL ── */}
         {showMatchSummary && (

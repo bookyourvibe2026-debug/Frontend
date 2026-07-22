@@ -285,7 +285,7 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#f5f7fa]">
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#f5f7fa]">
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col">
         {/* Header — back arrow + title (matches the reference full-page layout) */}
         <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3.5">

@@ -110,10 +110,11 @@ export default function MorePage() {
     // Filter out primary items and don't double include "Marketing" if it's already shown as a big card.
     // For events, Profile lives in the bottom nav, so it's dropped from this list here.
     const list: MoreLink[] = [
-      ...allItems.filter((item) => !primaryHrefs.has(item.href) && item.href !== "/vendor/marketing"),
+      ...allItems.filter(
+        (item) => !primaryHrefs.has(item.href) && item.href !== "/vendor/marketing" && item.href !== "/vendor/payments"
+      ),
       ...SHARED_NAV_ITEMS.filter(
         (item) =>
-          item.href !== "/vendor/marketing" &&
           !(hideBusinessExtras && item.href === "/vendor/role-access") &&
           !(isEvents && item.href === "/vendor/profile")
       ),
@@ -314,10 +315,12 @@ export default function MorePage() {
         </button>
 
         <a
-          href="mailto:support@bookyourvibes.com?subject=Vendor Support Request"
+          href="https://wa.me/916350651667?text=Hi%20BYV%20Platform%20Owner%2C%20I%20need%20help%20with%20my%20venue."
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-surface-border bg-white py-3 text-sm font-semibold text-ink shadow-sm hover:bg-cream-200/40 transition-colors"
         >
-          <PhoneCall size={16} className="text-ink-soft" />
+          <PhoneCall size={16} className="text-emerald-600" />
           Contact Platform Owner
         </a>
 

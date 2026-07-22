@@ -27,11 +27,12 @@ const PRIMARY_TABS = [
   { label: "Home", href: "/", icon: Home },
   { label: "Games", href: "/games", icon: Gamepad2 },
   { label: "Events", href: "/events", icon: Calendar },
+  { label: "Community", href: "/community", icon: Users },
 ];
 
 const MORE_LINKS = [
+  { label: "Profile", href: "/profile", icon: UserRoundCog },
   { label: "Coaches", href: "/coaches", icon: GraduationCap },
-  { label: "Community", href: "/community", icon: Users },
   { label: "Tournaments", href: "/tournaments", icon: Trophy },
   { label: "Blog", href: "/blogs", icon: BookOpen },
   { label: "View Challenges", href: "/challenges", icon: Zap },
@@ -72,28 +73,6 @@ export function BottomNav() {
               </Link>
             );
           })}
-          {isLoggedIn ? (
-            <Link
-              href="/profile"
-              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[9px] font-bold text-brand-700">
-                {customer?.name?.charAt(0).toUpperCase() ?? "P"}
-              </span>
-              <span className={`text-[10px] font-semibold ${isActive("/profile") ? "text-brand-600" : "text-slate-400"}`}>
-                Profile
-              </span>
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAuthView("login")}
-              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
-            >
-              <UserRoundCog className="h-5 w-5 text-slate-400" />
-              <span className="text-[10px] font-semibold text-slate-400">Login</span>
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}

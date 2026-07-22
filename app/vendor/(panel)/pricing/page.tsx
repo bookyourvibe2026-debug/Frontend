@@ -480,31 +480,37 @@ export default function PriceSettingPage() {
             )}
           </div>
 
-          <SectionCard title={`${monthNames[calMonth]} ${calYear}`}>
-            <div ref={monthStripRef} className="flex gap-1.5 overflow-x-auto pb-3 mb-3 scrollbar-none">
+          <div className="rounded-3xl border border-surface-border bg-white p-4 shadow-panel">
+            <div className="mb-4">
+              <h3 className="text-[17px] font-black text-slate-800">{monthNames[calMonth]} {calYear}</h3>
+            </div>
+
+            <div ref={monthStripRef} className="flex gap-1.5 overflow-x-auto pb-2 mb-4 scrollbar-none">
               {monthNames.map((name, idx) => (
                 <button
                   key={name}
                   data-month={idx}
                   onClick={() => setCalMonth(idx)}
-                  className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
-                    idx === calMonth ? "bg-vibe-navy text-white" : "bg-cream-200 text-ink-soft hover:bg-cream-300"
+                  className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-extrabold transition-all duration-200 ${
+                    idx === calMonth
+                      ? "bg-[#f5e6d3] text-slate-800 border-b-2 border-[#9a7b56]"
+                      : "bg-[#fcf8f2] text-slate-500 hover:bg-[#f5e6d3]/20"
                   }`}
                 >
                   {name.slice(0, 3)}
                 </button>
               ))}
-              <button onClick={prevMonth} className="shrink-0 rounded-full px-2.5 py-1.5 text-xs font-bold bg-cream-200 text-ink-soft hover:bg-cream-300">‹</button>
-              <button onClick={nextMonth} className="shrink-0 rounded-full px-2.5 py-1.5 text-xs font-bold bg-cream-200 text-ink-soft hover:bg-cream-300">›</button>
+              <button onClick={prevMonth} className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold bg-[#fcf8f2] text-slate-500 hover:bg-[#f5e6d3]/20">‹</button>
+              <button onClick={nextMonth} className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold bg-[#fcf8f2] text-slate-500 hover:bg-[#f5e6d3]/20">›</button>
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d}>{d}</div>)}
+            <div className="grid grid-cols-7 gap-1.5 mb-3 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+              {["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map((d) => <div key={d}>{d}</div>)}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1.5">
               {calendarDays.map((day, idx) => {
-                if (!day) return <div key={idx} className="min-h-[70px]" />;
+                if (!day) return <div key={idx} className="aspect-square bg-transparent border-0" />;
                 const slots = resolveSlotsForDate(selectedTurf, day.dateStr);
                 const price = minPrice(slots);
                 const isSelected = activeDate === day.dateStr;
@@ -512,86 +518,72 @@ export default function PriceSettingPage() {
                 const inStreak = holidayStreakDates.has(day.dateStr);
                 const isHolidayOnly = day.isHoliday;
                 const hasOverride = selectedTurf?.dateOverrides?.some((o) => o.date === day.dateStr);
-                // The day-type wash the date always wears, before any overlay.
-                const tone = DAY_TONE[isHolidayOnly ? "holiday" : day.isWeekend ? "weekend" : "weekday"];
-                // A custom rate is a ring on top of the wash, not a replacement for it.
-                const overrideRing = hasOverride ? " ring-2 ring-teal-300 ring-offset-1" : "";
+
+                // Styling logic matching screenshot
+                let borderBgCls = "";
+                let numCls = "text-slate-600";
+                let priceCls = "bg-slate-100 text-slate-500";
+
+                if (day.isPast) {
+                  borderBgCls = "border-slate-100 bg-slate-50/50 opacity-30 cursor-not-allowed";
+                  numCls = "text-slate-400";
+                  priceCls = "bg-slate-100/50 text-slate-400";
+                } else if (isSelected) {
+                  borderBgCls = "border-2 border-[#005e4b] bg-[#005e4b]/5 ring-2 ring-[#005e4b]/15 scale-105 z-10 rounded-2xl";
+                  numCls = "text-[#005e4b] font-black";
+                  priceCls = "bg-[#005e4b] text-white font-extrabold";
+                } else if (isEvent) {
+                  borderBgCls = "border-2 border-violet-300 bg-violet-50/50 hover:bg-violet-100/70 rounded-2xl";
+                  numCls = "text-violet-800 font-extrabold";
+                  priceCls = "bg-violet-100 text-violet-800 border border-violet-200";
+                } else if (hasOverride) {
+                  borderBgCls = "border-2 border-[#00ccc0] bg-[#00ccc0]/5 hover:bg-[#00ccc0]/10 rounded-[24px] scale-[1.01]";
+                  numCls = "text-[#005c56] font-extrabold";
+                  priceCls = "bg-[#00ccc0] text-white font-extrabold px-1.5 py-0.5 rounded-full";
+                } else if (inStreak) {
+                  borderBgCls = "border-2 border-orange-300 bg-orange-50/50 hover:bg-orange-100/70 rounded-2xl";
+                  numCls = "text-orange-800 font-extrabold";
+                  priceCls = "bg-orange-100 text-orange-800 border border-orange-200";
+                } else if (isHolidayOnly) {
+                  borderBgCls = "border border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 rounded-2xl";
+                  numCls = "text-amber-800 font-extrabold";
+                  priceCls = "bg-amber-100 text-amber-800 border border-amber-200";
+                } else if (day.isWeekend) {
+                  borderBgCls = "border border-rose-200 bg-rose-50/30 hover:bg-rose-50 rounded-2xl";
+                  numCls = "text-rose-700";
+                  priceCls = "bg-rose-100 text-rose-700 border border-rose-200/50";
+                } else {
+                  borderBgCls = "border border-sky-100 bg-sky-50/20 hover:bg-sky-50 rounded-2xl";
+                  numCls = "text-sky-700";
+                  priceCls = "bg-sky-50 text-sky-800 border border-sky-100";
+                }
 
                 return (
                   <button
                     key={idx}
                     disabled={day.isPast}
                     onClick={() => setActiveDate(day.dateStr)}
-                    className={`flex flex-col items-center justify-center rounded-2xl p-1.5 min-h-[72px] border transition-all ${
-                      day.isPast
-                        ? "border-slate-100 bg-slate-50/50 opacity-30 cursor-not-allowed"
-                        : isSelected
-                        ? "border-2 border-[#005e4b] bg-[#005e4b]/5 text-[#005e4b] ring-4 ring-[#005e4b]/15 scale-105 z-10"
-                        : isEvent
-                        ? "border-2 border-violet-400 bg-violet-50/60 hover:bg-violet-50 hover:border-violet-500 scale-[1.02] z-10" + overrideRing
-                        : inStreak
-                        ? "border-2 border-orange-400 bg-orange-50/70 hover:bg-orange-50 hover:border-orange-500 scale-[1.02] z-10" + overrideRing
-                        : tone.cell + overrideRing
-                    }`}
+                    className={`relative flex flex-col items-center justify-between p-1.5 aspect-square w-full transition-all duration-200 ${borderBgCls}`}
                   >
-                    {/* Date Number Display */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                      isSelected
-                        ? "bg-[#005e4b] text-white shadow-md"
-                        : isEvent
-                        ? "text-violet-800 bg-violet-100/60"
-                        : inStreak
-                        ? "text-orange-800 bg-orange-100/60"
-                        : tone.num
-                    }`}>
+                    <span className={`text-[12px] font-extrabold ${numCls}`}>
                       {day.dayNumber}
-                    </div>
+                    </span>
 
-                    {/* Price / Status Tag */}
                     {price !== null && (
-                      <span className={`text-[9px] font-black uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded-md ${
-                        isSelected
-                          ? "text-[#005e4b] scale-95"
-                          : isEvent
-                          ? "bg-violet-100 text-violet-800 border border-violet-200"
-                          : inStreak
-                          ? "bg-orange-100 text-orange-800 border border-orange-200"
-                          : hasOverride
-                          ? "bg-teal-100 text-teal-800 border border-teal-200"
-                          : tone.price
-                      }`}>
-                        {isSelected ? `Selected` : ""} {formatPrice(price)}
+                      <span className={`text-[8.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded-md ${priceCls}`}>
+                        {formatPrice(price)}
                       </span>
                     )}
 
-                    {/* Corporate / tournament booking marker */}
+                    {/* Small dot/badge indicators to keep layout clean */}
                     {isEvent && (
-                      <span
-                        title={eventDates.get(day.dateStr)}
-                        className="mt-0.5 flex items-center gap-0.5 rounded border border-violet-200 bg-violet-100 px-1 text-[7px] font-black uppercase tracking-wide text-violet-700"
-                      >
-                        <Trophy size={7} /> Corporate
-                      </span>
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-violet-500" />
                     )}
-
-                    {/* 3+ day holiday stretch — called out beyond a single-day holiday */}
                     {!isEvent && inStreak && (
-                      <span
-                        title={INDIAN_HOLIDAYS[day.dateStr]}
-                        className="mt-0.5 flex items-center gap-0.5 rounded border border-orange-200 bg-orange-100 px-1 text-[7px] font-black uppercase tracking-wide text-orange-700"
-                      >
-                        <Flame size={7} /> Long Weekend
-                      </span>
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-orange-400" />
                     )}
-
-                    {/* Single-day holiday */}
                     {!isEvent && !inStreak && isHolidayOnly && (
-                      <span
-                        title={INDIAN_HOLIDAYS[day.dateStr]}
-                        className="mt-0.5 flex items-center gap-0.5 rounded border border-amber-200 bg-amber-100 px-1 text-[7px] font-black uppercase tracking-wide text-amber-700"
-                      >
-                        <PartyPopper size={7} /> Holiday
-                      </span>
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
                     )}
                   </button>
                 );
@@ -599,21 +591,21 @@ export default function PriceSettingPage() {
             </div>
 
             {/* Legend */}
-            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3">
+            <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3">
               {[
-                { swatch: DAY_TONE.weekday.swatch, label: "Weekday" },
-                { swatch: DAY_TONE.weekend.swatch, label: "Weekend" },
-                { swatch: DAY_TONE.holiday.swatch, label: "Holiday" },
+                { swatch: "bg-sky-400", label: "Weekday" },
+                { swatch: "bg-rose-300", label: "Weekend" },
+                { swatch: "bg-amber-300", label: "Holiday" },
                 { swatch: "bg-orange-400", label: "3+ day holiday stretch" },
                 { swatch: "bg-violet-400", label: "Corporate booking" },
-                { swatch: "bg-teal-400", label: "Custom price" },
+                { swatch: "bg-[#00ccc0]", label: "Custom price" },
               ].map((l) => (
                 <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
                   <span className={`h-2 w-2 rounded-full ${l.swatch}`} /> {l.label}
                 </span>
               ))}
             </div>
-          </SectionCard>
+          </div>
 
           {/* ── CORPORATE / TOURNAMENT BOOKING — sits under the calendar, since the dates
                 it blocks show up as events on the month grid right above it ── */}

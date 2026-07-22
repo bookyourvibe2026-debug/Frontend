@@ -164,11 +164,6 @@ export function ClockSlotsWidget({
     onExitFullscreen?.();
   }, [onExitFullscreen]);
 
-  // Device / browser Back closes the fullscreen dial (and returns to the timeline)
-  // instead of navigating off the bookings page. Previously any Back press after
-  // opening the dial threw the vendor out to the previous page.
-  useBackDismiss(isFullscreen, exitFullscreen);
-
   /* ── Long-press: press-and-hold a slice for the quick book-offline / block sheet.
         A tap still opens the normal slot modal; the fired flag stops the trailing
         click from double-triggering. ── */
@@ -179,7 +174,6 @@ export function ClockSlotsWidget({
     longPressFired.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
-      exitFullscreen();
       onLongPressSlot(slot);
     }, 500);
   };
@@ -241,11 +235,9 @@ export function ClockSlotsWidget({
   // while fullscreen must exit fullscreen first or the booking form opens
   // invisibly behind the clock.
   const selectSlot = (slot: ClockSlotItem) => {
-    exitFullscreen();
     onSelectSlot?.(slot);
   };
   const selectHour = (hour: number) => {
-    exitFullscreen();
     onSelectHour?.(hour);
   };
 
@@ -387,8 +379,26 @@ export function ClockSlotsWidget({
           />
         )}
         <svg width={size} height={size} className="overflow-visible select-none cursor-crosshair" onClick={handleSvgClick}>
+          <defs>
+            <clipPath id="dial-clip">
+              <circle cx={center} cy={center} r={outerRadius} />
+            </clipPath>
+          </defs>
+
           {/* Outer Dial Face */}
           <circle cx={center} cy={center} r={outerRadius} fill="#ffffff" stroke="#f1f5f9" strokeWidth="2" />
+
+          {/* Subtle Watermark BYV Logo in the remaining area */}
+          <image
+            href="/logo.jpg"
+            x={center - outerRadius}
+            y={center - outerRadius}
+            width={outerRadius * 2}
+            height={outerRadius * 2}
+            opacity="0.22"
+            style={{ pointerEvents: "none" }}
+            clipPath="url(#dial-clip)"
+          />
 
           {/* Slot Slices — solid pie wedges */}
           {segments.map((seg) => (
@@ -454,7 +464,7 @@ export function ClockSlotsWidget({
             x1={center}
             y1={center}
             x2={center}
-            y2={center - innerRadius * 1.9}
+            y2={center - outerRadius * 0.75}
             stroke="#334155"
             strokeWidth="2"
             strokeLinecap="round"
@@ -470,7 +480,7 @@ export function ClockSlotsWidget({
             x1={center}
             y1={center}
             x2={center}
-            y2={center - innerRadius * 1.15}
+            y2={center - outerRadius * 0.45}
             stroke="#0f172a"
             strokeWidth="4"
             strokeLinecap="round"

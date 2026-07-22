@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBackDismiss } from "@/lib/useBackDismiss";
 import {
   CalendarCheck,
   CalendarDays,
@@ -21,6 +22,7 @@ import {
   Sunset,
   User,
   Users,
+  X,
 } from "lucide-react";
 
 /* ─── Filter model ──────────────────────────────────────────────── */
@@ -164,8 +166,11 @@ export function SlotFilterSheet({
   // Edited locally so "Apply Filters" is what commits — Reset/Clear All only touch the draft.
   const [draft, setDraft] = useState<SlotFilters>(initial);
 
+  // Intercept browser back button to close sheet instead of popping page history
+  useBackDismiss(true, onClose);
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
         className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-lg sm:rounded-3xl sm:mb-6 animate-in slide-in-from-bottom-4 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -177,13 +182,23 @@ export function SlotFilterSheet({
             <SlidersHorizontal size={20} className="text-slate-700" />
             <h2 className="text-lg font-black text-slate-900">Filter Slots</h2>
           </div>
-          <button
-            type="button"
-            onClick={() => setDraft(DEFAULT_FILTERS)}
-            className="text-sm font-bold text-emerald-600 transition hover:text-emerald-700"
-          >
-            Clear All
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setDraft(DEFAULT_FILTERS)}
+              className="text-xs font-bold text-emerald-600 transition hover:text-emerald-700"
+            >
+              Clear All
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close sheet"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Status */}

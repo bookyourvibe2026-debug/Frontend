@@ -280,27 +280,25 @@ export function BookingsTimeline({
           <div
             key={`${slot.startTime}-${i}`}
             ref={i === scrollIdx ? currentSlotRef : undefined}
-            className="flex gap-3 px-3 py-1.5"
+            className="flex gap-2 px-1.5 py-1.5 sm:gap-3 sm:px-3"
           >
-            {/* Time rail — shows the slot's full duration, exactly as configured. */}
-            <div className="w-[68px] shrink-0 pt-3 text-right">
-              <span className="block text-[10px] font-bold leading-tight tabular-nums text-slate-700">
+            {/* Time rail — shows the slot's full duration cleanly */}
+            <div className="w-[52px] shrink-0 pt-3 text-right sm:w-[60px]">
+              <span className="block text-[10px] font-bold leading-tight tabular-nums text-slate-700 sm:text-[11px]">
                 {to12h(slot.startTime)}
               </span>
-              <span className="block text-[9px] font-semibold leading-tight tabular-nums text-slate-400">
+              <span className="block text-[8.5px] font-semibold leading-tight tabular-nums text-slate-400 sm:text-[9.5px]">
                 {to12h(slot.endTime)}
               </span>
             </div>
 
             {/* Dot + connector */}
-            <div className="flex w-3 shrink-0 flex-col items-center pt-4">
+            <div className="flex w-2.5 shrink-0 flex-col items-center pt-4 sm:w-3">
               <span className={`h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white ${s.dot}`} />
               {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
             </div>
 
-            {/* Slot card — a div (not a button) so RowMenu's buttons can nest inside it.
-                `min-w-0` lets the customer/phone text truncate instead of pushing the
-                blue walk-in row off the right edge of the screen. */}
+            {/* Slot card */}
             <div
               role="button"
               tabIndex={0}
@@ -319,7 +317,7 @@ export function BookingsTimeline({
                   onSlotClick(slot);
                 }
               }}
-              className={`mb-1 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.995] ${s.card}`}
+              className={`mb-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 text-left transition active:scale-[0.995] sm:p-3 ${s.card}`}
             >
               <div className="min-w-0 flex-1">
                 {isFree ? (
@@ -332,55 +330,35 @@ export function BookingsTimeline({
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
                     <p className="mt-0.5 text-[10px] font-medium text-slate-400">{slot.blockedReason || "Unavailable"}</p>
                   </>
-                ) : slot.status === "Booked" ? (
-                  // Reserved for bookings a player actually made in the app. A booking the vendor
-                  // entered themselves (walk-in / phone) must never carry BYV branding — it falls
-                  // through to the customer-name row below.
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-                      <Image src="/logo.jpg" alt="" width={36} height={36} className="h-full w-full object-contain" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className={`text-[12px] font-black uppercase tracking-wide ${s.title}`}>BYV</p>
-                        {slot.arrived && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-emerald-700">
-                            <BadgeCheck size={8} /> Arrived
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 text-[9px] font-medium text-slate-500 leading-tight">
-                        <p>Booked through</p>
-                        <p>Book Your Vibe</p>
-                      </div>
-                    </div>
-                  </div>
                 ) : (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <p className={`truncate text-[12px] font-bold ${s.title}`}>{slot.customerName || "Booked"}</p>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="flex items-center gap-1">
+                        <img src="/logo.jpg" alt="BYV" className="h-3.5 w-3.5 rounded object-cover" />
+                        <span className={`text-[12px] font-black uppercase tracking-wide ${s.title}`}>
+                          {slot.customerName || "Customer"}
+                        </span>
+                      </span>
+                      {slot.status === "Booked" && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[7.5px] font-black uppercase text-orange-700">
+                          Online
+                        </span>
+                      )}
                       {slot.arrived && (
                         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-emerald-700">
                           <BadgeCheck size={8} /> Arrived
                         </span>
                       )}
                     </div>
-                    <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
-                      {slot.phone ? `${slot.phone} · ` : ""}
-                      {slot.status === "Offline Booked"
-                        ? "Booked at the venue"
-                        : slot.status === "On Hold"
-                        ? "Held — not paid yet"
-                        : "Part payment received"}
+                    <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                      {slot.phone || "Booked online"} {slot.sport ? `· ${slot.sport}` : ""}
                     </p>
-                  </>
+                  </div>
                 )}
               </div>
 
-              {!isFree && !isBlocked && slot.status !== "Booked" && (
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wide ${s.badge}`}>
-                  {s.badgeText}
-                </span>
+              {!isFree && !isBlocked && (
+                <RowMenu slot={slot} onAction={onAction} />
               )}
 
               {isFree && (
@@ -394,8 +372,6 @@ export function BookingsTimeline({
                   <Lock size={13} />
                 </span>
               )}
-
-              <RowMenu slot={slot} onAction={onAction} />
             </div>
           </div>
         );

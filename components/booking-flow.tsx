@@ -674,19 +674,52 @@ function ReviewStep(props: {
 
   const selectedSlot = selectedSlotIndex >= 0 ? generatedSlots[selectedSlotIndex] : undefined;
 
-  // Full month grid (Monday start) for the expanded calendar; past days stay visible but disabled.
+  // Full month grid (Monday start) matching Image 2
   const monthGrid = useMemo(() => {
     const firstDayIndex = (new Date(visibleYear, visibleMonth, 1).getDay() + 6) % 7;
     const daysInMonth = new Date(visibleYear, visibleMonth + 1, 0).getDate();
     const minIso = todayISO();
-    const cells: ({ iso: string; dayNum: number; isPast: boolean } | null)[] = [];
+    const cells: ({
+      iso: string;
+      dayNum: number;
+      isPast: boolean;
+      isWeekend: boolean;
+      isHoliday: boolean;
+      holidayName?: string;
+      price: string;
+    } | null)[] = [];
+
     for (let i = 0; i < firstDayIndex; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(visibleYear, visibleMonth, d);
       const iso = `${visibleYear}-${String(visibleMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      cells.push({ iso, dayNum: d, isPast: iso < minIso });
+      const dayOfWeek = dateObj.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const override = listing.dateOverrides?.find((o) => o.date === iso);
+      const isHoliday = Boolean(override?.isHoliday);
+      const holidayName = override?.holidayName;
+
+      const baseRate = props.listing?.price || 1000;
+      let slotPrice = baseRate;
+      if (override?.slots?.length) {
+        slotPrice = Math.round(override.slots.reduce((a, b) => a + b.price, 0) / override.slots.length);
+      } else if (isWeekend) {
+        slotPrice = Math.round(baseRate * 1.2);
+      }
+      const price = slotPrice >= 1000 ? `₹${(slotPrice / 1000).toFixed(1).replace(/\.0$/, "")}K` : `₹${slotPrice}`;
+
+      cells.push({
+        iso,
+        dayNum: d,
+        isPast: iso < minIso,
+        isWeekend,
+        isHoliday,
+        holidayName,
+        price,
+      });
     }
     return cells;
-  }, [visibleMonth, visibleYear]);
+  }, [visibleMonth, visibleYear, props.listing]);
 
   const formatDurationText = (min: number) => {
     const hrs = Math.floor(min / 60);
@@ -814,16 +847,69 @@ function ReviewStep(props: {
               </div>
 
               {calendarExpanded ? (
-                /* Full month calendar */
-                <div className="mt-2">
-                  <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase text-slate-400">
-                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                      <span key={`${d}-${i}`} className="py-1.5">{d}</span>
+                /* Full month calendar — matching Image 2 */
+                <div className="mt-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-lg">
+                  {/* Month Pills Strip */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-none border-b border-slate-100 mb-3">
+                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((mName, mIdx) => {
+                      const isCurrentMonth = visibleMonth === mIdx;
+                      return (
+                        <button
+                          key={mName}
+                          type="button"
+                          onClick={() => setVisibleMonth(mIdx)}
+                          className={`rounded-2xl px-3.5 py-1.5 text-xs font-black transition shrink-0 ${
+                            isCurrentMonth
+                              ? "bg-slate-900 text-white shadow-md"
+                              : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {mName}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Day Headers */}
+                  <div className="grid grid-cols-7 text-center text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                    {["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map((d, i) => (
+                      <span key={`${d}-${i}`}>{d}</span>
                     ))}
                   </div>
-                  <div className="grid grid-cols-7 gap-y-1.5">
-                    {monthGrid.map((cell, i) =>
-                      cell ? (
+
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {monthGrid.map((cell, i) => {
+                      if (!cell) return <div key={`blank-${i}`} className="min-h-[58px]" />;
+                      const isSelected = date === cell.iso;
+
+                      let bgClass = "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-400";
+                      let textClass = "text-slate-900";
+                      let badgeClass = "bg-slate-100 text-slate-600 font-bold";
+
+                      if (cell.isPast) {
+                        bgClass = "bg-slate-50/50 border-slate-100 text-slate-300 cursor-not-allowed opacity-40";
+                        textClass = "text-slate-300";
+                        badgeClass = "text-slate-300";
+                      } else if (isSelected) {
+                        bgClass = "bg-emerald-800 border-emerald-600 text-white shadow-lg ring-2 ring-emerald-400";
+                        textClass = "text-white font-black";
+                        badgeClass = "bg-emerald-600 text-white font-black";
+                      } else if (cell.isHoliday) {
+                        bgClass = "bg-amber-50 border-amber-300 text-amber-900";
+                        textClass = "text-amber-800 font-black";
+                        badgeClass = "bg-amber-200 text-amber-900 font-extrabold";
+                      } else if (cell.isWeekend) {
+                        bgClass = "bg-rose-50/80 border-rose-200 text-rose-600";
+                        textClass = "text-rose-600 font-black";
+                        badgeClass = "bg-rose-100 text-rose-700 font-bold";
+                      } else {
+                        bgClass = "bg-sky-50/50 border-sky-100 text-sky-900";
+                        textClass = "text-sky-900 font-bold";
+                        badgeClass = "bg-sky-100 text-sky-800 font-semibold";
+                      }
+
+                      return (
                         <button
                           key={cell.iso}
                           type="button"
@@ -832,20 +918,25 @@ function ReviewStep(props: {
                             setDate(cell.iso);
                             setDateSelected(true);
                           }}
-                          className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold transition ${
-                            date === cell.iso
-                              ? "bg-brand-600 text-white shadow-md"
-                              : cell.isPast
-                              ? "cursor-not-allowed text-slate-300"
-                              : "text-slate-600 hover:bg-slate-100"
-                          }`}
+                          className={`flex flex-col items-center justify-between rounded-2xl border p-1.5 min-h-[58px] transition ${bgClass}`}
                         >
-                          {cell.dayNum}
+                          <span className={`text-xs font-black ${textClass}`}>{cell.dayNum}</span>
+                          <span className={`mt-1 rounded-full px-1.5 py-0.5 text-[8.5px] leading-none uppercase ${badgeClass}`}>
+                            {isSelected ? `SELECTED ${cell.price}` : cell.holidayName ? cell.holidayName.slice(0, 7) : cell.price}
+                          </span>
                         </button>
-                      ) : (
-                        <span key={`blank-${i}`} />
-                      )
-                    )}
+                      );
+                    })}
+                  </div>
+
+                  {/* Calendar Legend Bar — matching Image 2 */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[9px] font-extrabold text-slate-500">
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-400" /> Weekday</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-500" /> Weekend</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" /> Holiday</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-orange-500" /> 3+ day holiday stretch</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-purple-500" /> Corporate booking</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Custom price</span>
                   </div>
                 </div>
               ) : (
