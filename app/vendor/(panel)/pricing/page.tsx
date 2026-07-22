@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
-import { PageHero, SectionCard } from "@/components/vendor/ui";
+import { CalendarRange, CalendarDays, ChevronDown, Sofa, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
+import { SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
@@ -58,6 +58,13 @@ const BULK_TINT: Record<BulkTarget, string> = {
   weekdays: "border-sky-200 bg-sky-50 text-sky-800 hover:border-sky-300",
   weekends: "border-rose-200 bg-rose-50 text-rose-800 hover:border-rose-300",
   holidays: "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300",
+};
+
+/** Icon for each Bulk Pricing target — a quick visual cue on the button. */
+const BULK_ICON: Record<BulkTarget, typeof CalendarDays> = {
+  weekdays: CalendarDays,
+  weekends: Sofa,
+  holidays: PartyPopper,
 };
 
 function toIso(d: Date) {
@@ -381,19 +388,26 @@ export default function PriceSettingPage() {
         </div>
       ) : (
         <>
-          <SectionCard title="Bulk Pricing" description="Applies as a rolling rule for the next 6 months.">
+          {/* Bulk Pricing — pared back to just the three targets (heading + rolling-rule
+              subtext removed per request); each button is iconed and carries its day-type wash. */}
+          <div className="rounded-xl2 border border-surface-border bg-surface-card shadow-panel p-5 sm:p-6">
+            <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-ink-faint">Set prices in bulk</p>
             <div className="grid grid-cols-3 gap-2">
-              {(["weekdays", "weekends", "holidays"] as BulkTarget[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setBulkTarget(bulkTarget === t ? null : t)}
-                  className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
-                    bulkTarget === t ? "border-ink bg-ink text-white" : BULK_TINT[t]
-                  }`}
-                >
-                  {BULK_LABEL[t]}
-                </button>
-              ))}
+              {(["weekdays", "weekends", "holidays"] as BulkTarget[]).map((t) => {
+                const Icon = BULK_ICON[t];
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setBulkTarget(bulkTarget === t ? null : t)}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-3.5 text-sm font-bold transition ${
+                      bulkTarget === t ? "border-ink bg-ink text-white" : BULK_TINT[t]
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {BULK_LABEL[t]}
+                  </button>
+                );
+              })}
             </div>
             {bulkTarget && (
               <div className="mt-3 flex items-center gap-2">
@@ -414,7 +428,7 @@ export default function PriceSettingPage() {
                 </button>
               </div>
             )}
-          </SectionCard>
+          </div>
 
           <SectionCard title={`${monthNames[calMonth]} ${calYear}`}>
             <div ref={monthStripRef} className="flex gap-1.5 overflow-x-auto pb-3 mb-3 scrollbar-none">

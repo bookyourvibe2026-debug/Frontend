@@ -150,6 +150,7 @@ export default function HomePage() {
           onQuickAction={handleQuickAction}
           onViewAllQuickActions={() => router.push("/games")}
           onChooseGame={() => router.push("/venues")}
+          onViewAllSports={() => router.push("/games")}
           onJoinCommunity={() => setChallengeOpen(true)}
           onViewAllCommunity={() => router.push("/community")}
           onViewAllEvents={() => router.push("/tournaments")}

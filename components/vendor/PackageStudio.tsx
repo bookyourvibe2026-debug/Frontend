@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Trophy, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid, LocateFixed } from "lucide-react";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -67,6 +67,19 @@ const DEFAULT_PACKAGE_DESCRIPTION =
   "Easy to reach, with an on-ground team ready to help you get started.";
 const DEFAULT_AMENITIES_PROVIDED = ["Washrooms", "Parking", "Floodlights", "Drinking Water", "First Aid Kit", "Seating Area"];
 const DEFAULT_AMENITIES_NOT_PROVIDED = ["Equipment Rental", "Cafeteria"];
+
+/** Common venue facilities offered as one-tap chips in the Amenities step (either column).
+ * The vendor can still type anything custom — these just save the usual ones. */
+const AMENITY_SUGGESTIONS = [
+  "Washrooms", "Parking", "Floodlights", "Drinking Water", "First Aid Kit", "Seating Area",
+  "Changing Rooms", "Showers", "Lockers", "CCTV", "Wi-Fi", "Cafeteria", "Equipment Rental",
+  "Shoe Rental", "Coaching", "Air Conditioning", "Shaded Area", "Spectator Seating",
+  "Sound System", "Scoreboard", "Wheelchair Access",
+];
+/** For Events, "Included / Excluded" are trip inclusions, not venue facilities. */
+const EVENT_INCLUSION_SUGGESTIONS = [
+  "Professional guide", "Equipment", "Refreshments", "Transport", "Insurance", "Photography", "Certificate",
+];
 
 function emptyListing(type: ListingType): Listing {
   const now = new Date();
@@ -181,24 +194,31 @@ function TagField({
   values,
   onChange,
   tone,
+  suggestions = [],
 }: {
   label: string;
   placeholder: string;
   values: string[];
   onChange: (v: string[]) => void;
   tone?: "success" | "danger";
+  /** Common options offered as one-tap chips, so the vendor can pick instead of typing. */
+  suggestions?: string[];
 }) {
   const [input, setInput] = useState("");
 
-  function add() {
-    if (input.trim()) {
-      onChange([...values, input.trim()]);
-      setInput("");
-    }
+  function add(raw?: string) {
+    const v = (raw ?? input).trim();
+    if (!v) return;
+    // Case-insensitive de-dupe so "Parking" isn't added twice.
+    if (!values.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...values, v]);
+    if (raw === undefined) setInput("");
   }
 
   const pillTone =
     tone === "success" ? "bg-lime-100 text-vibe-limeDark" : tone === "danger" ? "bg-rose-100 text-vibe-coral" : "bg-vibe-violet/10 text-vibe-violet";
+
+  // Only suggest what hasn't been added yet.
+  const openSuggestions = suggestions.filter((s) => !values.some((v) => v.toLowerCase() === s.toLowerCase()));
 
   return (
     <div>
@@ -211,10 +231,27 @@ function TagField({
           placeholder={placeholder}
           className={inputClass}
         />
-        <button onClick={add} className="shrink-0 rounded-lg bg-vibe-violet px-4 text-xs font-semibold text-white">
+        <button onClick={() => add()} className="shrink-0 rounded-lg bg-vibe-violet px-4 text-xs font-semibold text-white">
           Add
         </button>
       </div>
+
+      {/* One-tap common options */}
+      {openSuggestions.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {openSuggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => add(s)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-surface-border bg-white px-2.5 py-1 text-xs font-medium text-ink-soft transition hover:border-vibe-violet/50 hover:text-vibe-violet"
+            >
+              <Plus size={11} /> {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {values.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {values.map((v, i) => (
@@ -499,28 +536,35 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
 /*  STEP 3 — DETAILS                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Shared fallback for any sport we don't have artwork for — the brand splash. */
+const SPORT_FALLBACK_IMAGE = "/splash.jpeg";
+
 function CategoryPhoto({ cat }: { cat: SportCategory }) {
   const { url } = usePexelsImage(`${cat.label} sport court`);
-  const photo = url ?? cat.image;
-  if (photo) {
-    return <img src={photo} alt={cat.label} className="h-full w-full object-cover" />;
-  }
+  const [errored, setErrored] = useState(false);
+  const preferred = url ?? cat.image;
+  const src = errored || !preferred ? SPORT_FALLBACK_IMAGE : preferred;
   return (
-    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-vibe-violet/20 to-vibe-lime/20">
-      <Trophy size={22} className="text-vibe-violet/60" />
-    </div>
+    <img
+      src={src}
+      alt={cat.label}
+      onError={() => setErrored(true)}
+      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+    />
   );
 }
 
 function SubCategoryPhoto({ sub }: { sub: { id: string; label: string } }) {
   const { url } = usePexelsImage(`${sub.label} sport`);
-  if (url) {
-    return <img src={url} alt={sub.label} className="h-full w-full object-cover" />;
-  }
+  const [errored, setErrored] = useState(false);
+  const src = errored || !url ? SPORT_FALLBACK_IMAGE : url;
   return (
-    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-vibe-lime/20 to-vibe-violet/20">
-      <Trophy size={16} className="text-vibe-limeDark/60" />
-    </div>
+    <img
+      src={src}
+      alt={sub.label}
+      onError={() => setErrored(true)}
+      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+    />
   );
 }
 
@@ -532,7 +576,20 @@ function DetailsStep({ draft, update }: StepProps) {
     <div className="space-y-5">
       <div>
         <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
-        <p className="text-xs text-ink-faint">Listing type &amp; category. Name always follows your business profile.</p>
+        <p className="text-xs text-ink-faint">Name this listing, then set its type &amp; category.</p>
+      </div>
+
+      <div>
+        <FieldLabel>Listing name *</FieldLabel>
+        <input
+          value={draft.title}
+          onChange={(e) => update("title", e.target.value)}
+          placeholder="e.g. BABA Turf & Sports Arena"
+          className={inputClass}
+        />
+        <p className="mt-1.5 text-[11px] text-ink-faint">
+          Pre-filled from your business profile — edit it if this venue has its own name.
+        </p>
       </div>
 
       {draft.type !== "Event" && (
@@ -584,18 +641,21 @@ function DetailsStep({ draft, update }: StepProps) {
                   const validSubIds = new Set(subCategoriesForCategories(next).map((s) => s.id));
                   update("subCategories", draft.subCategories.filter((s) => validSubIds.has(s)));
                 }}
-                className={`group relative overflow-hidden rounded-xl border-2 text-left transition ${
-                  isSelected ? "border-vibe-violet" : "border-surface-border hover:border-vibe-violet/50"
+                className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border-2 text-left shadow-sm transition ${
+                  isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
                 }`}
               >
-                <div className="h-20 w-full bg-cream-300">
+                <div className="h-full w-full bg-cream-300">
                   <CategoryPhoto cat={cat} />
                 </div>
-                <div className={`absolute inset-x-0 bottom-0 px-2 py-1.5 text-xs font-semibold ${isSelected ? "bg-vibe-violet text-white" : "bg-black/50 text-white"}`}>
+                {/* Scrim keeps the label readable over any photo, incl. the splash fallback */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-violet/25" />}
+                <span className="absolute inset-x-0 bottom-0 px-2.5 py-2 text-sm font-bold text-white drop-shadow-sm">
                   {cat.label}
-                </div>
+                </span>
                 {isSelected && (
-                  <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white">
+                  <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white shadow">
                     <Check size={12} />
                   </span>
                 )}
@@ -623,18 +683,20 @@ function DetailsStep({ draft, update }: StepProps) {
                         : [...draft.subCategories, sub.id]
                     )
                   }
-                  className={`group relative overflow-hidden rounded-xl border-2 text-left transition ${
-                    isSelected ? "border-vibe-lime" : "border-surface-border hover:border-vibe-lime/50"
+                  className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border-2 text-left shadow-sm transition ${
+                    isSelected ? "border-vibe-lime ring-2 ring-vibe-lime/40" : "border-surface-border hover:border-vibe-lime/50"
                   }`}
                 >
-                  <div className="h-16 w-full bg-cream-300">
+                  <div className="h-full w-full bg-cream-300">
                     <SubCategoryPhoto sub={sub} />
                   </div>
-                  <div className={`absolute inset-x-0 bottom-0 px-2 py-1.5 text-xs font-semibold ${isSelected ? "bg-vibe-lime text-vibe-indigo" : "bg-black/50 text-white"}`}>
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                  {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-lime/25" />}
+                  <span className={`absolute inset-x-0 bottom-0 px-2.5 py-2 text-xs font-bold drop-shadow-sm ${isSelected ? "text-white" : "text-white"}`}>
                     {sub.label}
-                  </div>
+                  </span>
                   {isSelected && (
-                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-lime text-vibe-indigo">
+                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-lime text-vibe-indigo shadow">
                       <Check size={12} />
                     </span>
                   )}
@@ -658,6 +720,61 @@ function LocationStep({ draft, update }: StepProps) {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [coords, setCoords] = useState<{ lat: string; lon: string } | null>(null);
   const [cityInput, setCityInput] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState<string | null>(null);
+
+  /** Fill address / city / state from the device's GPS — the Zomato/Instamart "use current location" flow. */
+  function useCurrentLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocError("Your browser doesn't support location access.");
+      return;
+    }
+    setLocError(null);
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCoords({ lat: String(latitude), lon: String(longitude) });
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            { headers: { "Accept-Language": "en" }, referrerPolicy: "origin" }
+          );
+          const data = await res.json();
+          if (data?.display_name) {
+            update("address", data.display_name);
+            setVenueInput(data.display_name);
+          }
+          const addr = data?.address;
+          if (addr) {
+            if (addr.state) update("state", addr.state);
+            const cityName = addr.city || addr.town || addr.village || addr.suburb || addr.county;
+            if (cityName) {
+              if (draft.cityMode === "multiple") {
+                if (!(draft.cities ?? []).includes(cityName)) update("cities", [...(draft.cities ?? []), cityName]);
+              } else {
+                update("city", cityName);
+              }
+            }
+          }
+        } catch {
+          // We still have the pin + coordinates even if the address lookup fails.
+          setLocError("Pinned your location, but couldn't fetch the full address — type it in if needed.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        setLocError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission denied. Allow location access in your browser to use this."
+            : "Couldn't get your location. Please try again."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  }
 
   // Nominatim Autocomplete debounced search
   useEffect(() => {
@@ -776,8 +893,19 @@ function LocationStep({ draft, update }: StepProps) {
             </div>
           )}
 
+          <button
+            type="button"
+            onClick={useCurrentLocation}
+            disabled={locating}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-vibe-violet/30 bg-vibe-violet/5 px-3 py-2 text-xs font-bold text-vibe-violet transition hover:bg-vibe-violet/10 disabled:opacity-60"
+          >
+            {locating ? <Loader2 size={13} className="animate-spin" /> : <LocateFixed size={13} />}
+            {locating ? "Getting your location…" : "Use my current location"}
+          </button>
+          {locError && <p className="mt-1.5 text-[11px] font-semibold text-vibe-coral">{locError}</p>}
+
           <p className="mt-1.5 text-[11px] text-ink-faint">
-            Start typing to view places suggestions. Selecting a suggestion will autofill coordinate parameters, state, and city.
+            Start typing to view places suggestions, or use your current location. Selecting a suggestion autofills the coordinates, state, and city.
           </p>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1587,7 +1715,9 @@ function DayPartGroup({ part, children }: { part: string; children: React.ReactN
 
 function PricingStep({ draft, update }: StepProps) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-  const [priceInput, setPriceInput] = useState<number>(1000);
+  // Held as a string so the field can actually be cleared. As a number, clearing it
+  // coerced ""→0 and the box snapped back to a stuck "0".
+  const [priceInput, setPriceInput] = useState<string>("1000");
   const [activeSource, setActiveSource] = useState<string>("default");
 
   /* slots can live in two places: the global default list, or per-date overrides */
@@ -1640,7 +1770,7 @@ function PricingStep({ draft, update }: StepProps) {
     const nextSlots = slots.map((s) => {
       const key = `${s.startTime}-${s.endTime}`;
       if (selectedKeys.includes(key)) {
-        return { ...s, price: priceInput };
+        return { ...s, price: Number(priceInput) || 0 };
       }
       return s;
     });
@@ -1747,7 +1877,7 @@ function PricingStep({ draft, update }: StepProps) {
             <div className="flex flex-wrap items-center gap-3">
               <div className="w-48">
                 <FieldLabel>Enter Price (₹) *</FieldLabel>
-                <input type="number" value={priceInput} onChange={(e) => setPriceInput(Number(e.target.value))} className={`${inputClass} text-xs`} />
+                <input inputMode="numeric" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="0" className={`${inputClass} text-xs`} />
               </div>
               <button type="button" onClick={handleSetPrice} disabled={selectedKeys.length === 0}
                 className="rounded-xl bg-vibe-violet px-5 py-2.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50 transition">
@@ -2099,6 +2229,7 @@ function LaunchStep({ draft, update }: StepProps) {
             values={draft.inclusions}
             onChange={(v) => update("inclusions", v)}
             tone="success"
+            suggestions={draft.type === "Event" ? EVENT_INCLUSION_SUGGESTIONS : AMENITY_SUGGESTIONS}
           />
           <TagField
             label={draft.type === "Event" ? "Excluded" : "Not Provided"}
@@ -2106,6 +2237,7 @@ function LaunchStep({ draft, update }: StepProps) {
             values={draft.exclusions}
             onChange={(v) => update("exclusions", v)}
             tone="danger"
+            suggestions={draft.type === "Event" ? EVENT_INCLUSION_SUGGESTIONS : AMENITY_SUGGESTIONS}
           />
         </div>
       </div>

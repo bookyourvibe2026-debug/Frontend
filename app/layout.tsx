@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { WhatsAppWidget } from "@/components/WhatsAppWidget";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CustomerAuthProvider } from "@/components/providers/CustomerAuthProvider";
 import { GoogleAuthProvider } from "@/components/providers/GoogleAuthProvider";
@@ -94,7 +93,6 @@ export default function RootLayout({
           <GoogleAuthProvider>
             <CustomerAuthProvider>
               {children}
-              <WhatsAppWidget />
               <BottomNav />
             </CustomerAuthProvider>
           </GoogleAuthProvider>

@@ -1,39 +1,56 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Clock, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, ChevronDown, Zap } from "lucide-react";
 import { getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Booking, Listing, TurfSlot } from "@/lib/types";
 
 /**
- * Last Min Boost — a real last-minute discount, not a redirect.
+ * Last Min Boost — an auto-discount engine.
  *
- * The vendor picks one of today's still-unbooked upcoming slots and drops its
- * price (10/20/30% or a custom rate). The discount is written as a date
- * override for today, so players booking that slot immediately see the lower
- * price. Slots starting within the boost window are highlighted so the
- * "10 minutes left, nobody booked 7–9" case is one tap away.
+ * Instead of hand-picking a slot each time, the vendor sets this once: turn boost on,
+ * pick how deep the discount goes (30/40/50%), and how close to the hour it kicks in.
+ * Saving persists the preference and immediately drops the price on every still-unbooked,
+ * not-yet-started slot for today (written as a date override), so players booking those
+ * slots see the lower price straight away. Turning it back off restores those slots to
+ * their normal rate.
  */
 
 type ApiBooking = Booking & { listingId?: string; endTime?: string };
 
-const DISCOUNTS = [10, 20, 30];
-/** Slots starting within this many minutes get the "boost window" highlight. */
-const BOOST_WINDOW_MIN = 60;
+const DISCOUNTS = [30, 40, 50];
+const TRIGGER_OPTIONS = [10, 15, 30];
+
+interface BoostSettings {
+  enabled: boolean;
+  discountPct: number;
+  triggerMins: number;
+}
+const DEFAULT_SETTINGS: BoostSettings = { enabled: false, discountPct: 30, triggerMins: 10 };
+
+function settingsKey(turfId: string) {
+  return `byv_lastmin_boost_${turfId}`;
+}
+
+function loadSettings(turfId: string): BoostSettings {
+  try {
+    const raw = localStorage.getItem(settingsKey(turfId));
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<BoostSettings>;
+    return {
+      enabled: Boolean(parsed.enabled),
+      discountPct: DISCOUNTS.includes(parsed.discountPct ?? 0) ? parsed.discountPct! : DEFAULT_SETTINGS.discountPct,
+      triggerMins: TRIGGER_OPTIONS.includes(parsed.triggerMins ?? 0) ? parsed.triggerMins! : DEFAULT_SETTINGS.triggerMins,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
 
 function toIso(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function to12h(t: string): string {
-  if (!t) return "";
-  const [hStr, mStr] = t.split(":");
-  let h = Number(hStr) % 24;
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${h}:${mStr} ${ap}`;
 }
 
 function slotStartDate(dateIso: string, slot: TurfSlot) {
@@ -46,38 +63,135 @@ function resolveSlotsForDate(listing: Listing, dateIso: string): TurfSlot[] {
   return listing.slotsList ?? [];
 }
 
+/** Discounted price for a slot, rounded and never below ₹1. */
+function boostedPrice(basePrice: number, discountPct: number): number {
+  return Math.max(1, Math.round((basePrice * (100 - discountPct)) / 100));
+}
+
+function to12h(t: string): string {
+  if (!t) return "";
+  const [hStr, mStr] = t.split(":");
+  let h = Number(hStr) % 24;
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${mStr} ${ap}`;
+}
+
+/* ─── Custom dropdown ───────────────────────────────────────────────
+   The native <select> renders the OS' own list (the grey box in the corner),
+   which looks nothing like the rest of the panel. This is a styled replacement:
+   a button + a rounded option list, closing on outside-tap. */
+function Dropdown<T extends string | number>({
+  value,
+  options,
+  onChange,
+  emphasis = false,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  /** Red-accented border, used for the Trigger Time field. */
+  emphasis?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onOutside = (e: MouseEvent | TouchEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [open]);
+
+  const current = options.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex w-full items-center justify-between rounded-xl border-2 bg-white px-4 py-3 text-left text-sm font-bold text-slate-800 outline-none transition ${
+          emphasis ? "border-red-200" : "border-slate-200"
+        } ${open ? "border-red-500" : ""}`}
+      >
+        {current?.label ?? "Select"}
+        <ChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-slate-100 bg-white p-1 shadow-xl">
+          {options.map((o) => {
+            const on = o.value === value;
+            return (
+              <button
+                key={String(o.value)}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${
+                  on ? "bg-red-50 text-red-600" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {o.label}
+                {on && <Check size={15} className="shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTurfId, setSelectedTurfId] = useState("");
-  const [selectedStart, setSelectedStart] = useState<string | null>(null);
-  const [discount, setDiscount] = useState(20);
-  const [customPrice, setCustomPrice] = useState("");
-  const [applying, setApplying] = useState(false);
+
+  const [enabled, setEnabled] = useState(DEFAULT_SETTINGS.enabled);
+  const [discountPct, setDiscountPct] = useState(DEFAULT_SETTINGS.discountPct);
+  const [triggerMins, setTriggerMins] = useState(DEFAULT_SETTINGS.triggerMins);
+  const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
   const todayIso = useMemo(() => toIso(new Date()), []);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
+
+  /** Switch turf and pull in that turf's saved boost settings. */
+  function selectTurf(id: string) {
+    setSelectedTurfId(id);
+    if (!id) return;
+    const s = loadSettings(id);
+    setEnabled(s.enabled);
+    setDiscountPct(s.discountPct);
+    setTriggerMins(s.triggerMins);
+    setDone(null);
+  }
 
   useEffect(() => {
     Promise.all([getVendorListings(), getVendorBookings({ limit: 500 })])
       .then(([l, b]) => {
         const turfs = l.map(apiListingToMock).filter((x) => x.type === "Turf");
         setListings(turfs);
-        setSelectedTurfId(turfs[0]?.id ?? "");
+        selectTurf(turfs[0]?.id ?? "");
         setBookings(b.items as unknown as ApiBooking[]);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load your slots"))
+      .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load your turfs"))
       .finally(() => setLoading(false));
   }, []);
 
   const selectedTurf = useMemo(() => listings.find((l) => l.id === selectedTurfId), [listings, selectedTurfId]);
+
+  // Re-tick every minute so "upcoming" and the live preview stay honest as slots pass.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   /** Start times ("HH:MM") already taken today for the selected turf. */
   const bookedStarts = useMemo(() => {
@@ -92,40 +206,58 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
     return set;
   }, [bookings, selectedTurfId, todayIso]);
 
-  /** Today's slots that are still open and haven't started yet. */
-  const boostableSlots = useMemo(() => {
+  /** Today's still-open, not-yet-started slots — what a boost would actually touch. Each
+   * carries its normal (default) price so the preview can show the real before → after. */
+  const eligibleSlots = useMemo(() => {
     if (!selectedTurf) return [];
+    const defaults = selectedTurf.slotsList ?? [];
     return resolveSlotsForDate(selectedTurf, todayIso)
       .filter((s) => !s.blocked && !bookedStarts.has(s.startTime))
-      .map((s) => {
-        const minsToStart = Math.round((slotStartDate(todayIso, s).getTime() - now) / 60_000);
-        return { slot: s, minsToStart, inBoostWindow: minsToStart > 0 && minsToStart <= BOOST_WINDOW_MIN };
-      })
-      .filter((x) => x.minsToStart > 0)
-      .sort((a, b) => a.minsToStart - b.minsToStart);
-  }, [selectedTurf, todayIso, bookedStarts, now]);
+      .filter((s) => slotStartDate(todayIso, s).getTime() > nowMs)
+      .map((s) => ({ ...s, basePrice: defaults.find((d) => d.startTime === s.startTime)?.price ?? s.price }))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [selectedTurf, todayIso, bookedStarts, nowMs]);
 
-  const selected = boostableSlots.find((x) => x.slot.startTime === selectedStart) ?? null;
-  const boostedPrice = selected
-    ? customPrice
-      ? Number(customPrice) || 0
-      : Math.round((selected.slot.price * (100 - discount)) / 100)
-    : 0;
-
-  async function applyBoost() {
-    if (!selectedTurf || !selected || applying || boostedPrice <= 0) return;
-    setApplying(true);
+  async function save() {
+    if (!selectedTurf || saving) return;
+    setSaving(true);
+    setError(null);
+    setDone(null);
     try {
-      const daySlots = resolveSlotsForDate(selectedTurf, todayIso).map((s) =>
-        s.startTime === selected.slot.startTime ? { ...s, price: boostedPrice } : s
-      );
+      localStorage.setItem(settingsKey(selectedTurf.id), JSON.stringify({ enabled, discountPct, triggerMins }));
+
+      const defaults = selectedTurf.slotsList ?? [];
+      const defaultPrice = (start: string) => defaults.find((d) => d.startTime === start)?.price;
+      let changed = 0;
+
+      const nextSlots = resolveSlotsForDate(selectedTurf, todayIso).map((s) => {
+        const dflt = defaultPrice(s.startTime);
+        if (dflt == null) return s; // custom late-night slot with no default — leave alone
+        const upcoming = slotStartDate(todayIso, s).getTime() > nowMs;
+        const unbooked = !s.blocked && !bookedStarts.has(s.startTime);
+        if (enabled) {
+          if (upcoming && unbooked) {
+            const boosted = boostedPrice(dflt, discountPct);
+            if (s.price !== boosted) changed++;
+            return { ...s, price: boosted };
+          }
+          return s;
+        }
+        // Boost off — restore any slot we'd previously discounted below its normal rate.
+        if (upcoming && s.price < dflt) {
+          changed++;
+          return { ...s, price: dflt };
+        }
+        return s;
+      });
+
       const overrides = [...(selectedTurf.dateOverrides ?? [])];
       const existing = overrides.find((o) => o.date === todayIso);
       const entry = {
         date: todayIso,
         isHoliday: existing?.isHoliday ?? false,
         holidayName: existing?.holidayName ?? "",
-        slots: daySlots,
+        slots: nextSlots,
       };
       const idx = overrides.findIndex((o) => o.date === todayIso);
       if (idx > -1) overrides[idx] = entry;
@@ -133,165 +265,171 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
 
       const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput({ ...selectedTurf, dateOverrides: overrides }));
       setListings((ls) => ls.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+
       setDone(
-        `Boost is live: ${to12h(selected.slot.startTime)} – ${to12h(selected.slot.endTime)} now ₹${boostedPrice.toLocaleString(
-          "en-IN"
-        )} (was ₹${selected.slot.price.toLocaleString("en-IN")}).`
+        enabled
+          ? changed > 0
+            ? `Boost is on — ${changed} upcoming empty slot${changed === 1 ? "" : "s"} today dropped by ${discountPct}%.`
+            : `Boost is on. New empty slots today will drop by ${discountPct}%.`
+          : changed > 0
+          ? `Boost is off — ${changed} slot${changed === 1 ? "" : "s"} restored to the normal price.`
+          : "Boost is off."
       );
-      setSelectedStart(null);
-      setCustomPrice("");
     } catch (e) {
-      setError(e instanceof ApiError ? e.describe() : "Couldn't apply the boost. Please try again.");
+      setError(e instanceof ApiError ? e.describe() : "Couldn't save your boost settings. Please try again.");
     }
-    setApplying(false);
+    setSaving(false);
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div
-        className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#dc2626]">
-              <Zap size={18} className="fill-[#dc2626]" />
-            </span>
-            <div>
-              <h3 className="text-[14px] font-black text-slate-900">Last Min Boost</h3>
-              <p className="text-[10px] font-medium text-slate-400">
-                Drop the price on today&apos;s unbooked slots so they fill up in the final minutes.
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
-            <X size={16} />
+    <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#f5f7fa]">
+      <div className="mx-auto flex min-h-full w-full max-w-md flex-col">
+        {/* Header — back arrow + title (matches the reference full-page layout) */}
+        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3.5">
+          <button onClick={onClose} aria-label="Back" className="rounded-full p-1 text-slate-600 hover:bg-slate-100">
+            <ArrowLeft size={20} />
           </button>
+          <h2 className="text-base font-black text-slate-900">Last Min Boost</h2>
         </div>
 
-        {done && (
-          <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-bold text-emerald-700">{done}</p>
-        )}
-        {error && <p className="mt-4 rounded-xl bg-rose-50 px-3 py-2.5 text-[11px] font-bold text-rose-600">{error}</p>}
-
         {loading ? (
-          <div className="py-10 text-center text-sm font-bold text-slate-400">
+          <div className="py-20 text-center text-sm font-bold text-slate-400">
             <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-            Loading today&apos;s slots…
+            Loading…
           </div>
         ) : !selectedTurf ? (
-          <p className="py-10 text-center text-sm font-semibold text-slate-500">
+          <p className="px-5 py-20 text-center text-sm font-semibold text-slate-500">
             No turf listings found — add a turf to use Last Min Boost.
           </p>
         ) : (
-          <>
-            {listings.length > 1 && (
-              <div className="relative mt-4">
-                <select
-                  value={selectedTurfId}
-                  onChange={(e) => {
-                    setSelectedTurfId(e.target.value);
-                    setSelectedStart(null);
-                  }}
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-8 text-xs font-bold text-slate-800 outline-none"
-                >
-                  {listings.map((l) => (
-                    <option key={l.id} value={l.id}>{l.title}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              </div>
-            )}
-
-            <p className="mt-4 text-[10px] font-black uppercase tracking-wide text-slate-400">
-              Today&apos;s unbooked slots
-            </p>
-            {boostableSlots.length === 0 ? (
-              <p className="mt-2 rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs font-semibold text-slate-400">
-                Nothing left to boost — every remaining slot today is booked or blocked. 🎉
-              </p>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {boostableSlots.map(({ slot, minsToStart, inBoostWindow }) => {
-                  const isSelected = selectedStart === slot.startTime;
-                  return (
-                    <button
-                      key={slot.startTime}
-                      onClick={() => setSelectedStart(isSelected ? null : slot.startTime)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-2xl border-2 p-3 text-left transition ${
-                        isSelected
-                          ? "border-[#dc2626] bg-red-50/60"
-                          : inBoostWindow
-                          ? "border-amber-300 bg-amber-50/60"
-                          : "border-slate-100 bg-white hover:border-slate-200"
-                      }`}
-                    >
-                      <div>
-                        <p className="text-[12px] font-black text-slate-900">
-                          {to12h(slot.startTime)} – {to12h(slot.endTime)}
-                        </p>
-                        <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                          <Clock size={9} />
-                          {minsToStart < 60 ? `Starts in ${minsToStart} min` : `Starts in ${Math.round(minsToStart / 60)} hr`}
-                          {inBoostWindow && (
-                            <span className="ml-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase text-amber-700">
-                              Boost window
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <span className="text-[12px] font-black text-slate-700">₹{slot.price.toLocaleString("en-IN")}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {selected && (
-              <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Discount</p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {DISCOUNTS.map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => {
-                        setDiscount(d);
-                        setCustomPrice("");
-                      }}
-                      className={`rounded-xl py-2.5 text-[11px] font-black transition ${
-                        !customPrice && discount === d ? "bg-[#dc2626] text-white" : "border border-slate-200 bg-white text-slate-600"
-                      }`}
-                    >
-                      {d}% off
-                    </button>
-                  ))}
+          <div className="flex flex-col gap-5 p-4 sm:p-5">
+            {/* ── HERO: auto discount engine + enable toggle ── */}
+            <div className="rounded-3xl bg-gradient-to-br from-red-500 to-red-600 p-5 text-white shadow-lg shadow-red-500/20">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Zap size={20} className="fill-white" />
+                </span>
+                <div>
+                  <p className="text-[15px] font-black leading-tight">Last Min Boost</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-white/70">Auto Discount Engine</p>
                 </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={customPrice}
-                  onChange={(e) => setCustomPrice(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Or type a custom price (₹)"
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold outline-none focus:border-[#dc2626]"
+              </div>
+              <p className="mt-3 text-[12px] font-medium leading-relaxed text-white/90">
+                Automatically apply a discount to any unbooked slot {triggerMins} minutes before the hour begins.
+              </p>
+
+              {/* Enable toggle */}
+              <div className="mt-4 rounded-2xl bg-black/15 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[13px] font-black">Enable Boost</p>
+                  <button
+                    role="switch"
+                    aria-checked={enabled}
+                    aria-label="Enable Last Min Boost"
+                    onClick={() => setEnabled((v) => !v)}
+                    className={`relative flex h-7 w-12 shrink-0 items-center rounded-full transition ${enabled ? "bg-emerald-400" : "bg-white/25"}`}
+                  >
+                    <span className={`absolute h-5 w-5 rounded-full bg-white shadow transition-all ${enabled ? "left-6" : "left-1"}`} />
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-white/70">
+                  When enabled, empty slots will automatically be discounted to attract last-minute players.
+                </p>
+              </div>
+            </div>
+
+            {/* Turf selector — only when the vendor runs more than one turf */}
+            {listings.length > 1 && (
+              <div>
+                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Turf</label>
+                <Dropdown
+                  value={selectedTurfId}
+                  onChange={selectTurf}
+                  options={listings.map((l) => ({ value: l.id, label: l.title }))}
                 />
-                <button
-                  onClick={applyBoost}
-                  disabled={applying || boostedPrice <= 0 || boostedPrice >= selected.slot.price}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#dc2626] py-3 text-[11px] font-black text-white transition active:scale-[0.98] disabled:opacity-50"
-                >
-                  <Zap size={13} className="fill-white" />
-                  {applying
-                    ? "Applying boost…"
-                    : `Boost: ₹${selected.slot.price.toLocaleString("en-IN")} → ₹${boostedPrice.toLocaleString("en-IN")}`}
-                </button>
-                {boostedPrice >= selected.slot.price && customPrice && (
-                  <p className="mt-1.5 text-center text-[9px] font-bold text-rose-500">
-                    A boost has to be below the current price of ₹{selected.slot.price.toLocaleString("en-IN")}.
+              </div>
+            )}
+
+            {/* ── DISCOUNT SETTINGS ── */}
+            <div>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">Discount Settings</p>
+              <div className="space-y-4 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-400">Discount Percentage</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {DISCOUNTS.map((d) => {
+                      const on = discountPct === d;
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => setDiscountPct(d)}
+                          className={`rounded-xl border-2 py-3 text-sm font-black transition ${
+                            on ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                          }`}
+                        >
+                          {d}%
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-400">Trigger Time</p>
+                  <Dropdown
+                    value={triggerMins}
+                    onChange={setTriggerMins}
+                    emphasis
+                    options={TRIGGER_OPTIONS.map((m) => ({ value: m, label: `${m} mins before slot` }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Live preview — what saving right now would actually do to today's rates */}
+            {enabled && (
+              <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
+                {eligibleSlots.length === 0 ? (
+                  <p className="text-center text-[11px] font-bold text-slate-500">
+                    No empty upcoming slots left today. New openings will drop by {discountPct}% once boost is saved.
                   </p>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-black text-red-700">
+                      {eligibleSlots.length} empty slot{eligibleSlots.length === 1 ? "" : "s"} left today will drop {discountPct}%
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {eligibleSlots.slice(0, 3).map((s) => (
+                        <div key={s.startTime} className="flex items-center justify-between text-[11px] font-bold">
+                          <span className="text-slate-500">{to12h(s.startTime)} – {to12h(s.endTime)}</span>
+                          <span className="text-slate-700">
+                            <span className="text-slate-400 line-through">₹{s.basePrice.toLocaleString("en-IN")}</span>{" "}
+                            <span className="font-black text-red-600">₹{boostedPrice(s.basePrice, discountPct).toLocaleString("en-IN")}</span>
+                          </span>
+                        </div>
+                      ))}
+                      {eligibleSlots.length > 3 && (
+                        <p className="text-[10px] font-bold text-slate-400">+{eligibleSlots.length - 3} more</p>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
-          </>
+
+            {done && (
+              <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center text-[11px] font-bold text-emerald-700">{done}</p>
+            )}
+            {error && <p className="rounded-xl bg-rose-50 px-3 py-2.5 text-center text-[11px] font-bold text-rose-600">{error}</p>}
+
+            <button
+              onClick={save}
+              disabled={saving}
+              className="w-full rounded-2xl bg-[#dc2626] py-3.5 text-sm font-black text-white shadow-md transition hover:bg-red-700 active:scale-[0.99] disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save Boost Settings"}
+            </button>
+          </div>
         )}
       </div>
     </div>

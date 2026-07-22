@@ -37,6 +37,7 @@ const MOBILE_QUICK_ACTIONS = [
 
 const CHOOSE_GAME_CHIPS = [
   { id: "cricket", label: "Cricket", image: "/bat.png" },
+  { id: "football", label: "Football", image: "/football.png" },
   { id: "badminton", label: "Badminton", image: "/badminton.png" },
   { id: "pickleball", label: "Pickleball", image: "/pickball.png" },
   { id: "tennis", label: "Tennis", image: "/tennis.png" },
@@ -139,6 +140,7 @@ export function MobileHome({
   onQuickAction,
   onViewAllQuickActions,
   onChooseGame,
+  onViewAllSports,
   onJoinCommunity,
   onViewAllCommunity,
   onViewAllEvents,
@@ -156,6 +158,7 @@ export function MobileHome({
   onQuickAction: (taskId: string, gameId: string) => void;
   onViewAllQuickActions: () => void;
   onChooseGame: () => void;
+  onViewAllSports: () => void;
   onJoinCommunity: () => void;
   onViewAllCommunity: () => void;
   onViewAllEvents: () => void;
@@ -212,7 +215,7 @@ export function MobileHome({
       </div>
 
       <section>
-        <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onChooseGame} />
+        <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onViewAllSports} />
         <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
           {CHOOSE_GAME_CHIPS.map((c) => (
             <MobileChip
@@ -220,8 +223,12 @@ export function MobileHome({
               label={c.label}
               selected={selectedGame === c.id}
               onClick={() => {
+                if (c.id === "more") {
+                  onViewAllSports();
+                  return;
+                }
                 setSelectedGame(c.id);
-                if (c.id !== "more") onChooseGame();
+                onChooseGame();
               }}
               icon={c.id === "swimming" ? Waves : c.id === "more" ? LayoutGrid : undefined}
               image={
