@@ -74,9 +74,9 @@ function VendorLoginInner() {
         if (redirectTo === "/vendor/dashboard" || redirectTo === "/vendor/bookings") {
           const landingByVertical: Record<string, string> = {
             turf: "/vendor/bookings",
-            food: "/vendor/food/dashboard",
-            events: "/vendor/events/dashboard",
-            coaches: "/vendor/coaches/dashboard",
+            food: "/vendor/food/orders",
+            events: "/vendor/events/listings",
+            coaches: "/vendor/coaches",
           };
           targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/bookings";
         }
@@ -111,9 +111,9 @@ function VendorLoginInner() {
       if (redirectTo === "/vendor/dashboard" || redirectTo === "/vendor/bookings") {
         const landingByVertical: Record<string, string> = {
           turf: "/vendor/bookings",
-          food: "/vendor/food/dashboard",
-          events: "/vendor/events/dashboard",
-          coaches: "/vendor/coaches/dashboard",
+          food: "/vendor/food/orders",
+          events: "/vendor/events/listings",
+          coaches: "/vendor/coaches",
         };
         targetPath = landingByVertical[vendor.verticals[0]] ?? "/vendor/bookings";
       }

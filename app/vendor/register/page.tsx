@@ -85,12 +85,12 @@ export default function VendorRegisterPage() {
     });
     setModalOpen(false);
     const landingByVertical: Record<string, string> = {
-      turf: "/vendor/dashboard",
-      food: "/vendor/food/dashboard",
-      events: "/vendor/events/dashboard",
-      coaches: "/vendor/coaches/dashboard",
+      turf: "/vendor/bookings",
+      food: "/vendor/food/orders",
+      events: "/vendor/events/listings",
+      coaches: "/vendor/coaches",
     };
-    router.push(landingByVertical[data.verticals[0]] ?? "/vendor/dashboard");
+    router.push(landingByVertical[data.verticals[0]] ?? "/vendor/bookings");
   }
 
   return (
