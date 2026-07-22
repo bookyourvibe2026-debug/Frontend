@@ -18,6 +18,9 @@ import {
   CalendarDays,
   ChevronDown,
   Check,
+  CheckSquare,
+  Layers,
+  Copy,
 } from "lucide-react";
 import {
   getVendorListings,
@@ -167,6 +170,14 @@ export default function BookingsPage() {
   // Grouped-list filter (for "See Booking" bottom button)
   const [groupedFilter, setGroupedFilter] = useState<SlotStatus | null>(null);
 
+  // Multi-slot selection: tap several available slots, then club them into one booking
+  // or book them as separate bookings for the same customer.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  // How the offline modal submits: one combined booking ("single") or one per slot ("multiple").
+  const [offlineMode, setOfflineMode] = useState<"single" | "multiple">("single");
+  const [multiSlots, setMultiSlots] = useState<AgendaSlot[]>([]);
+
   // Offline booking modal
   const [offlineModal, setOfflineModal] = useState(false);
   const [offlineName, setOfflineName] = useState("");
@@ -302,7 +313,7 @@ export default function BookingsPage() {
         const isWalkIn = !match.customerId;
         const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
-        else if (match.status === "Pending") status = "Part Paid";
+        else if (match.status === "Pending" || match.status === "Part Paid") status = "Part Paid";
         // A walk-in stays a walk-in whatever its status becomes (Confirmed, Completed…).
         // Only a booking a player actually made in the app is "Booked" — that's the one
         // the timeline brands as BYV.
@@ -426,6 +437,85 @@ export default function BookingsPage() {
     return resolvedSlots.filter(s => s.status === groupedFilter);
   }, [resolvedSlots, groupedFilter]);
 
+  /* ── Multi-slot selection ── */
+  /** The picked available slots for this date, ordered open→close. */
+  const selectedSlots = useMemo(
+    () =>
+      resolvedSlots
+        .filter((s) => s.status === "Available" && selectedKeys.includes(s.startTime))
+        .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)),
+    [resolvedSlots, selectedKeys, dayStartMins]
+  );
+  const selectionTotal = useMemo(() => selectedSlots.reduce((sum, s) => sum + s.price, 0), [selectedSlots]);
+  /** Club-together only makes sense for back-to-back slots (each end == next start). */
+  const selectionContiguous = useMemo(() => {
+    for (let i = 0; i < selectedSlots.length - 1; i++) {
+      if (selectedSlots[i].endTime !== selectedSlots[i + 1].startTime) return false;
+    }
+    return true;
+  }, [selectedSlots]);
+
+  function toggleSelectSlot(slot: { startTime: string }) {
+    setSelectedKeys((prev) =>
+      prev.includes(slot.startTime) ? prev.filter((k) => k !== slot.startTime) : [...prev, slot.startTime]
+    );
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedKeys([]);
+  }
+
+  /** Book the selected (consecutive) slots as one combined offline booking. */
+  function startClubBooking() {
+    if (selectedSlots.length === 0 || !selectedTurf) return;
+    if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
+      setSetupSportsSelected([]);
+      setSetupSportsOpen(true);
+      return;
+    }
+    const first = selectedSlots[0];
+    const last = selectedSlots[selectedSlots.length - 1];
+    const combined: AgendaSlot = {
+      startTime: first.startTime,
+      endTime: last.endTime,
+      price: selectionTotal,
+      status: "Available",
+      label: selectedSlots.length > 1 ? `${first.label} (${selectedSlots.length} Slots)` : first.label,
+    };
+    setOfflineMode("single");
+    setMultiSlots([]);
+    setOfflineSport(selectedTurf.categories[0] || "");
+    setOfflineAmount("");
+    setActiveSlot(combined);
+    setOfflineModal(true);
+  }
+
+  /** Book each selected slot as its own booking, sharing one customer's details. */
+  function startMultipleBooking() {
+    if (selectedSlots.length === 0 || !selectedTurf) return;
+    if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
+      setSetupSportsSelected([]);
+      setSetupSportsOpen(true);
+      return;
+    }
+    const first = selectedSlots[0];
+    const last = selectedSlots[selectedSlots.length - 1];
+    // Display-only slot so the modal header shows the whole span + combined total.
+    const display: AgendaSlot = {
+      startTime: first.startTime,
+      endTime: last.endTime,
+      price: selectionTotal,
+      status: "Available",
+      label: `${selectedSlots.length} Bookings`,
+    };
+    setOfflineMode("multiple");
+    setMultiSlots(selectedSlots);
+    setOfflineSport(selectedTurf.categories[0] || "");
+    setOfflineAmount("");
+    setActiveSlot(display);
+    setOfflineModal(true);
+  }
+
   /* ── Actions on available slot ── */
   async function setSlotBlocked(slot: AgendaSlot, blocked: boolean, reason?: string) {
     if (!selectedTurf) return;
@@ -480,6 +570,8 @@ export default function BookingsPage() {
       setSetupSportsOpen(true);
       return;
     }
+    setOfflineMode("single");
+    setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
     setOfflineAmount("");
     setActiveSlot(slot);
@@ -500,6 +592,8 @@ export default function BookingsPage() {
       setSetupSportsOpen(true);
       return;
     }
+    setOfflineMode("single");
+    setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
     setOfflineAmount("");
     setActiveSlot(combinedSlot);
@@ -528,33 +622,61 @@ export default function BookingsPage() {
   function confirmOfflineBooking() {
     if (!offlineName || !offlinePhone) { alert("Please fill name and phone"); return; }
     setOfflineModal(false);
-    setPendingConfirm({ title: "Mark as Booked", seconds: 6, run: submitOfflineBooking });
+    const title =
+      offlineMode === "multiple" && multiSlots.length > 0
+        ? `Create ${multiSlots.length} bookings`
+        : "Mark as Booked";
+    setPendingConfirm({ title, seconds: 6, run: submitOfflineBooking });
   }
 
   async function submitOfflineBooking() {
     if (!activeSlot || !selectedTurf) return;
     setOfflineSubmitting(true);
     try {
-      const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
-      const parsedAmount = offlineAmount ? Number(offlineAmount) : activeSlot.price;
-      const statusText = parsedAmount > 0 && parsedAmount < activeSlot.price ? "Part Paid" : "Confirmed";
+      if (offlineMode === "multiple" && multiSlots.length > 0) {
+        // One separate booking per selected slot, all sharing the same customer.
+        // Each slot is recorded at its own price as a fully-paid confirmed booking.
+        for (const slot of multiSlots) {
+          const dt = new Date(`${selectedDate}T${slot.startTime}:00`);
+          await createVendorBooking({
+            listingId: selectedTurf.id,
+            customerName: offlineName,
+            phone: offlinePhone,
+            sport: offlineSport || undefined,
+            dateTime: dt.toISOString(),
+            endTime: slot.endTime || undefined,
+            totalAmount: slot.price,
+            paidAmount: slot.price,
+            payment: "Cash (Offline)",
+            status: "Confirmed",
+          });
+        }
+      } else {
+        const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
+        const parsedAmount = offlineAmount ? Number(offlineAmount) : activeSlot.price;
+        const statusText = parsedAmount > 0 && parsedAmount < activeSlot.price ? "Part Paid" : "Confirmed";
 
-      await createVendorBooking({
-        listingId: selectedTurf.id,
-        customerName: offlineName,
-        phone: offlinePhone,
-        dateTime: dt.toISOString(),
-        endTime: activeSlot.endTime || undefined,
-        totalAmount: activeSlot.price, // API requirement
-        payment: "Cash (Offline)",
-        status: statusText as BookingStatus,
-      });
+        await createVendorBooking({
+          listingId: selectedTurf.id,
+          customerName: offlineName,
+          phone: offlinePhone,
+          dateTime: dt.toISOString(),
+          endTime: activeSlot.endTime || undefined,
+          totalAmount: activeSlot.price, // API requirement
+          paidAmount: parsedAmount,
+          payment: "Cash (Offline)",
+          status: statusText as BookingStatus,
+        });
+      }
       // Refresh bookings
       const fresh = await getVendorBookings({ limit: 500 });
       setBookings(fresh.items as unknown as ApiBooking[]);
       setActiveSlot(null);
       setOfflineName("");
       setOfflinePhone("");
+      setOfflineMode("single");
+      setMultiSlots([]);
+      exitSelectMode();
     } catch (e) {
       alert(e instanceof ApiError ? e.describe() : "Failed to create offline booking");
     }
@@ -815,12 +937,26 @@ export default function BookingsPage() {
               <ListIcon size={12} /> Timeline
             </button>
             <button
-              onClick={() => setViewMode("clock")}
+              onClick={() => { exitSelectMode(); setViewMode("clock"); }}
               className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold transition ${viewMode === "clock" ? "bg-vibe-navy text-white" : "text-slate-500 hover:bg-slate-50"}`}
             >
               <ClockIcon size={12} /> Clock
             </button>
           </div>
+
+          {/* Multi-select toggle — pick several free slots, then club or book separately. */}
+          {viewMode === "timeline" && (
+            <button
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition ${
+                selectMode
+                  ? "border-emerald-500 bg-emerald-500 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <CheckSquare size={12} /> {selectMode ? "Cancel" : "Select"}
+            </button>
+          )}
 
           <button
             onClick={() => setFilterOpen(true)}
@@ -865,6 +1001,9 @@ export default function BookingsPage() {
                   onAction={handleSlotAction}
                   onLongPress={handleSlotLongPress}
                   scrollToNow={isToday}
+                  selectMode={selectMode}
+                  selectedKeys={selectedKeys}
+                  onToggleSelect={toggleSelectSlot}
                 />
                 <button
                   onClick={() => setAddSlotOpen(true)}
@@ -904,10 +1043,60 @@ export default function BookingsPage() {
       </div>
 
       {/* ── BOTTOM "SEE BOOKING" BUTTON (grid mode only — clock mode has its own inline button) ── */}
-      {selectedTurf && !groupedFilter && viewMode !== "clock" && (
+      {selectedTurf && !groupedFilter && viewMode !== "clock" && !selectMode && (
         <div className="fixed bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
           <div className="pointer-events-auto">
             <SeeBookingButton resolvedSlots={resolvedSlots} onPick={setGroupedFilter} />
+          </div>
+        </div>
+      )}
+
+      {/* ── SELECTION ACTION BAR (multi-select mode) ── */}
+      {selectedTurf && selectMode && viewMode === "timeline" && (
+        <div className="fixed bottom-16 left-0 right-0 z-30 px-4 lg:bottom-4">
+          <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
+            {selectedSlots.length === 0 ? (
+              <p className="py-1.5 text-center text-[11px] font-bold text-slate-400">
+                Tap the available slots you want to book together
+              </p>
+            ) : (
+              <>
+                <div className="mb-2.5 flex items-center justify-between px-1">
+                  <span className="text-[11px] font-black text-slate-800">
+                    {selectedSlots.length} slot{selectedSlots.length > 1 ? "s" : ""} ·{" "}
+                    {to12h(selectedSlots[0].startTime)} – {to12h(selectedSlots[selectedSlots.length - 1].endTime)}
+                  </span>
+                  <span className="text-[12px] font-black text-emerald-600">₹{selectionTotal}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={startClubBooking}
+                    disabled={!selectionContiguous}
+                    title={selectionContiguous ? "" : "Pick back-to-back slots to club them"}
+                    className="flex flex-col items-center gap-0.5 rounded-xl bg-emerald-600 py-2.5 text-white transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="flex items-center gap-1 text-[11px] font-black">
+                      <Layers size={13} /> Club together
+                    </span>
+                    <span className="text-[8.5px] font-semibold opacity-80">One combined booking</span>
+                  </button>
+                  <button
+                    onClick={startMultipleBooking}
+                    className="flex flex-col items-center gap-0.5 rounded-xl bg-vibe-navy py-2.5 text-white transition hover:bg-vibe-navyDark active:scale-[0.98]"
+                  >
+                    <span className="flex items-center gap-1 text-[11px] font-black">
+                      <Copy size={13} /> Multiple bookings
+                    </span>
+                    <span className="text-[8.5px] font-semibold opacity-80">Separate booking each</span>
+                  </button>
+                </div>
+                {!selectionContiguous && (
+                  <p className="mt-1.5 text-center text-[9px] font-bold text-amber-600">
+                    Slots aren&apos;t back-to-back — clubbing needs consecutive slots.
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1139,17 +1328,27 @@ export default function BookingsPage() {
 
       {/* ── OFFLINE BOOKING MODAL ── */}
       {offlineModal && activeSlot && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); }}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); setOfflineMode("single"); setMultiSlots([]); }}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-4xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Offline Booking</h3>
-                <p className="text-xs text-slate-400">{to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · Total: ₹{activeSlot.price}</p>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {offlineMode === "multiple" ? `Offline Booking · ${multiSlots.length} separate bookings` : "Offline Booking"}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · Total: ₹{activeSlot.price}
+                </p>
               </div>
-              <button onClick={() => setOfflineModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+              <button onClick={() => { setOfflineModal(false); setOfflineMode("single"); setMultiSlots([]); }} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+
+            {offlineMode === "multiple" && (
+              <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
+                Creates {multiSlots.length} separate confirmed bookings for the same customer — one per slot, each at its own price.
+              </p>
+            )}
+
+            <div className={`grid grid-cols-1 gap-3 items-end ${offlineMode === "multiple" ? "sm:grid-cols-4" : "sm:grid-cols-5"}`}>
               <div>
                 <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Customer Name</label>
                 <input value={offlineName} onChange={e => setOfflineName(e.target.value)} placeholder="e.g. Rahul"
@@ -1169,14 +1368,16 @@ export default function BookingsPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Amount Paid</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                  <input value={offlineAmount} onChange={e => setOfflineAmount(e.target.value)} placeholder={activeSlot.price.toString()} type="number"
-                    className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
+              {offlineMode !== "multiple" && (
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Amount Paid</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                    <input value={offlineAmount} onChange={e => setOfflineAmount(e.target.value)} placeholder={activeSlot.price.toString()} type="number"
+                      className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
+                  </div>
                 </div>
-              </div>
+              )}
               <button onClick={confirmOfflineBooking} disabled={offlineSubmitting}
                 className="w-full rounded-xl bg-emerald-600 text-white py-2.5 text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-60 h-[42px]">
                 {offlineSubmitting ? "Booking…" : "Confirm"}

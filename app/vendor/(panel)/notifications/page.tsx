@@ -174,20 +174,23 @@ export default function NotificationsPage() {
         const isTomorrow = isSameDay(start, tomorrow);
         const isToday = isSameDay(start, today);
         const isPast = end.getTime() < now;
-        const paidInFull = b.paymentStatus === "paid";
+        const paidInFull = b.paymentStatus === "paid" && b.status !== "Part Paid";
 
         // Colour precedence: payment state first, then tomorrow's bookings.
         let tone: RowTone = "neutral";
         let statusLine = "Booking Confirmed";
-        if (!paidInFull) {
+        if (b.status === "Part Paid") {
+          tone = "partial";
+          statusLine = "partially paid";
+        } else if (!paidInFull) {
           tone = "partial";
           statusLine = "Payment Pending";
         } else if (isTomorrow) {
           tone = "tomorrow";
-          statusLine = "Booking Confirmed";
+          statusLine = "✅ Booking Confirmed";
         } else if (paidInFull) {
           tone = "paid";
-          statusLine = b.checkedIn ? "QR Check-in Completed" : "Booking Confirmed";
+          statusLine = b.checkedIn ? "QR Check-in Completed" : "✅ Booking Confirmed";
         }
         if (b.checkedIn) statusLine = "QR Check-in Completed";
         if (b.status === "Pending") statusLine = "Booking request";
@@ -347,8 +350,8 @@ export default function NotificationsPage() {
             when={arrivalLabel(r.start, now)}
             tone={r.tone}
             source={r.source}
-            amount={!r.paidInFull ? r.booking.totalAmount : undefined}
-            amountNote={!r.paidInFull ? `Due ${relative(r.start, now)}` : undefined}
+            amount={r.booking.status === "Part Paid" ? r.booking.paidAmount : (!r.paidInFull ? r.booking.totalAmount : undefined)}
+            amountNote={r.booking.status === "Part Paid" ? `₹${r.booking.totalAmount - (r.booking.paidAmount ?? 0)} due` : (!r.paidInFull ? `Due ${relative(r.start, now)}` : undefined)}
             isLast={i === visible.length - 1}
             expanded={expanded === r.key}
             unread={!read.has(r.key)}

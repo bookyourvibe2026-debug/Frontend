@@ -19,6 +19,7 @@ export interface AddOn {
   id: string;
   label: string;
   price: number;
+  image?: ListingImage;
 }
 
 export interface Coupon {
@@ -117,7 +118,7 @@ export interface DateOverride {
 
 export type PaymentMethod = "Cashfree (Online)" | "Cash (Offline)" | "UPI";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
-export type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed";
+export type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed" | "Part Paid";
 
 export interface Booking {
   _id: string;
@@ -134,6 +135,7 @@ export interface Booking {
   foodIncluded?: boolean;
   dateTime: string;
   totalAmount: number;
+  paidAmount?: number;
   platformFee: number;
   taxes: number;
   affiliateAmount: number;

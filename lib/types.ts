@@ -29,6 +29,7 @@ export interface AddOn {
   id: string;
   label: string;
   price: number;
+  image?: ListingImage;
 }
 
 export interface Coupon {
@@ -112,7 +113,7 @@ export interface DateOverride {
   slots: TurfSlot[];
 }
 
-export type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed";
+export type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed" | "Part Paid";
 
 export interface Booking {
   orderId: string;
@@ -124,6 +125,7 @@ export interface Booking {
   foodIncluded?: boolean;
   dateTime: string;
   totalAmount: number;
+  paidAmount?: number;
   platformFee: number;
   yourEarning: number;
   payment: "Cashfree (Online)" | "Cash (Offline)" | "UPI";

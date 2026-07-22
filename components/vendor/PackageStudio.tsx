@@ -1713,7 +1713,97 @@ function DayPartGroup({ part, children }: { part: string; children: React.ReactN
   );
 }
 
-function PricingStep({ draft, update }: StepProps) {
+function AddOnRow({
+  addOn,
+  audience,
+  onChange,
+  onRemove,
+}: {
+  addOn: AddOn;
+  audience: Audience;
+  onChange: (patch: Partial<AddOn>) => void;
+  onRemove: () => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await uploadImage(audience, file);
+      onChange({
+        image: { id: `addon-img-${Date.now()}`, url: result.url, label: addOn.label || "Add-on" },
+      });
+    } catch {
+      // upload failed — leave the add-on without a photo
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={() => fileInput.current?.click()}
+        className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-cream-200/50 text-vibe-violet transition-colors hover:bg-cream-200"
+        title={addOn.image ? "Replace photo" : "Add photo"}
+      >
+        {uploading ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : addOn.image ? (
+          <img src={addOn.image.url} alt={addOn.label || "Add-on"} className="h-full w-full object-cover" />
+        ) : (
+          <Upload size={16} />
+        )}
+      </button>
+
+      <div className="flex flex-1 flex-col gap-1">
+        <div className="flex gap-2">
+          <input
+            value={addOn.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+            placeholder="e.g. Breakfast, Hotel stay"
+            className={inputClass}
+          />
+          <input
+            type="number"
+            value={addOn.price}
+            onChange={(e) => onChange({ price: Number(e.target.value) })}
+            placeholder="₹ Price"
+            className={`${inputClass} w-28`}
+          />
+          <button onClick={onRemove} className="shrink-0 text-ink-faint hover:text-vibe-coral">
+            <X size={16} />
+          </button>
+        </div>
+        {addOn.image && (
+          <button
+            type="button"
+            onClick={() => onChange({ image: undefined })}
+            className="self-start text-[11px] font-semibold text-ink-faint hover:text-vibe-coral"
+          >
+            Remove photo
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PricingStep({ draft, update, audience }: StepProps & { audience: Audience }) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   // Held as a string so the field can actually be cleared. As a number, clearing it
   // coerced ""→0 and the box snapped back to a stuck "0".
@@ -2042,27 +2132,16 @@ function PricingStep({ draft, update }: StepProps) {
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="rounded-xl2 border border-surface-border p-5">
           <p className="text-sm font-semibold text-ink">Add-ons</p>
-          <p className="mb-4 text-xs text-ink-faint">Optional extras with charges</p>
+          <p className="mb-4 text-xs text-ink-faint">Optional extras with charges — add a photo to drive impulse buys</p>
           <div className="space-y-3">
             {addOns.map((a, i) => (
-              <div key={a.id} className="flex gap-2">
-                <input
-                  value={a.label}
-                  onChange={(e) => updateAddOn(i, { label: e.target.value })}
-                  placeholder="e.g. Breakfast, Hotel stay"
-                  className={inputClass}
-                />
-                <input
-                  type="number"
-                  value={a.price}
-                  onChange={(e) => updateAddOn(i, { price: Number(e.target.value) })}
-                  placeholder="₹ Price"
-                  className={`${inputClass} w-28`}
-                />
-                <button onClick={() => removeAddOn(i)} className="shrink-0 text-ink-faint hover:text-vibe-coral">
-                  <X size={16} />
-                </button>
-              </div>
+              <AddOnRow
+                key={a.id}
+                addOn={a}
+                audience={audience}
+                onChange={(patch) => updateAddOn(i, patch)}
+                onRemove={() => removeAddOn(i)}
+              />
             ))}
           </div>
           <button onClick={addAddOn} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
@@ -2549,7 +2628,7 @@ export function PackageStudio({
           {step === 2 && <BookingStep draft={draft} update={update} />}
           {step === 3 && <DetailsStep draft={draft} update={update} />}
           {step === 4 && <LocationStep draft={draft} update={update} />}
-          {step === 5 && <PricingStep draft={draft} update={update} />}
+          {step === 5 && <PricingStep draft={draft} update={update} audience={audience} />}
           {step === 6 && <LaunchStep draft={draft} update={update} />}
         </div>
       </div>

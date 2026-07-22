@@ -220,6 +220,7 @@ export interface CreateVendorBookingInput {
   /** Slot end as "HH:mm". */
   endTime?: string;
   totalAmount: number;
+  paidAmount?: number;
   payment: Booking["payment"];
   status: BookingStatus;
 }

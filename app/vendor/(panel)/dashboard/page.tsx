@@ -31,13 +31,21 @@ export default function DashboardPage() {
 
   const vendorName = isVendorOwner(vendor) ? vendor.businessName : vendor.holderName;
   const [stats, setStats] = useState<VendorDashboardStats | null>(null);
-  const [pinMode, setPinMode] = useState<"loading" | "create" | "create_confirm" | "enter" | "unlocked">("loading");
+  const [pinMode, setPinMode] = useState<"loading" | "create" | "create_confirm" | "enter" | "unlocked">(() =>
+    typeof window !== "undefined" && sessionStorage.getItem("byv_vendor_mpin_ok") === "1" ? "unlocked" : "loading"
+  );
   const [inputPin, setInputPin] = useState("");
   const [firstPin, setFirstPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  function unlock() {
+    if (typeof window !== "undefined") sessionStorage.setItem("byv_vendor_mpin_ok", "1");
+    setPinMode("unlocked");
+  }
+
   useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("byv_vendor_mpin_ok") === "1") return;
     getMpinStatus()
       .then(({ hasPin }) => setPinMode(hasPin ? "enter" : "create"))
       .catch(() => setPinMode("create")); // fallback — treat as first-time if API fails
@@ -208,11 +216,11 @@ export default function DashboardPage() {
           setPinMode("create");
         } else {
           await setMpin(pin);
-          setPinMode("unlocked");
+          unlock();
         }
       } else if (pinMode === "enter") {
         await verifyMpin(pin);
-        setPinMode("unlocked");
+        unlock();
       }
     } catch (error: any) {
       console.error("MPIN error:", error);

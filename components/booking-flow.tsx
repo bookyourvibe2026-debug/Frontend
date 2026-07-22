@@ -1231,9 +1231,18 @@ function ReviewStep(props: {
                     const added = selectedAddOnIds.includes(addOn.id);
                     return (
                       <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
-                          <p className="text-[10px] font-semibold text-slate-500">₹{addOn.price.toLocaleString("en-IN")}</p>
+                        <div className="flex items-center gap-2.5">
+                          {addOn.image && (
+                            <img
+                              src={addOn.image.url}
+                              alt={addOn.label}
+                              className="h-11 w-11 shrink-0 rounded-lg object-cover"
+                            />
+                          )}
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
+                            <p className="text-[10px] font-semibold text-slate-500">₹{addOn.price.toLocaleString("en-IN")}</p>
+                          </div>
                         </div>
                         <button
                           type="button"

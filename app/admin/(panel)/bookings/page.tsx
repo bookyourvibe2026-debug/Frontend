@@ -27,6 +27,7 @@ const STATUS_BADGE_TONE: Record<BookingStatus, "success" | "pending" | "danger" 
   Pending: "pending",
   Cancelled: "danger",
   Completed: "neutral",
+  "Part Paid": "pending",
 };
 
 const PAYMENT_BADGE_TONE: Record<PaymentStatus, "success" | "pending" | "danger"> = {

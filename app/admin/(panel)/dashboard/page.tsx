@@ -12,6 +12,7 @@ const BOOKING_BADGE_TONE: Record<BookingStatus, "success" | "pending" | "danger"
   Pending: "pending",
   Cancelled: "danger",
   Completed: "neutral",
+  "Part Paid": "pending",
 };
 
 export default function AdminDashboardPage() {

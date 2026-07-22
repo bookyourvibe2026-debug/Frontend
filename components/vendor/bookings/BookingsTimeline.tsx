@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck } from "lucide-react";
+import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck, Circle } from "lucide-react";
 
 /* ─── Slot model ────────────────────────────────────────────────── */
 
@@ -205,6 +204,9 @@ export function BookingsTimeline({
   onAction,
   onLongPress,
   scrollToNow = false,
+  selectMode = false,
+  selectedKeys,
+  onToggleSelect,
 }: {
   slots: TimelineSlot[];
   onSlotClick: (slot: TimelineSlot) => void;
@@ -213,6 +215,11 @@ export function BookingsTimeline({
   onLongPress?: (slot: TimelineSlot) => void;
   /** When viewing today, open the list at the current/upcoming slot; passed slots stay reachable by scrolling up. */
   scrollToNow?: boolean;
+  /** Multi-select mode: tapping an available row toggles it instead of opening the slot modal. */
+  selectMode?: boolean;
+  /** Start times of the currently-selected available slots. */
+  selectedKeys?: string[];
+  onToggleSelect?: (slot: TimelineSlot) => void;
 }) {
   const currentSlotRef = useRef<HTMLDivElement>(null);
   const didAutoScroll = useRef(false);
@@ -275,6 +282,9 @@ export function BookingsTimeline({
         const isFree = slot.status === "Available";
         const isBlocked = slot.status === "Blocked";
         const isLast = i === slots.length - 1;
+        const isSelected = selectMode && isFree && (selectedKeys?.includes(slot.startTime) ?? false);
+        // In select mode only free slots can be picked; everything else is dimmed & inert.
+        const selectDisabled = selectMode && !isFree;
 
         return (
           <div
@@ -302,11 +312,16 @@ export function BookingsTimeline({
             <div
               role="button"
               tabIndex={0}
+              aria-disabled={selectDisabled}
               onClick={() => {
                 if (longPressFired.current) return; // consumed by the long-press sheet
+                if (selectMode) {
+                  if (isFree) onToggleSelect?.(slot);
+                  return;
+                }
                 onSlotClick(slot);
               }}
-              onPointerDown={() => startLongPress(slot)}
+              onPointerDown={() => { if (!selectMode) startLongPress(slot); }}
               onPointerUp={cancelLongPress}
               onPointerCancel={cancelLongPress}
               onPointerLeave={cancelLongPress}
@@ -314,10 +329,13 @@ export function BookingsTimeline({
                 if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
+                  if (selectMode) { if (isFree) onToggleSelect?.(slot); return; }
                   onSlotClick(slot);
                 }
               }}
-              className={`mb-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 text-left transition active:scale-[0.995] sm:p-3 ${s.card}`}
+              className={`mb-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border p-2.5 text-left transition active:scale-[0.995] sm:p-3 ${s.card} ${
+                selectDisabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
+              } ${isSelected ? "!border-emerald-500 ring-2 ring-emerald-400/60" : ""}`}
             >
               <div className="min-w-0 flex-1">
                 {isFree ? (
@@ -359,20 +377,31 @@ export function BookingsTimeline({
                 )}
               </div>
 
-              {!isFree && !isBlocked && (
-                <RowMenu slot={slot} onAction={onAction} />
-              )}
+              {/* In select mode, free rows show a checkbox; the ⋮ menu / add / lock chips are hidden. */}
+              {selectMode ? (
+                isFree && (
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full shadow-sm ${isSelected ? "bg-emerald-500 text-white" : "bg-white text-slate-300"}`}>
+                    {isSelected ? <CircleCheck size={16} /> : <Circle size={16} />}
+                  </span>
+                )
+              ) : (
+                <>
+                  {!isFree && !isBlocked && (
+                    <RowMenu slot={slot} onAction={onAction} />
+                  )}
 
-              {isFree && (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
-                  <Plus size={14} />
-                </span>
-              )}
+                  {isFree && (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
+                      <Plus size={14} />
+                    </span>
+                  )}
 
-              {isBlocked && (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-rose-500 shadow-sm">
-                  <Lock size={13} />
-                </span>
+                  {isBlocked && (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-rose-500 shadow-sm">
+                      <Lock size={13} />
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
