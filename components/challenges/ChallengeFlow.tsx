@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
@@ -242,7 +242,9 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
   const [sport, setSport] = useState("Other Match");
   const [venues, setVenues] = useState<Listing[]>([]);
   const [loadingVenues, setLoadingVenues] = useState(true);
-  const [availableVenues, setAvailableVenues] = useState<Listing[]>([]);
+  // Booked ranges per venue for the chosen date — the source of truth for which start
+  // times are really open. Availability for every time is worked out locally from this.
+  const [venueRanges, setVenueRanges] = useState<Record<string, { startTime: string; endTime: string }[]>>({});
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [venueName, setVenueName] = useState("");
   // Set only when venueName came from a real listing — lets that venue's vendor verify
@@ -315,40 +317,29 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     };
   }, [sport]);
 
-  // Of the sport-matching venues, only ones with no conflicting booking at the chosen
-  // date + time actually show up for selection.
+  // Booked ranges for every sport-matching venue on the chosen date. Each call returns
+  // the whole day's bookings, so we fetch once per date and then work out availability
+  // for *every* start time locally — no re-hitting the API on each time tap.
   useEffect(() => {
     if (venues.length === 0) {
-      setAvailableVenues([]);
-      setVenueName("");
-      setVenueId("");
+      setVenueRanges({});
       return;
     }
     let cancelled = false;
     setCheckingAvailability(true);
-    const startMin = timeToMinutes(to24h(timeLabel));
     Promise.all(
       venues.map((v) =>
         getVenueAvailability(v._id, dateIso)
-          .then((ranges) => ({
-            v,
-            free: !ranges.some((r) =>
-              rangesOverlap(startMin, startMin + CHALLENGE_DURATION_MIN, timeToMinutes(r.startTime), timeToMinutes(r.endTime))
-            ),
-          }))
-          .catch(() => ({ v, free: true })) // availability check failing shouldn't block the whole step
+          .then((ranges) => ({ id: v._id, ranges }))
+          // A failed check shouldn't block the step — treat that venue as fully open.
+          .catch(() => ({ id: v._id, ranges: [] as { startTime: string; endTime: string }[] }))
       )
     )
       .then((results) => {
         if (cancelled) return;
-        const free = results.filter((r) => r.free).map((r) => r.v);
-        setAvailableVenues(free);
-        setVenueName((current) => {
-          if (current && free.some((v) => `${v.title}, ${v.city}` === current)) return current;
-          const first = free[0];
-          setVenueId(first?._id ?? "");
-          return first ? `${first.title}, ${first.city}` : "";
-        });
+        const map: Record<string, { startTime: string; endTime: string }[]> = {};
+        for (const r of results) map[r.id] = r.ranges;
+        setVenueRanges(map);
       })
       .finally(() => {
         if (!cancelled) setCheckingAvailability(false);
@@ -356,7 +347,51 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [venues, dateIso, timeLabel]);
+  }, [venues, dateIso]);
+
+  /** True when a venue has a free 60-min window starting at `startMin` (no booked overlap). */
+  const isVenueFreeAt = useCallback(
+    (id: string, startMin: number) => {
+      const ranges = venueRanges[id] ?? [];
+      return !ranges.some((r) =>
+        rangesOverlap(startMin, startMin + CHALLENGE_DURATION_MIN, timeToMinutes(r.startTime), timeToMinutes(r.endTime))
+      );
+    },
+    [venueRanges]
+  );
+
+  /** How many turfs are actually open at each start time — drives which chips are pickable. */
+  const timeFreeCount = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const t of TIME_OPTIONS) {
+      const startMin = timeToMinutes(to24h(t));
+      m[t] = venues.filter((v) => isVenueFreeAt(v._id, startMin)).length;
+    }
+    return m;
+  }, [venues, isVenueFreeAt]);
+
+  /** Turfs free at the currently-selected time. */
+  const availableVenues = useMemo(() => {
+    const startMin = timeToMinutes(to24h(timeLabel));
+    return venues.filter((v) => isVenueFreeAt(v._id, startMin));
+  }, [venues, isVenueFreeAt, timeLabel]);
+
+  // If the selected time has no open turf (e.g. the default landed on a booked hour),
+  // move to the first time that does — the player never gets stuck on a dead time.
+  useEffect(() => {
+    if (venues.length === 0 || checkingAvailability) return;
+    if ((timeFreeCount[timeLabel] ?? 0) > 0) return;
+    const firstFree = TIME_OPTIONS.find((t) => (timeFreeCount[t] ?? 0) > 0);
+    if (firstFree && firstFree !== timeLabel) setTimeLabel(firstFree);
+  }, [timeFreeCount, timeLabel, venues.length, checkingAvailability]);
+
+  // Keep the picked turf valid for the selected time; default to the first open one.
+  useEffect(() => {
+    if (venueName && availableVenues.some((v) => `${v.title}, ${v.city}` === venueName)) return;
+    const first = availableVenues[0];
+    setVenueId(first?._id ?? "");
+    setVenueName(first ? `${first.title}, ${first.city}` : "");
+  }, [availableVenues, venueName]);
 
   function selectSport(label: string) {
     setSport(label);
@@ -632,20 +667,36 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
 
-              <p className="mb-2 mt-5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Start time</p>
+              <div className="mb-2 mt-5 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Start time</p>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {checkingAvailability ? "Checking availability…" : "Greyed = fully booked"}
+                </span>
+              </div>
               <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto pr-1">
-                {TIME_OPTIONS.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTimeLabel(t)}
-                    className={`rounded-xl px-2 py-2.5 text-[11px] font-extrabold transition ${
-                      timeLabel === t ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-white/7 text-slate-300"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {TIME_OPTIONS.map((t) => {
+                  const selected = timeLabel === t;
+                  // Until ranges load, every time is tappable; after, only times with an
+                  // actually-open turf are — so the player only ever picks a real slot.
+                  const free = checkingAvailability ? true : (timeFreeCount[t] ?? 0) > 0;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      disabled={!free}
+                      onClick={() => setTimeLabel(t)}
+                      className={`rounded-xl px-2 py-2.5 text-[11px] font-extrabold transition ${
+                        selected
+                          ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                          : free
+                          ? "bg-white/7 text-slate-200 hover:bg-white/12"
+                          : "cursor-not-allowed bg-white/[0.03] text-slate-600 line-through"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mb-2 mt-6 flex items-center justify-between gap-2">
