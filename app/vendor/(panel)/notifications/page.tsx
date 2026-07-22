@@ -129,7 +129,9 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     Promise.all([
-      getVendorBookings({ limit: 100 }),
+      // 500 (matching the rest of the panel) so busy venues don't silently drop
+      // bookings from the list — the vendor reported some never showing up.
+      getVendorBookings({ limit: 500 }),
       getVendorListings(),
       listSubscriptions().catch(() => []),
     ])

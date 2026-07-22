@@ -6,6 +6,7 @@ import { getVendorBookings, getVendorListings, updateVendorListing } from "@/lib
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Booking, Listing, TurfSlot } from "@/lib/types";
+import { useBackDismiss } from "@/lib/useBackDismiss";
 
 /**
  * Last Min Boost — an auto-discount engine.
@@ -147,6 +148,8 @@ function Dropdown<T extends string | number>({
 }
 
 export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
+  // Device Back closes this full-screen sheet instead of leaving the More page.
+  useBackDismiss(true, onClose);
   const [listings, setListings] = useState<Listing[]>([]);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [loading, setLoading] = useState(true);

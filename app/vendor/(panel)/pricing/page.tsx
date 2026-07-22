@@ -219,6 +219,56 @@ export default function PriceSettingPage() {
     return set;
   }, [calendarDays]);
 
+  /**
+   * Insights for the month the calendar is actually showing — real public
+   * holidays, long-weekend stretches and a demand hint derived from
+   * INDIAN_HOLIDAYS, not a hardcoded month. (The panel used to always print
+   * "May …" no matter which month was on screen.)
+   */
+  const monthInsights = useMemo(() => {
+    const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-`;
+    const holidays = Object.entries(INDIAN_HOLIDAYS)
+      .filter(([date]) => date.startsWith(monthPrefix))
+      .map(([date, name]) => ({ date, name }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // A "long weekend" = 3+ consecutive off-days (Sat/Sun or a holiday) that
+    // include at least one public holiday. Scan a padded window so a stretch
+    // straddling the month edge is still caught, then keep only the ones that
+    // actually touch the visible month.
+    const isOff = (d: Date) => {
+      const dow = d.getDay();
+      return dow === 0 || dow === 6 || Boolean(INDIAN_HOLIDAYS[toIso(d)]);
+    };
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const streaks: { start: string; end: string; name: string; days: number }[] = [];
+    let run: Date[] = [];
+    const flush = () => {
+      const touchesMonth = run.some((d) => d.getMonth() === calMonth && d.getFullYear() === calYear);
+      const holiday = run.map((d) => INDIAN_HOLIDAYS[toIso(d)]).find(Boolean);
+      if (run.length >= 3 && holiday && touchesMonth) {
+        streaks.push({ start: toIso(run[0]), end: toIso(run[run.length - 1]), name: holiday, days: run.length });
+      }
+      run = [];
+    };
+    for (let i = -3; i <= daysInMonth + 3; i++) {
+      const d = new Date(calYear, calMonth, i + 1);
+      if (isOff(d)) run.push(d);
+      else flush();
+    }
+    flush();
+    const seen = new Set<string>();
+    const uniqueStreaks = streaks.filter((s) => (seen.has(s.start) ? false : (seen.add(s.start), true)));
+
+    const demand = uniqueStreaks.length ? 60 + Math.min(30, (Math.max(...uniqueStreaks.map((s) => s.days)) - 3) * 12 + 10) : holidays.length ? 40 : 25;
+    return { holidays, streaks: uniqueStreaks, demand };
+  }, [calYear, calMonth]);
+
+  /** "2026-08-28" → "28 Aug". */
+  function fmtDayShort(iso: string) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  }
+
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); } else setCalMonth((m) => m - 1);
   }
@@ -601,50 +651,59 @@ export default function PriceSettingPage() {
             </div>
 
             <div className="space-y-3">
-              {/* Alert 1 */}
-              <div className="border-l-4 border-rose-500 bg-rose-50/20 rounded-r-2xl p-4 flex gap-3.5">
-                <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-rose-500 border border-rose-100/55">
-                  <TrendingUp size={16} />
+              {/* Alert 1 — long-weekend stretch, only when the viewed month has one */}
+              {monthInsights.streaks.length > 0 && (
+                <div className="border-l-4 border-rose-500 bg-rose-50/20 rounded-r-2xl p-4 flex gap-3.5">
+                  <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-rose-500 border border-rose-100/55">
+                    <TrendingUp size={16} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-black text-rose-950">Long Weekend Alert!</p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
+                      <strong className="text-rose-700">{fmtDayShort(monthInsights.streaks[0].start)} – {fmtDayShort(monthInsights.streaks[0].end)}</strong> is a continuous {monthInsights.streaks[0].days}-day holiday stretch ({monthInsights.streaks[0].name} + Weekend). Demand will surge.
+                    </p>
+                    <span className="inline-block bg-rose-100/70 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                      Expected Demand: +{monthInsights.demand}%
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-black text-rose-950">Long Weekend Alert!</p>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
-                    <strong className="text-rose-700">May 1st, 2nd, & 3rd</strong> is a continuous 3-day holiday stretch (Labor Day + Weekend). Demand will surge.
-                  </p>
-                  <span className="inline-block bg-rose-100/70 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
-                    Expected Demand: +85%
-                  </span>
-                </div>
-              </div>
+              )}
 
-              {/* Alert 2 */}
+              {/* Alert 2 — peak-demand nudge for weekends + holidays this month */}
               <div className="border-l-4 border-amber-500 bg-amber-50/20 rounded-r-2xl p-4 flex gap-3.5">
                 <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center shrink-0 text-amber-500 border border-amber-100/55">
                   <Users size={16} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-black text-amber-950">Corporate League Alert</p>
+                  <p className="text-xs font-black text-amber-950">Peak Demand in {monthNames[calMonth]}</p>
                   <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
-                    <strong className="text-amber-700">May 1st</strong> has peak corporate bookings. Maximize revenue on remainder slots.
+                    {monthInsights.holidays.length > 0 ? (
+                      <>Weekends and <strong className="text-amber-700">{monthInsights.holidays.length} holiday{monthInsights.holidays.length === 1 ? "" : "s"}</strong> this month draw peak bookings. Maximise revenue on your remaining slots.</>
+                    ) : (
+                      <>Weekends draw peak bookings this month. Set weekend rates above weekdays to maximise revenue.</>
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* Alert 3 */}
+              {/* Alert 3 — the real public holidays in the viewed month */}
               <div className="border-l-4 border-cyan-500 bg-cyan-50/20 rounded-r-2xl p-4 flex gap-3.5">
                 <div className="w-10 h-10 bg-cyan-50 rounded-full flex items-center justify-center shrink-0 text-cyan-500 border border-cyan-100/55">
                   <PartyPopper size={16} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-black text-cyan-950">Upcoming Holidays</p>
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> May 1 - Labor Day
-                    </p>
-                    <p className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> May 21 - Local Festival
-                    </p>
-                  </div>
+                  <p className="text-xs font-black text-cyan-950">Holidays in {monthNames[calMonth]}</p>
+                  {monthInsights.holidays.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 leading-relaxed font-bold">No public holidays this month.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {monthInsights.holidays.map((h) => (
+                        <p key={h.date} className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> {fmtDayShort(h.date)} - {h.name}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

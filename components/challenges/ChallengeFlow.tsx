@@ -471,17 +471,58 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     setNotice("Challenge link copied.");
   }
 
+  /**
+   * Renders the poster node to a PNG data URL, reliably.
+   *
+   * The poster kept coming out blank / half-drawn because capture ran before the
+   * web fonts and the logo/sport/QR images had finished loading, and because
+   * html-to-image is known to drop images on its very first pass. So we wait for
+   * `document.fonts.ready` and every <img> inside the poster, then capture twice
+   * (the first pass warms the image cache; the second renders correctly) at the
+   * node's true 380×675 size.
+   */
+  async function capturePoster(backgroundColor: string): Promise<string> {
+    const node = posterRef.current;
+    if (!node) throw new Error("poster not mounted");
+
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        /* fonts API unavailable — fall through and capture anyway */
+      }
+    }
+    // Wait for the logo / sport icon / QR images to finish decoding.
+    await Promise.all(
+      Array.from(node.querySelectorAll("img")).map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.addEventListener("load", () => resolve(), { once: true });
+              img.addEventListener("error", () => resolve(), { once: true });
+            })
+      )
+    );
+
+    const options = {
+      backgroundColor,
+      pixelRatio: 2,
+      cacheBust: true,
+      width: node.offsetWidth || 380,
+      height: node.offsetHeight || 675,
+    };
+    // Warm-up pass — its result is intentionally discarded.
+    await toPng(node, options).catch(() => "");
+    return toPng(node, options);
+  }
+
   async function downloadPoster() {
     if (downloading || !posterRef.current || !challenge) return;
     setDownloading(true);
     setNotice("");
     try {
       const node = posterRef.current;
-      const dataUrl = await toPng(node, {
-        backgroundColor: "#02060d",
-        pixelRatio: 2,
-        cacheBust: true,
-      });
+      const dataUrl = await capturePoster("#02060d");
       const width = node.offsetWidth || 380;
       const height = node.offsetHeight || 675;
       const pdf = new jsPDF({
@@ -503,11 +544,7 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
     setSharingToIG(true);
     setNotice("");
     try {
-      const dataUrl = await toPng(posterRef.current, {
-        backgroundColor: "#090f19",
-        pixelRatio: 2,
-        cacheBust: true,
-      });
+      const dataUrl = await capturePoster("#090f19");
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `byv-challenge-${challenge.code}.png`, { type: "image/png" });
 
@@ -611,7 +648,13 @@ export function ChallengeFlow({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
 
-              <p className="mb-2 mt-6 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Available turfs</p>
+              <div className="mb-2 mt-6 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-400">Available turfs</p>
+                <span className="rounded-full bg-white/7 px-2.5 py-1 text-[10px] font-bold text-slate-300">
+                  {dateLabel} · {timeLabel}
+                </span>
+              </div>
+              <p className="mb-2 text-[11px] font-medium text-slate-500">Pick a date and start time above, then tap a turf below to lock your arena.</p>
               {loadingVenues || checkingAvailability ? (
                 <p className="py-10 text-center text-xs font-semibold text-slate-500">Checking availability...</p>
               ) : availableVenues.length === 0 ? (

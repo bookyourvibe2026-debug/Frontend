@@ -65,7 +65,7 @@ export function ImageCarousel({
         {images.map((src, i) => (
           <div key={i} className="h-full w-full flex-none snap-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={`${alt} ${i + 1}`} className="h-full w-full object-cover" draggable={false} />
+            <img src={src} alt={`${alt} ${i + 1}`} className="block h-full w-full object-cover" draggable={false} />
           </div>
         ))}
       </div>

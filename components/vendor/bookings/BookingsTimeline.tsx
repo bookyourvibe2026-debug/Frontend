@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck, Users } from "lucide-react";
+import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck } from "lucide-react";
 
 /* ─── Slot model ────────────────────────────────────────────────── */
 
@@ -203,16 +203,38 @@ export function BookingsTimeline({
   slots,
   onSlotClick,
   onAction,
+  onLongPress,
   scrollToNow = false,
 }: {
   slots: TimelineSlot[];
   onSlotClick: (slot: TimelineSlot) => void;
   onAction: (slot: TimelineSlot, action: SlotAction) => void;
+  /** Press-and-hold a row → quick "book offline / block" sheet (empty slots). */
+  onLongPress?: (slot: TimelineSlot) => void;
   /** When viewing today, open the list at the current/upcoming slot; passed slots stay reachable by scrolling up. */
   scrollToNow?: boolean;
 }) {
   const currentSlotRef = useRef<HTMLDivElement>(null);
   const didAutoScroll = useRef(false);
+
+  // Shared long-press timer — only one row can be held at a time. `fired` stops
+  // the trailing click from also opening the normal slot modal.
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  const startLongPress = (slot: TimelineSlot) => {
+    if (!onLongPress) return;
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onLongPress(slot);
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   // First slot still running or upcoming; if the day is over, land at the end.
   const toMins = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -276,11 +298,20 @@ export function BookingsTimeline({
               {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
             </div>
 
-            {/* Slot card — a div (not a button) so RowMenu's buttons can nest inside it. */}
+            {/* Slot card — a div (not a button) so RowMenu's buttons can nest inside it.
+                `min-w-0` lets the customer/phone text truncate instead of pushing the
+                blue walk-in row off the right edge of the screen. */}
             <div
               role="button"
               tabIndex={0}
-              onClick={() => onSlotClick(slot)}
+              onClick={() => {
+                if (longPressFired.current) return; // consumed by the long-press sheet
+                onSlotClick(slot);
+              }}
+              onPointerDown={() => startLongPress(slot)}
+              onPointerUp={cancelLongPress}
+              onPointerCancel={cancelLongPress}
+              onPointerLeave={cancelLongPress}
               onKeyDown={(e) => {
                 if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
@@ -288,7 +319,7 @@ export function BookingsTimeline({
                   onSlotClick(slot);
                 }
               }}
-              className={`mb-1 flex flex-1 cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.995] ${s.card}`}
+              className={`mb-1 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.995] ${s.card}`}
             >
               <div className="min-w-0 flex-1">
                 {isFree ? (

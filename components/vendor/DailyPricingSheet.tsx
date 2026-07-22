@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { X, Lightbulb, ChevronDown, ChevronUp, Check } from "lucide-react";
 import type { TurfSlot } from "@/lib/types";
+import { useBackDismiss } from "@/lib/useBackDismiss";
 
 function t24m(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -37,6 +38,8 @@ export function DailyPricingSheet({
   /** When provided, each slot row gets a "Book" shortcut that jumps to the booking flow for that slot. */
   onBookSlot?: (slot: TurfSlot) => void;
 }) {
+  // Device Back closes this sheet instead of leaving the pricing page.
+  useBackDismiss(true, onClose);
   const basePrice = useMemo(
     () => (slots.length ? Math.min(...slots.map((s) => s.price)) : 0),
     [slots]

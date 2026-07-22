@@ -220,7 +220,7 @@ export default function VenueDetailPage() {
           <div>
             {/* Hero gallery */}
             <div className="relative h-64 w-full overflow-hidden rounded-3xl border border-brand-200 bg-slate-900 sm:h-80">
-              <ImageCarousel images={galleryImages} alt={venue.title} className="absolute inset-0" />
+              <ImageCarousel images={galleryImages} alt={venue.title} className="h-full w-full" />
               <div className="absolute bottom-4 left-4 flex items-center gap-2">
                 <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
                   {categoryText}
@@ -880,7 +880,7 @@ function MobileVenueDetail({
     <div className="pb-24">
       {/* Hero gallery with floating header */}
       <div className="relative h-72 w-full bg-slate-900">
-        <ImageCarousel images={galleryImages} alt={venue.title} className="absolute inset-0" />
+        <ImageCarousel images={galleryImages} alt={venue.title} className="h-full w-full" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <button
             type="button"

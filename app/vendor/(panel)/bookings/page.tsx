@@ -32,6 +32,7 @@ import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapte
 import { ApiError } from "@/lib/api/client";
 import { Listing, Booking, BookingStatus } from "@/lib/types";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
+import { TimeField } from "@/components/vendor/TimeField";
 import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
 import { BookingsHeader } from "@/components/vendor/bookings/BookingsHeader";
 import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/vendor/bookings/BookingsTimeline";
@@ -157,6 +158,8 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<"timeline" | "clock">("timeline");
   // Active slot action modal
   const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
+  // Long-press quick sheet (press & hold a slot → "Offline Booking" / "Block Slot")
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   // Grouped-list filter (for "See Booking" bottom button)
   const [groupedFilter, setGroupedFilter] = useState<SlotStatus | null>(null);
 
@@ -710,6 +713,15 @@ export default function BookingsPage() {
     if (slot) setActiveSlot(slot);
   };
 
+  /** Press & hold on the clock / timeline → fast "book offline or block" sheet for
+   * an empty slot; a held booking/blocked slot just opens its normal manage view. */
+  const handleSlotLongPress = (slot: { startTime: string }) => {
+    const real = resolvedSlots.find((s) => s.startTime === slot.startTime);
+    if (!real) return;
+    setActiveSlot(real);
+    if (real.status === "Available") setQuickActionsOpen(true);
+  };
+
   const selectedDateObj = new Date(selectedDate + "T00:00:00");
   /** e.g. "Fri, 17 July" — the label beside "TODAY" in the header. */
   const headerDateLabel = selectedDateObj.toLocaleDateString("en-IN", {
@@ -730,7 +742,7 @@ export default function BookingsPage() {
        with its own overflow, but that height never matched the real viewport once the
        mobile browser chrome and the fixed bottom nav were in play, so the slot list got
        clipped part-way down the screen. */
-    <div className="relative flex min-h-[60vh] flex-col bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
+    <div className="relative flex min-h-[60vh] flex-col overflow-x-hidden bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
       {/* ── HEADER: venue, today card, date strip ── */}
       <div className="z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
         <BookingsHeader
@@ -813,6 +825,7 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSlotClick={setActiveSlot}
                   onAction={handleSlotAction}
+                  onLongPress={handleSlotLongPress}
                   scrollToNow={isToday}
                 />
                 <button
@@ -830,6 +843,7 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
+                  onLongPressSlot={handleSlotLongPress}
                   // Picking "Clock" opens the dial fullscreen; closing it returns to the
                   // timeline rather than leaving a half-cropped dial in the page.
                   autoFullscreen
@@ -911,8 +925,45 @@ export default function BookingsPage() {
         />
       )}
 
+      {/* ── LONG-PRESS QUICK ACTIONS (empty slot → book offline / block fast) ── */}
+      {quickActionsOpen && activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Quick actions</h3>
+                <p className="text-[11px] font-semibold text-slate-400">{to12h(activeSlot.startTime)} · {to12h(activeSlot.endTime)}</p>
+              </div>
+              <button onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => { setQuickActionsOpen(false); startOfflineBooking(activeSlot); }}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-emerald-700 transition active:scale-95"
+              >
+                <BookOpen size={20} />
+                <span className="text-[11px] font-black">Offline Booking</span>
+              </button>
+              <button
+                onClick={() => { setQuickActionsOpen(false); setBlockReasonOpen(true); }}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 py-4 text-rose-600 transition active:scale-95"
+              >
+                <Ban size={20} />
+                <span className="text-[11px] font-black">Block Slot</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setQuickActionsOpen(false)}
+              className="mt-2.5 w-full rounded-xl py-2.5 text-[11px] font-black text-slate-500 hover:bg-slate-50"
+            >
+              More options
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── SLOT ACTION MODAL (available / blocked) ── */}
-      {activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && !isBookedSlot && (
+      {activeSlot && !quickActionsOpen && !offlineModal && !blockReasonOpen && !pendingConfirm && !isBookedSlot && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setActiveSlot(null)}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
@@ -1218,14 +1269,14 @@ function AddSlotModal({
 
         {error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2.5 text-[11px] font-bold text-rose-600">{error}</p>}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">From</label>
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className={field} />
+            <TimeField value={start} onChange={setStart} />
           </div>
           <div>
             <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">To</label>
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={field} />
+            <TimeField value={end} onChange={setEnd} />
           </div>
         </div>
         <div className="mt-3">

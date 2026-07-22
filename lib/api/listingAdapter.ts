@@ -61,5 +61,14 @@ export function mockListingToApiInput(listing: MockListing): AdminListingInput {
   const { id: _id, listedOn: _listedOn, ...rest } = listing;
   void _id;
   void _listedOn;
-  return rest;
+  // The backend requires `categories` to be a non-empty array. On a pricing /
+  // boost / block update the turf may legitimately have no sports set yet, and
+  // sending an empty array trips zod ("categories: Array must contain at least
+  // 1 element(s)") — so the whole save fails with a raw validation string. Drop
+  // the key entirely when empty: a partial update simply leaves categories
+  // untouched, while create flows still supply real categories from the form.
+  if (!rest.categories || rest.categories.length === 0) {
+    delete (rest as Partial<AdminListingInput>).categories;
+  }
+  return rest as AdminListingInput;
 }

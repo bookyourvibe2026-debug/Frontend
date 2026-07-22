@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, X } from "lucide-react";
+import { useBackDismiss } from "@/lib/useBackDismiss";
 
 export interface ClockSlotItem {
   startTime: string; // "HH:MM"
@@ -135,6 +136,7 @@ export function ClockSlotsWidget({
   slots = [],
   onSelectSlot,
   onSelectHour,
+  onLongPressSlot,
   renderSeeBooking,
   autoFullscreen = false,
   onExitFullscreen,
@@ -142,6 +144,8 @@ export function ClockSlotsWidget({
   slots: ClockSlotItem[];
   onSelectSlot?: (slot: ClockSlotItem) => void;
   onSelectHour?: (hour: number) => void;
+  /** Press-and-hold a slice for the quick "book offline / block" sheet. */
+  onLongPressSlot?: (slot: ClockSlotItem) => void;
   /** Receives a callback that exits fullscreen — call it before opening any page-level UI. */
   renderSeeBooking?: (closeFullscreen: () => void) => React.ReactNode;
   /** Open fullscreen straight away — the dial is unreadable squeezed into a card on a phone. */
@@ -159,6 +163,32 @@ export function ClockSlotsWidget({
     setIsFullscreen(false);
     onExitFullscreen?.();
   }, [onExitFullscreen]);
+
+  // Device / browser Back closes the fullscreen dial (and returns to the timeline)
+  // instead of navigating off the bookings page. Previously any Back press after
+  // opening the dial threw the vendor out to the previous page.
+  useBackDismiss(isFullscreen, exitFullscreen);
+
+  /* ── Long-press: press-and-hold a slice for the quick book-offline / block sheet.
+        A tap still opens the normal slot modal; the fired flag stops the trailing
+        click from double-triggering. ── */
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  const startLongPress = (slot: ClockSlotItem) => {
+    if (!onLongPressSlot) return;
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      exitFullscreen();
+      onLongPressSlot(slot);
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   // Scroll lock keyed on fullscreen alone — re-running it would capture "hidden" as the
   // value to restore and leave the page unscrollable after closing.
@@ -225,7 +255,7 @@ export function ClockSlotsWidget({
     const x = e.clientX - rect.left - center;
     const y = e.clientY - rect.top - center;
 
-    let angleRad = Math.atan2(y, x);
+    const angleRad = Math.atan2(y, x);
     let angleDeg = (angleRad * 180) / Math.PI + 90;
     if (angleDeg < 0) angleDeg += 360;
 
@@ -315,7 +345,7 @@ export function ClockSlotsWidget({
       <div className="relative w-full text-center mb-3">
         <p className="text-xs font-bold uppercase tracking-wider text-vibe-violet">Vibe Cycle</p>
         <p className="text-[10px] text-ink-faint mt-0.5">
-          {isFullscreen ? "Tap a slice to manage that slot" : "Tap the cycle to open it fullscreen"}
+          {isFullscreen ? "Tap a slice to manage · press & hold to book offline or block" : "Tap the cycle to open it fullscreen"}
         </p>
         <button
           type="button"
@@ -369,7 +399,13 @@ export function ClockSlotsWidget({
               className="cursor-pointer transition-all duration-200 hover:opacity-85"
               stroke="#ffffff"
               strokeWidth="2"
-              onClick={() => selectSlot(seg.slot)}
+              onClick={() => {
+                if (longPressFired.current) return; // consumed by the long-press sheet
+                selectSlot(seg.slot);
+              }}
+              onPointerDown={() => startLongPress(seg.slot)}
+              onPointerUp={cancelLongPress}
+              onPointerCancel={cancelLongPress}
               onMouseEnter={(e) => {
                 setHoveredSlot(seg.slot);
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -381,7 +417,10 @@ export function ClockSlotsWidget({
                   });
                 }
               }}
-              onMouseLeave={() => setHoveredSlot(null)}
+              onMouseLeave={() => {
+                setHoveredSlot(null);
+                cancelLongPress();
+              }}
             />
           ))}
 

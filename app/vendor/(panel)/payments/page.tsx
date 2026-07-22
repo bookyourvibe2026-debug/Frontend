@@ -8,6 +8,7 @@ import { Banknote, PiggyBank, Landmark, CircleDollarSign } from "lucide-react";
 import { getVendorSettledPayments } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import { SettledPayment } from "@/lib/api/types";
+import { PageBack } from "@/components/vendor/PageBack";
 
 export default function PaymentsPage() {
   const [tab, setTab] = useState<"online" | "offline">("online");
@@ -53,6 +54,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
+      <PageBack />
       <PageHero
         eyebrow="Earnings"
         title="Payment settled"

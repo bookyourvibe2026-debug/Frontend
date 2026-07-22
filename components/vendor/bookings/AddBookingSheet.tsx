@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { X, User, Phone, Building2, IndianRupee, Clock, Trophy, Users, UtensilsCrossed } from "lucide-react";
+import { TimeField } from "@/components/vendor/TimeField";
+import { useBackDismiss } from "@/lib/useBackDismiss";
 
 export type AddBookingPayment = "Cash (Offline)" | "UPI";
 
@@ -40,13 +42,18 @@ export function AddBookingSheet({
   onClose: () => void;
   onSubmit: (values: AddBookingValues) => void;
 }) {
+  // Device Back closes the sheet instead of leaving the bookings page.
+  useBackDismiss(true, onClose);
   const [form, setForm] = useState<AddBookingValues>({
     customerName: initial.customerName ?? "",
     phone: initial.phone ?? "",
     courtId: initial.courtId ?? courts[0]?.id ?? "",
     price: initial.price ?? "",
-    startTime: initial.startTime ?? "",
-    endTime: initial.endTime ?? "",
+    // The picker always shows a concrete time, so seed sensible defaults when the
+    // sheet is opened blank (rather than from a tapped slot) — an empty value would
+    // otherwise read as 12:00 AM yet still fail the "Set the timing" check.
+    startTime: initial.startTime ?? "06:00",
+    endTime: initial.endTime ?? "07:00",
     sport: initial.sport ?? sports[0] ?? "",
     numberOfPlayers: initial.numberOfPlayers ?? "",
     foodIncluded: initial.foodIncluded ?? false,
@@ -168,20 +175,10 @@ export function AddBookingSheet({
           </div>
 
           <Field label="Timing" icon={Clock} error={errors.startTime}>
-            <div className="flex items-center gap-2">
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => update("startTime", e.target.value)}
-                className={inputCls(!!errors.startTime)}
-              />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <TimeField value={form.startTime} onChange={(v) => update("startTime", v)} />
               <span className="text-[10px] font-bold text-slate-400">to</span>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => update("endTime", e.target.value)}
-                className={inputCls(!!errors.startTime)}
-              />
+              <TimeField value={form.endTime} onChange={(v) => update("endTime", v)} />
             </div>
           </Field>
 
