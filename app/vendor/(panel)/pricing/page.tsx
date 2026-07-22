@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, ChevronDown, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
 import { PageHero, SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
@@ -25,6 +25,40 @@ const BULK_LABEL: Record<BulkTarget, string> = {
 };
 
 const ROLLING_WINDOW_DAYS = 182; // ~6 months forward
+
+/**
+ * Every date carries a light day-type wash — weekday / weekend / holiday — so the three
+ * Bulk Pricing targets are readable straight off the calendar. Bookings, long-weekend
+ * stretches and custom rates layer *on top* of that wash rather than replacing it, so a
+ * date never loses the one signal that says which bulk rule applies to it.
+ */
+const DAY_TONE = {
+  weekday: {
+    cell: "border-sky-100 bg-sky-50/70 hover:border-sky-200 hover:bg-sky-50",
+    num: "bg-sky-100/70 text-sky-800",
+    price: "border border-sky-200/70 bg-sky-100/60 text-sky-800",
+    swatch: "bg-sky-300",
+  },
+  weekend: {
+    cell: "border-rose-100 bg-rose-50/70 hover:border-rose-200 hover:bg-rose-50",
+    num: "bg-rose-100/70 text-rose-700",
+    price: "border border-rose-200/70 bg-rose-100/60 text-rose-700",
+    swatch: "bg-rose-300",
+  },
+  holiday: {
+    cell: "border-amber-200 bg-amber-50/80 hover:border-amber-300 hover:bg-amber-50",
+    num: "bg-amber-100/70 text-amber-800",
+    price: "border border-amber-200/70 bg-amber-100/60 text-amber-800",
+    swatch: "bg-amber-300",
+  },
+} as const;
+
+/** Bulk Pricing target → the same wash its dates wear on the calendar. */
+const BULK_TINT: Record<BulkTarget, string> = {
+  weekdays: "border-sky-200 bg-sky-50 text-sky-800 hover:border-sky-300",
+  weekends: "border-rose-200 bg-rose-50 text-rose-800 hover:border-rose-300",
+  holidays: "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300",
+};
 
 function toIso(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -130,6 +164,15 @@ export default function PriceSettingPage() {
   }, [toast]);
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  /** Keep the horizontal month strip showing the month the grid is actually on —
+   * it used to open parked on January while the grid showed July. */
+  const monthStripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    monthStripRef.current
+      ?.querySelector<HTMLElement>(`[data-month="${calMonth}"]`)
+      ?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [calMonth]);
 
   const calendarDays = useMemo(() => {
     // Week starts Monday so Sat & Sun sit next to each other at the end of the row.
@@ -345,7 +388,7 @@ export default function PriceSettingPage() {
                   key={t}
                   onClick={() => setBulkTarget(bulkTarget === t ? null : t)}
                   className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
-                    bulkTarget === t ? "border-ink bg-ink text-white" : "border-surface-border bg-white text-ink-soft hover:border-ink/30"
+                    bulkTarget === t ? "border-ink bg-ink text-white" : BULK_TINT[t]
                   }`}
                 >
                   {BULK_LABEL[t]}
@@ -373,38 +416,12 @@ export default function PriceSettingPage() {
             )}
           </SectionCard>
 
-          {/* ── CORPORATE / TOURNAMENT BOOKING — take a multi-day booking straight from here ── */}
-          <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-5 shadow-sm">
-            <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
-            <div className="relative flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30">
-                <Trophy size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[15px] font-black text-slate-900">Corporate / Tournament</p>
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-violet-700">
-                    Multi-day
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-500">
-                  Block a 2–3 day (or longer) booking in one go — it reserves those dates and shows as an event on the calendar below.
-                </p>
-                <button
-                  onClick={() => setEventSheetOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
-                >
-                  <CalendarRange size={13} /> Take a Booking
-                </button>
-              </div>
-            </div>
-          </div>
-
           <SectionCard title={`${monthNames[calMonth]} ${calYear}`}>
-            <div className="flex gap-1.5 overflow-x-auto pb-3 mb-3 scrollbar-none">
+            <div ref={monthStripRef} className="flex gap-1.5 overflow-x-auto pb-3 mb-3 scrollbar-none">
               {monthNames.map((name, idx) => (
                 <button
                   key={name}
+                  data-month={idx}
                   onClick={() => setCalMonth(idx)}
                   className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
                     idx === calMonth ? "bg-vibe-navy text-white" : "bg-cream-200 text-ink-soft hover:bg-cream-300"
@@ -430,8 +447,11 @@ export default function PriceSettingPage() {
                 const isEvent = eventDates.has(day.dateStr);
                 const inStreak = holidayStreakDates.has(day.dateStr);
                 const isHolidayOnly = day.isHoliday;
-                const isWeekendOnly = day.isWeekend;
                 const hasOverride = selectedTurf?.dateOverrides?.some((o) => o.date === day.dateStr);
+                // The day-type wash the date always wears, before any overlay.
+                const tone = DAY_TONE[isHolidayOnly ? "holiday" : day.isWeekend ? "weekend" : "weekday"];
+                // A custom rate is a ring on top of the wash, not a replacement for it.
+                const overrideRing = hasOverride ? " ring-2 ring-teal-300 ring-offset-1" : "";
 
                 return (
                   <button
@@ -444,16 +464,10 @@ export default function PriceSettingPage() {
                         : isSelected
                         ? "border-2 border-[#005e4b] bg-[#005e4b]/5 text-[#005e4b] ring-4 ring-[#005e4b]/15 scale-105 z-10"
                         : isEvent
-                        ? "border-2 border-violet-400 bg-violet-50/50 hover:bg-violet-50 hover:border-violet-500 scale-[1.02] z-10"
+                        ? "border-2 border-violet-400 bg-violet-50/60 hover:bg-violet-50 hover:border-violet-500 scale-[1.02] z-10" + overrideRing
                         : inStreak
-                        ? "border-2 border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500 scale-[1.02] z-10"
-                        : isHolidayOnly
-                        ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-300"
-                        : hasOverride
-                        ? "border-2 border-teal-400 bg-teal-50/40 hover:bg-teal-50 hover:border-teal-500 scale-[1.02] z-10"
-                        : isWeekendOnly
-                        ? "border-rose-100 bg-rose-50/40 hover:bg-rose-50"
-                        : "border-slate-100 bg-white hover:border-slate-200"
+                        ? "border-2 border-orange-400 bg-orange-50/70 hover:bg-orange-50 hover:border-orange-500 scale-[1.02] z-10" + overrideRing
+                        : tone.cell + overrideRing
                     }`}
                   >
                     {/* Date Number Display */}
@@ -464,13 +478,7 @@ export default function PriceSettingPage() {
                         ? "text-violet-800 bg-violet-100/60"
                         : inStreak
                         ? "text-orange-800 bg-orange-100/60"
-                        : isHolidayOnly
-                        ? "text-amber-700 bg-amber-100/50"
-                        : hasOverride
-                        ? "text-teal-800 bg-teal-100/50"
-                        : isWeekendOnly
-                        ? "text-rose-600"
-                        : "text-slate-500"
+                        : tone.num
                     }`}>
                       {day.dayNumber}
                     </div>
@@ -484,13 +492,9 @@ export default function PriceSettingPage() {
                           ? "bg-violet-100 text-violet-800 border border-violet-200"
                           : inStreak
                           ? "bg-orange-100 text-orange-800 border border-orange-200"
-                          : isHolidayOnly
-                          ? "bg-amber-50 text-amber-700 border border-amber-100"
                           : hasOverride
                           ? "bg-teal-100 text-teal-800 border border-teal-200"
-                          : isWeekendOnly
-                          ? "bg-rose-50 text-rose-600 border border-rose-100"
-                          : "text-slate-400"
+                          : tone.price
                       }`}>
                         {isSelected ? `Selected` : ""} {formatPrice(price)}
                       </span>
@@ -533,11 +537,12 @@ export default function PriceSettingPage() {
             {/* Legend */}
             <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3">
               {[
-                { swatch: "bg-violet-400", label: "Corporate booking" },
+                { swatch: DAY_TONE.weekday.swatch, label: "Weekday" },
+                { swatch: DAY_TONE.weekend.swatch, label: "Weekend" },
+                { swatch: DAY_TONE.holiday.swatch, label: "Holiday" },
                 { swatch: "bg-orange-400", label: "3+ day holiday stretch" },
-                { swatch: "bg-amber-300", label: "Holiday" },
+                { swatch: "bg-violet-400", label: "Corporate booking" },
                 { swatch: "bg-teal-400", label: "Custom price" },
-                { swatch: "bg-rose-200", label: "Weekend" },
               ].map((l) => (
                 <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
                   <span className={`h-2 w-2 rounded-full ${l.swatch}`} /> {l.label}
@@ -545,6 +550,34 @@ export default function PriceSettingPage() {
               ))}
             </div>
           </SectionCard>
+
+          {/* ── CORPORATE / TOURNAMENT BOOKING — sits under the calendar, since the dates
+                it blocks show up as events on the month grid right above it ── */}
+          <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-5 shadow-sm">
+            <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
+            <div className="relative flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30">
+                <Trophy size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[15px] font-black text-slate-900">Corporate / Tournament</p>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-violet-700">
+                    Multi-day
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-500">
+                  Block a 2–3 day (or longer) booking in one go — it reserves those dates and shows as an event on the calendar above.
+                </p>
+                <button
+                  onClick={() => setEventSheetOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
+                >
+                  <CalendarRange size={13} /> Take a Booking
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* ── INSIGHTS & OPPORTUNITIES ── */}
           <div className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">

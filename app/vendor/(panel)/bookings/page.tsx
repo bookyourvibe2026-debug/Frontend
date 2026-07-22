@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useState,
   useMemo,
@@ -55,13 +56,26 @@ function to12h(t: string) {
   return `${String(h).padStart(2, "0")}:${mStr} ${ap}`;
 }
 function t24m(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+/**
+ * Minute-of-day sort key anchored at the venue's regular opening time. A slot that
+ * starts before opening (e.g. a 12–2 AM late-night slot on a turf that opens at 6 AM)
+ * belongs at the *end* of that day's list, not the top.
+ */
+function dayOrderKey(time: string, dayStartMins: number) {
+  const m = t24m(time);
+  return m < dayStartMins ? m + 1440 : m;
+}
 /** Local-date ISO (yyyy-mm-dd). toISOString() would shift the day for IST users. */
 function toIsoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function durHrs(start: string, end: string) {
+  return +(slotDurMins(start, end) / 60).toFixed(1);
+}
+/** Slot length in minutes, tolerating an end time that wraps past midnight ("23:00"→"00:00"). */
+function slotDurMins(start: string, end: string) {
   const d = t24m(end) - t24m(start);
-  return d > 0 ? +(d / 60).toFixed(1) : 0;
+  return d > 0 ? d : d + 1440;
 }
 /** Day-part label for a newly-added slot, from its start hour. */
 function slotLabel(start: string) {
@@ -190,6 +204,23 @@ export default function BookingsPage() {
   );
   const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
 
+  /**
+   * The venue's regular opening minute, taken from the listing's default slot list
+   * (never from a date override — an override may already contain the late-night slot
+   * we're trying to place). Everything that orders or compares times uses this anchor.
+   */
+  const dayStartMins = useMemo(() => {
+    const base = selectedTurf?.slotsList ?? [];
+    if (base.length === 0) return 0;
+    return Math.min(...base.map((s) => t24m(s.startTime)));
+  }, [selectedTurf]);
+
+  /** "Now" projected onto the same anchored timeline as the slots. */
+  const nowOrder = useMemo(() => {
+    const m = now.getHours() * 60 + now.getMinutes();
+    return m < dayStartMins ? m + 1440 : m;
+  }, [now, dayStartMins]);
+
   /* ── Deep link from Price Setting: ?date&start&end&price opens Add Booking prefilled ── */
   const bookingLinkHandled = useRef(false);
   useEffect(() => {
@@ -254,8 +285,10 @@ export default function BookingsPage() {
         const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending") status = "Part Paid";
-        else if (match.status === "Confirmed" && isWalkIn) status = "Offline Booked";
-        else status = "Booked";
+        // A walk-in stays a walk-in whatever its status becomes (Confirmed, Completed…).
+        // Only a booking a player actually made in the app is "Booked" — that's the one
+        // the timeline brands as BYV.
+        else status = isWalkIn ? "Offline Booked" : "Booked";
       }
 
       return {
@@ -271,19 +304,21 @@ export default function BookingsPage() {
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
       };
-    });
-  }, [selectedTurf, selectedDate, bookings, selectedTurfId]);
+    })
+      // Late-night slots (12–2 AM on a turf that opens at 6 AM) belong at the bottom
+      // of the day, so the list always reads open → close.
+      .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins));
+  }, [selectedTurf, selectedDate, bookings, selectedTurfId, dayStartMins]);
 
   /* ── "All Slots" filter: status + time of day + source + quick ── */
   const visibleSlots = useMemo(() => {
     // "Next Booking" = the single next upcoming booked slot (today only).
     let nextBookedStart: string | null = null;
     if (filters.quick === "Next Booking") {
-      const nowMins = now.getHours() * 60 + now.getMinutes();
       const upcoming = resolvedSlots
         .filter((s) => s.status !== "Available" && s.status !== "Blocked")
-        .filter((s) => !isToday || t24m(s.startTime) >= nowMins)
-        .sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+        .filter((s) => !isToday || dayOrderKey(s.startTime, dayStartMins) >= nowOrder)
+        .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins));
       nextBookedStart = upcoming[0]?.startTime ?? null;
     }
 
@@ -304,7 +339,7 @@ export default function BookingsPage() {
 
       return true;
     });
-  }, [resolvedSlots, filters, now, isToday]);
+  }, [resolvedSlots, filters, isToday, nowOrder, dayStartMins]);
 
   /* ── Header-derived data ── */
   const weekDates = useMemo(
@@ -324,12 +359,11 @@ export default function BookingsPage() {
 
   /** Next upcoming booking on the selected day (from now, when the day is today). */
   const nextBooking = useMemo(() => {
-    const nowMins = now.getHours() * 60 + now.getMinutes();
     return resolvedSlots
       .filter((s) => s.status !== "Available" && s.status !== "Blocked")
-      .filter((s) => !isToday || t24m(s.startTime) >= nowMins)
-      .sort((a, b) => t24m(a.startTime) - t24m(b.startTime))[0];
-  }, [resolvedSlots, now, isToday]);
+      .filter((s) => !isToday || dayOrderKey(s.startTime, dayStartMins) >= nowOrder)
+      .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins))[0];
+  }, [resolvedSlots, isToday, nowOrder, dayStartMins]);
 
   /**
    * How far off the next booking is, measured from the current clock —
@@ -338,23 +372,24 @@ export default function BookingsPage() {
   const nextBookingIn = useMemo(() => {
     if (!nextBooking) return undefined;
     if (!isToday) return undefined;
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const diff = t24m(nextBooking.startTime) - nowMins;
-    if (diff <= 0) return t24m(nextBooking.endTime) > nowMins ? "now" : undefined;
+    const start = dayOrderKey(nextBooking.startTime, dayStartMins);
+    const diff = start - nowOrder;
+    if (diff <= 0) return start + slotDurMins(nextBooking.startTime, nextBooking.endTime) > nowOrder ? "now" : undefined;
     if (diff < 60) return `in ${diff} min`;
     const h = Math.floor(diff / 60);
     const m = diff % 60;
     return m === 0 ? `in ${h} hr` : `in ${h} hr ${m} min`;
-  }, [nextBooking, now, isToday]);
+  }, [nextBooking, isToday, nowOrder, dayStartMins]);
 
   /** Open when the current time falls inside the day's configured slot window. */
   const isOpenNow = useMemo(() => {
     if (!isToday || resolvedSlots.length === 0) return false;
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const open = Math.min(...resolvedSlots.map((s) => t24m(s.startTime)));
-    const close = Math.max(...resolvedSlots.map((s) => t24m(s.endTime)));
-    return nowMins >= open && nowMins < close;
-  }, [resolvedSlots, now, isToday]);
+    const open = Math.min(...resolvedSlots.map((s) => dayOrderKey(s.startTime, dayStartMins)));
+    const close = Math.max(
+      ...resolvedSlots.map((s) => dayOrderKey(s.startTime, dayStartMins) + slotDurMins(s.startTime, s.endTime))
+    );
+    return nowOrder >= open && nowOrder < close;
+  }, [resolvedSlots, isToday, nowOrder, dayStartMins]);
 
   /** Keep the visible week strip in sync when the date jumps (e.g. quick filters). */
   function jumpToDate(iso: string) {
@@ -405,8 +440,8 @@ export default function BookingsPage() {
         alert("A slot already starts at that time.");
         return;
       }
-      const next = [...currentSlots, { startTime: start, endTime: end, label: slotLabel(start), price }].sort((a, b) =>
-        a.startTime.localeCompare(b.startTime)
+      const next = [...currentSlots, { startTime: start, endTime: end, label: slotLabel(start), price }].sort(
+        (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
       );
       const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
       if (idx > -1) overrides[idx] = newOverride;
@@ -665,6 +700,9 @@ export default function BookingsPage() {
   }
 
   /* ── Clock select ── */
+  /** Leaving the fullscreen dial drops back to the timeline, never to a cropped inline clock. */
+  const leaveClockView = useCallback(() => setViewMode("timeline"), []);
+
   const handleClockHour = async (hour: number) => {
     if (!selectedTurf) return;
     const startStr = `${String(hour).padStart(2, "0")}:00`;
@@ -688,9 +726,13 @@ export default function BookingsPage() {
   }
 
   return (
-    <div className="flex flex-col bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6 h-[calc(100dvh-64px)] overflow-hidden relative">
+    /* The agenda scrolls with the page. It used to live inside a `100dvh - 64px` shell
+       with its own overflow, but that height never matched the real viewport once the
+       mobile browser chrome and the fixed bottom nav were in play, so the slot list got
+       clipped part-way down the screen. */
+    <div className="relative flex min-h-[60vh] flex-col bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
       {/* ── HEADER: venue, today card, date strip ── */}
-      <div className="shrink-0 z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
+      <div className="z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
         <BookingsHeader
           turfs={turfListings.map((t) => ({ id: t.id, title: t.title }))}
           selectedTurfId={selectedTurfId}
@@ -745,7 +787,9 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 pt-4 pb-28">
+      {/* Bottom padding clears the fixed bottom nav (~64px) and the floating
+          "See Booking" pill that sits above it. */}
+      <div className="flex-1 px-4 pt-4 pb-36 md:px-6 lg:pb-32">
         {!selectedTurf && (
           <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center bg-white">
             <CalendarDays size={32} className="mx-auto text-slate-300 mb-2" />
@@ -786,6 +830,10 @@ export default function BookingsPage() {
                   slots={visibleSlots}
                   onSelectSlot={setActiveSlot}
                   onSelectHour={handleClockHour}
+                  // Picking "Clock" opens the dial fullscreen; closing it returns to the
+                  // timeline rather than leaving a half-cropped dial in the page.
+                  autoFullscreen
+                  onExitFullscreen={leaveClockView}
                   renderSeeBooking={(closeFullscreen) => (
                     <SeeBookingButton
                       resolvedSlots={resolvedSlots}

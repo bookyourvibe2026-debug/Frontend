@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Maximize2, X } from "lucide-react";
 
 export interface ClockSlotItem {
@@ -13,12 +13,12 @@ export interface ClockSlotItem {
 }
 
 /* ─── Vibe Cycle: same 6-colour language as the Bookings Timeline ──────
-   available (green) · online booking (orange) · confirmed/walk-in (blue) ·
-   pending (amber) · blocked (rose) · closed/no slot (grey) — so a vendor
-   sees identical colours whether they're on Timeline or Clock view. */
+   available (green) · booked on BYV (red) · walk-in (blue) · pending (amber) ·
+   blocked (rose) · closed/no slot (grey) — so a vendor sees identical colours
+   whether they're on Timeline or Clock view. */
 const TONE_HEX = {
   available: "#10b981",
-  onlineBooked: "#f97316",
+  onlineBooked: "#ef4444",
   confirmed: "#3b82f6",
   pending: "#f59e0b",
   blocked: "#f43f5e",
@@ -38,8 +38,8 @@ const STATUS_TONE: Record<ClockSlotItem["status"], Tone> = {
 
 const TONE_LEGEND: { tone: Tone; label: string }[] = [
   { tone: "available", label: "Available" },
-  { tone: "onlineBooked", label: "Online Booking" },
-  { tone: "confirmed", label: "Confirmed" },
+  { tone: "onlineBooked", label: "Booked on BYV" },
+  { tone: "confirmed", label: "Walk-in" },
   { tone: "pending", label: "Pending" },
   { tone: "blocked", label: "Blocked" },
   { tone: "closed", label: "Closed" },
@@ -136,32 +136,61 @@ export function ClockSlotsWidget({
   onSelectSlot,
   onSelectHour,
   renderSeeBooking,
+  autoFullscreen = false,
+  onExitFullscreen,
 }: {
   slots: ClockSlotItem[];
   onSelectSlot?: (slot: ClockSlotItem) => void;
   onSelectHour?: (hour: number) => void;
   /** Receives a callback that exits fullscreen — call it before opening any page-level UI. */
   renderSeeBooking?: (closeFullscreen: () => void) => React.ReactNode;
+  /** Open fullscreen straight away — the dial is unreadable squeezed into a card on a phone. */
+  autoFullscreen?: boolean;
+  /** Fired whenever fullscreen is left, so the host page can switch views instead of
+   * dropping the vendor back onto the cramped inline dial. */
+  onExitFullscreen?: () => void;
 }) {
   const [hoveredSlot, setHoveredSlot] = useState<ClockSlotItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [half, setHalf] = useState<"AM" | "PM">(() => (new Date().getHours() < 12 ? "AM" : "PM"));
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(autoFullscreen);
 
-  // Close fullscreen on Escape, and lock background scroll while open.
+  const exitFullscreen = useCallback(() => {
+    setIsFullscreen(false);
+    onExitFullscreen?.();
+  }, [onExitFullscreen]);
+
+  // Scroll lock keyed on fullscreen alone — re-running it would capture "hidden" as the
+  // value to restore and leave the page unscrollable after closing.
   useEffect(() => {
     if (!isFullscreen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
-    window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
   }, [isFullscreen]);
 
-  const size = isFullscreen ? 340 : 280;
+  // Escape closes fullscreen.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitFullscreen();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFullscreen, exitFullscreen]);
+
+  /** Fullscreen fills the phone's width (capped so it stays a sensible size on desktop). */
+  const [viewportW, setViewportW] = useState(420);
+  useEffect(() => {
+    const measure = () => setViewportW(window.innerWidth);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  const size = isFullscreen ? Math.max(260, Math.min(400, viewportW - 56)) : 280;
   const center = size / 2;
   const outerRadius = size / 2 - 24;
   const innerRadius = outerRadius * 0.3;
@@ -182,11 +211,11 @@ export function ClockSlotsWidget({
   // while fullscreen must exit fullscreen first or the booking form opens
   // invisibly behind the clock.
   const selectSlot = (slot: ClockSlotItem) => {
-    setIsFullscreen(false);
+    exitFullscreen();
     onSelectSlot?.(slot);
   };
   const selectHour = (hour: number) => {
-    setIsFullscreen(false);
+    exitFullscreen();
     onSelectHour?.(hour);
   };
 
@@ -286,11 +315,11 @@ export function ClockSlotsWidget({
       <div className="relative w-full text-center mb-3">
         <p className="text-xs font-bold uppercase tracking-wider text-vibe-violet">Vibe Cycle</p>
         <p className="text-[10px] text-ink-faint mt-0.5">
-          {isFullscreen ? "Tap a slice to manage that slot" : "Tap the cycle to open fullscreen"}
+          {isFullscreen ? "Tap a slice to manage that slot" : "Tap the cycle to open it fullscreen"}
         </p>
         <button
           type="button"
-          onClick={() => setIsFullscreen((v) => !v)}
+          onClick={() => (isFullscreen ? exitFullscreen() : setIsFullscreen(true))}
           aria-label={isFullscreen ? "Exit fullscreen" : "Open Vibe Cycle fullscreen"}
           className="absolute right-0 top-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
         >
@@ -460,14 +489,14 @@ export function ClockSlotsWidget({
 
       {/* See booking slot — only rendered when the host page wires it up; a button
           with no action (e.g. in the Package Studio preview) would just confuse. */}
-      {renderSeeBooking && <div className="mt-4">{renderSeeBooking(() => setIsFullscreen(false))}</div>}
+      {renderSeeBooking && <div className="mt-4">{renderSeeBooking(exitFullscreen)}</div>}
     </>
   );
 
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-[70] overflow-y-auto bg-white animate-in fade-in duration-150">
-        <div className="flex min-h-full flex-col items-center px-4 py-6">{body}</div>
+        <div className="flex min-h-full flex-col items-center px-4 pb-10 pt-6">{body}</div>
       </div>
     );
   }

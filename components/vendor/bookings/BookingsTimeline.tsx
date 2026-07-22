@@ -68,12 +68,14 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
     badge: "bg-red-100 text-red-700",
     badgeText: "Online",
   },
+  // Walk-in / phone booking the vendor entered themselves — blue, so it never gets
+  // mistaken for the red "came through BYV" rows.
   confirmed: {
-    dot: "bg-red-500",
-    card: "border-red-100 bg-red-50/50",
-    title: "text-red-500",
-    badge: "bg-red-100 text-red-700",
-    badgeText: "Confirmed",
+    dot: "bg-blue-500",
+    card: "border-blue-100 bg-blue-50/50",
+    title: "text-blue-700",
+    badge: "bg-blue-100 text-blue-700",
+    badgeText: "Walk-in",
   },
   pending: {
     dot: "bg-amber-500",
@@ -100,8 +102,8 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
 
 export const TIMELINE_LEGEND: { tone: Tone; label: string }[] = [
   { tone: "available", label: "Available" },
-  { tone: "onlineBooked", label: "Online Booking" },
-  { tone: "confirmed", label: "Confirmed" },
+  { tone: "onlineBooked", label: "Booked on BYV" },
+  { tone: "confirmed", label: "Walk-in" },
   { tone: "pending", label: "Pending" },
   { tone: "blocked", label: "Blocked" },
   { tone: "closed", label: "Closed" },
@@ -226,7 +228,13 @@ export function BookingsTimeline({
     // Scroll once per visit to today — not again on every clock tick or filter change.
     if (didAutoScroll.current || !currentSlotRef.current) return;
     didAutoScroll.current = true;
-    currentSlotRef.current.scrollIntoView({ block: "start" });
+    // The page itself scrolls now, so only move when the current slot is actually
+    // below the fold — otherwise an early-morning slot would needlessly shove the
+    // day summary and date strip off screen.
+    const top = currentSlotRef.current.getBoundingClientRect().top;
+    if (top > window.innerHeight * 0.8) {
+      currentSlotRef.current.scrollIntoView({ block: "start" });
+    }
   }, [scrollToNow, slots]);
 
   if (slots.length === 0) {
@@ -293,9 +301,10 @@ export function BookingsTimeline({
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
                     <p className="mt-0.5 text-[10px] font-medium text-slate-400">{slot.blockedReason || "Unavailable"}</p>
                   </>
-                ) : (slot.status === "Booked" || slot.status === "Offline Booked") ? (
-                  // Booked online through the customer app or offline confirmed — branded so the vendor can
-                  // see at a glance which bookings BYV actually brought them.
+                ) : slot.status === "Booked" ? (
+                  // Reserved for bookings a player actually made in the app. A booking the vendor
+                  // entered themselves (walk-in / phone) must never carry BYV branding — it falls
+                  // through to the customer-name row below.
                   <div className="flex items-center gap-2.5">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
                       <Image src="/logo.jpg" alt="" width={36} height={36} className="h-full w-full object-contain" />
@@ -326,14 +335,18 @@ export function BookingsTimeline({
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">
-                      {slot.phone ? `${slot.phone} - ` : ""}
-                      Walk-in
+                      {slot.phone ? `${slot.phone} · ` : ""}
+                      {slot.status === "Offline Booked"
+                        ? "Booked at the venue"
+                        : slot.status === "On Hold"
+                        ? "Held — not paid yet"
+                        : "Part payment received"}
                     </p>
                   </>
                 )}
               </div>
 
-              {!isFree && !isBlocked && slot.status !== "Booked" && slot.status !== "Offline Booked" && (
+              {!isFree && !isBlocked && slot.status !== "Booked" && (
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wide ${s.badge}`}>
                   {s.badgeText}
                 </span>
