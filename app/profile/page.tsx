@@ -24,6 +24,7 @@ import { Footer } from "@/components/home/Footer";
 const STATUS_STYLES: Record<BookingStatus, string> = {
   Confirmed: "bg-emerald-100 text-emerald-700",
   Pending: "bg-amber-100 text-amber-700",
+  "Part Paid": "bg-amber-100 text-amber-700",
   Cancelled: "bg-accent-100 text-accent-600",
   Completed: "bg-slate-100 text-slate-600",
 };

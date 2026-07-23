@@ -21,6 +21,7 @@ function timeAgo(iso: string) {
 const STATUS_DOT: Record<Booking["status"], string> = {
   Confirmed: "bg-emerald-500",
   Pending: "bg-amber-500",
+  "Part Paid": "bg-amber-500",
   Cancelled: "bg-rose-500",
   Completed: "bg-slate-400",
 };
