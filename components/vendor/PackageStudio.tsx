@@ -536,36 +536,71 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
 /*  STEP 3 — DETAILS                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Shared fallback for any sport we don't have artwork for — the brand splash. */
-const SPORT_FALLBACK_IMAGE = "/splash.jpeg";
+/** A stable gradient per option, so cards without local artwork still look
+ * distinct from each other instead of all sharing one generic stock photo. */
+const TILE_GRADIENTS = [
+  "from-violet-500 to-indigo-600",
+  "from-emerald-500 to-teal-600",
+  "from-orange-400 to-rose-500",
+  "from-sky-500 to-blue-600",
+  "from-fuchsia-500 to-purple-600",
+  "from-amber-400 to-orange-500",
+  "from-cyan-500 to-sky-600",
+  "from-rose-400 to-pink-600",
+];
+function gradientFor(key: string) {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return TILE_GRADIENTS[h % TILE_GRADIENTS.length];
+}
+
+/** Per-sport search terms that return a clearly on-topic photo. Anything not
+ * listed falls back to "<label> sport court". */
+const CATEGORY_IMAGE_QUERY: Record<string, string> = {
+  basketball: "basketball court game",
+  volleyball: "volleyball court game",
+  swimming: "swimming pool lanes",
+  "snooker-pool": "snooker billiards table",
+  skating: "roller skating rink",
+  "indoor-games": "carrom board game",
+};
 
 function CategoryPhoto({ cat }: { cat: SportCategory }) {
-  const { url } = usePexelsImage(`${cat.label} sport court`);
+  // Curated local artwork wins; otherwise fetch a distinct, on-topic photo.
+  // (Skipping the fetch entirely when we already have local art.)
+  const query = cat.image ? null : CATEGORY_IMAGE_QUERY[cat.id] ?? `${cat.label} sport court`;
+  const { url } = usePexelsImage(query);
   const [errored, setErrored] = useState(false);
-  const preferred = url ?? cat.image;
-  const src = errored || !preferred ? SPORT_FALLBACK_IMAGE : preferred;
-  return (
-    <img
-      src={src}
-      alt={cat.label}
-      onError={() => setErrored(true)}
-      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-    />
-  );
+  const src = cat.image ?? url;
+  if (src && !errored) {
+    return (
+      <img
+        src={src}
+        alt={cat.label}
+        onError={() => setErrored(true)}
+        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+      />
+    );
+  }
+  // Last resort (offline / photo missing): a distinct gradient per sport, so two
+  // cards can never render the same shared stock image again.
+  return <div className={`h-full w-full bg-gradient-to-br ${gradientFor(cat.id)} transition duration-300 group-hover:scale-105`} />;
 }
 
 function SubCategoryPhoto({ sub }: { sub: { id: string; label: string } }) {
   const { url } = usePexelsImage(`${sub.label} sport`);
   const [errored, setErrored] = useState(false);
-  const src = errored || !url ? SPORT_FALLBACK_IMAGE : url;
-  return (
-    <img
-      src={src}
-      alt={sub.label}
-      onError={() => setErrored(true)}
-      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-    />
-  );
+  if (url && !errored) {
+    return (
+      <img
+        src={url}
+        alt={sub.label}
+        onError={() => setErrored(true)}
+        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+      />
+    );
+  }
+  return <div className={`h-full w-full bg-gradient-to-br ${gradientFor(sub.id)} transition duration-300 group-hover:scale-105`} />;
 }
 
 function DetailsStep({ draft, update }: StepProps) {
