@@ -28,7 +28,7 @@ import {
 import { BusinessVertical, RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
-import { INDIA_STATES, INDIA_STATES_CITIES } from "@/lib/indiaLocations";
+import { State, City } from "country-state-city";
 
 const ROLE_LABELS: Record<BusinessVertical, string> = {
   turf: "Turf Owner",
@@ -81,6 +81,23 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [captcha, setCaptcha] = useState(() => makeCaptcha());
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [captchaSolved, setCaptchaSolved] = useState(false);
+
+  // Dynamically get states of India ("IN") and sort them alphabetically
+  const indiaStates = useMemo(() => {
+    return State.getStatesOfCountry("IN")
+      .map((s) => s.name)
+      .sort((a, b) => a.localeCompare(b));
+  }, []);
+
+  // Dynamically get cities of the selected state and sort/de-duplicate them
+  const stateCities = useMemo(() => {
+    if (!data.state) return [];
+    const stateObj = State.getStatesOfCountry("IN").find((s) => s.name === data.state);
+    if (!stateObj) return [];
+    
+    const rawCities = City.getCitiesOfState("IN", stateObj.isoCode).map((c) => c.name);
+    return Array.from(new Set(rawCities)).sort((a, b) => a.localeCompare(b));
+  }, [data.state]);
 
   // Trap the phone's back button: while this modal is open, "back" steps to the
   // previous phase instead of closing the whole thing. Only Finish or the ×
@@ -482,7 +499,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                     icon={MapPin}
                     placeholder="Select State"
                     value={data.state}
-                    options={INDIA_STATES}
+                    options={indiaStates}
                     onChange={(v) => {
                       update("state", v);
                       update("city", "");
@@ -493,7 +510,7 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                     icon={MapPinned}
                     placeholder={data.state ? "Select City" : "Select a state first"}
                     value={data.city}
-                    options={data.state ? INDIA_STATES_CITIES[data.state] ?? [] : []}
+                    options={stateCities}
                     onChange={(v) => update("city", v)}
                     error={errors.city}
                     disabled={!data.state}

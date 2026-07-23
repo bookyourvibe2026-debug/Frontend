@@ -63,7 +63,7 @@ function PaymentsPageContent() {
 
   return (
     <div className="space-y-6">
-      <PageBack />
+      <PageBack fallback="/vendor/dashboard" />
       <PageHero
         eyebrow="Earnings"
         title="Payment settled"

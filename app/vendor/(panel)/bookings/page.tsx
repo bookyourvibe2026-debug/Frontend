@@ -38,6 +38,7 @@ import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { TimeField } from "@/components/vendor/TimeField";
 import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
 import { BookingsHeader } from "@/components/vendor/bookings/BookingsHeader";
+import { PageBack } from "@/components/vendor/PageBack";
 import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/vendor/bookings/BookingsTimeline";
 import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/bookings/AddBookingSheet";
 import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
@@ -905,6 +906,9 @@ export default function BookingsPage() {
     <div className="relative flex min-h-[60vh] flex-col overflow-x-hidden bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
       {/* ── HEADER: venue, today card, date strip ── */}
       <div className="z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
+        <div className="mb-2">
+          <PageBack fallback="/vendor/dashboard" />
+        </div>
         <BookingsHeader
           turfs={turfListings.map((t) => ({ id: t.id, title: t.title }))}
           selectedTurfId={selectedTurfId}

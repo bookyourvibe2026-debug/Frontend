@@ -24,6 +24,7 @@ import {
   X,
   Bell,
 } from "lucide-react";
+import { MPIN_SESSION_KEY } from "./MpinGate";
 import type { VendorVertical } from "@/lib/api/types";
 
 export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label: string; icon: typeof LayoutDashboard }[]> = {
@@ -190,11 +191,15 @@ export default function Sidebar({
           </p>
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = href === bestHref;
+            const isDashboard = href.endsWith("/dashboard");
             return (
               <Link
                 key={href}
                 href={href}
-                onClick={onClose}
+                onClick={() => {
+                  if (!isDashboard) sessionStorage.removeItem(MPIN_SESSION_KEY);
+                  onClose();
+                }}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   active
                     ? "bg-vibe-violet/10 text-vibe-violet"

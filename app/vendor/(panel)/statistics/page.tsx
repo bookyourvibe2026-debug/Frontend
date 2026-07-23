@@ -7,6 +7,7 @@ import StatCard from "@/components/vendor/StatCard";
 import { getVendorBookings, getVendorListings } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import { Booking, Listing } from "@/lib/api/types";
+import { PageBack } from "@/components/vendor/PageBack";
 
 export default function StatisticsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -27,6 +28,7 @@ export default function StatisticsPage() {
   const byListing = useMemo(
     () =>
       listings.map((l) => ({
+        id: l._id,
         title: l.title,
         count: bookings.filter((b) => b.listingId === l._id).length,
       })),
@@ -52,6 +54,7 @@ export default function StatisticsPage() {
 
   return (
     <div className="space-y-6">
+      <PageBack fallback="/vendor/dashboard" />
       <PageHero
         eyebrow="Insights"
         title="Statistics"
@@ -68,7 +71,7 @@ export default function StatisticsPage() {
       <SectionCard title="Bookings by Listing" description="Which turfs, games or events get booked the most.">
         <div className="space-y-4">
           {byListing.map((l) => (
-            <div key={l.title}>
+            <div key={l.id}>
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className="font-medium text-ink">{l.title}</span>
                 <span className="text-ink-faint">{l.count} booking(s)</span>

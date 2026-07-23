@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { NAV_ITEMS_BY_VERTICAL, MOBILE_NAV_ORDER } from "./Sidebar";
+import { MPIN_SESSION_KEY } from "./MpinGate";
 import type { VendorVertical } from "@/lib/api/types";
 
 const MAX_PRIMARY_ITEMS = 4;
@@ -97,6 +98,7 @@ export default function BottomNav({
           <Link
             key={href}
             href={href}
+            onClick={() => sessionStorage.removeItem(MPIN_SESSION_KEY)}
             className={`flex flex-1 flex-col items-center text-center gap-1 py-2.5 text-[11px] font-medium ${
               active ? "text-vibe-violet" : "text-ink-faint"
             }`}
@@ -108,6 +110,7 @@ export default function BottomNav({
       })}
       <Link
         href="/vendor/more"
+        onClick={() => sessionStorage.removeItem(MPIN_SESSION_KEY)}
         className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium ${
           isMoreActive ? "text-vibe-violet" : "text-ink-faint"
         }`}
