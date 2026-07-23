@@ -9,8 +9,17 @@ import { getVendorSettledPayments } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import { SettledPayment } from "@/lib/api/types";
 import { PageBack } from "@/components/vendor/PageBack";
+import { MpinGate } from "@/components/vendor/MpinGate";
 
 export default function PaymentsPage() {
+  return (
+    <MpinGate title="Payment Settled">
+      <PaymentsPageContent />
+    </MpinGate>
+  );
+}
+
+function PaymentsPageContent() {
   const [tab, setTab] = useState<"online" | "offline">("online");
   const [payments, setPayments] = useState<SettledPayment[]>([]);
   const [loading, setLoading] = useState(true);
