@@ -87,7 +87,10 @@ export default function NotificationsPage() {
   /** Phones of customers with an active membership — drives the "Member" flag. */
   const [memberPhones, setMemberPhones] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("Upcoming");
+  // Land on "Today" rather than "Upcoming" — a booking whose slot already started
+  // (or even finished) earlier today is still today's activity and shouldn't be
+  // invisible by default just because its clock time has passed.
+  const [tab, setTab] = useState<Tab>("Today");
   const [filterOpen, setFilterOpen] = useState(false);
   const [priceFilters, setPriceFilters] = useState<Set<PriceFilter>>(new Set());
   const [reminderFilter, setReminderFilter] = useState<"Sent" | "Not Sent" | null>(null);
@@ -223,7 +226,7 @@ export default function NotificationsPage() {
   const counts = useMemo(
     () => ({
       Upcoming: rows.filter((r) => !r.isPast).length,
-      Today: rows.filter((r) => r.isToday && !r.isPast).length,
+      Today: rows.filter((r) => r.isToday).length,
       Tomorrow: rows.filter((r) => r.isTomorrow).length,
       Payments: rows.filter((r) => !r.paidInFull).length,
       Past: rows.filter((r) => r.isPast).length,
@@ -235,7 +238,7 @@ export default function NotificationsPage() {
     let list: typeof rows;
     switch (tab) {
       case "Today":
-        list = rows.filter((r) => r.isToday && !r.isPast);
+        list = rows.filter((r) => r.isToday);
         break;
       case "Tomorrow":
         list = rows.filter((r) => r.isTomorrow);

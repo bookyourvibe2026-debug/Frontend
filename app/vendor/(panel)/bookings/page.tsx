@@ -353,6 +353,11 @@ export default function BookingsPage() {
     }
 
     return resolvedSlots.filter((s) => {
+      // Slots that have already finished today are just clutter — once the clock
+      // passes a slot's end time, drop it from the agenda instead of leaving it
+      // sitting at the top of the list.
+      if (isToday && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) return false;
+
       const hour = Number(s.startTime.split(":")[0]);
       if (!hourMatchesTimeOfDay(hour, filters.timeOfDay)) return false;
 

@@ -123,6 +123,9 @@ export default function PriceSettingPage() {
     const next = !byvManaged;
     setByvManaged(next);
     localStorage.setItem(`byv_dynamic_pricing_${selectedTurfId}`, next ? "1" : "0");
+    // Manual pricing controls get locked the instant BYV takes over — don't leave
+    // a bulk-price entry half-open behind the now-disabled buttons.
+    if (next) setBulkTarget(null);
     setToast(
       next
         ? "BYV will now manage dynamic pricing for this turf — demand-based rates on weekends, holidays and peak hours."
@@ -439,15 +442,25 @@ export default function PriceSettingPage() {
       ) : (
         <>
           {/* Bulk Pricing — pared back to just the three targets (heading + rolling-rule
-              subtext removed per request); each button is iconed and carries its day-type wash. */}
-          <div className="rounded-xl2 border border-surface-border bg-surface-card shadow-panel p-5 sm:p-6">
-            <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-ink-faint">Set prices in bulk</p>
-            <div className="grid grid-cols-3 gap-2">
+              subtext removed per request); each button is iconed and carries its day-type wash.
+              Locked out entirely once BYV is managing this turf's pricing — the vendor
+              shouldn't be able to set weekday/weekend/holiday rates behind BYV's back. */}
+          <div className="relative rounded-xl2 border border-surface-border bg-surface-card shadow-panel p-5 sm:p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Set prices in bulk</p>
+              {byvManaged && (
+                <span className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-indigo-600">
+                  <Sparkles size={10} /> BYV managed
+                </span>
+              )}
+            </div>
+            <div className={`grid grid-cols-3 gap-2 ${byvManaged ? "pointer-events-none opacity-40" : ""}`}>
               {(["weekdays", "weekends", "holidays"] as BulkTarget[]).map((t) => {
                 const Icon = BULK_ICON[t];
                 return (
                   <button
                     key={t}
+                    disabled={byvManaged}
                     onClick={() => setBulkTarget(bulkTarget === t ? null : t)}
                     className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-3.5 text-sm font-bold transition ${
                       bulkTarget === t ? "border-ink bg-ink text-white" : BULK_TINT[t]
@@ -459,7 +472,7 @@ export default function PriceSettingPage() {
                 );
               })}
             </div>
-            {bulkTarget && (
+            {bulkTarget && !byvManaged && (
               <div className="mt-3 flex items-center gap-2">
                 <input
                   type="text"
@@ -477,6 +490,11 @@ export default function PriceSettingPage() {
                   {applyingBulk ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
                 </button>
               </div>
+            )}
+            {byvManaged && (
+              <p className="mt-3 text-[10px] font-bold leading-relaxed text-ink-faint">
+                BYV is setting your weekday, weekend and holiday rates automatically. Turn off "Dynamic Pricing by BYV" below to set these yourself.
+              </p>
             )}
           </div>
 
@@ -562,7 +580,13 @@ export default function PriceSettingPage() {
                   <button
                     key={idx}
                     disabled={day.isPast}
-                    onClick={() => setActiveDate(day.dateStr)}
+                    onClick={() => {
+                      if (byvManaged) {
+                        setToast("BYV is managing this turf's pricing. Turn off dynamic pricing below to edit rates yourself.");
+                        return;
+                      }
+                      setActiveDate(day.dateStr);
+                    }}
                     className={`relative flex flex-col items-center justify-between p-1.5 aspect-square w-full transition-all duration-200 ${borderBgCls}`}
                   >
                     <span className={`text-[12px] font-extrabold ${numCls}`}>
@@ -702,10 +726,10 @@ export default function PriceSettingPage() {
 
             <button
               onClick={applyPeakPricingTemplate}
-              disabled={applyingPeak}
+              disabled={applyingPeak || byvManaged}
               className="w-full bg-[#3f3ebd] hover:bg-[#3433a3] text-white rounded-2xl py-3.5 text-xs font-black shadow-sm transition active:scale-[0.98] disabled:opacity-60"
             >
-              {applyingPeak ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
+              {byvManaged ? "BYV is handling peak pricing" : applyingPeak ? "Applying peak pricing..." : "Apply \"Peak Pricing\" Template"}
             </button>
           </div>
 
