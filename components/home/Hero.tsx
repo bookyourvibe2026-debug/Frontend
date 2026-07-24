@@ -80,6 +80,13 @@ export function Hero({
               Good Morning, {userName} <Hand className="h-3.5 w-3.5" /> — Udaipur is live
             </div>
 
+            <h1 
+              className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl"
+              style={{ fontFamily: "var(--font-space-grotesk), sans-serif", lineHeight: 1.1 }}
+            >
+              Play. Book. <span className="text-brand-400">Vibe.</span>
+            </h1>
+
             <p className="mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
               Book courts and turfs, find players for tonight&rsquo;s match, order food
               courtside, and never argue about who owes what — all from one app.

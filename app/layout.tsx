@@ -49,11 +49,20 @@ export const metadata: Metadata = {
     title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
     description: SITE_DESCRIPTION,
     locale: "en_IN",
+    images: [
+      {
+        url: `${SITE_URL}/logo.jpg`,
+        width: 400,
+        height: 400,
+        alt: SITE_NAME,
+      },
+    ],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
     description: SITE_DESCRIPTION,
+    images: [`${SITE_URL}/logo.jpg`],
   },
   robots: {
     index: true,
@@ -84,6 +93,54 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <Script id="theme-init" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SportsActivityLocation",
+              "name": "Book Your Vibe",
+              "alternateName": "BYV",
+              "url": "https://www.bookyourvibe.in",
+              "logo": "https://www.bookyourvibe.in/logo.jpg",
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "telephone": "+916350651667",
+                "contactType": "customer service",
+                "email": "info@bookyourvibe.in",
+                "availableLanguage": ["en", "hi"]
+              },
+              "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Udaipur",
+                "addressRegion": "Rajasthan",
+                "addressCountry": "IN"
+              },
+              "sameAs": [
+                "https://www.instagram.com/bookyourvibe",
+                "https://twitter.com/bookyourvibe"
+              ],
+              "description": "Book Your Vibe - Play. Book. Vibe. Book sports venues (turfs, box cricket, badminton courts), register for tournaments and challenges, and order food in Udaipur, Rajasthan."
+            })
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Book Your Vibe",
+              "alternateName": "BYV",
+              "url": "https://www.bookyourvibe.in",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://www.bookyourvibe.in/venues?search={search_term_string}",
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
       </head>
       <body
         className="min-h-full flex flex-col font-sans"

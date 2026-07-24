@@ -306,6 +306,9 @@ export const FOOTER_COLUMNS: { title: string; items: FooterLink[] }[] = [
       { label: "About Us", href: "/about-us" },
       { label: "Contact Us", href: "/contact-us" },
       { label: "Vendor Login", href: "/vendor/login" },
+      { label: "Privacy Policy", href: "/privacy-policy" },
+      { label: "Terms & Conditions", href: "/terms-conditions" },
+      { label: "Refund Policy", href: "/refund-policy" },
     ],
   },
 ];
