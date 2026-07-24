@@ -22,7 +22,7 @@ interface CustomerAuthContextValue {
   loginWithEmailOtp: (email: string, otp: string) => Promise<CustomerProfile>;
   register: (input: { name: string; email: string; phone: string; password: string }) => Promise<CustomerProfile>;
   logout: () => Promise<void>;
-  updateProfile: (input: { name?: string; avatarUrl?: string }) => Promise<CustomerProfile>;
+  updateProfile: (input: { name?: string; avatarUrl?: string; phone?: string }) => Promise<CustomerProfile>;
 }
 
 const CustomerAuthContext = createContext<CustomerAuthContextValue | null>(null);
@@ -80,7 +80,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     setStatus("guest");
   }, []);
 
-  const updateProfile = useCallback(async (input: { name?: string; avatarUrl?: string }) => {
+  const updateProfile = useCallback(async (input: { name?: string; avatarUrl?: string; phone?: string }) => {
     const profile = await updateMyCustomerProfile(input);
     setCustomer(profile);
     return profile;

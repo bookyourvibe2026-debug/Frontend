@@ -82,7 +82,7 @@ export default function CommunityPage() {
     setCopiedLink(false);
   };
 
-  // Load persisted joined matches and notifications on mount
+  // Load persisted joined matches, clubs, and notifications on mount
   useEffect(() => {
     try {
       const savedMatches = localStorage.getItem("byv_joined_matches");
@@ -91,16 +91,51 @@ export default function CommunityPage() {
       if (savedClubs) setJoinedClubs(JSON.parse(savedClubs));
       const savedNotices = localStorage.getItem("byv_host_notifications");
       if (savedNotices) setHostNotices(JSON.parse(savedNotices));
+
+      // Merge created lobbies
+      const createdLobbiesStr = localStorage.getItem("byv_created_lobbies");
+      if (createdLobbiesStr) {
+        const createdLobbies = JSON.parse(createdLobbiesStr);
+        setMatches((prev) => {
+          const ids = new Set(createdLobbies.map((l: any) => l.id));
+          return [...createdLobbies, ...prev.filter((l) => !ids.has(l.id))];
+        });
+      }
+
+      // Merge created clubs
+      const createdClubsStr = localStorage.getItem("byv_created_clubs");
+      if (createdClubsStr) {
+        const createdClubs = JSON.parse(createdClubsStr);
+        setClubs((prev) => {
+          const ids = new Set(createdClubs.map((c: any) => c.id));
+          const formattedCreated = createdClubs.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            members: c.members,
+            sport: c.sport,
+            place: c.place,
+          }));
+          return [...formattedCreated, ...prev.filter((c) => !ids.has(c.id))];
+        });
+      }
     } catch (e) {
       console.error(e);
     }
   }, []);
 
   const handleJoinMatch = (id: string, title: string) => {
+    const matchObj = matches.find((m) => m.id === id);
     let nextJoined: string[] = [];
+    let nextJoinedDetailed: any[] = [];
+    try {
+      const savedDetailed = localStorage.getItem("byv_joined_matches_detailed");
+      if (savedDetailed) nextJoinedDetailed = JSON.parse(savedDetailed);
+    } catch (_) {}
+
     if (joinedMatches.includes(id)) {
       nextJoined = joinedMatches.filter((mid) => mid !== id);
       setJoinedMatches(nextJoined);
+      nextJoinedDetailed = nextJoinedDetailed.filter((m) => m.matchId !== id);
       setMatches((prev) =>
         prev.map((m) => (m.id === id ? { ...m, spotsLeft: m.spotsLeft + 1 } : m))
       );
@@ -108,6 +143,17 @@ export default function CommunityPage() {
     } else {
       nextJoined = [...joinedMatches, id];
       setJoinedMatches(nextJoined);
+      if (matchObj) {
+        nextJoinedDetailed.push({
+          matchId: id,
+          title: matchObj.title,
+          place: matchObj.place,
+          time: matchObj.time,
+          sport: matchObj.sport,
+          joinedAt: new Date().toISOString(),
+          status: id.startsWith("m-1") ? "Pending Approval" : "Approved",
+        });
+      }
       setMatches((prev) =>
         prev.map((m) => (m.id === id ? { ...m, spotsLeft: Math.max(0, m.spotsLeft - 1) } : m))
       );
@@ -127,13 +173,22 @@ export default function CommunityPage() {
       setToast(`Joined match lobby! Host notified.`);
     }
     localStorage.setItem("byv_joined_matches", JSON.stringify(nextJoined));
+    localStorage.setItem("byv_joined_matches_detailed", JSON.stringify(nextJoinedDetailed));
   };
 
   const handleJoinClub = (id: string, name: string) => {
+    const clubObj = clubs.find((c) => c.id === id);
     let nextClubs: string[] = [];
+    let nextClubsDetailed: any[] = [];
+    try {
+      const savedDetailed = localStorage.getItem("byv_joined_clubs_detailed");
+      if (savedDetailed) nextClubsDetailed = JSON.parse(savedDetailed);
+    } catch (_) {}
+
     if (joinedClubs.includes(id)) {
       nextClubs = joinedClubs.filter((cid) => cid !== id);
       setJoinedClubs(nextClubs);
+      nextClubsDetailed = nextClubsDetailed.filter((c) => c.clubId !== id);
       setClubs((prev) =>
         prev.map((c) => (c.id === id ? { ...c, members: c.members - 1 } : c))
       );
@@ -141,12 +196,23 @@ export default function CommunityPage() {
     } else {
       nextClubs = [...joinedClubs, id];
       setJoinedClubs(nextClubs);
+      if (clubObj) {
+        nextClubsDetailed.push({
+          clubId: id,
+          name: clubObj.name,
+          sport: clubObj.sport,
+          place: clubObj.place,
+          joinedAt: new Date().toISOString(),
+          status: id.startsWith("c-2") ? "Pending Approval" : "Approved",
+        });
+      }
       setClubs((prev) =>
         prev.map((c) => (c.id === id ? { ...c, members: c.members + 1 } : c))
       );
       setToast(`Joined ${name}! Welcome to the community.`);
     }
     localStorage.setItem("byv_joined_clubs", JSON.stringify(nextClubs));
+    localStorage.setItem("byv_joined_clubs_detailed", JSON.stringify(nextClubsDetailed));
   };
 
   const handleCreateLobbySubmit = (e: React.FormEvent) => {
@@ -164,6 +230,16 @@ export default function CommunityPage() {
       sport: lobbySport,
     };
     setMatches((prev) => [newLobby, ...prev]);
+
+    // Persist created lobby
+    let createdLobbies: any[] = [];
+    try {
+      const savedLobbies = localStorage.getItem("byv_created_lobbies");
+      if (savedLobbies) createdLobbies = JSON.parse(savedLobbies);
+    } catch (_) {}
+    createdLobbies.unshift(newLobby);
+    localStorage.setItem("byv_created_lobbies", JSON.stringify(createdLobbies));
+
     setLobbyTitle("");
     setLobbyPlace("");
     setLobbyTime("");
@@ -185,7 +261,56 @@ export default function CommunityPage() {
       place: clubPlace,
     };
     setClubs((prev) => [newClub, ...prev]);
-    setJoinedClubs((prev) => [...prev, newClub.id]);
+
+    // Add to joined detailed as Approved (since they created it)
+    let nextClubsDetailed: any[] = [];
+    try {
+      const savedDetailed = localStorage.getItem("byv_joined_clubs_detailed");
+      if (savedDetailed) nextClubsDetailed = JSON.parse(savedDetailed);
+    } catch (_) {}
+    nextClubsDetailed.push({
+      clubId: newClub.id,
+      name: newClub.name,
+      sport: newClub.sport,
+      place: newClub.place,
+      joinedAt: new Date().toISOString(),
+      status: "Approved",
+    });
+    localStorage.setItem("byv_joined_clubs_detailed", JSON.stringify(nextClubsDetailed));
+
+    const updatedJoinedClubs = [...joinedClubs, newClub.id];
+    setJoinedClubs(updatedJoinedClubs);
+    localStorage.setItem("byv_joined_clubs", JSON.stringify(updatedJoinedClubs));
+
+    // Persist created club in created list with mock join requests
+    let createdClubs: any[] = [];
+    try {
+      const savedClubs = localStorage.getItem("byv_created_clubs");
+      if (savedClubs) createdClubs = JSON.parse(savedClubs);
+    } catch (_) {}
+
+    const mockRequests = [
+      {
+        id: `req-${Date.now()}-1`,
+        playerName: "Arjun Mehta",
+        joinedAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: `req-${Date.now()}-2`,
+        playerName: "Rohan Verma",
+        joinedAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+    ];
+
+    createdClubs.unshift({
+      ...newClub,
+      adminStatus: "Pending Admin Review",
+      requests: mockRequests,
+      approvedMembers: ["Player (You)"],
+      createdAt: new Date().toISOString(),
+    });
+    localStorage.setItem("byv_created_clubs", JSON.stringify(createdClubs));
+
     setClubName("");
     setClubPlace("");
     setClubModalOpen(false);

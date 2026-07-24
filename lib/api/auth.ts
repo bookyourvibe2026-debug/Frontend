@@ -71,7 +71,7 @@ export function getCurrentCustomer() {
   return apiRequest<CustomerProfile>("/auth/customer/me", { audience: "customer" });
 }
 
-export function updateMyCustomerProfile(input: { name?: string; avatarUrl?: string }) {
+export function updateMyCustomerProfile(input: { name?: string; avatarUrl?: string; phone?: string }) {
   return apiRequest<CustomerProfile>("/auth/customer/me", { method: "PATCH", body: input, audience: "customer" });
 }
 
