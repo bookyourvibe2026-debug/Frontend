@@ -97,7 +97,12 @@ export default function VendorRegisterPage() {
     <main className="min-h-screen bg-[#f6f3ea] text-[#10241a]">
       <header className="flex items-center justify-between px-6 py-4 sm:px-12">
         <div className="flex items-center gap-2 font-[600] text-lg" style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0c1912] text-[#a6ff3c]">BYV</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.jpg"
+            alt="Book Your Vibes Logo"
+            className="h-9 w-9 rounded-lg border border-[#e4ded0] object-contain p-0.5 bg-white shrink-0"
+          />
           Book Your Vibes
         </div>
         <nav className="hidden items-center gap-8 text-sm font-semibold sm:flex">
@@ -252,6 +257,17 @@ export default function VendorRegisterPage() {
       </section>
 
       <VendorRegistrationModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleSubmit} />
+
+      <footer className="border-t border-[#e4ded0]/50 py-8 px-6 text-center text-xs text-[#3f5449] sm:px-12 mt-12">
+        <div className="mx-auto max-w-7xl flex flex-col items-center justify-between gap-3 sm:flex-row sm:text-left">
+          <p>© {new Date().getFullYear()} Book Your Vibes. All rights reserved.</p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 font-semibold">
+            <Link href="/privacy-policy" className="hover:text-[#0c1912] transition-colors">Privacy Policy</Link>
+            <Link href="/terms-conditions" className="hover:text-[#0c1912] transition-colors">Terms & Conditions</Link>
+            <Link href="/refund-policy" className="hover:text-[#0c1912] transition-colors">Refund Policy</Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

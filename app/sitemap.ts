@@ -14,6 +14,11 @@ const routes = [
   "/food",
   "/offers",
   "/blogs",
+  "/about-us",
+  "/contact-us",
+  "/privacy-policy",
+  "/terms-conditions",
+  "/refund-policy",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

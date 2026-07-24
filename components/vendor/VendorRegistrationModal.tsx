@@ -389,19 +389,20 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
                 </div>
 
                 {!data.otpVerified && otpSent && (
-                  <div className="flex gap-2">
-                    <Field
-                      icon={KeyRound}
-                      placeholder="Enter OTP"
-                      value={data.otp}
-                      onChange={(v) => update("otp", v.replace(/\D/g, "").slice(0, 6))}
-                      error={errors.otp}
-                    />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-2.5">
+                    <div className="flex-1 w-full">
+                      <OtpInput
+                        value={data.otp}
+                        onChange={(v) => update("otp", v)}
+                        length={6}
+                        error={errors.otp}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={verifyOtp}
                       disabled={verifyingOtp}
-                      className="h-[52px] shrink-0 rounded-xl border border-[#0c1912] px-5 text-sm font-bold text-[#0c1912] disabled:opacity-50"
+                      className="h-[52px] w-full sm:w-auto shrink-0 rounded-xl border border-[#0c1912] px-5 text-sm font-bold text-[#0c1912] disabled:opacity-50"
                     >
                       {verifyingOtp ? "…" : "Verify"}
                     </button>
@@ -682,6 +683,104 @@ function Field({
             mono ? "font-mono" : ""
           }`}
         />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+interface OtpInputProps {
+  value: string;
+  onChange: (v: string) => void;
+  length?: number;
+  error?: string;
+}
+
+function OtpInput({ value, onChange, length = 6, error }: OtpInputProps) {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+
+  const digits = value.split("").slice(0, length);
+  while (digits.length < length) {
+    digits.push("");
+  }
+
+  const handleChange = (val: string, index: number) => {
+    const cleanVal = val.replace(/\D/g, "");
+    if (!cleanVal) {
+      const newDigits = [...digits];
+      newDigits[index] = "";
+      onChange(newDigits.join(""));
+      return;
+    }
+
+    const newDigits = [...digits];
+    if (cleanVal.length > 1) {
+      const pasted = cleanVal.slice(0, length - index);
+      for (let i = 0; i < pasted.length; i++) {
+        newDigits[index + i] = pasted[i];
+      }
+      onChange(newDigits.join(""));
+      const nextIdx = Math.min(index + pasted.length, length - 1);
+      inputsRef.current[nextIdx]?.focus();
+      return;
+    }
+
+    newDigits[index] = cleanVal;
+    onChange(newDigits.join(""));
+
+    if (index < length - 1) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === "Backspace") {
+      if (!digits[index] && index > 0) {
+        const newDigits = [...digits];
+        newDigits[index - 1] = "";
+        onChange(newDigits.join(""));
+        inputsRef.current[index - 1]?.focus();
+      }
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < length - 1) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
+    if (pastedData) {
+      onChange(pastedData);
+      const targetIndex = Math.min(pastedData.length, length - 1);
+      inputsRef.current[targetIndex]?.focus();
+    }
+  };
+
+  return (
+    <div className="w-full">
+      <div className="flex gap-1.5 justify-between">
+        {Array.from({ length }).map((_, i) => (
+          <input
+            key={i}
+            ref={(el) => {
+              inputsRef.current[i] = el;
+            }}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={1}
+            value={digits[i]}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => handleChange(e.target.value, i)}
+            onKeyDown={(e) => handleKeyDown(e, i)}
+            onPaste={handlePaste}
+            className={`h-[52px] w-full min-w-0 max-w-[46px] text-center font-bold text-lg rounded-xl border bg-white outline-none transition ${
+              error ? "border-red-400 focus:border-red-500" : "border-[#e4ded0] focus:border-[#0c1912]"
+            } text-[#10241a]`}
+          />
+        ))}
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

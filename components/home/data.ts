@@ -303,8 +303,8 @@ export const FOOTER_COLUMNS: { title: string; items: FooterLink[] }[] = [
     title: "Company",
     items: [
       { label: "Home", href: "/" },
-      { label: "About Us", href: "/#about-us" },
-      { label: "Contact Us", href: "mailto:info@bookyourvibe.in" },
+      { label: "About Us", href: "/about-us" },
+      { label: "Contact Us", href: "/contact-us" },
       { label: "Vendor Login", href: "/vendor/login" },
     ],
   },
