@@ -13,7 +13,7 @@ try {
 } catch (e) {}
 `;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.bookyourvibe.in";
 const SITE_NAME = "Book Your Vibe";
 const SITE_DESCRIPTION =
   "Book Your Vibe - Play. Book. Vibe. Book sports venues, join tournaments and challenges, connect with the community, and order food, all in one platform.";
