@@ -21,6 +21,10 @@ export function TournamentRegistrationFlow({ tournament, onClose }: { tournament
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [registration, setRegistration] = useState<TournamentRegistration | null>(null);
+  const [matchType, setMatchType] = useState<"Singles" | "Doubles">("Singles");
+
+  const isBadminton = tournament.category === "Badminton";
+  const maxPlayers = isBadminton ? (matchType === "Singles" ? 1 : 2) : Infinity;
 
   if (status === "loading") {
     return (
@@ -103,8 +107,8 @@ export function TournamentRegistrationFlow({ tournament, onClose }: { tournament
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-black/50 backdrop-blur-sm sm:items-center">
-      <div className="relative my-6 w-full max-w-lg rounded-3xl bg-slate-50 p-5 shadow-2xl sm:p-7">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg rounded-3xl bg-slate-50 p-5 shadow-2xl sm:p-7 max-h-[90vh] overflow-y-auto">
         <button
           type="button"
           onClick={onClose}
@@ -128,9 +132,36 @@ export function TournamentRegistrationFlow({ tournament, onClose }: { tournament
             />
           </div>
 
+          {isBadminton && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-4">
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-500">Match Type</label>
+              <div className="mt-2 flex gap-2">
+                {(["Singles", "Doubles"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setMatchType(type);
+                      if (type === "Singles") {
+                        setPlayers((prev) => prev.slice(0, 1));
+                      }
+                    }}
+                    className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                      matchType === type
+                        ? "border-brand-400 bg-brand-50 text-brand-700 font-extrabold"
+                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {type === "Singles" ? "Singles (1 Player)" : "Doubles (2 Players)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-slate-100 bg-white p-4">
             <label className="block text-xs font-bold uppercase tracking-wide text-slate-500">Players</label>
-            <div className="mt-2 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
               {players.map((name, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <input
@@ -152,13 +183,15 @@ export function TournamentRegistrationFlow({ tournament, onClose }: { tournament
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => setPlayers((prev) => [...prev, ""])}
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add player
-            </button>
+            {players.length < maxPlayers && (
+              <button
+                type="button"
+                onClick={() => setPlayers((prev) => [...prev, ""])}
+                className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add player
+              </button>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-white p-4">
