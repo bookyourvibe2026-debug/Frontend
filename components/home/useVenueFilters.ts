@@ -35,7 +35,18 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
   const [maxDistance, setMaxDistance] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<SortBy>("recommended");
 
-  const sportOptions = useMemo(() => Array.from(new Set(venues.map((v) => v.sport))), [venues]);
+  const sportOptions = useMemo(() => {
+    const sports = new Set<string>();
+    venues.forEach((v) => {
+      if (v.sport) {
+        v.sport.split(",").forEach((s) => {
+          const trimmed = s.trim();
+          if (trimmed) sports.add(trimmed);
+        });
+      }
+    });
+    return Array.from(sports).sort();
+  }, [venues]);
 
   const toggleSport = (sport: string) =>
     setSelectedSports((prev) => {
@@ -69,7 +80,10 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
         v.name.toLowerCase().includes(query) ||
         v.sport.toLowerCase().includes(query) ||
         v.area.toLowerCase().includes(query);
-      const matchesSport = selectedSports.size === 0 || selectedSports.has(v.sport);
+      const venueSports = v.sport ? v.sport.split(",").map((s) => s.trim()) : [];
+      const matchesSport =
+        selectedSports.size === 0 ||
+        venueSports.some((s) => selectedSports.has(s));
       const matchesPrice = maxPrice === null || v.pricePerHour <= maxPrice;
       const matchesDistance = maxDistance === null || v.distanceKm <= maxDistance;
       return matchesSearch && matchesSport && matchesPrice && matchesDistance;
