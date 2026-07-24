@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Bell, Menu, ShieldCheck, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 import { useCustomerAuth } from "./providers/CustomerAuthProvider";
 import { LoginModal } from "./home/modals/LoginModal";
 import { SignupModal } from "./home/modals/SignupModal";
+import { getUnreadCount } from "@/lib/api/notifications";
 
 const NAV_LINKS = [
   { label: "Home", href: "/" },
@@ -24,10 +25,30 @@ export function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
   const [imgError, setImgError] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   const { customer, status, logout } = useCustomerAuth();
   const isLoggedIn = status === "authenticated";
   const userName = customer?.name?.split(" ")[0] ?? "";
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setUnreadCount(0);
+      return;
+    }
+
+    getUnreadCount()
+      .then((res) => setUnreadCount(res.count))
+      .catch(() => setUnreadCount(0));
+
+    const interval = setInterval(() => {
+      getUnreadCount()
+        .then((res) => setUnreadCount(res.count))
+        .catch(() => {});
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     setImgError(false);
@@ -90,6 +111,22 @@ export function SiteHeader() {
           >
             <ShieldCheck size={18} />
           </Link>
+
+          {isLoggedIn && (
+            <Link
+              href="/notifications"
+              aria-label="Notifications"
+              title="Notifications"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-white">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {isLoggedIn ? (
             <Link

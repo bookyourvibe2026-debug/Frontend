@@ -28,7 +28,7 @@ import {
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { getMyBookings } from "@/lib/api/customerBookings";
 import { cancelMyCoachSubscription, getMyCoachSubscriptions } from "@/lib/api/coaches";
-import { cancelMyRegistration, getMyRegistrations } from "@/lib/api/tournaments";
+import { cancelMyRegistration, getMyRegistrations, updateTournamentReminder } from "@/lib/api/tournaments";
 import { uploadCustomerImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import type {
@@ -74,6 +74,7 @@ export default function ProfilePage() {
   const [coachSubsLoading, setCoachSubsLoading] = useState(true);
   const [registrations, setRegistrations] = useState<TournamentRegistration[]>([]);
   const [registrationsLoading, setRegistrationsLoading] = useState(true);
+  const [updatingReminderId, setUpdatingReminderId] = useState<string | null>(null);
   
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -227,6 +228,26 @@ export default function ProfilePage() {
       setToast("Tournament registration cancelled");
     } catch {
       setToast("Failed to cancel tournament registration");
+    }
+  }
+
+  async function handleToggleReminder(reg: TournamentRegistration) {
+    setUpdatingReminderId(reg._id);
+    const newPreference = !reg.reminderSet;
+    try {
+      await updateTournamentReminder(reg.orderId, newPreference);
+      setRegistrations((prev) =>
+        prev.map((r) => (r._id === reg._id ? { ...r, reminderSet: newPreference } : r))
+      );
+      setToast(
+        newPreference
+          ? `Reminders enabled for ${reg.teamName}`
+          : `Reminders disabled for ${reg.teamName}`
+      );
+    } catch {
+      setToast("Failed to update reminder preference");
+    } finally {
+      setUpdatingReminderId(null);
     }
   }
 
@@ -623,21 +644,62 @@ export default function ProfilePage() {
                         {r.status}
                       </span>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+
+                    {/* Tournament Details if populated */}
+                    {r.tournamentId && typeof r.tournamentId === "object" && (
+                      <div className="mt-2 text-xs text-slate-600 font-medium">
+                        <p className="text-brand-600 font-semibold">{r.tournamentId.title}</p>
+                        <p className="text-slate-500 mt-0.5">
+                          📅 {new Date(r.tournamentId.startDate).toLocaleDateString("en-IN", {
+                            weekday: "short",
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                          {" · "}📍 {r.tournamentId.address}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span>{r.players.length} player(s)</span>
                       <span>Order #{r.orderId}</span>
                       <span className="font-semibold text-slate-700">₹{r.amount}</span>
                     </div>
                   </div>
 
-                  {r.status === "Registered" && (
-                    <button
-                      onClick={() => handleCancelRegistration(r.orderId)}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-accent-300 hover:text-accent-600 sm:w-auto"
-                    >
-                      <X className="h-4 w-4" /> Cancel Registration
-                    </button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    {r.status === "Registered" && (
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/85 rounded-full px-3 py-1.5 shrink-0">
+                        <span className="text-xs font-semibold text-slate-600">Reminders</span>
+                        <button
+                          type="button"
+                          disabled={updatingReminderId === r._id}
+                          onClick={() => handleToggleReminder(r)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                            r.reminderSet ? "bg-brand-500" : "bg-slate-200"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              r.reminderSet ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
+                    {r.status === "Registered" && (
+                      <button
+                        onClick={() => handleCancelRegistration(r.orderId)}
+                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-accent-300 hover:text-accent-600 sm:w-auto"
+                      >
+                        <X className="h-4 w-4" /> Cancel Registration
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

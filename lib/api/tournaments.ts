@@ -40,3 +40,11 @@ export function cancelMyRegistration(orderId: string, cancellationReason?: strin
     audience: "customer",
   });
 }
+
+export function updateTournamentReminder(orderId: string, reminderSet: boolean) {
+  return apiRequest<TournamentRegistration>(`/tournament-registrations/${orderId}/reminder`, {
+    method: "PUT",
+    body: { reminderSet },
+    audience: "customer",
+  });
+}

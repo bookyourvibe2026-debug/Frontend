@@ -302,7 +302,7 @@ export interface TournamentPlayer {
 export interface TournamentRegistration {
   _id: string;
   orderId: string;
-  tournamentId: string;
+  tournamentId: any;
   vendorId: string;
   customerId?: string | null;
   teamName: string;
@@ -318,6 +318,8 @@ export interface TournamentRegistration {
   cancellationReason?: string;
   checkedIn: boolean;
   checkedInAt?: string | null;
+  reminderSet: boolean;
+  reminderSent: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -747,6 +749,21 @@ export interface Subscription {
   endDate?: string | null;
   sessionsRemaining?: number;
   status: SubscriptionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerNotification {
+  _id: string;
+  customerId: string;
+  title: string;
+  message: string;
+  type: "TournamentReminder" | "System" | "Booking";
+  metadata?: {
+    tournamentId?: string;
+    registrationId?: string;
+  };
+  read: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
+  Bell,
   BookOpen,
   Calendar,
   Gamepad2,
@@ -32,6 +33,7 @@ const PRIMARY_TABS = [
 
 const MORE_LINKS = [
   { label: "Profile", href: "/profile", icon: UserRoundCog },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Coaches", href: "/coaches", icon: GraduationCap },
   { label: "Tournaments", href: "/tournaments", icon: Trophy },
   { label: "Blog", href: "/blogs", icon: BookOpen },
