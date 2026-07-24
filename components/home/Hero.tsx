@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Hand, Search, Settings, Star } from "lucide-react";
+import { Hand, Search, SlidersHorizontal, Star } from "lucide-react";
 import { HERO_IMAGES, HERO_SLIDE_DURATION_MS } from "./data";
 import { PrimaryButton } from "./ui";
 
@@ -110,7 +110,7 @@ export function Hero({
                   onClick={onOpenFilters}
                   className="relative hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 sm:flex"
                 >
-                  <Settings className="h-4 w-4" />
+                  <SlidersHorizontal className="h-4 w-4" />
                   {activeFilterCount > 0 && (
                     <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-white">
                       {activeFilterCount}
