@@ -169,7 +169,7 @@ export default function GamesPage() {
                   >
                     <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
                       {sport.image ? (
-                        <Image src={sport.image} alt={sport.label} fill className="object-contain p-2" />
+                        <Image src={sport.image} alt={sport.label} fill unoptimized className="object-contain p-2" />
                       ) : sport.icon ? (
                         <sport.icon className="h-12 w-12 text-brand-500" />
                       ) : null}
@@ -203,7 +203,7 @@ export default function GamesPage() {
                 <div className="flex items-center gap-4">
                   <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
                     {sport.image ? (
-                      <Image src={sport.image} alt={sport.label} fill className="object-contain p-2 transition group-hover:scale-105" />
+                      <Image src={sport.image} alt={sport.label} fill unoptimized className="object-contain p-2 transition group-hover:scale-105" />
                     ) : sport.icon ? (
                       <sport.icon className="h-9 w-9 text-brand-500" />
                     ) : null}
