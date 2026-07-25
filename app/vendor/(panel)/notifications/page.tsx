@@ -182,9 +182,15 @@ export default function NotificationsPage() {
         // Colour precedence: payment state first, then tomorrow's bookings.
         let tone: RowTone = "neutral";
         let statusLine = "Booking Confirmed";
-        if (b.status === "Part Paid") {
+        // "Part Paid" also covers a plain pending hold with nothing collected at all —
+        // only call it out as a genuine partial payment when something was actually paid.
+        const isGenuinePartial = b.status === "Part Paid" && (b.paidAmount ?? 0) > 0 && (b.paidAmount ?? 0) < b.totalAmount;
+        if (isGenuinePartial) {
           tone = "partial";
-          statusLine = "partially paid";
+          statusLine = `₹${b.totalAmount - (b.paidAmount ?? 0)} remaining of ₹${b.totalAmount}`;
+        } else if (b.status === "Part Paid") {
+          tone = "partial";
+          statusLine = "Payment Pending";
         } else if (!paidInFull) {
           tone = "partial";
           statusLine = "Payment Pending";
@@ -216,6 +222,7 @@ export default function NotificationsPage() {
           isTomorrow,
           isPast,
           paidInFull,
+          isGenuinePartial,
           playedTimes: playCounts.get(b.phone ?? name) ?? 1,
           isMember: b.phone ? memberPhones.has(b.phone) : false,
         };
@@ -353,8 +360,8 @@ export default function NotificationsPage() {
             when={arrivalLabel(r.start, now)}
             tone={r.tone}
             source={r.source}
-            amount={r.booking.status === "Part Paid" ? r.booking.paidAmount : (!r.paidInFull ? r.booking.totalAmount : undefined)}
-            amountNote={r.booking.status === "Part Paid" ? `₹${r.booking.totalAmount - (r.booking.paidAmount ?? 0)} due` : (!r.paidInFull ? `Due ${relative(r.start, now)}` : undefined)}
+            amount={r.isGenuinePartial ? r.booking.totalAmount - (r.booking.paidAmount ?? 0) : (!r.paidInFull ? r.booking.totalAmount : undefined)}
+            amountNote={r.isGenuinePartial ? `remaining · paid ₹${r.booking.paidAmount ?? 0} of ₹${r.booking.totalAmount}` : (!r.paidInFull ? `Due ${relative(r.start, now)}` : undefined)}
             isLast={i === visible.length - 1}
             expanded={expanded === r.key}
             unread={!read.has(r.key)}
@@ -578,10 +585,21 @@ export default function NotificationsPage() {
             iconColor: r.paidInFull ? "text-emerald-600" : "text-rose-600",
             items: [
               { icon: IndianRupee, label: "Amount", value: `₹${r.booking.totalAmount.toLocaleString("en-IN")}` },
+              ...(r.isGenuinePartial
+                ? [
+                    { icon: IndianRupee, label: "Paid so far", value: `₹${(r.booking.paidAmount ?? 0).toLocaleString("en-IN")}`, valueClass: "text-emerald-600" },
+                    {
+                      icon: IndianRupee,
+                      label: "Remaining",
+                      value: `₹${(r.booking.totalAmount - (r.booking.paidAmount ?? 0)).toLocaleString("en-IN")}`,
+                      valueClass: "text-rose-600",
+                    },
+                  ]
+                : []),
               {
                 icon: CreditCard,
                 label: "Payment",
-                value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : "Pending"}`,
+                value: `${r.booking.payment} · ${r.paidInFull ? "Paid" : r.isGenuinePartial ? "Partially Paid" : "Pending"}`,
                 valueClass: r.paidInFull ? "text-emerald-600" : "text-rose-600",
               },
               {

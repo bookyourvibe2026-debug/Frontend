@@ -13,6 +13,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     type: listing.type,
     categories: listing.categories,
     subCategories: listing.subCategories,
+    sportCapacities: listing.sportCapacities,
     price: listing.price,
     listedOn: listing.createdAt,
     status: listing.status,

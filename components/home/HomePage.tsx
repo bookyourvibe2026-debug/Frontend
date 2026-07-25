@@ -12,6 +12,7 @@ import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
 import { HowItWorks } from "./HowItWorks";
 import { AdBanner } from "./AdBanner";
+import { HotDeals } from "./HotDeals";
 import { CommunityMatches } from "./CommunityMatches";
 import { EventsAndOffers } from "./EventsAndOffers";
 import { WhyBookYourVibe } from "./WhyBookYourVibe";
@@ -43,7 +44,10 @@ export default function HomePage() {
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+    // Some in-app/WebView browsers block or silently no-op sessionStorage — if we can't
+    // read it, fail toward NOT showing the splash again rather than showing it every time.
+    try {
       const seen = sessionStorage.getItem("onboarding_seen");
       if (!seen) {
         sessionStorage.setItem("onboarding_seen", "true");
@@ -51,6 +55,8 @@ export default function HomePage() {
       } else {
         setShowOnboarding(false);
       }
+    } catch {
+      setShowOnboarding(false);
     }
   }, []);
 
@@ -124,7 +130,11 @@ export default function HomePage() {
 
   const handleOnboardingComplete = useCallback(() => {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("onboarding_seen", "true");
+      try {
+        sessionStorage.setItem("onboarding_seen", "true");
+      } catch {
+        // Storage unavailable — the flag just won't persist across a reload.
+      }
     }
     setShowOnboarding(false);
   }, []);
@@ -176,6 +186,8 @@ export default function HomePage() {
         )}
 
         <AdBanner />
+
+        <HotDeals />
 
         <FindYourGames onSelectSport={handleSelectSport} />
 

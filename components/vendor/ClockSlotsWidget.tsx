@@ -1,15 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, X } from "lucide-react";
+import { Maximize2, X, Sun, Moon, Lock } from "lucide-react";
 import { useBackDismiss } from "@/lib/useBackDismiss";
+
+/** Every venue's day runs 4:00 AM → 2:00 AM the next day, with a fixed 2:00–4:00 AM
+ * gap for cleaning/maintenance — no slot can ever be created inside it. Hour 2 and
+ * hour 3 (the two wedges covering that window) are permanently closed on the dial. */
+const CLOSED_HOURS = new Set([2, 3]);
 
 export interface ClockSlotItem {
   startTime: string; // "HH:MM"
   endTime: string;   // "HH:MM"
   price: number;
   label: string;     // "Morning", etc.
-  status: "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+  status: "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold" | "Empty";
   customerName?: string;
 }
 
@@ -35,6 +40,8 @@ const STATUS_TONE: Record<ClockSlotItem["status"], Tone> = {
   "Part Paid": "pending",
   "On Hold": "pending",
   Blocked: "blocked",
+  // Past slot nobody booked — shown as the same neutral grey as "Closed".
+  Empty: "closed",
 };
 
 const TONE_LEGEND: { tone: Tone; label: string }[] = [
@@ -52,7 +59,7 @@ type SummaryBucket = "available" | "taken" | "blocked";
 
 function summaryBucket(status: ClockSlotItem["status"]): SummaryBucket {
   if (status === "Available") return "available";
-  if (status === "Blocked") return "blocked";
+  if (status === "Blocked" || status === "Empty") return "blocked";
   return "taken";
 }
 
@@ -170,7 +177,8 @@ export function ClockSlotsWidget({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
   const startLongPress = (slot: ClockSlotItem) => {
-    if (!onLongPressSlot) return;
+    // A past, never-booked slot has nothing left to do — don't offer to book/block it.
+    if (!onLongPressSlot || slot.status === "Empty") return;
     longPressFired.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
@@ -252,7 +260,9 @@ export function ClockSlotsWidget({
     if (angleDeg < 0) angleDeg += 360;
 
     const positionHour = Math.round(angleDeg / 30) % 12;
-    selectHour(toRealHour(positionHour));
+    const realHour = toRealHour(positionHour);
+    if (CLOSED_HOURS.has(realHour)) return; // 2–4 AM is a fixed closed window — nothing to select
+    selectHour(realHour);
   };
 
   const clockTicks = useMemo(() => {
@@ -278,10 +288,11 @@ export function ClockSlotsWidget({
 
   const segments = useMemo(() => {
     const result: { slot: ClockSlotItem; pathData: string; color: string; index: number }[] = [];
-    
+
     for (let h = 0; h < 12; h++) {
       const realHour = half === "AM" ? h : h + 12;
-      
+      if (CLOSED_HOURS.has(realHour)) continue; // rendered separately, never as a real slot
+
       // Find a slot that overlaps with [realHour, realHour + 1]
       const matchingSlot = activeSlotsList.find(s => {
         const start = timeStringToHours(s.startTime);
@@ -305,6 +316,25 @@ export function ClockSlotsWidget({
     }
     return result;
   }, [activeSlotsList, center, innerRadius, outerRadius, half]);
+
+  /** The fixed 2–4 AM closed wedges for whichever half is showing — hatched, inert,
+   * always in the same place so a vendor learns to read it at a glance. */
+  const closedSegments = useMemo(() => {
+    const result: { pathData: string; index: number; labelPos: { x: number; y: number } }[] = [];
+    for (let h = 0; h < 12; h++) {
+      const realHour = half === "AM" ? h : h + 12;
+      if (!CLOSED_HOURS.has(realHour)) continue;
+      const startAngle = h * 30;
+      const endAngle = (h + 1) * 30;
+      const labelPos = polarToCartesian(center, center, (innerRadius + outerRadius) / 2, startAngle + 15);
+      result.push({
+        pathData: describePieSegment(center, center, innerRadius, outerRadius, startAngle, endAngle),
+        index: h,
+        labelPos,
+      });
+    }
+    return result;
+  }, [center, innerRadius, outerRadius, half]);
 
   const stats = useMemo(() => {
     const hrsByTone: Record<SummaryBucket, number> = { available: 0, taken: 0, blocked: 0 };
@@ -332,6 +362,14 @@ export function ClockSlotsWidget({
   const hourHandAngle = ((now.getHours() % 12) + now.getMinutes() / 60) * 30;
   const minuteHandAngle = now.getMinutes() * 6;
 
+  // Two readable themes so a glance at the dial says "morning" or "night" without
+  // reading the toggle label — warm sunrise tones for AM, deep sky for PM, with
+  // every line/number/hand recoloured for contrast against whichever background.
+  const isNight = half === "PM";
+  const dialTheme = isNight
+    ? { tickFill: "#e2e8f0", ringStroke: "#475569", hourHand: "#f8fafc", minuteHand: "#cbd5e1", hub: "#f8fafc", hubStroke: "#64748b" }
+    : { tickFill: "#334155", ringStroke: "#e2e8f0", hourHand: "#0f172a", minuteHand: "#334155", hub: "#0f172a", hubStroke: "#e2e8f0" };
+
   const body = (
     <>
       <div className="relative w-full text-center mb-3">
@@ -349,23 +387,26 @@ export function ClockSlotsWidget({
         </button>
       </div>
 
-      {/* AM / PM toggle */}
-      <div className="mb-3 inline-flex overflow-hidden rounded-full border border-surface-border text-[11px] font-bold">
+      {/* AM / PM toggle — sun/moon + colour so the active half reads at a glance */}
+      <div className="mb-1.5 inline-flex overflow-hidden rounded-full border border-surface-border text-[11px] font-bold">
         <button
           type="button"
           onClick={() => setHalf("AM")}
-          className={`px-4 py-1.5 transition ${half === "AM" ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
+          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "AM" ? "bg-amber-500 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
         >
-          AM (Morning)
+          <Sun size={13} /> AM (Morning)
         </button>
         <button
           type="button"
           onClick={() => setHalf("PM")}
-          className={`px-4 py-1.5 transition ${half === "PM" ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
+          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "PM" ? "bg-indigo-900 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
         >
-          PM (Night)
+          <Moon size={13} /> PM (Night)
         </button>
       </div>
+      <p className="mb-3 flex items-center gap-1 text-[9.5px] font-semibold text-ink-faint">
+        <Lock size={9} /> Closed 2:00–4:00 AM daily · open 4:00 AM – 2:00 AM otherwise
+      </p>
 
       <div className="relative">
         {/* Compact mode: the whole cycle is one big tap target that opens fullscreen.
@@ -383,10 +424,22 @@ export function ClockSlotsWidget({
             <clipPath id="dial-clip">
               <circle cx={center} cy={center} r={outerRadius} />
             </clipPath>
+            <linearGradient id="dialDay" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#fef9c3" />
+              <stop offset="100%" stopColor="#dbeafe" />
+            </linearGradient>
+            <linearGradient id="dialNight" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#1e1b4b" />
+              <stop offset="100%" stopColor="#0f172a" />
+            </linearGradient>
+            <pattern id="closedHatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="6" height="6" fill={isNight ? "#334155" : "#cbd5e1"} opacity="0.55" />
+              <line x1="0" y1="0" x2="0" y2="6" stroke={isNight ? "#0f172a" : "#94a3b8"} strokeWidth="3" />
+            </pattern>
           </defs>
 
-          {/* Outer Dial Face */}
-          <circle cx={center} cy={center} r={outerRadius} fill="#ffffff" stroke="#f1f5f9" strokeWidth="2" />
+          {/* Outer Dial Face — warm sunrise gradient for AM, deep sky for PM */}
+          <circle cx={center} cy={center} r={outerRadius} fill={isNight ? "url(#dialNight)" : "url(#dialDay)"} stroke="#f1f5f9" strokeWidth="2" />
 
           {/* Subtle Watermark BYV Logo in the remaining area */}
           <image
@@ -395,10 +448,20 @@ export function ClockSlotsWidget({
             y={center - outerRadius}
             width={outerRadius * 2}
             height={outerRadius * 2}
-            opacity="0.22"
+            opacity={isNight ? 0.14 : 0.22}
             style={{ pointerEvents: "none" }}
             clipPath="url(#dial-clip)"
           />
+
+          {/* Fixed 2–4 AM closed wedges — hatched, inert, same spot every time */}
+          {closedSegments.map((seg) => (
+            <g key={`closed-${seg.index}`} className="pointer-events-none">
+              <path d={seg.pathData} fill="url(#closedHatch)" stroke={isNight ? "#0f172a" : "#ffffff"} strokeWidth="2" />
+              <foreignObject x={seg.labelPos.x - 8} y={seg.labelPos.y - 8} width="16" height="16">
+                <Lock size={13} color={isNight ? "#cbd5e1" : "#64748b"} />
+              </foreignObject>
+            </g>
+          ))}
 
           {/* Slot Slices — solid pie wedges */}
           {segments.map((seg) => (
@@ -435,29 +498,34 @@ export function ClockSlotsWidget({
           ))}
 
           {/* Outer ring frame + hour numbers */}
-          <circle cx={center} cy={center} r={outerRadius} fill="none" stroke="#e2e8f0" strokeWidth="3" />
-          {clockTicks.map((tick) => (
-            <text
-              key={tick.position}
-              x={tick.posOuter.x}
-              y={tick.posOuter.y}
-              fill="#475569"
-              fontSize="12"
-              fontWeight="bold"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="cursor-pointer hover:fill-vibe-violet transition-all"
-              onClick={(e) => {
-                e.stopPropagation();
-                selectHour(toRealHour(tick.position));
-              }}
-            >
-              {tick.label}
-            </text>
-          ))}
+          <circle cx={center} cy={center} r={outerRadius} fill="none" stroke={dialTheme.ringStroke} strokeWidth="3" />
+          {clockTicks.map((tick) => {
+            const tickHour = toRealHour(tick.position);
+            const closed = CLOSED_HOURS.has(tickHour);
+            return (
+              <text
+                key={tick.position}
+                x={tick.posOuter.x}
+                y={tick.posOuter.y}
+                fill={closed ? (isNight ? "#64748b" : "#94a3b8") : dialTheme.tickFill}
+                fontSize="12"
+                fontWeight="bold"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className={closed ? "cursor-not-allowed" : "cursor-pointer hover:fill-vibe-violet transition-all"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (closed) return;
+                  selectHour(tickHour);
+                }}
+              >
+                {tick.label}
+              </text>
+            );
+          })}
 
           {/* Center hub */}
-          <circle cx={center} cy={center} r={innerRadius} fill="#ffffff" stroke="#e2e8f0" strokeWidth="2" />
+          <circle cx={center} cy={center} r={innerRadius} fill={isNight ? "#0f172a" : "#ffffff"} stroke={dialTheme.hubStroke} strokeWidth="2" />
 
           {/* Minute hand */}
           <line
@@ -465,7 +533,7 @@ export function ClockSlotsWidget({
             y1={center}
             x2={center}
             y2={center - outerRadius * 0.75}
-            stroke="#334155"
+            stroke={dialTheme.minuteHand}
             strokeWidth="2"
             strokeLinecap="round"
             className="pointer-events-none"
@@ -481,7 +549,7 @@ export function ClockSlotsWidget({
             y1={center}
             x2={center}
             y2={center - outerRadius * 0.45}
-            stroke="#0f172a"
+            stroke={dialTheme.hourHand}
             strokeWidth="4"
             strokeLinecap="round"
             className="pointer-events-none"
@@ -493,7 +561,7 @@ export function ClockSlotsWidget({
           />
 
           {/* Center "+" hub icon */}
-          <circle cx={center} cy={center} r={innerRadius * 0.55} fill="#0f172a" className="pointer-events-none" />
+          <circle cx={center} cy={center} r={innerRadius * 0.55} fill={isNight ? "#312e81" : "#0f172a"} className="pointer-events-none" />
           <line x1={center - 7} y1={center} x2={center + 7} y2={center} stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" className="pointer-events-none" />
           <line x1={center} y1={center - 7} x2={center} y2={center + 7} stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" className="pointer-events-none" />
         </svg>

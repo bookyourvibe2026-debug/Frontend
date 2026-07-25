@@ -34,7 +34,12 @@ export default function VendorPanelLayout({
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+    // Deliberately once per panel mount, not on every pathname change: re-validating
+    // the session over the network on every navigation (including back/forward) meant
+    // a single slow response or transient blip force-logged the vendor out mid-session.
+    // The session is trusted for the life of this layout — only explicit logout clears it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogout() {
     await vendorLogout();

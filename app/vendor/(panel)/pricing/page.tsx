@@ -24,7 +24,18 @@ const BULK_LABEL: Record<BulkTarget, string> = {
   holidays: "Holidays",
 };
 
-const ROLLING_WINDOW_DAYS = 182; // ~6 months forward
+type BulkScope = "month" | "year";
+
+/** Every date (as a local midnight Date) in the given month, or in the whole year. */
+function datesInScope(scope: BulkScope, year: number, month: number): Date[] {
+  const dates: Date[] = [];
+  const months = scope === "month" ? [month] : Array.from({ length: 12 }, (_, i) => i);
+  for (const m of months) {
+    const daysInMonth = new Date(year, m + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) dates.push(new Date(year, m, d));
+  }
+  return dates;
+}
 
 /**
  * Every date carries a light day-type wash — weekday / weekend / holiday — so the three
@@ -108,6 +119,9 @@ export default function PriceSettingPage() {
   // snapped the box back to 0 and forced values like "0300".
   const [bulkPriceInput, setBulkPriceInput] = useState("1000");
   const bulkPrice = Number(bulkPriceInput) || 0;
+  // Bulk/peak pricing changes only ever touch the month or year currently on screen —
+  // never a silent 6-months-from-today window a vendor can't see or reason about.
+  const [bulkScope, setBulkScope] = useState<BulkScope>("month");
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
@@ -290,16 +304,15 @@ export default function PriceSettingPage() {
     if (!selectedTurf || !bulkTarget || applyingBulk) return;
     const turf = selectedTurf;
     const target = bulkTarget;
+    const scopeLabel = bulkScope === "month" ? `${monthNames[calMonth]} ${calYear}` : `${calYear}`;
     setApplyingBulk(true);
     try {
       const overrides = [...(turf.dateOverrides ?? [])];
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       let matched = 0;
-      let firstMatch: { year: number; month: number } | null = null;
-      for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
+      for (const d of datesInScope(bulkScope, calYear, calMonth)) {
+        if (d < todayStart) continue;
         const dateStr = toIso(d);
         const dow = d.getDay();
         const isHolidayDay = Boolean(INDIAN_HOLIDAYS[dateStr]);
@@ -309,7 +322,6 @@ export default function PriceSettingPage() {
           isHolidayDay;
         if (!matches) continue;
         matched++;
-        if (!firstMatch) firstMatch = { year: d.getFullYear(), month: d.getMonth() };
         const entry = buildOverrideEntry(turf, dateStr, bulkPrice);
         entry.isHoliday = target === "holidays" ? true : entry.isHoliday;
         if (target === "holidays" && !entry.holidayName) entry.holidayName = INDIAN_HOLIDAYS[dateStr] ?? "";
@@ -321,8 +333,8 @@ export default function PriceSettingPage() {
       if (matched === 0) {
         setToast(
           target === "holidays"
-            ? "No holidays fall in the next 6 months, so there was nothing to update."
-            : `No ${BULK_LABEL[target].toLowerCase()} fall in the next 6 months.`
+            ? `No holidays fall in ${scopeLabel}, so there was nothing to update.`
+            : `No ${BULK_LABEL[target].toLowerCase()} fall in ${scopeLabel}.`
         );
         setApplyingBulk(false);
         return;
@@ -331,10 +343,8 @@ export default function PriceSettingPage() {
       const updated = { ...turf, dateOverrides: overrides };
       // Optimistic update so the calendar reflects the change instantly.
       setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
-      // Jump the calendar to the first affected month so the change is visible.
-      if (firstMatch) { setCalYear(firstMatch.year); setCalMonth(firstMatch.month); }
       setBulkTarget(null);
-      setToast(`Applied ${formatPrice(bulkPrice)} to ${matched} ${BULK_LABEL[target].toLowerCase()} for the next 6 months.`);
+      setToast(`Applied ${formatPrice(bulkPrice)} to ${matched} ${BULK_LABEL[target].toLowerCase()} in ${scopeLabel}.`);
 
       const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
       setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
@@ -366,15 +376,15 @@ export default function PriceSettingPage() {
   async function applyPeakPricingTemplate() {
     if (!selectedTurf || applyingPeak) return;
     const turf = selectedTurf;
+    const scopeLabel = bulkScope === "month" ? `${monthNames[calMonth]} ${calYear}` : `${calYear}`;
     setApplyingPeak(true);
     try {
       const overrides = [...(turf.dateOverrides ?? [])];
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       let matched = 0;
-      for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
+      for (const d of datesInScope(bulkScope, calYear, calMonth)) {
+        if (d < todayStart) continue;
         const dateStr = toIso(d);
         const dow = d.getDay();
         const isPeak = dow === 0 || dow === 6 || Boolean(INDIAN_HOLIDAYS[dateStr]);
@@ -387,7 +397,7 @@ export default function PriceSettingPage() {
       const updated = { ...turf, dateOverrides: overrides };
       // Optimistic update so the calendar reflects the change instantly.
       setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
-      setToast(`Peak Pricing applied to ${matched} weekend & holiday dates.`);
+      setToast(`Peak Pricing applied to ${matched} weekend & holiday dates in ${scopeLabel}.`);
       const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
       setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
     } catch {
@@ -473,22 +483,45 @@ export default function PriceSettingPage() {
               })}
             </div>
             {bulkTarget && !byvManaged && (
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={bulkPriceInput}
-                  onChange={(e) => setBulkPriceInput(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Enter price"
-                  className="flex-1 rounded-xl border border-surface-border bg-cream-200/40 px-4 py-2.5 text-sm font-bold outline-none focus:border-vibe-violet"
-                />
-                <button
-                  onClick={applyBulkPrice}
-                  disabled={applyingBulk || bulkPrice <= 0}
-                  className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
-                >
-                  {applyingBulk ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
-                </button>
+              <div className="mt-3 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Apply to</span>
+                  <div className="flex overflow-hidden rounded-lg border border-surface-border">
+                    <button
+                      onClick={() => setBulkScope("month")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        bulkScope === "month" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      {monthNames[calMonth]} {calYear} only
+                    </button>
+                    <button
+                      onClick={() => setBulkScope("year")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        bulkScope === "year" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      Whole {calYear}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={bulkPriceInput}
+                    onChange={(e) => setBulkPriceInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter price"
+                    className="flex-1 rounded-xl border border-surface-border bg-cream-200/40 px-4 py-2.5 text-sm font-bold outline-none focus:border-vibe-violet"
+                  />
+                  <button
+                    onClick={applyBulkPrice}
+                    disabled={applyingBulk || bulkPrice <= 0}
+                    className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
+                  >
+                    {applyingBulk ? "Applying…" : `Apply to all ${BULK_LABEL[bulkTarget]}`}
+                  </button>
+                </div>
               </div>
             )}
             {byvManaged && (
@@ -724,6 +757,29 @@ export default function PriceSettingPage() {
               </div>
             </div>
 
+            {!byvManaged && (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-[9.5px] font-black uppercase tracking-widest text-ink-faint">Applies to</span>
+                <div className="flex overflow-hidden rounded-lg border border-surface-border">
+                  <button
+                    onClick={() => setBulkScope("month")}
+                    className={`px-2.5 py-1 text-[9.5px] font-black transition ${
+                      bulkScope === "month" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                    }`}
+                  >
+                    {monthNames[calMonth]} {calYear}
+                  </button>
+                  <button
+                    onClick={() => setBulkScope("year")}
+                    className={`px-2.5 py-1 text-[9.5px] font-black transition ${
+                      bulkScope === "year" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                    }`}
+                  >
+                    Whole {calYear}
+                  </button>
+                </div>
+              </div>
+            )}
             <button
               onClick={applyPeakPricingTemplate}
               disabled={applyingPeak || byvManaged}

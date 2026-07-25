@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { MapPin, Store } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { MobileTopBar } from "@/components/mobile/ui";
+import { VenuePosterCard } from "@/components/venue-poster-card";
 import { getVendorProfile, VendorPublicProfile } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
@@ -108,31 +108,17 @@ export default function VendorProfilePage() {
               </div>
             )}
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {filteredListings.map((listing) => (
-                <Link
+                <VenuePosterCard
                   key={listing._id}
                   href={`/venues/${listing.slug || listing._id}`}
-                  className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-                >
-                  <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-5 text-white">
-                    {listing.coverImage && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={listing.coverImage}
-                        alt={listing.title}
-                        className="absolute inset-0 h-full w-full object-cover opacity-70"
-                      />
-                    )}
-                    <div className="relative">
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">
-                        {listing.categories.map(categoryLabel).join(", ") || listing.type}
-                      </p>
-                      <h2 className="mt-2 text-xl font-black">{listing.title}</h2>
-                    </div>
-                  </div>
-                  <p className="mt-4 text-lg font-bold text-slate-950">₹{listing.price.toLocaleString("en-IN")}</p>
-                </Link>
+                  image={listing.coverImage}
+                  title={listing.title}
+                  subtitle={listing.categories.map(categoryLabel).join(", ") || listing.type}
+                  city={listing.city}
+                  price={listing.price}
+                />
               ))}
               {!loading && filteredListings.length === 0 && (
                 <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">

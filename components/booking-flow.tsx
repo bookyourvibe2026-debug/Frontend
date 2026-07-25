@@ -13,7 +13,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useState, type MutableRefObject } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
@@ -167,6 +167,9 @@ export default function BookingFlow({
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splitCount, setSplitCount] = useState(2);
+  // Pay only part of the price now, settle the rest at the venue — must clear a 20% floor.
+  const [partialEnabled, setPartialEnabled] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -284,6 +287,11 @@ export default function BookingFlow({
   const generatedSlots = useMemo(() => {
     if (listing.type !== "Turf" || !date || isDateHoliday) return [];
 
+    // A slot that's already started earlier today can't be booked — mark it "Past"
+    // so it renders disabled instead of letting the player pick a bygone time.
+    const isToday = date === todayISO();
+    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
     const slots: any[] = [];
     // Prefer per-date overrides if present, otherwise use global slotsList
     const override = listing.dateOverrides?.find((o) => o.date === date && !o.isHoliday);
@@ -314,7 +322,7 @@ export default function BookingFlow({
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
         const price = Math.round((durationMin / 60) * baseHourlyRate);
-        const slotStatus = slotStatusFor(slotStart, slotEnd, unavailableRanges);
+        const slotStatus = isToday && slotStart <= nowMinutes ? "Past" : slotStatusFor(slotStart, slotEnd, unavailableRanges);
         slots.push({
           startTime: startTime24,
           endTime: endTime24,
@@ -380,7 +388,12 @@ export default function BookingFlow({
         }
         const price = Math.round(priceRaw);
 
-        const slotStatus = slotStatusFor(slotStart, slotEnd, unavailableRanges);
+        // slotStart can run past 1440 for a window that continues past midnight —
+        // that's tomorrow's continuation, not "past", so only flag it within today itself.
+        const slotStatus =
+          isToday && slotStart < 1440 && slotStart <= nowMinutes
+            ? "Past"
+            : slotStatusFor(slotStart, slotEnd, unavailableRanges);
 
         slots.push({
           startTime: startTime24,
@@ -428,8 +441,17 @@ export default function BookingFlow({
     return listing.price + addOnsTotal;
   }, [listing, generatedSlots, selectedSlotIndex, selectedAddOnIds]);
 
+  // Partial payment must clear a 20% floor of the price shown — the backend re-derives
+  // and re-validates this from the real total, this is just so the button disables early.
+  const minPartialAmount = Math.max(1, Math.ceil(activePrice * 0.2));
+  const partialAmountValid =
+    !partialEnabled ||
+    (partialAmount !== "" && Number(partialAmount) >= minPartialAmount && Number(partialAmount) < activePrice);
+
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
-  const canPay = agreed && phoneValid && !!date && (
+  // Play Protect ("agreed") is an optional paid add-on, not a required agreement —
+  // it must never gate the pay button itself.
+  const canPay = phoneValid && partialAmountValid && !!date && (
     listing.type !== "Turf"
       ? !!time
       : selectedSlotIndex !== -1 && !isDateHoliday && generatedSlots[selectedSlotIndex]?.status === "Available"
@@ -481,7 +503,8 @@ export default function BookingFlow({
         sport: sport || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
-        durationMinutes: listing.type === "Turf" ? durationMin : undefined
+        durationMinutes: listing.type === "Turf" ? durationMin : undefined,
+        paidAmount: partialEnabled ? Number(partialAmount) : undefined,
       });
       setBooking(created);
       setStep("confirmed");
@@ -510,6 +533,11 @@ export default function BookingFlow({
           setSplitEnabled={setSplitEnabled}
           splitCount={splitCount}
           setSplitCount={setSplitCount}
+          partialEnabled={partialEnabled}
+          setPartialEnabled={setPartialEnabled}
+          partialAmount={partialAmount}
+          setPartialAmount={setPartialAmount}
+          minPartialAmount={minPartialAmount}
           agreed={agreed}
           setAgreed={setAgreed}
           canPay={canPay}
@@ -581,6 +609,11 @@ function ReviewStep(props: {
   setSplitEnabled: (v: boolean) => void;
   splitCount: number;
   setSplitCount: (v: number) => void;
+  partialEnabled: boolean;
+  setPartialEnabled: (v: boolean) => void;
+  partialAmount: string;
+  setPartialAmount: (v: string) => void;
+  minPartialAmount: number;
   agreed: boolean;
   setAgreed: (v: boolean) => void;
   canPay: boolean;
@@ -631,6 +664,11 @@ function ReviewStep(props: {
     setSplitEnabled,
     splitCount,
     setSplitCount,
+    partialEnabled,
+    setPartialEnabled,
+    partialAmount,
+    setPartialAmount,
+    minPartialAmount,
     agreed,
     setAgreed,
     canPay,
@@ -673,6 +711,9 @@ function ReviewStep(props: {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   const selectedSlot = selectedSlotIndex >= 0 ? generatedSlots[selectedSlotIndex] : undefined;
+  const partialAmountValid =
+    !partialEnabled ||
+    (partialAmount !== "" && Number(partialAmount) >= minPartialAmount && Number(partialAmount) < activePrice);
 
   // Full month grid (Monday start) matching Image 2
   const monthGrid = useMemo(() => {
@@ -1042,7 +1083,7 @@ function ReviewStep(props: {
                           {activeDaypart === "All" ? "No slots available on this date." : `No slots available for ${activeDaypart}.`}
                         </p>
                       ) : (
-                        <div className="mt-3 overflow-x-auto pb-1 scrollbar-none">
+                        <div className="mt-3 snap-x snap-mandatory overflow-x-auto scroll-smooth pb-1 scrollbar-none">
                           {(() => {
                             const selStartM = selectedSlot ? time24ToMinutes(selectedSlot.startTime) : -1;
                             const selEndM = selectedSlot ? selStartM + durationMin : -1;
@@ -1063,8 +1104,13 @@ function ReviewStep(props: {
                                       type="button"
                                       disabled={!available}
                                       title={available ? `${slot.startTime12} · ₹${slot.price}` : `${slot.startTime12} · ${slot.status}`}
-                                      onClick={() => setSelectedSlotIndex(slot.originalIndex)}
-                                      className="flex w-[74px] shrink-0 flex-col items-stretch"
+                                      onClick={() => {
+                                        // Light haptic tick on selection — most mobile browsers support this,
+                                        // desktop/unsupported browsers just silently no-op.
+                                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+                                        setSelectedSlotIndex(slot.originalIndex);
+                                      }}
+                                      className="flex w-[74px] shrink-0 snap-center flex-col items-stretch"
                                     >
                                       <span
                                         className={`text-center text-[11px] font-bold ${
@@ -1090,7 +1136,15 @@ function ReviewStep(props: {
                                       </span>
                                       <span
                                         className={`mt-2.5 text-center text-[9px] font-bold ${
-                                          available ? (inRange ? "text-brand-600" : "text-slate-400") : slot.status === "Booked" ? "text-rose-400" : "text-amber-500"
+                                          available
+                                            ? inRange
+                                              ? "text-brand-600"
+                                              : "text-slate-400"
+                                            : slot.status === "Booked"
+                                            ? "text-rose-400"
+                                            : slot.status === "Past"
+                                            ? "text-slate-300"
+                                            : "text-amber-500"
                                         }`}
                                       >
                                         {available ? `₹${slot.price}` : slot.status}
@@ -1232,12 +1286,16 @@ function ReviewStep(props: {
                     return (
                       <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
-                          {addOn.image && (
+                          {addOn.image ? (
                             <img
                               src={addOn.image.url}
                               alt={addOn.label}
-                              className="h-11 w-11 shrink-0 rounded-lg object-cover"
+                              className="h-14 w-14 shrink-0 rounded-lg object-cover"
                             />
+                          ) : (
+                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
+                              <ImageIcon className="h-5 w-5" />
+                            </span>
                           )}
                           <div>
                             <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
@@ -1262,7 +1320,9 @@ function ReviewStep(props: {
               </div>
             )}
 
-            <div className="hidden lg:block mt-3">
+            {/* Shown on both mobile and desktop checkout — collecting a phone number or
+                choosing a partial payment can't be desktop-only, mobile is the primary surface. */}
+            <div className="mt-3">
               {needsPhone && (
                 <div className="mb-3">
                   <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -1282,19 +1342,68 @@ function ReviewStep(props: {
                   </p>
                 </div>
               )}
+              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={partialEnabled}
+                    onChange={(e) => {
+                      setPartialEnabled(e.target.checked);
+                      if (e.target.checked && !partialAmount) setPartialAmount(String(minPartialAmount));
+                    }}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+                  />
+                  <span>
+                    <span className="block text-[11px] font-bold text-slate-800">Pay a partial amount now</span>
+                    <span className="block text-[10px] text-slate-400">
+                      Pay at least ₹{minPartialAmount.toLocaleString("en-IN")} (20%) now, settle the rest at the venue.
+                    </span>
+                  </span>
+                </label>
+                {partialEnabled && (
+                  <div className="mt-2.5">
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        min={minPartialAmount}
+                        max={activePrice - 1}
+                        value={partialAmount}
+                        onChange={(e) => setPartialAmount(e.target.value)}
+                        placeholder={String(minPartialAmount)}
+                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-800 outline-none focus:border-brand-500"
+                      />
+                    </div>
+                    {!partialAmountValid && (
+                      <p className="mt-1 text-[10px] font-semibold text-rose-600">
+                        Enter an amount between ₹{minPartialAmount.toLocaleString("en-IN")} and ₹{(activePrice - 1).toLocaleString("en-IN")}.
+                      </p>
+                    )}
+                    {partialAmountValid && partialAmount !== "" && (
+                      <p className="mt-1 text-[10px] font-bold text-amber-700">
+                        ₹{(activePrice - Number(partialAmount)).toLocaleString("en-IN")} remaining, payable at the venue.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
               {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
               {!embedded && (
                 <button
                   type="button"
                   disabled={!canPay || submitting}
                   onClick={onPay}
-                  className={`w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition ${
+                  className={`hidden w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition lg:block ${
                     canPay && !submitting
                       ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
                       : "cursor-not-allowed bg-slate-300 text-white"
                   }`}
                 >
-                  {submitting ? "Booking..." : "Confirm Booking"}
+                  {submitting
+                    ? "Booking..."
+                    : partialEnabled && partialAmount
+                    ? `Pay ₹${Number(partialAmount).toLocaleString("en-IN")} Now`
+                    : "Confirm Booking"}
                 </button>
               )}
             </div>
@@ -1331,7 +1440,10 @@ function ReviewStep(props: {
             disabled={!canPay || submitting}
             className="w-full rounded-2xl bg-[#0b9c65] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 flex items-center justify-between px-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span>PAY ₹{(activePrice + (agreed ? 19 : 0)).toLocaleString("en-IN")}</span>
+            <span>
+              PAY ₹{((partialEnabled && partialAmount ? Number(partialAmount) : activePrice) + (agreed ? 19 : 0)).toLocaleString("en-IN")}
+              {partialEnabled && partialAmount && <span className="ml-1 text-[10px] font-semibold opacity-80">of ₹{activePrice.toLocaleString("en-IN")}</span>}
+            </span>
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>
@@ -1346,6 +1458,9 @@ function ReviewStep(props: {
 
 function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listing: Listing; booking: Booking; onClose: () => void; embedded?: boolean }) {
   const [downloading, setDownloading] = useState(false);
+  const paidAmount = booking.paidAmount ?? booking.totalAmount;
+  const isGenuinePartial = booking.status === "Part Paid" && paidAmount > 0 && paidAmount < booking.totalAmount;
+  const remaining = booking.totalAmount - paidAmount;
 
   function shareNow() {
     const message = [
@@ -1382,11 +1497,35 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
         <Row label="Order ID" value={<span className="font-mono font-bold">{booking.orderId}</span>} />
         <Row label="Venue" value={`${listing.title} · ${listing.categories.map(categoryLabel).join(", ") || listing.type}`} />
         <Row label="Date & Time" value={new Date(booking.dateTime).toLocaleString("en-GB")} />
-        <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
-          <span className="font-bold text-slate-900">{booking.paymentStatus === "paid" ? "Paid" : "Payment"}</span>
-          <span className="font-extrabold text-emerald-600">₹{booking.totalAmount.toLocaleString("en-IN")}</span>
-        </div>
+        {isGenuinePartial ? (
+          <>
+            <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
+              <span className="font-bold text-slate-900">Total Price</span>
+              <span className="font-extrabold text-slate-800">₹{booking.totalAmount.toLocaleString("en-IN")}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="font-bold text-slate-900">Paid Now</span>
+              <span className="font-extrabold text-emerald-600">₹{paidAmount.toLocaleString("en-IN")}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="font-bold text-slate-900">Remaining (pay at venue)</span>
+              <span className="font-black text-rose-600">₹{remaining.toLocaleString("en-IN")}</span>
+            </div>
+          </>
+        ) : (
+          <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
+            <span className="font-bold text-slate-900">{booking.paymentStatus === "paid" ? "Paid" : "Payment"}</span>
+            <span className="font-extrabold text-emerald-600">₹{booking.totalAmount.toLocaleString("en-IN")}</span>
+          </div>
+        )}
       </div>
+      {isGenuinePartial && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border-l-4 border-amber-400 bg-amber-50 px-3 py-2 text-left text-[11px] text-amber-800">
+          <span>
+            This is a <span className="font-black">partial payment</span> booking — <span className="font-black">₹{remaining.toLocaleString("en-IN")} remaining</span> is payable at the venue.
+          </span>
+        </div>
+      )}
 
       <div className="mt-3 flex items-center gap-2 rounded-xl border-l-4 border-brand-400 bg-brand-50 px-3 py-2 text-left text-[11px] text-slate-600">
         <ShieldCheck className="h-4 w-4 shrink-0 text-brand-500" />

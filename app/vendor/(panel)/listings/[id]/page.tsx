@@ -522,7 +522,7 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint: 
 }
 
 /* ─── AGENDA TAB COMPONENT ────────────────────────────────────── */
-type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold" | "Empty";
 
 /** Vendor bookings carry a customerId the shared mock type doesn't model — it's set only
  * for bookings a registered customer made through the app, never for manual/walk-in ones. */
@@ -954,6 +954,7 @@ function AgendaGrid({ slots, cardH, cardGrid, daypart, onSlotClick }: {
                   "Offline Booked": "bg-orange-50 border-orange-100 text-orange-600",
                   Blocked: "bg-slate-100 border-slate-200 text-slate-500",
                   "On Hold": "bg-purple-50 border-purple-100 text-purple-600",
+                  Empty: "bg-slate-50 border-slate-200 text-slate-400",
                 };
                 
                 const formatHourRange = (start24: string, end24: string) => {
@@ -1005,6 +1006,7 @@ function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; fil
     "Offline Booked": { border: "border-orange-200", label: "text-orange-700", dot: "bg-orange-500" },
     Blocked:          { border: "border-slate-200", label: "text-slate-600", dot: "bg-slate-400" },
     "On Hold":        { border: "border-purple-200", label: "text-purple-700", dot: "bg-purple-500" },
+    Empty:            { border: "border-slate-200", label: "text-slate-500", dot: "bg-slate-300" },
   };
   const c = colorMap[filter] || colorMap.Available;
 

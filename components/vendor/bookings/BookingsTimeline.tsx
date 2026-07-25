@@ -5,7 +5,7 @@ import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XC
 
 /* ─── Slot model ────────────────────────────────────────────────── */
 
-export type TimelineStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+export type TimelineStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold" | "Empty";
 
 export interface TimelineSlot {
   startTime: string;
@@ -21,6 +21,8 @@ export interface TimelineSlot {
   arrived?: boolean;
   sport?: string;
   numberOfPlayers?: number;
+  /** Amount actually collected so far — only meaningfully less than `price` on a "Part Paid" slot. */
+  paidAmount?: number;
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -32,7 +34,7 @@ export type SlotAction = "create-booking" | "block-slot" | "make-available" | "c
  * "Booked" (paid online through the customer app) gets its own branded tone,
  * separate from "Offline Booked" (walk-in), so a vendor can tell at a glance
  * which slots BYV actually brought them versus ones they entered manually. */
-type Tone = "available" | "onlineBooked" | "confirmed" | "pending" | "blocked" | "closed";
+type Tone = "available" | "onlineBooked" | "confirmed" | "pending" | "blocked" | "closed" | "empty";
 
 function toneFor(status: TimelineStatus): Tone {
   switch (status) {
@@ -47,6 +49,8 @@ function toneFor(status: TimelineStatus): Tone {
       return "pending";
     case "Blocked":
       return "blocked";
+    case "Empty":
+      return "empty";
     default:
       return "closed";
   }
@@ -97,6 +101,15 @@ const TONE_STYLES: Record<Tone, { dot: string; card: string; title: string; badg
     badge: "bg-slate-200 text-slate-600",
     badgeText: "Closed",
   },
+  // A past slot nobody ever booked — kept visible as a read-only historical marker
+  // instead of just vanishing once the clock passes it.
+  empty: {
+    dot: "bg-slate-300",
+    card: "border-slate-100 bg-slate-50/70",
+    title: "text-slate-400",
+    badge: "bg-slate-100 text-slate-500",
+    badgeText: "Empty",
+  },
 };
 
 export const TIMELINE_LEGEND: { tone: Tone; label: string }[] = [
@@ -106,6 +119,7 @@ export const TIMELINE_LEGEND: { tone: Tone; label: string }[] = [
   { tone: "pending", label: "Pending" },
   { tone: "blocked", label: "Blocked" },
   { tone: "closed", label: "Closed" },
+  { tone: "empty", label: "Empty (past, unbooked)" },
 ];
 
 /** "07:00" → "07:00 AM" */
@@ -281,6 +295,11 @@ export function BookingsTimeline({
         const s = TONE_STYLES[tone];
         const isFree = slot.status === "Available";
         const isBlocked = slot.status === "Blocked";
+        const isEmpty = slot.status === "Empty";
+        // "Part Paid" also covers a plain pending hold with no money down at all —
+        // only badge it "Partial" when something was genuinely collected but not in full.
+        const isPartial = slot.status === "Part Paid" && slot.paidAmount !== undefined && slot.paidAmount > 0 && slot.paidAmount < slot.price;
+        const remaining = slot.price - (slot.paidAmount ?? 0);
         const isLast = i === slots.length - 1;
         const isSelected = selectMode && isFree && (selectedKeys?.includes(slot.startTime) ?? false);
         // In select mode only free slots can be picked; everything else is dimmed & inert.
@@ -321,7 +340,7 @@ export function BookingsTimeline({
                 }
                 onSlotClick(slot);
               }}
-              onPointerDown={() => { if (!selectMode) startLongPress(slot); }}
+              onPointerDown={() => { if (!selectMode && !isEmpty) startLongPress(slot); }}
               onPointerUp={cancelLongPress}
               onPointerCancel={cancelLongPress}
               onPointerLeave={cancelLongPress}
@@ -348,6 +367,11 @@ export function BookingsTimeline({
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
                     <p className="mt-0.5 text-[10px] font-medium text-slate-400">{slot.blockedReason || "Unavailable"}</p>
                   </>
+                ) : isEmpty ? (
+                  <>
+                    <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Empty</p>
+                    <p className="mt-0.5 text-[10px] font-medium text-slate-400">No booking was made for this slot</p>
+                  </>
                 ) : (
                   <div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -364,6 +388,11 @@ export function BookingsTimeline({
                           Online
                         </span>
                       )}
+                      {isPartial && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[7.5px] font-black uppercase text-amber-700">
+                          Partial
+                        </span>
+                      )}
                       {slot.arrived && (
                         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-emerald-700">
                           <BadgeCheck size={8} /> Arrived
@@ -373,6 +402,11 @@ export function BookingsTimeline({
                     <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
                       {slot.phone || "Booked online"} {slot.sport ? `· ${slot.sport}` : ""}
                     </p>
+                    {isPartial && (
+                      <p className="mt-0.5 text-[10px] font-black text-amber-700">
+                        Paid ₹{slot.paidAmount} of ₹{slot.price} · <span className="text-rose-600">₹{remaining} remaining</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -386,7 +420,7 @@ export function BookingsTimeline({
                 )
               ) : (
                 <>
-                  {!isFree && !isBlocked && (
+                  {!isFree && !isBlocked && !isEmpty && (
                     <RowMenu slot={slot} onAction={onAction} />
                   )}
 

@@ -273,12 +273,21 @@ export interface CreateCoachInput {
   gallery?: string[];
   status?: "Active" | "Inactive";
   location?: CoachLocationInput;
+  /** Set when this academy is being added from within a turf's "Add Turf" flow. */
+  turfListingId?: string;
   /** Slots/batches to create together with the coach in one save. */
   batches?: CoachBatchInput[];
 }
 
 export function createCoach(input: CreateCoachInput) {
   return apiRequest<Coach>("/vendor/coaches", { method: "POST", body: input, audience: AUD });
+}
+
+/** Add an academy to a specific turf — unlike createCoach, this works for a Turf-only
+ * vendor who hasn't separately registered for the Coaches vertical (it grants that
+ * vertical automatically), which is what lets "Add Turf" offer this inline. */
+export function addAcademyToListing(listingId: string, input: Omit<CreateCoachInput, "turfListingId">) {
+  return apiRequest<Coach>(`/vendor/listings/${listingId}/academy`, { method: "POST", body: input, audience: AUD });
 }
 
 export function updateCoach(id: string, input: Partial<CreateCoachInput>) {
@@ -305,6 +314,9 @@ export interface CoachBatchInput {
   priceYearly: number;
   demoAvailable?: boolean;
   active?: boolean;
+  pricingMode?: "session" | "day" | "month";
+  pricePerSession?: number;
+  pricePerDay?: number;
 }
 
 export function addCoachBatch(coachId: string, input: CoachBatchInput) {

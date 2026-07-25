@@ -10,6 +10,7 @@ import type {
 export interface BrowseCoachesParams {
   category?: string;
   vendorId?: string;
+  turfListingId?: string;
   city?: string;
   lat?: number;
   lng?: number;

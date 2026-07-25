@@ -38,6 +38,7 @@ import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
 import { TimeField } from "@/components/vendor/TimeField";
 import { BlockReasonModal, ConfirmCountdownModal, ManageBookedSlotModal } from "@/components/vendor/SlotActionModals";
 import { BookingsHeader } from "@/components/vendor/bookings/BookingsHeader";
+import { AcademyBookingsPanel } from "@/components/vendor/bookings/AcademyBookingsPanel";
 import { PageBack } from "@/components/vendor/PageBack";
 import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/vendor/bookings/BookingsTimeline";
 import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/bookings/AddBookingSheet";
@@ -90,7 +91,7 @@ function slotLabel(start: string) {
   if (h >= 17 && h < 21) return "Evening";
   return "Night";
 }
-type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold";
+type SlotStatus = "Available" | "Booked" | "Part Paid" | "Offline Booked" | "Blocked" | "On Hold" | "Empty";
 
 /**
  * The vendor bookings API returns more than the shared mock `Booking` type models
@@ -124,12 +125,17 @@ interface AgendaSlot {
   arrived?: boolean;
   sport?: string;
   numberOfPlayers?: number;
+  /** Amount actually collected so far — only meaningfully less than `price` on a "Part Paid" slot. */
+  paidAmount?: number;
 }
 
 /* ────────────────────────────────────────────────────────────────
    MAIN PAGE
 ────────────────────────────────────────────────────────────────── */
 export default function BookingsPage() {
+  // "Academy Bookings" is a completely different data shape (coach subscriptions,
+  // not turf slots) — kept as an early return so it can't disturb the agenda state below.
+  const [pageTab, setPageTab] = useState<"turf" | "academy">("turf");
   const [listings, setListings] = useState<Listing[]>([]);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +181,10 @@ export default function BookingsPage() {
   // or book them as separate bookings for the same customer.
   const [selectMode, setSelectMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  // "Club together" can also rewrite the venue's default daily schedule, so this
+  // 2-hr (or N-hr) block becomes the standing slot every day, not just for today.
+  const [applyClubDaily, setApplyClubDaily] = useState(false);
+  const [clubbing, setClubbing] = useState(false);
   // How the offline modal submits: one combined booking ("single") or one per slot ("multiple").
   const [offlineMode, setOfflineMode] = useState<"single" | "multiple">("single");
   const [multiSlots, setMultiSlots] = useState<AgendaSlot[]>([]);
@@ -333,6 +343,7 @@ export default function BookingsPage() {
         arrived,
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
+        paidAmount: match?.paidAmount,
       };
     })
       // Late-night slots (12–2 AM on a turf that opens at 6 AM) belong at the bottom
@@ -352,25 +363,36 @@ export default function BookingsPage() {
       nextBookedStart = upcoming[0]?.startTime ?? null;
     }
 
-    return resolvedSlots.filter((s) => {
-      // Slots that have already finished today are just clutter — once the clock
-      // passes a slot's end time, drop it from the agenda instead of leaving it
-      // sitting at the top of the list.
-      if (isToday && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) return false;
+    return resolvedSlots
+      .map((s) => {
+        // A slot nobody ever booked stays on the agenda as a historical "Empty"
+        // marker once it's passed, instead of vanishing — so the vendor can see
+        // this morning's slot simply went unbooked.
+        if (isToday && s.status === "Available" && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) {
+          return { ...s, status: "Empty" as SlotStatus };
+        }
+        return s;
+      })
+      .filter((s) => {
+        // Slots that have already finished today are just clutter — once the clock
+        // passes a slot's end time, drop it from the agenda instead of leaving it
+        // sitting at the top of the list. "Empty" (a past slot nobody booked) is the
+        // one exception — see the map step above.
+        if (isToday && s.status !== "Empty" && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) return false;
 
-      const hour = Number(s.startTime.split(":")[0]);
-      if (!hourMatchesTimeOfDay(hour, filters.timeOfDay)) return false;
+        const hour = Number(s.startTime.split(":")[0]);
+        if (!hourMatchesTimeOfDay(hour, filters.timeOfDay)) return false;
 
-      if (filters.status === "Available" && s.status !== "Available") return false;
-      if (filters.status === "Confirmed" && !(s.status === "Booked" || s.status === "Offline Booked")) return false;
-      if (filters.status === "Pending" && !(s.status === "Part Paid" || s.status === "On Hold")) return false;
-      if (filters.status === "Blocked" && s.status !== "Blocked") return false;
+        if (filters.status === "Available" && s.status !== "Available") return false;
+        if (filters.status === "Confirmed" && !(s.status === "Booked" || s.status === "Offline Booked")) return false;
+        if (filters.status === "Pending" && !(s.status === "Part Paid" || s.status === "On Hold")) return false;
+        if (filters.status === "Blocked" && s.status !== "Blocked") return false;
 
-      if (filters.source === "Walk-in" && s.status !== "Offline Booked") return false;
-      if (filters.source === "Online" && s.status !== "Booked") return false;
+        if (filters.source === "Walk-in" && s.status !== "Offline Booked") return false;
+        if (filters.source === "Online" && s.status !== "Booked") return false;
 
-      if (filters.quick === "Empty Slots" && s.status !== "Available") return false;
-      if (filters.quick === "Next Booking" && s.startTime !== nextBookedStart) return false;
+        if (filters.quick === "Empty Slots" && s.status !== "Available") return false;
+        if (filters.quick === "Next Booking" && s.startTime !== nextBookedStart) return false;
 
       return true;
     });
@@ -469,10 +491,13 @@ export default function BookingsPage() {
   function exitSelectMode() {
     setSelectMode(false);
     setSelectedKeys([]);
+    setApplyClubDaily(false);
   }
 
-  /** Book the selected (consecutive) slots as one combined offline booking. */
-  function startClubBooking() {
+  /** Book the selected (consecutive) slots as one combined offline booking — and,
+   * if the vendor asked for it, also rewrite the schedule so this becomes the
+   * standing slot every day, not just a one-off for today. */
+  async function startClubBooking() {
     if (selectedSlots.length === 0 || !selectedTurf) return;
     if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
       setSetupSportsSelected([]);
@@ -488,6 +513,39 @@ export default function BookingsPage() {
       status: "Available",
       label: selectedSlots.length > 1 ? `${first.label} (${selectedSlots.length} Slots)` : first.label,
     };
+
+    if (applyClubDaily && selectedSlots.length > 1) {
+      setClubbing(true);
+      try {
+        const clubbedKeys = new Set(selectedSlots.map((s) => s.startTime));
+        // A schedule slot's `price` is an hourly rate (both the customer duration
+        // picker and the backend charge it as ₹/hr × hours booked) — average it
+        // across the merged range, not sum it, or a customer booking this exact
+        // 2-hr block online would be charged double (2hrs × the summed "hourly" price).
+        // `combined` above is unrelated: that's the flat total for *this one* manual
+        // booking being created right now, never re-multiplied by duration.
+        const mergedHourlyRate = Math.round(selectionTotal / selectedSlots.length);
+        const mergedSlot = { startTime: first.startTime, endTime: last.endTime, label: first.label, price: mergedHourlyRate };
+        const mergeInto = (list?: typeof selectedTurf.slotsList) =>
+          [...(list || []).filter((s) => !clubbedKeys.has(s.startTime)), mergedSlot].sort(
+            (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
+          );
+
+        // Rewrite the default daily template (applies to every day going forward)…
+        const newSlotsList = mergeInto(selectedTurf.slotsList);
+        // …and today's own override too, if one exists, so today matches immediately.
+        const overrides = (selectedTurf.dateOverrides || []).map((o) =>
+          o.date === selectedDate && !o.isHoliday ? { ...o, slots: mergeInto(o.slots) } : o
+        );
+        const updated = { ...selectedTurf, slotsList: newSlotsList, dateOverrides: overrides };
+        const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+        setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      } catch {
+        alert("Couldn't apply this slot to every day — the offline booking will still be created for today.");
+      }
+      setClubbing(false);
+    }
+
     setOfflineMode("single");
     setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
@@ -622,6 +680,16 @@ export default function BookingsPage() {
     } finally {
       setSetupSportsSaving(false);
     }
+  }
+
+  /** Cancelling the offline-booking modal closes the whole slot-action stack —
+   * it must never fall back to the "Available Segment" sheet underneath. Reopening
+   * it is only ever a fresh, explicit tap on the slot. */
+  function closeOfflineModal() {
+    setOfflineModal(false);
+    setOfflineMode("single");
+    setMultiSlots([]);
+    setActiveSlot(null);
   }
 
   /** Validates the offline-booking form, then hands off to the confirm-with-undo step. */
@@ -903,6 +971,10 @@ export default function BookingsPage() {
     return <div className="p-10 text-center text-ink-faint text-sm">Loading dashboard…</div>;
   }
 
+  if (pageTab === "academy") {
+    return <AcademyBookingsPanel onSwitchToTurf={() => setPageTab("turf")} />;
+  }
+
   return (
     /* The agenda scrolls with the page. It used to live inside a `100dvh - 64px` shell
        with its own overflow, but that height never matched the real viewport once the
@@ -914,6 +986,19 @@ export default function BookingsPage() {
         <div className="mb-2">
           <PageBack fallback="/vendor/dashboard" />
         </div>
+
+        <div className="mb-3 flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <button className="flex-1 bg-vibe-navy px-3 py-2.5 text-center text-[11px] font-bold text-white">
+            Turf Bookings
+          </button>
+          <button
+            onClick={() => setPageTab("academy")}
+            className="flex-1 px-3 py-2.5 text-center text-[11px] font-bold text-slate-500 transition hover:bg-slate-50"
+          >
+            Academy Bookings
+          </button>
+        </div>
+
         <BookingsHeader
           turfs={turfListings.map((t) => ({ id: t.id, title: t.title }))}
           selectedTurfId={selectedTurfId}
@@ -1077,21 +1162,38 @@ export default function BookingsPage() {
                   </span>
                   <span className="text-[12px] font-black text-emerald-600">₹{selectionTotal}</span>
                 </div>
+                {selectionContiguous && selectedSlots.length > 1 && (
+                  <label className="mb-2.5 flex cursor-pointer items-start gap-2 rounded-xl bg-slate-50 px-2.5 py-2">
+                    <input
+                      type="checkbox"
+                      checked={applyClubDaily}
+                      onChange={(e) => setApplyClubDaily(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-emerald-600"
+                    />
+                    <span>
+                      <span className="block text-[10.5px] font-black text-slate-800">Apply this every day</span>
+                      <span className="block text-[9px] font-semibold text-slate-400">
+                        Makes {to12h(selectedSlots[0].startTime)}–{to12h(selectedSlots[selectedSlots.length - 1].endTime)} one standing slot on every future date, not just today.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={startClubBooking}
-                    disabled={!selectionContiguous}
+                    disabled={!selectionContiguous || clubbing}
                     title={selectionContiguous ? "" : "Pick back-to-back slots to club them"}
                     className="flex flex-col items-center gap-0.5 rounded-xl bg-emerald-600 py-2.5 text-white transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="flex items-center gap-1 text-[11px] font-black">
-                      <Layers size={13} /> Club together
+                      <Layers size={13} /> {clubbing ? "Applying…" : "Club together"}
                     </span>
                     <span className="text-[8.5px] font-semibold opacity-80">One combined booking</span>
                   </button>
                   <button
                     onClick={startMultipleBooking}
-                    className="flex flex-col items-center gap-0.5 rounded-xl bg-vibe-navy py-2.5 text-white transition hover:bg-vibe-navyDark active:scale-[0.98]"
+                    disabled={clubbing}
+                    className="flex flex-col items-center gap-0.5 rounded-xl bg-vibe-navy py-2.5 text-white transition hover:bg-vibe-navyDark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="flex items-center gap-1 text-[11px] font-black">
                       <Copy size={13} /> Multiple bookings
@@ -1249,6 +1351,12 @@ export default function BookingsPage() {
                   {activeSlot.blockedReason && <div className="flex justify-between"><span className="text-slate-500">Reason</span><span className="font-bold">{activeSlot.blockedReason}</span></div>}
                   <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-bold">₹{activeSlot.price}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Duration</span><span className="font-bold">{durHrs(activeSlot.startTime, activeSlot.endTime)} hrs</span></div>
+                  {activeSlot.status === "Part Paid" && activeSlot.paidAmount !== undefined && activeSlot.paidAmount > 0 && activeSlot.paidAmount < activeSlot.price && (
+                    <>
+                      <div className="flex justify-between"><span className="text-slate-500">Paid</span><span className="font-bold text-emerald-700">₹{activeSlot.paidAmount}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Remaining</span><span className="font-black text-rose-600">₹{activeSlot.price - activeSlot.paidAmount}</span></div>
+                    </>
+                  )}
                 </div>
                 {activeSlot.status === "Blocked" && (
                   <ActionRow icon={<Check size={18} className="text-emerald-600" />} color="emerald" title="Unblock Slot" sub="Make this slot available again" onClick={() => setSlotBlocked(activeSlot, false)} />
@@ -1279,7 +1387,7 @@ export default function BookingsPage() {
             setBlockReasonOpen(false);
             setPendingConfirm({ title: "Block this slot", seconds: 6, run: () => setSlotBlocked(activeSlot, true, reason) });
           }}
-          onClose={() => setBlockReasonOpen(false)}
+          onClose={() => { setBlockReasonOpen(false); setActiveSlot(null); }}
         />
       )}
 
@@ -1337,7 +1445,7 @@ export default function BookingsPage() {
 
       {/* ── OFFLINE BOOKING MODAL ── */}
       {offlineModal && activeSlot && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setOfflineModal(false); setOfflineMode("single"); setMultiSlots([]); }}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={closeOfflineModal}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-4xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -1348,7 +1456,7 @@ export default function BookingsPage() {
                   {to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · Total: ₹{activeSlot.price}
                 </p>
               </div>
-              <button onClick={() => { setOfflineModal(false); setOfflineMode("single"); setMultiSlots([]); }} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+              <button onClick={closeOfflineModal} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
             </div>
 
             {offlineMode === "multiple" && (
@@ -1445,6 +1553,7 @@ function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; fil
     "Offline Booked": { border: "border-green-200", label: "text-green-700", dot: "bg-green-600" },
     Blocked:          { border: "border-rose-200", label: "text-rose-700", dot: "bg-rose-600" },
     "On Hold":        { border: "border-violet-200", label: "text-violet-700", dot: "bg-violet-500" },
+    Empty:            { border: "border-slate-200", label: "text-slate-500", dot: "bg-slate-400" },
   };
   const c = colorMap[filter] || colorMap.Available;
 
@@ -1571,6 +1680,7 @@ function SlotBadge({ status }: { status: SlotStatus }) {
     "Offline Booked": "bg-green-100 text-green-700",
     Blocked: "bg-rose-100 text-rose-700",
     "On Hold": "bg-violet-100 text-violet-700",
+    Empty: "bg-slate-100 text-slate-500",
   };
   return <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${cfg[status] || ""}`}>{status}</span>;
 }

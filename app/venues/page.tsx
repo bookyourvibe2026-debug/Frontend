@@ -1,28 +1,113 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MapPin } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
-import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
-import { browseVenues } from "@/lib/api/venues";
+import { MobileTopBar } from "@/components/mobile/ui";
+import { VenuePosterCard } from "@/components/venue-poster-card";
+import { browseVenues, getVendorProfile, type VendorPublicProfile } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
 import { categoryLabel } from "@/lib/taxonomy";
+
+/** One card on the browsing grid — either a single venue, or a business with
+ * several venues (tap it to see all of them, à la a vendor's own storefront). */
+interface VenueCard {
+  id: string;
+  href: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  city?: string;
+  price: number;
+  badge?: string;
+}
 
 function VenuesPageInner() {
   const searchParams = useSearchParams();
   const category = searchParams.get("category") ?? "";
   const [venues, setVenues] = useState<Listing[]>([]);
+  const [vendorProfiles, setVendorProfiles] = useState<Record<string, VendorPublicProfile>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     // Venues page shows only Turf & Game listings — Events have their own /events page
     browseVenues({ limit: 24, category: category || undefined, type: category ? undefined : "Turf" })
-      .then((result) => setVenues(result.items))
+      .then(async (result) => {
+        setVenues(result.items);
+        // One business can list several turfs — fetch each distinct vendor's public
+        // profile (business name + poster) so they can be grouped into one card.
+        const vendorIds = Array.from(
+          new Set(result.items.map((v) => v.vendorId).filter((id): id is string => Boolean(id)))
+        );
+        const profiles = await Promise.all(
+          vendorIds.map((id) => getVendorProfile(id).then((r) => r.vendor).catch(() => null))
+        );
+        const map: Record<string, VendorPublicProfile> = {};
+        profiles.forEach((p) => {
+          if (p) map[p._id] = p;
+        });
+        setVendorProfiles(map);
+      })
       .finally(() => setLoading(false));
   }, [category]);
+
+  /** Group listings by vendor — a single-listing vendor opens straight to booking,
+   * a multi-listing vendor opens its business profile (which lists all its venues). */
+  const cards = useMemo<VenueCard[]>(() => {
+    const byVendor = new Map<string, Listing[]>();
+    const standalone: Listing[] = [];
+    for (const v of venues) {
+      if (v.vendorId) {
+        const arr = byVendor.get(v.vendorId) ?? [];
+        arr.push(v);
+        byVendor.set(v.vendorId, arr);
+      } else {
+        standalone.push(v);
+      }
+    }
+
+    const result: VenueCard[] = [];
+    for (const [vendorId, listings] of byVendor) {
+      if (listings.length === 1) {
+        const l = listings[0];
+        result.push({
+          id: l._id,
+          href: `/venues/${l.slug || l._id}`,
+          title: l.title,
+          subtitle: l.categories.map(categoryLabel).join(", ") || l.type,
+          image: l.coverImage,
+          city: l.city,
+          price: l.price,
+        });
+        continue;
+      }
+      const profile = vendorProfiles[vendorId];
+      result.push({
+        id: vendorId,
+        href: `/venues/vendor/${vendorId}`,
+        title: profile?.businessName ?? listings[0].title,
+        subtitle: `${listings.length} venues`,
+        image: profile?.poster || profile?.banner || listings[0].coverImage,
+        city: profile?.city ?? listings[0].city,
+        price: Math.min(...listings.map((l) => l.price)),
+        badge: `${listings.length} venues`,
+      });
+    }
+    for (const l of standalone) {
+      result.push({
+        id: l._id,
+        href: `/venues/${l.slug || l._id}`,
+        title: l.title,
+        subtitle: l.categories.map(categoryLabel).join(", ") || l.type,
+        image: l.coverImage,
+        city: l.city,
+        price: l.price,
+      });
+    }
+    return result;
+  }, [venues, vendorProfiles]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#eef2ff_45%,_#ffffff_82%)]">
@@ -45,38 +130,12 @@ function VenuesPageInner() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {venues.map((venue) => (
-              <MobileCard key={venue._id} className="!p-4">
-                {/* Banner opens the venue too — not just the "View details" button */}
-                <Link href={`/venues/${venue._id}`} className="relative block overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
-                  {venue.coverImage && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
-                  )}
-                  <div className="relative">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
-                    <h2 className="mt-1 text-lg font-extrabold">{venue.title}</h2>
-                  </div>
-                </Link>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="flex items-center gap-1 text-xs text-slate-500">
-                      <MapPin className="h-3 w-3" /> {venue.city}
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
-                  </div>
-                  <Link
-                    href={`/venues/${venue.slug || venue._id}`}
-                    className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
-                  >
-                    View details
-                  </Link>
-                </div>
-              </MobileCard>
+          <div className="grid grid-cols-2 gap-3">
+            {cards.map((card) => (
+              <VenuePosterCard key={card.id} {...card} />
             ))}
-            {!loading && venues.length === 0 && (
-              <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
+            {!loading && cards.length === 0 && (
+              <p className="col-span-2 rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
                 No venues available yet. Check back soon.
               </p>
             )}
@@ -106,43 +165,11 @@ function VenuesPageInner() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {venues.map((venue, index) => (
-            <article
-              key={venue._id}
-              className={`overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
-                index === 0 ? "md:col-span-2 xl:col-span-1" : ""
-              }`}
-            >
-              {/* Banner opens the venue too — not just the "View details" button */}
-              <Link href={`/venues/${venue._id}`} className="relative block overflow-hidden rounded-[1.5rem] bg-slate-900 p-5 text-white">
-                {venue.coverImage && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
-                )}
-                <div className="relative">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
-                  <h2 className="mt-2 text-2xl font-black">{venue.title}</h2>
-                </div>
-              </Link>
-
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <div>
-                  <p className="flex items-center gap-1 text-sm text-slate-500">
-                    <MapPin className="h-3.5 w-3.5" /> {venue.city}
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-slate-950">₹{venue.price.toLocaleString("en-IN")}/hr</p>
-                </div>
-                <Link
-                  href={`/venues/${venue.slug || venue._id}`}
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
-                >
-                  View details
-                </Link>
-              </div>
-            </article>
+        <section className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {cards.map((card) => (
+            <VenuePosterCard key={card.id} {...card} />
           ))}
-          {!loading && venues.length === 0 && (
+          {!loading && cards.length === 0 && (
             <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
               No venues available yet. Check back soon.
             </p>

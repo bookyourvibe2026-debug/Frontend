@@ -46,6 +46,11 @@ export interface TechnicalSpec {
   color?: string;
 }
 
+export interface SportCapacity {
+  category: string;
+  maxPlayers: number;
+}
+
 export interface Listing {
   _id: string;
   slug?: string;
@@ -53,6 +58,8 @@ export interface Listing {
   type: ListingType;
   categories: string[];
   subCategories: string[];
+  /** Max players allowed per selected sport — Turf/Game listings only, one entry per category. */
+  sportCapacities?: SportCapacity[];
   price: number;
   /** Ticket cap for type: "Event" listings — unused for Turf/Game. */
   capacity?: number;
@@ -176,6 +183,11 @@ export interface CoachBatch {
   priceYearly: number;
   demoAvailable: boolean;
   active: boolean;
+  /** How the vendor quotes this batch's price — informational; enrolment itself
+   * is still always demo/monthly/yearly. */
+  pricingMode?: "session" | "day" | "month";
+  pricePerSession?: number;
+  pricePerDay?: number;
   /** Present on the public coach detail response. */
   enrolled?: number;
   spotsLeft?: number;
@@ -192,6 +204,8 @@ export interface CoachLocation {
 export interface Coach {
   _id: string;
   vendorId: string;
+  /** Set when this academy was added from within a specific turf's "Add Turf" flow. */
+  turfListingId?: string | null;
   slug?: string;
   name: string;
   category: string;

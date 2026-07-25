@@ -55,6 +55,8 @@ export interface Listing {
   gameVenue?: "indoor" | "outdoor" | "both";
   categories: string[];
   subCategories: string[];
+  /** Max players allowed per selected sport — Turf/Game listings only, one entry per category. */
+  sportCapacities?: { category: string; maxPlayers: number }[];
   price: number;
   listedOn: string;
   status: "Active" | "Inactive";

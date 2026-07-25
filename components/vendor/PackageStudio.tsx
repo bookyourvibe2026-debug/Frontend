@@ -90,6 +90,7 @@ function emptyListing(type: ListingType): Listing {
     type,
     categories: [],
     subCategories: [],
+    sportCapacities: [],
     price: 0,
     listedOn: formatListedOn(now),
     status: "Inactive",
@@ -700,6 +701,45 @@ function DetailsStep({ draft, update }: StepProps) {
         </div>
       </div>
 
+      {draft.categories.length > 0 && draft.type !== "Event" && (
+        <div>
+          <FieldLabel>Max players per game *</FieldLabel>
+          <p className="mb-2 text-[11px] text-ink-faint">How many players are allowed on court at once, for each sport you selected.</p>
+          <div className="space-y-2">
+            {draft.categories.map((catId) => {
+              const label = categoryOptions.find((c) => c.id === catId)?.label ?? catId;
+              const current = (draft.sportCapacities ?? []).find((s) => s.category === catId);
+              return (
+                <div key={catId} className="flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-cream-200/30 px-3.5 py-2.5">
+                  <span className="text-sm font-semibold text-ink">{label}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={current?.maxPlayers ?? ""}
+                    onChange={(e) => {
+                      const maxPlayers = Number(e.target.value) || 0;
+                      const list = draft.sportCapacities ?? [];
+                      const idx = list.findIndex((s) => s.category === catId);
+                      let next;
+                      if (maxPlayers <= 0) {
+                        next = list.filter((s) => s.category !== catId);
+                      } else if (idx > -1) {
+                        next = list.map((s, i) => (i === idx ? { ...s, maxPlayers } : s));
+                      } else {
+                        next = [...list, { category: catId, maxPlayers }];
+                      }
+                      update("sportCapacities", next);
+                    }}
+                    placeholder="e.g. 14"
+                    className="w-24 rounded-lg border border-surface-border bg-white px-3 py-1.5 text-sm font-bold text-ink outline-none focus:border-vibe-violet"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {draft.categories.length > 0 && (
         <div>
           <FieldLabel>Sub-Category (select all that apply)</FieldLabel>
@@ -1111,7 +1151,9 @@ export const INDIAN_HOLIDAYS: Record<string, string> = {
 function BookingStep({ draft, update }: StepProps) {
   const [slotPrice, setSlotPrice] = useState(1000);
   const [bulkDuration, setBulkDuration] = useState("60");
-  const [bulkStartTime, setBulkStartTime] = useState("06:00");
+  // Every venue's day starts at 4:00 AM by convention (2:00–4:00 AM is a fixed
+  // closed window for cleaning/maintenance) — the generator defaults to that.
+  const [bulkStartTime, setBulkStartTime] = useState("04:00");
   const [bulkEndTime, setBulkEndTime] = useState("22:00");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
@@ -1244,6 +1286,10 @@ function BookingStep({ draft, update }: StepProps) {
     }
   }
 
+  // Fixed daily closed window — 2:00 AM to 4:00 AM, in minutes-from-midnight.
+  const CLOSED_WINDOW_START = 120;
+  const CLOSED_WINDOW_END = 240;
+
   function generateBulkSlots() {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
     const dur = parseInt(bulkDuration);
@@ -1251,7 +1297,11 @@ function BookingStep({ draft, update }: StepProps) {
     let cur = t24m(bulkStartTime);
     const end = t24m(bulkEndTime);
     while (cur + dur <= end) {
-      newSlots.push({ startTime: m2t(cur), endTime: m2t(cur + dur), label: dayPart(cur), price: 0 });
+      // Skip anything landing inside the fixed 2:00–4:00 AM closed window.
+      const overlapsClosedWindow = cur < CLOSED_WINDOW_END && cur + dur > CLOSED_WINDOW_START;
+      if (!overlapsClosedWindow) {
+        newSlots.push({ startTime: m2t(cur), endTime: m2t(cur + dur), label: dayPart(cur), price: 0 });
+      }
       cur += dur;
     }
     save(newSlots);
@@ -1263,6 +1313,9 @@ function BookingStep({ draft, update }: StepProps) {
   /* clock click — toggle a slot at that hour using current duration */
   const handleSelectHour = (hour: number) => {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
+    // The clock dial already excludes 2–4 AM from being clicked — this is just a
+    // safety net for any other caller of onSelectHour.
+    if (hour === 2 || hour === 3) return;
     const startStr = m2t(hour * 60);
     const dur = parseInt(bulkDuration);
     const endStr = m2t(hour * 60 + dur);
@@ -1793,15 +1846,15 @@ function AddOnRow({
       <button
         type="button"
         onClick={() => fileInput.current?.click()}
-        className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-cream-200/50 text-vibe-violet transition-colors hover:bg-cream-200"
+        className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-cream-200/50 text-vibe-violet transition-colors hover:bg-cream-200"
         title={addOn.image ? "Replace photo" : "Add photo"}
       >
         {uploading ? (
-          <Loader2 size={16} className="animate-spin" />
+          <Loader2 size={20} className="animate-spin" />
         ) : addOn.image ? (
           <img src={addOn.image.url} alt={addOn.label || "Add-on"} className="h-full w-full object-cover" />
         ) : (
-          <Upload size={16} />
+          <Upload size={20} />
         )}
       </button>
 

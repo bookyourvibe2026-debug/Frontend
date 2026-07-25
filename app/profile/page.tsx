@@ -528,7 +528,13 @@ export default function ProfilePage() {
                           {dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <span>Order #{b.orderId}</span>
-                        <span className="font-semibold text-slate-700">₹{b.totalAmount}</span>
+                        {b.status === "Part Paid" && (b.paidAmount ?? 0) > 0 && (b.paidAmount ?? 0) < b.totalAmount ? (
+                          <span className="font-black text-rose-600">
+                            ₹{b.totalAmount - (b.paidAmount ?? 0)} remaining <span className="font-normal text-slate-400">of ₹{b.totalAmount}</span>
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-slate-700">₹{b.totalAmount}</span>
+                        )}
                       </div>
                     </div>
 

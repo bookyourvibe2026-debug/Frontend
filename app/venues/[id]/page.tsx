@@ -1142,23 +1142,65 @@ function MobileVenueDetail({
   );
 }
 
+function CoachRow({ coach, badge }: { coach: Coach; badge?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 font-bold text-sm">
+          {coach.name.charAt(0)}
+        </div>
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 truncate text-sm font-extrabold text-slate-900">
+            {coach.name}
+            {badge && (
+              <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-700">
+                {badge}
+              </span>
+            )}
+          </p>
+          <p className="truncate text-xs text-slate-500">
+            {(coach.categories || []).map(categoryLabel).join(", ") || "Coach"} · {coach.experienceYears ?? 3}+ yrs exp
+          </p>
+        </div>
+      </div>
+      <Link
+        href={`/coaches/${coach._id}`}
+        className="shrink-0 rounded-xl bg-brand-50 border border-brand-200 px-3 py-2 text-xs font-bold text-brand-600 hover:bg-brand-600 hover:text-white transition"
+      >
+        Book Session
+      </Link>
+    </div>
+  );
+}
+
 function AcademyTabContent({ venue }: { venue: Listing }) {
+  // Two tiers: an academy actually added AT this turf (via "Add Turf" → Add Academy)
+  // shows first and is badged; everything else is just a same-sport suggestion.
+  const [venueAcademies, setVenueAcademies] = useState<Coach[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    browsePublicCoaches({ limit: 20 })
-      .then((res) => {
+    Promise.all([
+      browsePublicCoaches({ turfListingId: venue._id, limit: 10 }),
+      browsePublicCoaches({ limit: 20 }),
+    ])
+      .then(([atVenue, all]) => {
         if (cancelled) return;
+        setVenueAcademies(atVenue.items);
         const venueCatSet = new Set((venue.categories || []).map((c) => c.toLowerCase()));
-        const matching = res.items.filter((coach) =>
-          (coach.categories || []).some((cat) => venueCatSet.has(cat.toLowerCase()))
+        const atVenueIds = new Set(atVenue.items.map((c) => c._id));
+        const matching = all.items.filter(
+          (coach) => !atVenueIds.has(coach._id) && (coach.categories || []).some((cat) => venueCatSet.has(cat.toLowerCase()))
         );
-        setCoaches(matching.length > 0 ? matching : res.items.slice(0, 3));
+        setCoaches(matching.length > 0 ? matching : all.items.filter((c) => !atVenueIds.has(c._id)).slice(0, 3));
       })
       .catch(() => {
-        if (!cancelled) setCoaches([]);
+        if (!cancelled) {
+          setVenueAcademies([]);
+          setCoaches([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1172,7 +1214,7 @@ function AcademyTabContent({ venue }: { venue: Listing }) {
     return <div className="mt-3 py-6 text-center text-xs font-semibold text-slate-400">Finding matching coaches for {venue.title}...</div>;
   }
 
-  if (coaches.length === 0) {
+  if (venueAcademies.length === 0 && coaches.length === 0) {
     return (
       <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
         <GraduationCap className="mx-auto h-6 w-6 text-slate-300" />
@@ -1188,28 +1230,24 @@ function AcademyTabContent({ venue }: { venue: Listing }) {
 
   return (
     <div className="mt-3 space-y-3">
-      <p className="text-xs font-semibold text-slate-500">Coaches &amp; Programs matching this venue&apos;s games:</p>
-      {coaches.map((coach) => (
-        <div key={coach._id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 font-bold text-sm">
-              {coach.name.charAt(0)}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-extrabold text-slate-900">{coach.name}</p>
-              <p className="truncate text-xs text-slate-500">
-                {(coach.categories || []).map(categoryLabel).join(", ") || "Coach"} · {coach.experienceYears ?? 3}+ yrs exp
-              </p>
-            </div>
-          </div>
-          <Link
-            href={`/coaches/${coach._id}`}
-            className="shrink-0 rounded-xl bg-brand-50 border border-brand-200 px-3 py-2 text-xs font-bold text-brand-600 hover:bg-brand-600 hover:text-white transition"
-          >
-            Book Session
-          </Link>
-        </div>
-      ))}
+      {venueAcademies.length > 0 && (
+        <>
+          <p className="text-xs font-semibold text-slate-500">Academy at {venue.title}:</p>
+          {venueAcademies.map((coach) => (
+            <CoachRow key={coach._id} coach={coach} badge="At this venue" />
+          ))}
+        </>
+      )}
+      {coaches.length > 0 && (
+        <>
+          <p className="text-xs font-semibold text-slate-500">
+            {venueAcademies.length > 0 ? "Other coaches & programs nearby:" : "Coaches & Programs matching this venue's games:"}
+          </p>
+          {coaches.map((coach) => (
+            <CoachRow key={coach._id} coach={coach} />
+          ))}
+        </>
+      )}
     </div>
   );
 }
