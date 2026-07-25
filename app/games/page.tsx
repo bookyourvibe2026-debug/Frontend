@@ -97,7 +97,7 @@ export default function GamesPage() {
               {venues.map((venue) => (
                 <MobileCard key={venue._id} className="!p-4">
                   {/* Banner opens the venue too — not just the "View details" button */}
-                  <Link href={`/venues/${venue._id}`} className="relative block overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                  <Link href={`/venues/${venue.slug || venue._id}`} className="relative block overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
                     {venue.coverImage && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />

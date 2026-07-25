@@ -12,6 +12,8 @@ import { categoryLabel } from "./taxonomy";
 
 export type Venue = {
   id: string;
+  /** Preferred over `id` for building /venues URLs — falls back to `id` when unset. */
+  slug?: string;
   name: string;
   area: string;
   distanceKm: number;
@@ -25,6 +27,7 @@ export type Venue = {
 export function listingToVenue(listing: Listing): Venue {
   return {
     id: listing._id,
+    slug: listing.slug,
     name: listing.title,
     area: listing.city,
     distanceKm: 0,

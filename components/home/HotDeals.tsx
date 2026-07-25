@@ -26,7 +26,7 @@ function todaysBestPrice(listing: Listing): number | null {
 
 /** Below "Hot Offers & Events" on the homepage — surfaces venues whose price has actually
  * dropped today (Last-Minute Boost, dynamic pricing, or a manual cut), biggest discount first. */
-export function HotDeals() {
+export function HotDeals({ className = "mx-auto mt-8 max-w-7xl px-4 sm:px-6" }: { className?: string }) {
   const [venues, setVenues] = useState<Listing[]>([]);
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export function HotDeals() {
   if (deals.length === 0) return null;
 
   return (
-    <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6">
+    <section className={className}>
       <SectionHeading
         eyebrow="Today Only"
         title="Hot Deals"

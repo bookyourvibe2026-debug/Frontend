@@ -74,7 +74,7 @@ export default function HomePage() {
   }, []);
 
   const openVenue = useCallback(
-    (v: Venue) => router.push(`/venues/${v.id}`),
+    (v: Venue) => router.push(`/venues/${v.slug || v.id}`),
     [router]
   );
 
@@ -164,7 +164,6 @@ export default function HomePage() {
           onJoinCommunity={() => setChallengeOpen(true)}
           onViewAllCommunity={() => router.push("/community")}
           onViewAllEvents={() => router.push("/tournaments")}
-          onViewAllOffers={() => router.push("/offers")}
         />
       </div>
 
@@ -219,7 +218,6 @@ export default function HomePage() {
 
         <EventsAndOffers
           onViewAllEvents={() => router.push("/tournaments")}
-          onViewAllOffers={() => router.push("/offers")}
         />
 
         <WhyBookYourVibe />

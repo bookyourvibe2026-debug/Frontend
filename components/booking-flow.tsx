@@ -12,7 +12,7 @@
 /*  quantity or markup concept yet, so we don't pretend it does.       */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
@@ -164,6 +164,15 @@ export default function BookingFlow({
   const [time, setTime] = useState(START_TIMES[6]);
   const [endTime, setEndTime] = useState(START_TIMES[8]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(-1);
+  // `generatedSlots` gets a new length/index mapping every time duration/date changes,
+  // so a raw index can silently end up pointing at a different slot than the one the
+  // player actually tapped. This tracks the real start time they picked so it can be
+  // re-resolved to whatever index represents that same time after regeneration.
+  const selectedStartTimeRef = useRef<string | null>(null);
+  function pickSlot(slot: { startTime: string; originalIndex: number }) {
+    selectedStartTimeRef.current = slot.startTime;
+    setSelectedSlotIndex(slot.originalIndex);
+  }
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splitCount, setSplitCount] = useState(2);
@@ -422,9 +431,25 @@ export default function BookingFlow({
   useEffect(() => {
     // Re-select when the date or duration changes and the current pick is gone/unavailable.
     if (listing.type === "Turf" && date) {
+      // Prefer re-resolving by the actual start time the player tapped — indices shift
+      // whenever `generatedSlots` regenerates (a shorter/longer array on duration change),
+      // so checking the raw index alone can silently land on a different, unrelated slot
+      // that just happens to still be in-bounds and Available.
+      const wantedStart = selectedStartTimeRef.current;
+      const byStartTime = wantedStart
+        ? generatedSlots.find((s) => s.startTime === wantedStart && s.status === "Available")
+        : undefined;
+      if (byStartTime) {
+        setSelectedSlotIndex(byStartTime.originalIndex);
+        return;
+      }
       const currentSlot = generatedSlots[selectedSlotIndex];
-      if (currentSlot && currentSlot.status === "Available") return;
+      if (currentSlot && currentSlot.status === "Available") {
+        selectedStartTimeRef.current = currentSlot.startTime;
+        return;
+      }
       const firstAvail = generatedSlots.find((s) => s.status === "Available");
+      selectedStartTimeRef.current = firstAvail ? firstAvail.startTime : null;
       setSelectedSlotIndex(firstAvail ? firstAvail.originalIndex : -1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -564,7 +589,7 @@ export default function BookingFlow({
           isDateHoliday={isDateHoliday}
           holidayReason={holidayReason}
           selectedSlotIndex={selectedSlotIndex}
-          setSelectedSlotIndex={setSelectedSlotIndex}
+          onPickSlot={pickSlot}
           activePrice={activePrice}
           visibleMonth={visibleMonth}
           visibleYear={visibleYear}
@@ -635,7 +660,7 @@ function ReviewStep(props: {
   isDateHoliday: boolean;
   holidayReason: string;
   selectedSlotIndex: number;
-  setSelectedSlotIndex: (v: number) => void;
+  onPickSlot: (slot: { startTime: string; originalIndex: number }) => void;
   activePrice: number;
   visibleMonth: number;
   visibleYear: number;
@@ -690,7 +715,7 @@ function ReviewStep(props: {
     isDateHoliday,
     holidayReason,
     selectedSlotIndex,
-    setSelectedSlotIndex,
+    onPickSlot,
     activePrice,
     visibleMonth,
     visibleYear,
@@ -1091,12 +1116,17 @@ function ReviewStep(props: {
                               const m = time24ToMinutes(slot.startTime);
                               return { slot, inRange: selectedSlot ? m >= selStartM && m < selEndM : false };
                             });
+                            // Derive both end markers from the same `inRange` flags used for the
+                            // fill colour — anchoring the start marker to `selectedSlotIndex`
+                            // instead let the round handle drift onto a different column than
+                            // where the red fill actually began whenever indices didn't line up.
+                            const firstInRange = cols.findIndex((c) => c.inRange);
                             const lastInRange = cols.reduce((acc, c, i) => (c.inRange ? i : acc), -1);
                             return (
                               <div className="flex min-w-max">
                                 {cols.map(({ slot, inRange }, i) => {
                                   const available = slot.status === "Available";
-                                  const isStartCol = selectedSlot && slot.originalIndex === selectedSlotIndex;
+                                  const isStartCol = i === firstInRange;
                                   const isEndCol = i === lastInRange;
                                   return (
                                     <button
@@ -1108,7 +1138,7 @@ function ReviewStep(props: {
                                         // Light haptic tick on selection — most mobile browsers support this,
                                         // desktop/unsupported browsers just silently no-op.
                                         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
-                                        setSelectedSlotIndex(slot.originalIndex);
+                                        onPickSlot({ startTime: slot.startTime, originalIndex: slot.originalIndex });
                                       }}
                                       className="flex w-[74px] shrink-0 snap-center flex-col items-stretch"
                                     >
@@ -1236,7 +1266,7 @@ function ReviewStep(props: {
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Time</p>
                     <p className="text-xs font-bold text-slate-800">
-                      {listing.type === "Turf" && selectedSlotIndex !== -1 ? `${generatedSlots[selectedSlotIndex].startTime12} to ${generatedSlots[selectedSlotIndex].endTime12}` : "Select Time"}
+                      {listing.type === "Turf" && selectedSlot ? `${selectedSlot.startTime12} to ${selectedSlot.endTime12}` : "Select Time"}
                     </p>
                   </div>
                 </div>

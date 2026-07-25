@@ -196,6 +196,10 @@ export default function BookingsPage() {
   const [offlineSport, setOfflineSport] = useState("");
   const [offlineAmount, setOfflineAmount] = useState("");
   const [offlineSubmitting, setOfflineSubmitting] = useState(false);
+  // How many consecutive slots the single-slot offline booking actually spans —
+  // lets the vendor extend a booking past the one slot they tapped (e.g. book
+  // 6–9 PM in one go) without needing the separate multi-select "club" flow first.
+  const [offlineSpanCount, setOfflineSpanCount] = useState(1);
   const [setupSportsOpen, setSetupSportsOpen] = useState(false);
   const [setupSportsSelected, setSetupSportsSelected] = useState<string[]>([]);
   const [setupSportsSaving, setSetupSportsSaving] = useState(false);
@@ -533,9 +537,13 @@ export default function BookingsPage() {
 
         // Rewrite the default daily template (applies to every day going forward)…
         const newSlotsList = mergeInto(selectedTurf.slotsList);
-        // …and today's own override too, if one exists, so today matches immediately.
+        // …and EVERY existing date override too — a date that already has its own
+        // override (from bulk/weekend pricing, a past holiday edit, etc.) keeps its
+        // own frozen slot list independent of the template, so "apply every day"
+        // has to reach into each of those directly or most future dates would
+        // silently keep showing the old, un-clubbed slots.
         const overrides = (selectedTurf.dateOverrides || []).map((o) =>
-          o.date === selectedDate && !o.isHoliday ? { ...o, slots: mergeInto(o.slots) } : o
+          !o.isHoliday ? { ...o, slots: mergeInto(o.slots) } : o
         );
         const updated = { ...selectedTurf, slotsList: newSlotsList, dateOverrides: overrides };
         const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
@@ -550,6 +558,7 @@ export default function BookingsPage() {
     setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
     setOfflineAmount("");
+    setOfflineSpanCount(selectedSlots.length);
     setActiveSlot(combined);
     setOfflineModal(true);
   }
@@ -627,6 +636,31 @@ export default function BookingsPage() {
     }
   }
 
+  /** Every slot, starting at the one the offline modal was opened for, that's still
+   * contiguous and Available — the ceiling for how far the duration stepper can
+   * extend. Recomputed from `resolvedSlots`, not the (possibly already-merged)
+   * `activeSlot`, so it always reflects real remaining availability. */
+  const offlineExtendableSlots = useMemo(() => {
+    if (!activeSlot || offlineMode === "multiple") return activeSlot ? [activeSlot] : [];
+    const ordered = [...resolvedSlots].sort(
+      (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
+    );
+    const startIdx = ordered.findIndex((s) => s.startTime === activeSlot.startTime);
+    if (startIdx === -1) return [activeSlot];
+    const chain: AgendaSlot[] = [ordered[startIdx]];
+    for (let i = startIdx + 1; i < ordered.length; i++) {
+      const s = ordered[i];
+      const prevEnd = chain[chain.length - 1].endTime;
+      if (s.startTime !== prevEnd || s.status !== "Available") break;
+      chain.push(s);
+    }
+    return chain;
+  }, [activeSlot, offlineMode, resolvedSlots, dayStartMins]);
+
+  const offlineSpanSlots = offlineExtendableSlots.slice(0, offlineSpanCount);
+  const offlineEffectiveEnd = offlineSpanSlots[offlineSpanSlots.length - 1]?.endTime ?? activeSlot?.endTime ?? "";
+  const offlineEffectiveTotal = offlineSpanSlots.reduce((sum, s) => sum + s.price, 0);
+
   async function startOfflineBooking(slot: AgendaSlot) {
     if (!selectedTurf) return;
     if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
@@ -638,6 +672,7 @@ export default function BookingsPage() {
     setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
     setOfflineAmount("");
+    setOfflineSpanCount(1);
     setActiveSlot(slot);
     setOfflineModal(true);
   }
@@ -660,6 +695,7 @@ export default function BookingsPage() {
     setMultiSlots([]);
     setOfflineSport(selectedTurf.categories[0] || "");
     setOfflineAmount("");
+    setOfflineSpanCount(2);
     setActiveSlot(combinedSlot);
     setOfflineModal(true);
   }

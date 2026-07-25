@@ -17,7 +17,6 @@ import {
   SlidersHorizontal,
   Star,
   Swords,
-  Tag,
   Trophy,
   Waves,
   X,
@@ -26,6 +25,7 @@ import { type Venue } from "@/lib/venues";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 import { AdBanner } from "../AdBanner";
+import { HotDeals } from "../HotDeals";
 
 const MOBILE_QUICK_ACTIONS = [
   { id: "coaches", label: "Coaches", icon: GraduationCap },
@@ -144,7 +144,6 @@ export function MobileHome({
   onJoinCommunity,
   onViewAllCommunity,
   onViewAllEvents,
-  onViewAllOffers,
 }: {
   userName: string;
   searchValue: string;
@@ -162,7 +161,6 @@ export function MobileHome({
   onJoinCommunity: () => void;
   onViewAllCommunity: () => void;
   onViewAllEvents: () => void;
-  onViewAllOffers: () => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -246,6 +244,8 @@ export function MobileHome({
       </section>
 
       <AdBanner className="" />
+
+      <HotDeals className="" />
 
       <section>
         <MobileSectionRow
@@ -442,7 +442,7 @@ export function MobileHome({
         </MobileCard>
       </section>
 
-      <section className="grid grid-cols-2 gap-3">
+      <section>
         <MobileCard className="flex flex-col gap-2 !p-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-900">Upcoming Events</p>
@@ -456,24 +456,6 @@ export function MobileHome({
               <p className="truncate text-xs font-bold text-slate-900">BYV Premier League</p>
               <p className="text-[10px] text-slate-500">31 May – 6 June</p>
             </div>
-          </div>
-        </MobileCard>
-
-        <MobileCard className="flex flex-col gap-2 !p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-900">Offers For You</p>
-            <button onClick={onViewAllOffers} className="text-[10px] font-semibold text-brand-600">
-              View All
-            </button>
-          </div>
-          <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-500 to-accent-500 p-2.5 text-white">
-            <div>
-              <p className="text-lg font-extrabold leading-none">
-                FLAT <span className="text-yellow-200">20%</span>
-              </p>
-              <p className="mt-1 text-[9px] font-medium text-brand-50">OFF Next Booking</p>
-            </div>
-            <Tag className="h-5 w-5 shrink-0" aria-hidden />
           </div>
         </MobileCard>
       </section>
