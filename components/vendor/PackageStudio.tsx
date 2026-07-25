@@ -42,8 +42,38 @@ const EVENT_STEPS = [
   { id: 6, label: "Launch", hint: "Publish your event" },
 ] as const;
 
-function stepsFor(type: ListingType) {
-  return type === "Event" ? EVENT_STEPS : STEPS;
+/** Extra step appended only when the vendor opts into adding an academy at this venue. */
+const ACADEMY_STEP = { id: 7, label: "Academy", hint: "Coaching at this venue" } as const;
+
+/** Academy details collected inline in the Package Studio, saved right after the
+ * listing itself is created (an academy needs a listing id to attach to). */
+export interface AcademyDraft {
+  name: string;
+  sports: string[];
+  pricingMode: "session" | "day" | "month";
+  price: string;
+  days: number[];
+  startTime: string;
+  endTime: string;
+  capacity: string;
+}
+
+export function emptyAcademyDraft(): AcademyDraft {
+  return {
+    name: "",
+    sports: [],
+    pricingMode: "month",
+    price: "",
+    days: [1, 2, 3, 4, 5, 6],
+    startTime: "16:00",
+    endTime: "18:00",
+    capacity: "20",
+  };
+}
+
+function stepsFor(type: ListingType, withAcademy = false) {
+  if (type === "Event") return EVENT_STEPS; // Events never host an academy.
+  return withAcademy ? [...STEPS, ACADEMY_STEP] : STEPS;
 }
 
 function formatListedOn(date: Date) {
@@ -359,7 +389,18 @@ function PhotoBox({
   );
 }
 
-function PackageStep({ draft, update, audience }: StepProps & { audience: Audience }) {
+function PackageStep({
+  draft,
+  update,
+  audience,
+  academyEnabled,
+  onToggleAcademy,
+}: StepProps & {
+  audience: Audience;
+  /** Undefined for Events — they never host an academy, so the prompt is hidden. */
+  academyEnabled?: boolean;
+  onToggleAcademy?: (on: boolean) => void;
+}) {
   const posterInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
   const bulkInput = useRef<HTMLInputElement>(null);
@@ -430,6 +471,36 @@ function PackageStep({ draft, update, audience }: StepProps & { audience: Audien
 
   return (
     <div>
+      {/* Asked up front so the vendor knows an extra step is coming, rather than
+          being surprised by a modal after they've already hit publish. */}
+      {onToggleAcademy && (
+        <div className="mb-5 rounded-xl2 border border-vibe-violet/30 bg-vibe-violet/5 p-4">
+          <p className="text-sm font-bold text-ink">Do you also run an academy here?</p>
+          <p className="mt-0.5 mb-3 text-xs text-ink-faint">
+            Turn this on and we&apos;ll add one more step at the end for the academy&apos;s name, sports and fees.
+          </p>
+          <div className="flex gap-2">
+            {[
+              { on: true, label: "Yes, add academy" },
+              { on: false, label: "No, just the venue" },
+            ].map((opt) => (
+              <button
+                key={String(opt.on)}
+                type="button"
+                onClick={() => onToggleAcademy(opt.on)}
+                className={`rounded-lg border px-3.5 py-2 text-xs font-bold transition ${
+                  academyEnabled === opt.on
+                    ? "border-vibe-violet bg-vibe-violet text-white"
+                    : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet/50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Package photos</p>
       <p className="mb-5 text-xs text-ink-faint">
         {draft.images.length} of 10 uploaded — poster shows on listing cards, banner + gallery photos become the scrolling carousel on the detail page
@@ -2286,6 +2357,158 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
 }
 
 /* ------------------------------------------------------------------ */
+/*  STEP 7 — ACADEMY (only when the vendor opted in on step 1)         */
+/* ------------------------------------------------------------------ */
+
+const ACADEMY_WEEKDAYS = [
+  { day: 1, label: "Mon" },
+  { day: 2, label: "Tue" },
+  { day: 3, label: "Wed" },
+  { day: 4, label: "Thu" },
+  { day: 5, label: "Fri" },
+  { day: 6, label: "Sat" },
+  { day: 0, label: "Sun" },
+];
+
+function AcademyStep({
+  academy,
+  setAcademy,
+  listingCategories,
+}: {
+  academy: AcademyDraft;
+  setAcademy: (patch: Partial<AcademyDraft>) => void;
+  listingCategories: string[];
+}) {
+  // Offer the venue's own sports first — an academy here almost always coaches
+  // one of them — but keep the full catalogue available as a fallback.
+  const options = listingCategories.length > 0
+    ? SPORT_CATEGORIES.filter((c) => listingCategories.includes(c.id))
+    : SPORT_CATEGORIES;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Academy at this venue</p>
+        <p className="text-xs text-ink-faint">
+          Players will see this alongside the turf, and enrolments show up under Bookings → Academy Bookings.
+        </p>
+      </div>
+
+      <div>
+        <FieldLabel>Academy name *</FieldLabel>
+        <input
+          value={academy.name}
+          onChange={(e) => setAcademy({ name: e.target.value })}
+          placeholder="e.g. Field Club Football Academy"
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Sports coached *</FieldLabel>
+        <div className="flex flex-wrap gap-2">
+          {options.map((c) => {
+            const active = academy.sports.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() =>
+                  setAcademy({
+                    sports: active ? academy.sports.filter((s) => s !== c.id) : [...academy.sports, c.id],
+                  })
+                }
+                className={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                  active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet/50"
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>How do you charge? *</FieldLabel>
+        <div className="flex overflow-hidden rounded-xl border border-surface-border">
+          {([
+            ["session", "Per Game"],
+            ["day", "Per Day"],
+            ["month", "Per Month"],
+          ] as [AcademyDraft["pricingMode"], string][]).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setAcademy({ pricingMode: mode })}
+              className={`flex-1 py-2.5 text-xs font-bold transition ${
+                academy.pricingMode === mode ? "bg-vibe-violet text-white" : "bg-white text-ink-soft hover:bg-cream-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="relative mt-2">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-faint">₹</span>
+          <input
+            value={academy.price}
+            onChange={(e) => setAcademy({ price: e.target.value.replace(/\D/g, "") })}
+            inputMode="numeric"
+            placeholder={academy.pricingMode === "session" ? "300" : academy.pricingMode === "day" ? "500" : "2500"}
+            className={`${inputClass} pl-7`}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Start time</FieldLabel>
+          <input type="time" value={academy.startTime} onChange={(e) => setAcademy({ startTime: e.target.value })} className={inputClass} />
+        </div>
+        <div>
+          <FieldLabel>End time</FieldLabel>
+          <input type="time" value={academy.endTime} onChange={(e) => setAcademy({ endTime: e.target.value })} className={inputClass} />
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Days it runs</FieldLabel>
+        <div className="flex flex-wrap gap-2">
+          {ACADEMY_WEEKDAYS.map((d) => {
+            const active = academy.days.includes(d.day);
+            return (
+              <button
+                key={d.day}
+                type="button"
+                onClick={() =>
+                  setAcademy({ days: active ? academy.days.filter((x) => x !== d.day) : [...academy.days, d.day] })
+                }
+                className={`h-10 w-14 rounded-lg border text-xs font-bold transition ${
+                  active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft"
+                }`}
+              >
+                {d.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Batch capacity</FieldLabel>
+        <input
+          value={academy.capacity}
+          onChange={(e) => setAcademy({ capacity: e.target.value.replace(/\D/g, "") })}
+          inputMode="numeric"
+          className={`${inputClass} max-w-[160px]`}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  STEP 6 — LAUNCH                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -2572,9 +2795,20 @@ export function PackageStudio({
   initialType?: ListingType;
   audience?: Audience;
   onClose: () => void;
-  onSave: (listing: Listing) => void;
+  /** `academy` is present only when the vendor opted in on step 1 — the caller
+   * creates the listing first, then attaches the academy to the new listing id. */
+  onSave: (listing: Listing, academy?: AcademyDraft) => void;
 }) {
   const [draft, setDraft] = useState<Listing>(() => initialListing ?? emptyListing(initialType));
+  const [academyEnabled, setAcademyEnabled] = useState(false);
+  const [academy, setAcademyState] = useState<AcademyDraft>(emptyAcademyDraft);
+  const setAcademy = (patch: Partial<AcademyDraft>) => setAcademyState((a) => ({ ...a, ...patch }));
+
+  // Events never host an academy, and an existing listing's academy is managed from
+  // the Coaches section instead — so only offer this while creating a Turf/Game.
+  const canOfferAcademy = draft.type !== "Event" && mode === "create";
+  const showAcademyStep = canOfferAcademy && academyEnabled;
+  const lastStep = showAcademyStep ? ACADEMY_STEP.id : 6;
 
   const [step, setStep] = useState(1);
   const [maxStep, setMaxStep] = useState(1);
@@ -2612,8 +2846,9 @@ export function PackageStudio({
   }
 
   function handlePrimary() {
-    if (step < 6) {
-      goTo(step + 1);
+    // Step 6 is Publish; when an academy was opted into, step 7 comes after it.
+    if (step < lastStep) {
+      goTo(step === 6 && showAcademyStep ? ACADEMY_STEP.id : step + 1);
       return;
     }
 
@@ -2655,8 +2890,31 @@ export function PackageStudio({
       goTo(5); // Pricing step
       return;
     }
+    if (showAcademyStep) {
+      if (academy.name.trim().length < 2) {
+        setFormError("Enter the academy's name.");
+        goTo(ACADEMY_STEP.id);
+        return;
+      }
+      if (academy.sports.length === 0) {
+        setFormError("Pick at least one sport for the academy.");
+        goTo(ACADEMY_STEP.id);
+        return;
+      }
+      if (!(Number(academy.price) > 0)) {
+        setFormError("Set the academy's price.");
+        goTo(ACADEMY_STEP.id);
+        return;
+      }
+      if (academy.days.length === 0) {
+        setFormError("Pick at least one day the academy runs.");
+        goTo(ACADEMY_STEP.id);
+        return;
+      }
+    }
+
     setFormError(null);
-    onSave(finalDraft);
+    onSave(finalDraft, showAcademyStep ? academy : undefined);
   }
 
   return (
@@ -2682,7 +2940,7 @@ export function PackageStudio({
 
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
         <div className="mb-6 flex flex-wrap gap-2">
-          {stepsFor(draft.type).map((s) => (
+          {stepsFor(draft.type, showAcademyStep).map((s) => (
             <button
               key={s.id}
               onClick={() => goTo(s.id)}
@@ -2712,21 +2970,34 @@ export function PackageStudio({
         )}
 
         <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel sm:p-6">
-          {step === 1 && <PackageStep draft={draft} update={update} audience={audience} />}
+          {step === 1 && (
+            <PackageStep
+              draft={draft}
+              update={update}
+              audience={audience}
+              academyEnabled={canOfferAcademy ? academyEnabled : undefined}
+              onToggleAcademy={canOfferAcademy ? setAcademyEnabled : undefined}
+            />
+          )}
           {step === 2 && <BookingStep draft={draft} update={update} />}
           {step === 3 && <DetailsStep draft={draft} update={update} />}
           {step === 4 && <LocationStep draft={draft} update={update} />}
           {step === 5 && <PricingStep draft={draft} update={update} audience={audience} />}
           {step === 6 && <LaunchStep draft={draft} update={update} />}
+          {step === ACADEMY_STEP.id && showAcademyStep && (
+            <AcademyStep academy={academy} setAcademy={setAcademy} listingCategories={draft.categories} />
+          )}
         </div>
       </div>
 
       <div className="sticky bottom-0 flex items-center justify-between border-t border-surface-border bg-white px-4 py-4 sm:px-8">
-        <p className="text-xs text-ink-faint">Step {step} of 6</p>
+        <p className="text-xs text-ink-faint">
+          Step {step === ACADEMY_STEP.id ? 7 : step} of {showAcademyStep ? 7 : 6}
+        </p>
         <div className="flex gap-3">
           {step > 1 && (
             <button
-              onClick={() => setStep((s) => s - 1)}
+              onClick={() => setStep((s) => (s === ACADEMY_STEP.id ? 6 : s - 1))}
               className="rounded-lg border border-surface-border px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-cream-300"
             >
               Back
@@ -2739,7 +3010,7 @@ export function PackageStudio({
             onClick={handlePrimary}
             className="rounded-lg bg-vibe-violet px-5 py-2 text-sm font-semibold text-white hover:bg-vibe-violetSoft"
           >
-            {step < 6
+            {step < lastStep
               ? "Save & Next"
               : mode === "edit"
               ? draft.type === "Event" ? "Update Event" : "Update Package"

@@ -725,6 +725,7 @@ export default function BookingsPage() {
     setOfflineModal(false);
     setOfflineMode("single");
     setMultiSlots([]);
+    setOfflineSpanCount(1);
     setActiveSlot(null);
   }
 
@@ -763,16 +764,21 @@ export default function BookingsPage() {
         }
       } else {
         const dt = new Date(`${selectedDate}T${activeSlot.startTime}:00`);
-        const parsedAmount = offlineAmount ? Number(offlineAmount) : activeSlot.price;
-        const statusText = parsedAmount > 0 && parsedAmount < activeSlot.price ? "Part Paid" : "Confirmed";
+        // The duration stepper can extend this booking past the single slot the
+        // vendor tapped, so bill and end it by the real span, not just that slot.
+        const spanEnd = offlineEffectiveEnd || activeSlot.endTime;
+        const spanTotal = offlineEffectiveTotal || activeSlot.price;
+        const parsedAmount = offlineAmount ? Number(offlineAmount) : spanTotal;
+        const statusText = parsedAmount > 0 && parsedAmount < spanTotal ? "Part Paid" : "Confirmed";
 
         await createVendorBooking({
           listingId: selectedTurf.id,
           customerName: offlineName,
           phone: offlinePhone,
+          sport: offlineSport || undefined,
           dateTime: dt.toISOString(),
-          endTime: activeSlot.endTime || undefined,
-          totalAmount: activeSlot.price, // API requirement
+          endTime: spanEnd || undefined,
+          totalAmount: spanTotal, // API requirement
           paidAmount: parsedAmount,
           payment: "Cash (Offline)",
           status: statusText as BookingStatus,
@@ -1489,7 +1495,9 @@ export default function BookingsPage() {
                   {offlineMode === "multiple" ? `Offline Booking · ${multiSlots.length} separate bookings` : "Offline Booking"}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · Total: ₹{activeSlot.price}
+                  {offlineMode === "multiple"
+                    ? `${to12h(activeSlot.startTime)} – ${to12h(activeSlot.endTime)} · Total: ₹${activeSlot.price}`
+                    : `${to12h(activeSlot.startTime)} – ${to12h(offlineEffectiveEnd)} · Total: ₹${offlineEffectiveTotal}`}
                 </p>
               </div>
               <button onClick={closeOfflineModal} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
@@ -1499,6 +1507,61 @@ export default function BookingsPage() {
               <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
                 Creates {multiSlots.length} separate confirmed bookings for the same customer — one per slot, each at its own price.
               </p>
+            )}
+
+            {/* Booking window + duration — a walk-in rarely wants exactly the one slot
+                that was tapped, so make the real start/end explicit and extendable. */}
+            {offlineMode !== "multiple" && (
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm">
+                    <ClockIcon size={15} />
+                  </span>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">Booking window</p>
+                    <p className="text-[13px] font-black text-slate-800">
+                      {to12h(activeSlot.startTime)} – {to12h(offlineEffectiveEnd)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">Duration</p>
+                    <p className="text-[13px] font-black text-slate-800">
+                      {durHrs(activeSlot.startTime, offlineEffectiveEnd)} hrs
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label="Shorten booking"
+                      disabled={offlineSpanCount <= 1}
+                      onClick={() => setOfflineSpanCount((n) => Math.max(1, n - 1))}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="w-10 text-center text-[12px] font-black text-slate-700">
+                      {offlineSpanCount} slot{offlineSpanCount > 1 ? "s" : ""}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Extend booking"
+                      disabled={offlineSpanCount >= offlineExtendableSlots.length}
+                      onClick={() => setOfflineSpanCount((n) => Math.min(offlineExtendableSlots.length, n + 1))}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                {offlineSpanCount >= offlineExtendableSlots.length && offlineExtendableSlots.length > 1 && (
+                  <p className="w-full text-[9.5px] font-semibold text-slate-400">
+                    That&apos;s every free slot in a row from here — the next one is already booked or blocked.
+                  </p>
+                )}
+              </div>
             )}
 
             <div className={`grid grid-cols-1 gap-3 items-end ${offlineMode === "multiple" ? "sm:grid-cols-4" : "sm:grid-cols-5"}`}>
@@ -1526,7 +1589,7 @@ export default function BookingsPage() {
                   <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Amount Paid</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                    <input value={offlineAmount} onChange={e => setOfflineAmount(e.target.value)} placeholder={activeSlot.price.toString()} type="number"
+                    <input value={offlineAmount} onChange={e => setOfflineAmount(e.target.value)} placeholder={String(offlineEffectiveTotal || activeSlot.price)} type="number"
                       className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
                   </div>
                 </div>

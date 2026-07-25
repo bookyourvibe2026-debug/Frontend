@@ -6,6 +6,8 @@ import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
 import { NAV_ITEMS_BY_VERTICAL, SHARED_NAV_ITEMS, MOBILE_NAV_ORDER } from "@/components/vendor/Sidebar";
 import { LastMinBoostSheet } from "@/components/vendor/LastMinBoostSheet";
+import { addVendorVerticals } from "@/lib/api/vendor";
+import { ApiError } from "@/lib/api/client";
 import type { VendorVertical } from "@/lib/api/types";
 import { 
   Zap, 
@@ -72,6 +74,16 @@ const VERTICAL_META: Record<VendorVertical, { label: string; blurb: string; icon
   events: { label: "Events Panel", blurb: "Tournaments & events", icon: Trophy },
 };
 
+/** How each line reads as a role the vendor is taking on, for the upgrade card. */
+const VERTICAL_ROLE_LABEL: Record<VendorVertical, string> = {
+  turf: "Venue Owner",
+  coaches: "Coach",
+  food: "Food & Beverage Seller",
+  events: "Event Organiser",
+};
+
+const ALL_VERTICALS: VendorVertical[] = ["turf", "coaches", "events", "food"];
+
 export default function MorePage() {
   const { vendor, logout } = useVendorAuth();
   const vendorName = isVendorOwner(vendor) ? vendor.businessName : vendor.holderName;
@@ -88,6 +100,26 @@ export default function MorePage() {
   const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
   const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
   const [boostOpen, setBoostOpen] = useState(false);
+  const [addingVertical, setAddingVertical] = useState<VendorVertical | null>(null);
+  const [verticalError, setVerticalError] = useState<string | null>(null);
+
+  /** Lines this vendor hasn't switched on yet — only owners can change this. */
+  const missingVerticals = vendor ? ALL_VERTICALS.filter((v) => !vendor.verticals.includes(v)) : [];
+
+  async function handleAddVertical(v: VendorVertical) {
+    setAddingVertical(v);
+    setVerticalError(null);
+    try {
+      await addVendorVerticals([v]);
+      localStorage.setItem("byv_vendor_active_vertical", v);
+      // Full navigation, not router.push — the panel layout reads the vendor session
+      // once on mount, so the new vertical only appears in the nav after a real reload.
+      window.location.assign(NAV_ITEMS_BY_VERTICAL[v]?.[0]?.href ?? "/vendor/dashboard");
+    } catch (e) {
+      setVerticalError(e instanceof ApiError ? e.describe() : "Couldn't enable that. Please try again.");
+      setAddingVertical(null);
+    }
+  }
 
   useEffect(() => {
     if (!vendor) return;
@@ -208,6 +240,47 @@ export default function MorePage() {
                   </button>
                 );
               })}
+          </div>
+        </div>
+      )}
+
+      {/* Add another business line — a turf owner who later wants to run coaching,
+          host events or sell food shouldn't need a second account for it. */}
+      {vendor && isVendorOwner(vendor) && missingVerticals.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-surface-border bg-white p-4 shadow-sm">
+          <div className="mb-1 flex items-center gap-2">
+            <Sparkles size={14} className="text-vibe-amber" />
+            <p className="text-[11px] font-black uppercase tracking-wide text-ink">Grow your business</p>
+          </div>
+          <p className="mb-3 text-[11px] text-ink-faint">
+            Already running a venue? Switch on another line and manage it from this same account.
+          </p>
+          {verticalError && (
+            <p className="mb-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[10px] font-bold text-rose-600">{verticalError}</p>
+          )}
+          <div className="grid grid-cols-1 gap-2">
+            {missingVerticals.map((v) => {
+              const meta = VERTICAL_META[v];
+              return (
+                <button
+                  key={v}
+                  disabled={addingVertical !== null}
+                  onClick={() => handleAddVertical(v)}
+                  className="flex items-center gap-3 rounded-xl border border-surface-border p-3 text-left transition hover:border-vibe-amber/60 hover:bg-cream-200/40 active:scale-[0.98] disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vibe-amber/10 text-vibe-amber">
+                    <meta.icon size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-ink">
+                      {addingVertical === v ? "Enabling…" : `Become a ${VERTICAL_ROLE_LABEL[v]}`}
+                    </span>
+                    <span className="block text-[11px] text-ink-faint">{meta.blurb}</span>
+                  </span>
+                  <ChevronRight size={16} className="shrink-0 text-ink-faint" />
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

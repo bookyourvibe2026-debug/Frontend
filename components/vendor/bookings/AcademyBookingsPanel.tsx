@@ -36,18 +36,29 @@ export function AcademyBookingsPanel({ onSwitchToTurf }: { onSwitchToTurf: () =>
       getVendorListings(),
     ])
       .then(([subsRes, coachesRes, listings]) => {
-        setSubs(subsRes.items);
         const turfTitleById = new Map(listings.map(apiListingToMock).map((l) => [l.id, l.title]));
         const meta: Record<string, { name: string; turfTitle?: string }> = {};
+        // Only academies attached to one of this vendor's turfs belong on this tab —
+        // a standalone Coaches-vertical profile has its own Coaches section, and mixing
+        // the two here made a turf owner's academy list show unrelated coach students.
+        const academyIds = new Set<string>();
         coachesRes.items.forEach((c) => {
-          meta[c._id] = {
-            name: c.name,
-            turfTitle: c.turfListingId ? turfTitleById.get(c.turfListingId) : undefined,
-          };
+          if (!c.turfListingId) return;
+          academyIds.add(c._id);
+          meta[c._id] = { name: c.name, turfTitle: turfTitleById.get(c.turfListingId) };
         });
         setCoachMeta(meta);
+        setSubs(subsRes.items.filter((s) => academyIds.has(s.coachId)));
       })
-      .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load academy bookings"))
+      .catch((e) => {
+        // A turf-only vendor who never added an academy isn't authorised for the
+        // Coaches API at all. That's an empty state, not an error worth shouting about.
+        if (e instanceof ApiError && (e.status === 403 || e.status === 401)) {
+          setSubs([]);
+          return;
+        }
+        setError(e instanceof ApiError ? e.describe() : "Failed to load academy bookings");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -120,7 +131,19 @@ export function AcademyBookingsPanel({ onSwitchToTurf }: { onSwitchToTurf: () =>
           <div className="rounded-2xl border border-rose-100 bg-rose-50 p-6 text-center text-sm font-bold text-rose-600">{error}</div>
         ) : visible.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
-            <p className="text-sm font-semibold text-slate-500">No {statusFilter !== "All" ? statusFilter.toLowerCase() : ""} academy bookings yet.</p>
+            <GraduationCap className="mx-auto h-7 w-7 text-slate-300" />
+            {subs.length === 0 && Object.keys(coachMeta).length === 0 ? (
+              <>
+                <p className="mt-2 text-sm font-semibold text-slate-500">You haven&apos;t added an academy yet.</p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">
+                  Add one from My Listings → your turf, and students who enrol will show up here.
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                No {statusFilter !== "All" ? statusFilter.toLowerCase() : ""} academy bookings yet.
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-2.5">

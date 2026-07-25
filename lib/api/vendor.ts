@@ -32,6 +32,7 @@ import type {
   EventBookingSummary,
   VendorFoodDashboard,
   VendorStaff,
+  VendorVertical,
 } from "./types";
 
 const AUD = "vendor" as const;
@@ -85,6 +86,12 @@ export interface UpdateVendorProfileInput {
 
 export function updateVendorProfile(input: UpdateVendorProfileInput) {
   return apiRequest<Vendor>("/vendor/profile", { method: "PATCH", body: input, audience: AUD });
+}
+
+/** Switch on another business line (coaching, events, food) on an existing account.
+ * Add-only by design — turning one off would strand its listings/bookings. */
+export function addVendorVerticals(verticals: VendorVertical[]) {
+  return apiRequest<Vendor>("/vendor/profile/verticals", { method: "POST", body: { verticals }, audience: AUD });
 }
 
 /* ---- Dashboard ---- */
