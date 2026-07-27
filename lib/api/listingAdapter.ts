@@ -14,6 +14,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     categories: listing.categories,
     subCategories: listing.subCategories,
     sportCapacities: listing.sportCapacities,
+    courts: listing.courts,
     price: listing.price,
     listedOn: listing.createdAt,
     status: listing.status,
@@ -53,6 +54,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     slotsList: listing.slotsList,
     dailyRoutine: listing.dailyRoutine,
     dateOverrides: listing.dateOverrides,
+    lastMinBoost: listing.lastMinBoost,
     technicalSpecs: listing.technicalSpecs,
   };
 }

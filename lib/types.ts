@@ -47,6 +47,19 @@ export interface TechnicalSpec {
   color?: string;
 }
 
+import type { LastMinBoost } from "@/lib/lastMinBoost";
+
+/** One bookable unit inside a venue — see `Court` in lib/api/types.ts. */
+export interface Court {
+  id: string;
+  name: string;
+  /** Sport labels this court hosts (matches what a booking sends). Empty = all. */
+  sports: string[];
+  /** Replaces the slot's hourly rate on this court. Undefined/null = inherit. */
+  priceOverride?: number | null;
+  active: boolean;
+}
+
 export interface Listing {
   id: string;
   slug?: string;
@@ -57,6 +70,8 @@ export interface Listing {
   subCategories: string[];
   /** Max players allowed per selected sport — Turf/Game listings only, one entry per category. */
   sportCapacities?: { category: string; maxPlayers: number }[];
+  /** Bookable units in this venue — court 1, court 2... Empty = the venue is a single unit. */
+  courts?: Court[];
   price: number;
   listedOn: string;
   status: "Active" | "Inactive";
@@ -96,6 +111,8 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
+  /** Last Min Boost rule — see lib/lastMinBoost.ts. */
+  lastMinBoost?: LastMinBoost;
   technicalSpecs?: TechnicalSpec[];
 }
 
@@ -123,6 +140,10 @@ export interface Booking {
   phone: string;
   listing: string;
   sport?: string;
+  /** Court booked within the venue — absent on bookings taken before courts existed. */
+  courtId?: string;
+  /** Court name as it was at booking time. */
+  courtName?: string;
   numberOfPlayers?: number;
   foodIncluded?: boolean;
   dateTime: string;

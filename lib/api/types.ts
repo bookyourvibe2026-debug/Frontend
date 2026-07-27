@@ -51,6 +51,23 @@ export interface SportCapacity {
   maxPlayers: number;
 }
 
+export type { LastMinBoost } from "@/lib/lastMinBoost";
+import type { LastMinBoost } from "@/lib/lastMinBoost";
+
+/**
+ * One bookable unit inside a venue — "Court 1", "Turf A". A listing with N courts
+ * can sell the same time slot N times over.
+ */
+export interface Court {
+  id: string;
+  name: string;
+  /** Sports this court hosts. Empty = every sport the listing offers. */
+  sports: string[];
+  /** Replaces the slot's hourly rate on this court. Undefined/null = inherit. */
+  priceOverride?: number | null;
+  active: boolean;
+}
+
 export interface Listing {
   _id: string;
   slug?: string;
@@ -60,6 +77,8 @@ export interface Listing {
   subCategories: string[];
   /** Max players allowed per selected sport — Turf/Game listings only, one entry per category. */
   sportCapacities?: SportCapacity[];
+  /** Bookable units in this venue. Empty/absent = the venue itself is the only unit. */
+  courts?: Court[];
   price: number;
   /** Ticket cap for type: "Event" listings — unused for Turf/Game. */
   capacity?: number;
@@ -102,6 +121,8 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
+  /** Last Min Boost rule — see lib/lastMinBoost.ts. Absent until the vendor configures one. */
+  lastMinBoost?: LastMinBoost;
   technicalSpecs?: TechnicalSpec[];
   createdAt: string;
   updatedAt: string;
@@ -138,6 +159,10 @@ export interface Booking {
   phone: string;
   email?: string;
   sport?: string;
+  /** Which court was booked. Absent on bookings taken before courts existed. */
+  courtId?: string;
+  /** Court name as it was at booking time. */
+  courtName?: string;
   numberOfPlayers?: number;
   foodIncluded?: boolean;
   dateTime: string;

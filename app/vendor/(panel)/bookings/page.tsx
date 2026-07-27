@@ -127,6 +127,11 @@ interface AgendaSlot {
   numberOfPlayers?: number;
   /** Amount actually collected so far — only meaningfully less than `price` on a "Part Paid" slot. */
   paidAmount?: number;
+  /** Court the shown booking sits on — only set on venues that have courts. */
+  courtName?: string;
+  /** How many of the venue's courts are still sellable in this slot (0 when it has none). */
+  courtsFree?: number;
+  courtsTotal?: number;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -289,8 +294,10 @@ export default function BookingsPage() {
         };
       }
 
-      // Find bookings on this date + turf that match the start time or overlap range
-      const match = bookings.find((bk) => {
+      // Find bookings on this date + turf that match the start time or overlap range.
+      // A multi-court venue can have several at once — one per court — so collect them
+      // all and show the first, rather than pretending a single booking fills the slot.
+      const matches = bookings.filter((bk) => {
         const d = new Date(bk.dateTime);
         // Local date formatted as YYYY-MM-DD in IST timezone
         const bkDate = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -312,6 +319,16 @@ export default function BookingsPage() {
         return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap);
       });
 
+      const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
+      // Distinct courts taken in this window — a booking with no courtId predates
+      // courts and sits on court 1, matching how the backend resolves it.
+      const takenCourtIds = new Set(
+        activeCourts.length > 0 ? matches.map((m) => m.courtId || activeCourts[0]!.id) : []
+      );
+      const courtsTotal = activeCourts.length;
+      const courtsFree = courtsTotal > 0 ? courtsTotal - takenCourtIds.size : 0;
+
+      const match = matches[0];
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
       let customerName: string | undefined;
@@ -348,6 +365,9 @@ export default function BookingsPage() {
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
         paidAmount: match?.paidAmount,
+        courtName: match?.courtName,
+        courtsFree,
+        courtsTotal,
       };
     })
       // Late-night slots (12–2 AM on a turf that opens at 6 AM) belong at the bottom
@@ -885,6 +905,7 @@ export default function BookingsPage() {
         customerName: v.customerName.trim(),
         phone: v.phone,
         sport: v.sport || undefined,
+        courtId: v.venueCourtId || undefined,
         numberOfPlayers: v.numberOfPlayers ? Number(v.numberOfPlayers) : undefined,
         foodIncluded: v.foodIncluded,
         dateTime: dt.toISOString(),
@@ -1282,6 +1303,7 @@ export default function BookingsPage() {
       {addBookingOpen && (
         <AddBookingSheet
           courts={turfListings.map((t) => ({ id: t.id, title: t.title }))}
+          venueCourts={(selectedTurf?.courts ?? []).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }))}
           sports={selectedTurf?.categories ?? []}
           initial={addBookingInitial}
           submitting={addBookingSaving}
@@ -1415,6 +1437,9 @@ export default function BookingsPage() {
           customerName={activeSlot.customerName}
           phone={activeSlot.phone}
           timeLabel={`${to12h(activeSlot.startTime)} – ${to12h(activeSlot.endTime)}`}
+          courtName={activeSlot.courtName}
+          courtsFree={activeSlot.courtsFree}
+          courtsTotal={activeSlot.courtsTotal}
           onClose={() => setActiveSlot(null)}
           onClear={() => setPendingConfirm({ title: "Clear this slot", seconds: 6, run: () => clearBookedSlot(activeSlot) })}
           onMarkPaid={() => setPendingConfirm({ title: "Mark as Paid & Confirmed", seconds: 6, run: () => markSlotPaidConfirmed(activeSlot) })}

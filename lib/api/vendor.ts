@@ -219,6 +219,8 @@ export interface CreateVendorBookingInput {
   phone: string;
   /** Sport the slot is booked for (manual/walk-in bookings). */
   sport?: string;
+  /** Court inside the venue. Omit to let the backend prefer a free one. */
+  courtId?: string;
   /** How many players are coming (manual/walk-in bookings). */
   numberOfPlayers?: number;
   /** Whether food & beverage is included with the booking. */

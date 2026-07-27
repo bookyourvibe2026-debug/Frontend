@@ -44,6 +44,8 @@ export interface BookedRange {
   startTime: string; // "HH:mm" (24h)
   endTime: string; // "HH:mm" (24h)
   status: "Confirmed" | "Pending" | "Completed";
+  /** Which court is taken. Absent only on bookings that predate courts. */
+  courtId?: string;
 }
 
 /** Already-booked time ranges for a venue on a given date (YYYY-MM-DD). */

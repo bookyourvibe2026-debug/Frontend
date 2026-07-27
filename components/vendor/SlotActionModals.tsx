@@ -113,6 +113,9 @@ export function ManageBookedSlotModal({
   customerName,
   phone,
   timeLabel,
+  courtName,
+  courtsFree,
+  courtsTotal,
   onClose,
   onClear,
   onMarkPaid,
@@ -121,6 +124,11 @@ export function ManageBookedSlotModal({
   customerName?: string;
   phone?: string;
   timeLabel: string;
+  /** Which court this booking sits on — only set on venues that have courts. */
+  courtName?: string;
+  /** Courts still sellable in this slot, so a multi-court venue doesn't look sold out. */
+  courtsFree?: number;
+  courtsTotal?: number;
   onClose: () => void;
   onClear: () => void;
   onMarkPaid: () => void;
@@ -145,12 +153,27 @@ export function ManageBookedSlotModal({
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-base font-extrabold text-slate-900">{name}</h3>
-            <p className="text-xs text-slate-400 mt-0.5">{timeLabel}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {timeLabel}
+              {courtName ? ` • ${courtName}` : ""}
+            </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400">
             <X size={18} />
           </button>
         </div>
+
+        {typeof courtsTotal === "number" && courtsTotal > 1 && (
+          <p
+            className={`mb-4 rounded-xl px-3 py-2 text-[11px] font-bold ${
+              courtsFree && courtsFree > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {courtsFree && courtsFree > 0
+              ? `${courtsFree} of ${courtsTotal} courts still free at this time — you can take more bookings.`
+              : `All ${courtsTotal} courts are booked at this time.`}
+          </p>
+        )}
 
         <div className="grid grid-cols-3 gap-2 mb-5">
           <ContactButton href={telHref} icon={<Phone size={18} className="text-blue-600" />} label="Call" tone="bg-blue-50" />

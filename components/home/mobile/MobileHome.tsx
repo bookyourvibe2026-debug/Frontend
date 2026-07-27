@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowRight,
   CupSoda,
@@ -316,51 +315,8 @@ export function MobileHome({
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3">
-        <MobileCard className="flex flex-col gap-3 !p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-900">Challenge a Friend</p>
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-orange-500">
-              <Flame className="h-2.5 w-2.5" /> Vibe
-            </span>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-orange-50/70 p-2.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white">
-              <Swords className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">Throw a duel</p>
-              <p className="text-[10px] text-slate-500">Pick sport &amp; stakes</p>
-            </div>
-          </div>
-          <p className="text-[10px] leading-relaxed text-slate-400">
-            Set the stakes and send a cinematic duel poster to your opponent.
-          </p>
-          <button
-            type="button"
-            onClick={onJoinCommunity}
-            className="mt-auto flex items-center gap-1 text-[10px] font-semibold text-brand-600"
-          >
-            View Details <ArrowRight className="h-3 w-3" />
-          </button>
-        </MobileCard>
-
-        <MobileCard className="flex flex-col gap-3 !p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-900">My Wallet</p>
-            <Link href="/profile" className="text-[10px] font-semibold text-brand-600">
-              View
-            </Link>
-          </div>
-          <div>
-            <p className="text-xl font-extrabold text-slate-900">₹1,250.00</p>
-            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-              <Star className="h-3 w-3 fill-current text-amber-400" aria-hidden /> 250
-            </p>
-            <p className="text-[10px] text-slate-400">Reward Points</p>
-          </div>
-        </MobileCard>
-      </section>
+      {/* The "Challenge a Friend" duel now lives only in the Community banner below —
+          the compact card here said the same thing twice on one screen. */}
 
       <section>
         <MobileSectionRow title="Community" actionLabel="View All" onAction={onViewAllCommunity} />

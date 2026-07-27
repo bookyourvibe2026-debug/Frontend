@@ -10,7 +10,10 @@ export type AddBookingPayment = "Cash (Offline)" | "UPI";
 export interface AddBookingValues {
   customerName: string;
   phone: string;
+  /** The listing being booked. Named `courtId` since before venues had real courts. */
   courtId: string;
+  /** Which court inside that venue. Empty when the venue has no courts configured. */
+  venueCourtId: string;
   price: string;
   startTime: string;
   endTime: string;
@@ -29,13 +32,17 @@ export interface AddBookingValues {
  */
 export function AddBookingSheet({
   courts,
+  venueCourts,
   sports,
   initial,
   submitting,
   onClose,
   onSubmit,
 }: {
+  /** The vendor's listings/venues — historically called "courts" here. */
   courts: { id: string; title: string }[];
+  /** Real courts inside the selected venue. Empty = the venue books as a single unit. */
+  venueCourts: { id: string; name: string }[];
   sports: string[];
   initial: Partial<AddBookingValues>;
   submitting: boolean;
@@ -48,6 +55,7 @@ export function AddBookingSheet({
     customerName: initial.customerName ?? "",
     phone: initial.phone ?? "",
     courtId: initial.courtId ?? courts[0]?.id ?? "",
+    venueCourtId: initial.venueCourtId ?? venueCourts[0]?.id ?? "",
     price: initial.price ?? "",
     // The picker always shows a concrete time, so seed sensible defaults when the
     // sheet is opened blank (rather than from a tapped slot) — an empty value would
@@ -119,7 +127,7 @@ export function AddBookingSheet({
             />
           </Field>
 
-          <Field label="Court" icon={Building2} error={errors.courtId}>
+          <Field label="Venue" icon={Building2} error={errors.courtId}>
             <select
               value={form.courtId}
               onChange={(e) => update("courtId", e.target.value)}
@@ -130,6 +138,20 @@ export function AddBookingSheet({
               ))}
             </select>
           </Field>
+
+          {venueCourts.length > 0 && (
+            <Field label="Court" icon={Building2}>
+              <select
+                value={form.venueCourtId}
+                onChange={(e) => update("venueCourtId", e.target.value)}
+                className={inputCls()}
+              >
+                {venueCourts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <Field label="Sport" icon={Trophy}>
             {sports.length > 0 ? (

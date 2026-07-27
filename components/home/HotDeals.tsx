@@ -7,27 +7,56 @@ import { VenuePosterCard } from "@/components/venue-poster-card";
 import { browseVenues } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
 import { categoryLabel } from "@/lib/taxonomy";
+import { activeBoostPct, boostedPrice, nowMinutes } from "@/lib/lastMinBoost";
 
 function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Today's cheapest still-open slot on a turf — this is what Last-Minute Boost (and any
- * other manual discount) actually writes to, so comparing it against the base rate is
- * how a "deal" is detected without needing a separate deals/promotions system. */
-function todaysBestPrice(listing: Listing): number | null {
+function slotsForToday(listing: Listing) {
   const override = listing.dateOverrides?.find((o) => o.date === todayIso());
   const slots = override ? (override.isHoliday ? [] : override.slots ?? []) : listing.slotsList ?? [];
-  const open = slots.filter((s) => !s.blocked);
-  if (open.length === 0) return null;
-  return Math.min(...open.map((s) => s.price));
+  return slots.filter((s) => !s.blocked);
+}
+
+/**
+ * The best deal live on this venue *right now*.
+ *
+ * Two sources, and they are different things. A Last Min Boost is a real, time-boxed
+ * offer — it only counts while the vendor's trigger window is open, which is why it's
+ * evaluated rather than read off the price. A plain price cut (dynamic pricing, a manual
+ * markdown) is still detected the old way, by comparing today's cheapest open slot
+ * against the venue's base rate.
+ */
+function bestDealNow(listing: Listing, minutesNow: number): { price: number; discountPct: number } | null {
+  const slots = slotsForToday(listing);
+  if (slots.length === 0 || listing.price <= 0) return null;
+
+  let best: { price: number; discountPct: number } | null = null;
+  const take = (price: number, discountPct: number) => {
+    if (discountPct < 10) return;
+    if (!best || discountPct > best.discountPct) best = { price, discountPct };
+  };
+
+  for (const slot of slots) {
+    const pct = activeBoostPct(listing.lastMinBoost, slot.startTime, minutesNow);
+    if (pct > 0) take(boostedPrice(slot.price, pct), pct);
+  }
+
+  const cheapest = Math.min(...slots.map((s) => s.price));
+  take(cheapest, Math.round((1 - cheapest / listing.price) * 100));
+
+  return best;
 }
 
 /** Below the hero on the homepage — surfaces venues whose price has actually
  * dropped today (Last-Minute Boost, dynamic pricing, or a manual cut), biggest discount first. */
 export function LastMinuteDeals({ className = "mx-auto mt-8 max-w-7xl px-4 sm:px-6" }: { className?: string }) {
   const [venues, setVenues] = useState<Listing[]>([]);
+  // Ticks so a boost appears here the moment its trigger window opens, and drops off
+  // again once the slot starts — without this the row would be stale until a reload.
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
     browseVenues({ type: "Turf", limit: 30 })
@@ -35,20 +64,22 @@ export function LastMinuteDeals({ className = "mx-auto mt-8 max-w-7xl px-4 sm:px
       .catch(() => setVenues([]));
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const deals = useMemo(() => {
+    const minutesNow = nowMinutes(new Date(nowTick));
     return venues
       .map((venue) => {
-        if (venue.price <= 0) return null;
-        const best = todaysBestPrice(venue);
-        if (best === null) return null;
-        const discountPct = Math.round((1 - best / venue.price) * 100);
-        if (discountPct < 10) return null;
-        return { venue, best, discountPct };
+        const best = bestDealNow(venue, minutesNow);
+        return best ? { venue, best: best.price, discountPct: best.discountPct } : null;
       })
       .filter((d): d is { venue: Listing; best: number; discountPct: number } => d !== null)
       .sort((a, b) => b.discountPct - a.discountPct)
       .slice(0, 10);
-  }, [venues]);
+  }, [venues, nowTick]);
 
   if (deals.length === 0) return null;
 

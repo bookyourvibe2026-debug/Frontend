@@ -418,18 +418,21 @@ export default function VenueDetailPage() {
               </Link>
             )}
 
-            <Link
-              href="/coaches"
-              className="mt-4 flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500">
-                <UserRoundCog className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold text-slate-900">Want a coach here?</span>
-                <span className="block text-xs text-slate-500">Browse coaches and book a session</span>
-              </span>
-            </Link>
+            {/* Coaching belongs to a venue, not to an Event — same rule as the Academy tab. */}
+            {venue.type !== "Event" && (
+              <Link
+                href="/coaches"
+                className="mt-4 flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+                  <UserRoundCog className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-slate-900">Want a coach here?</span>
+                  <span className="block text-xs text-slate-500">Browse coaches and book a session</span>
+                </span>
+              </Link>
+            )}
           </div>
         </div>
       </main>
@@ -909,6 +912,13 @@ function MobileVenueDetail({
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sportModalOpen, setSportModalOpen] = useState(false);
 
+  // An academy belongs to a venue, never to an Event — the vendor form refuses to attach
+  // one to an Event listing (see PackageStudio's canOfferAcademy), so the public page must
+  // not offer the tab either. Derived rather than stored, so an Event can't be left sitting
+  // on the academy tab by stale state.
+  const showAcademyTab = venue.type !== "Event";
+  const currentTab = showAcademyTab ? activeTab : "home";
+
   const amenities = inclusions.map((item) => {
     const match = AMENITY_ICON_RULES.find((rule) => rule.keywords.some((k) => item.toLowerCase().includes(k)));
     return { label: item, Icon: match?.icon ?? Layers };
@@ -996,23 +1006,25 @@ function MobileVenueDetail({
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-          {([{ id: "home", label: "Home" }, { id: "academy", label: "Academy" }] as const).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-xl py-2 text-[10px] font-bold uppercase tracking-wide transition ${
-                activeTab === tab.id ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Tabs — a lone "Home" tab is just noise, so Events get no tab bar at all. */}
+        {showAcademyTab && (
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+            {([{ id: "home", label: "Home" }, { id: "academy", label: "Academy" }] as const).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-xl py-2 text-[10px] font-bold uppercase tracking-wide transition ${
+                  currentTab === tab.id ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {activeTab === "home" && (
+        {currentTab === "home" && (
           <>
             {/* ── TURF / GAME — show specs, weather, sports, amenities, players, reviews ── */}
             {venue.type !== "Event" && (
@@ -1155,7 +1167,7 @@ function MobileVenueDetail({
           </>
         )}
 
-        {activeTab === "academy" && (
+        {currentTab === "academy" && (
           <section className="mt-5">
             <h2 className="text-sm font-extrabold text-slate-900">Academy &amp; Coaches</h2>
             <AcademyTabContent venue={venue} />
