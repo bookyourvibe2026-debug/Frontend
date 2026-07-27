@@ -92,24 +92,33 @@ export function SiteHeader() {
           </Link>
 
           {isLoggedIn ? (
-            <Link
-              href="/profile"
-              aria-label="My Profile"
-              title="My Profile"
-              className="hidden h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200 sm:flex"
-            >
-              {customer?.avatarUrl && !imgError ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={customer.avatarUrl}
-                  alt={userName}
-                  className="h-full w-full object-cover"
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                getInitials()
-              )}
-            </Link>
+            <div className="hidden items-center gap-2 sm:flex">
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
+              >
+                Logout
+              </button>
+              <Link
+                href="/profile"
+                aria-label="My Profile"
+                title="My Profile"
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200"
+              >
+                {customer?.avatarUrl && !imgError ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={customer.avatarUrl}
+                    alt={userName}
+                    className="h-full w-full object-cover"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  getInitials()
+                )}
+              </Link>
+            </div>
           ) : (
             <button
               type="button"

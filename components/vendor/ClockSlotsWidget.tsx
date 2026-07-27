@@ -590,6 +590,15 @@ export function ClockSlotsWidget({
         ))}
       </div>
 
+      <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Slot timings</p>
+        <p className="mt-1 text-xs font-semibold text-slate-700">
+          {activeSlotsList.length > 0
+            ? `${to12h(activeSlotsList[0].startTime)} - ${to12h(activeSlotsList[activeSlotsList.length - 1].endTime)}`
+            : "No slots configured"}
+        </p>
+      </div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-2 w-full mt-4">
         {STAT_CARD_CFG.map(({ tone, cls, label }) => (

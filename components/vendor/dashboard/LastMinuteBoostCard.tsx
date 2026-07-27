@@ -11,7 +11,7 @@ type BookingWithEnd = Booking & { endTime?: string };
 const IST = "Asia/Kolkata";
 /** Only slots starting this soon are worth boosting — matches "as they fill up in the final minutes". */
 const BOOST_WINDOW_MIN = 90;
-const DISCOUNT_OPTIONS = [10, 20, 30];
+const DISCOUNT_OPTIONS = [10, 15, 20, 25, 30];
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);

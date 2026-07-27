@@ -28,7 +28,7 @@ import {
 import { BusinessVertical, RegistrationFormData, VenueType, emptyFormData, PHASES } from "./types";
 import { vendorRequestRegisterOtp, vendorVerifyRegisterOtp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
-import { State, City } from "country-state-city";
+import { INDIA_STATES, INDIA_STATES_CITIES } from "@/lib/indiaLocations";
 
 const ROLE_LABELS: Record<BusinessVertical, string> = {
   turf: "Turf Owner",
@@ -83,20 +83,12 @@ export default function VendorRegistrationModal({ open, onClose, onSubmit }: Pro
   const [captchaSolved, setCaptchaSolved] = useState(false);
 
   // Dynamically get states of India ("IN") and sort them alphabetically
-  const indiaStates = useMemo(() => {
-    return State.getStatesOfCountry("IN")
-      .map((s) => s.name)
-      .sort((a, b) => a.localeCompare(b));
-  }, []);
+  const indiaStates = useMemo(() => INDIA_STATES, []);
 
   // Dynamically get cities of the selected state and sort/de-duplicate them
   const stateCities = useMemo(() => {
     if (!data.state) return [];
-    const stateObj = State.getStatesOfCountry("IN").find((s) => s.name === data.state);
-    if (!stateObj) return [];
-    
-    const rawCities = City.getCitiesOfState("IN", stateObj.isoCode).map((c) => c.name);
-    return Array.from(new Set(rawCities)).sort((a, b) => a.localeCompare(b));
+    return Array.from(new Set(INDIA_STATES_CITIES[data.state] ?? [])).sort((a, b) => a.localeCompare(b));
   }, [data.state]);
 
   // Trap the phone's back button: while this modal is open, "back" steps to the

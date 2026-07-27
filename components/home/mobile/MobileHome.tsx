@@ -128,7 +128,6 @@ function MobileVenueCard({
 }
 
 export function MobileHome({
-  userName,
   searchValue,
   onSearchChange,
   venues,
@@ -145,7 +144,6 @@ export function MobileHome({
   onViewAllCommunity,
   onViewAllEvents,
 }: {
-  userName: string;
   searchValue: string;
   onSearchChange: (v: string) => void;
   venues: Venue[];
@@ -181,35 +179,33 @@ export function MobileHome({
 
   return (
     <div className="flex flex-col gap-7 px-4 pb-8 pt-4">
-      <MobileTopBar />
+      {/* Search sits with the top bar rather than in the page's gap-7 rhythm, so the
+          two read as one header block instead of floating apart. */}
+      <div className="flex flex-col gap-3">
+        <MobileTopBar />
 
-      <div className="text-right">
-        <p className="flex items-center justify-end gap-1.5 text-xs text-slate-500">
-          Good Morning, {userName} <span aria-hidden>👋</span>
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 shadow-sm">
-        <button
-          type="button"
-          aria-label="Filters"
-          onClick={() => setFiltersOpen(true)}
-          className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-sm"
-        >
-          <SlidersHorizontal className="h-3 w-3" />
-          {activeFilterCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white ring-2 ring-white">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-        <input
-          value={searchValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Let's find your vibe"
-          className="w-full flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
-        />
-        <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 shadow-sm">
+          <button
+            type="button"
+            aria-label="Filters"
+            onClick={() => setFiltersOpen(true)}
+            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-sm"
+          >
+            <SlidersHorizontal className="h-3 w-3" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white ring-2 ring-white">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <input
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Let's find your vibe"
+            className="w-full flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+          />
+          <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+        </div>
       </div>
 
       <section>

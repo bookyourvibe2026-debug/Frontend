@@ -2,18 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Hand, Search, Settings, Star } from "lucide-react";
+import { Search, Settings, Star } from "lucide-react";
 import { HERO_IMAGES, HERO_SLIDE_DURATION_MS } from "./data";
 import { PrimaryButton } from "./ui";
 
 export function Hero({
-  userName,
   searchValue,
   onSearchChange,
   onOpenFilters,
   activeFilterCount = 0,
 }: {
-  userName: string;
   searchValue: string;
   onSearchChange: (v: string) => void;
   onOpenFilters: () => void;
@@ -75,11 +73,6 @@ export function Hero({
 
         <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14 lg:pb-20 lg:pt-16">
           <div className="max-w-2xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-brand-200 backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              Good Morning, {userName} <Hand className="h-3.5 w-3.5" /> — Udaipur is live
-            </div>
-
             <h1 
               className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl"
               style={{ fontFamily: "var(--font-space-grotesk), sans-serif", lineHeight: 1.1 }}

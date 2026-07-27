@@ -12,7 +12,7 @@ import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
 import { HowItWorks } from "./HowItWorks";
 import { AdBanner } from "./AdBanner";
-import { HotDeals } from "./HotDeals";
+import { LastMinuteDeals } from "./HotDeals";
 import { CommunityMatches } from "./CommunityMatches";
 import { EventsAndOffers } from "./EventsAndOffers";
 import { WhyBookYourVibe } from "./WhyBookYourVibe";
@@ -148,7 +148,6 @@ export default function HomePage() {
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
       <div className="sm:hidden">
         <MobileHome
-          userName={userName}
           searchValue={search}
           onSearchChange={setSearch}
           venues={venues}
@@ -171,7 +170,6 @@ export default function HomePage() {
         <SiteHeader />
 
         <Hero
-          userName={userName}
           searchValue={search}
           onSearchChange={setSearch}
           onOpenFilters={() => setFiltersOpen(true)}
@@ -186,7 +184,7 @@ export default function HomePage() {
 
         <AdBanner />
 
-        <HotDeals />
+        <LastMinuteDeals />
 
         <FindYourGames onSelectSport={handleSelectSport} />
 

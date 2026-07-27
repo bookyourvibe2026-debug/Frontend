@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Footprints, Sandwich, type LucideIcon } from "lucide-react";
+import { Building2, Footprints, Sandwich, Eye, EyeOff, type LucideIcon } from "lucide-react";
 import type { Role } from "../types";
 import { GhostButton, PrimaryButton } from "../ui";
 import { FieldLabel, inputClass, ModalShell } from "./ModalShell";
@@ -40,6 +40,7 @@ export function SignupModal({
   const [mobile, setMobile] = useState("");
   const [emailVal, setEmailVal] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   // owner / food owner extra fields
   const [businessName, setBusinessName] = useState("");
   const [city, setCity] = useState("Udaipur");
@@ -214,13 +215,23 @@ export function SignupModal({
 
           <div>
             <FieldLabel>Password</FieldLabel>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              placeholder="Create a strong password"
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                placeholder="Create a strong password"
+                className={`${inputClass} pr-12`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute inset-y-0 right-3 flex items-center text-slate-400 transition hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <label className="flex items-start gap-2 text-xs text-slate-500">

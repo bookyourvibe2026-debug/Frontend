@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import { Eye, EyeOff } from "lucide-react";
 import { PrimaryButton } from "../ui";
 import { FieldLabel, inputClass, ModalShell } from "./ModalShell";
 import { ForgotPasswordModal } from "./ForgotPasswordModal";
@@ -27,6 +28,7 @@ export function LoginModal({
   const [otpCode, setOtpCode] = useState("");
   const [emailVal, setEmailVal] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
@@ -193,13 +195,23 @@ export function LoginModal({
             </div>
             <div>
               <FieldLabel>Password</FieldLabel>
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                placeholder="••••••••"
-                className={inputClass}
-              />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className={`${inputClass} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-3 flex items-center text-slate-400 transition hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setForgotPasswordOpen(true)}

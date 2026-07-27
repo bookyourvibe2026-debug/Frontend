@@ -24,6 +24,7 @@ import {
   Bell,
   Sparkles,
   PlusCircle,
+  LogOut,
 } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { getMyBookings } from "@/lib/api/customerBookings";
@@ -66,7 +67,7 @@ const REGISTRATION_STATUS_STYLES: Record<TournamentRegistrationStatus, string> =
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { customer, status: authStatus, updateProfile } = useCustomerAuth();
+  const { customer, status: authStatus, updateProfile, logout } = useCustomerAuth();
   
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,7 @@ export default function ProfilePage() {
   const [editPhone, setEditPhone] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Communities States
   const [joinedClubs, setJoinedClubs] = useState<any[]>([]);
@@ -227,6 +229,18 @@ export default function ProfilePage() {
       setToast("Tournament registration cancelled");
     } catch {
       setToast("Failed to cancel tournament registration");
+    }
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      // No redirect needed — logout flips authStatus to "guest" and the guard
+      // effect above sends us home. The button stays busy until that happens.
+    } catch {
+      setLoggingOut(false);
+      setToast("Could not log out. Please try again.");
     }
   }
 
@@ -409,12 +423,19 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-center sm:justify-start">
+                  <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
                     <button
                       onClick={() => setIsEditing(true)}
                       className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-brand-600"
                     >
                       <Edit2 className="h-3.5 w-3.5" /> Edit Profile
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:opacity-60"
+                    >
+                      <LogOut className="h-3.5 w-3.5" /> {loggingOut ? "Logging out…" : "Logout"}
                     </button>
                   </div>
                 </div>

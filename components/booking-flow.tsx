@@ -164,6 +164,7 @@ export default function BookingFlow({
   const [time, setTime] = useState(START_TIMES[6]);
   const [endTime, setEndTime] = useState(START_TIMES[8]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(-1);
+  const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
   // `generatedSlots` gets a new length/index mapping every time duration/date changes,
   // so a raw index can silently end up pointing at a different slot than the one the
   // player actually tapped. This tracks the real start time they picked so it can be
@@ -174,11 +175,6 @@ export default function BookingFlow({
     setSelectedSlotIndex(slot.originalIndex);
   }
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
-  const [splitEnabled, setSplitEnabled] = useState(false);
-  const [splitCount, setSplitCount] = useState(2);
-  // Pay only part of the price now, settle the rest at the venue — must clear a 20% floor.
-  const [partialEnabled, setPartialEnabled] = useState(false);
-  const [partialAmount, setPartialAmount] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -207,6 +203,15 @@ export default function BookingFlow({
       .catch(() => { if (!cancelled) setBookedRanges([]); });
     return () => { cancelled = true; };
   }, [listing._id, listing.type, date, step]);
+
+  useEffect(() => {
+    const firstTier = listing.priceTiers[0];
+    if (selectedPriceTierId) {
+      const stillExists = listing.priceTiers.some((tier) => tier.id === selectedPriceTierId);
+      if (stillExists) return;
+    }
+    setSelectedPriceTierId(firstTier?.id ?? "");
+  }, [listing.priceTiers, selectedPriceTierId]);
 
   // Helper to format a Date to ISO (yyyy-mm-dd)
   function localDateISO(date: Date) {
@@ -459,28 +464,26 @@ export default function BookingFlow({
     const addOnsTotal = (listing.addOns ?? [])
       .filter((a) => selectedAddOnIds.includes(a.id))
       .reduce((sum, a) => sum + a.price, 0);
+    const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
+    if (selectedTier) {
+      return selectedTier.amount + addOnsTotal;
+    }
     if (listing.type === "Turf") {
       const activeSlot = generatedSlots[selectedSlotIndex];
       return (activeSlot ? activeSlot.price : 0) + addOnsTotal;
     }
     return listing.price + addOnsTotal;
-  }, [listing, generatedSlots, selectedSlotIndex, selectedAddOnIds]);
-
-  // Partial payment must clear a 20% floor of the price shown — the backend re-derives
-  // and re-validates this from the real total, this is just so the button disables early.
-  const minPartialAmount = Math.max(1, Math.ceil(activePrice * 0.2));
-  const partialAmountValid =
-    !partialEnabled ||
-    (partialAmount !== "" && Number(partialAmount) >= minPartialAmount && Number(partialAmount) < activePrice);
+  }, [listing, generatedSlots, selectedSlotIndex, selectedAddOnIds, selectedPriceTierId]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
   // Play Protect ("agreed") is an optional paid add-on, not a required agreement —
   // it must never gate the pay button itself.
-  const canPay = phoneValid && partialAmountValid && !!date && (
-    listing.type !== "Turf"
+  const canPay =
+    phoneValid &&
+    !!date &&
+    (listing.type !== "Turf"
       ? !!time
-      : selectedSlotIndex !== -1 && !isDateHoliday && generatedSlots[selectedSlotIndex]?.status === "Available"
-  );
+      : selectedSlotIndex !== -1 && !isDateHoliday && generatedSlots[selectedSlotIndex]?.status === "Available");
 
   useEffect(() => {
     onStateChange?.({ canPay, submitting, confirmed: step === "confirmed" });
@@ -526,10 +529,10 @@ export default function BookingFlow({
         dateTime,
         payment,
         sport: sport || undefined,
+        priceTierId: selectedPriceTierId || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
         durationMinutes: listing.type === "Turf" ? durationMin : undefined,
-        paidAmount: partialEnabled ? Number(partialAmount) : undefined,
       });
       setBooking(created);
       setStep("confirmed");
@@ -554,15 +557,6 @@ export default function BookingFlow({
           setEndTime={setEndTime}
           payment={payment}
           setPayment={setPayment}
-          splitEnabled={splitEnabled}
-          setSplitEnabled={setSplitEnabled}
-          splitCount={splitCount}
-          setSplitCount={setSplitCount}
-          partialEnabled={partialEnabled}
-          setPartialEnabled={setPartialEnabled}
-          partialAmount={partialAmount}
-          setPartialAmount={setPartialAmount}
-          minPartialAmount={minPartialAmount}
           agreed={agreed}
           setAgreed={setAgreed}
           canPay={canPay}
@@ -573,6 +567,8 @@ export default function BookingFlow({
           setPhone={setPhone}
           selectedAddOnIds={selectedAddOnIds}
           onToggleAddOn={toggleAddOn}
+          selectedPriceTierId={selectedPriceTierId}
+          setSelectedPriceTierId={setSelectedPriceTierId}
           onClose={onClose}
           onPay={handlePay}
           dateOptions={dateOptions}
@@ -630,15 +626,6 @@ function ReviewStep(props: {
   setEndTime: (v: string) => void;
   payment: PaymentMethod;
   setPayment: (v: PaymentMethod) => void;
-  splitEnabled: boolean;
-  setSplitEnabled: (v: boolean) => void;
-  splitCount: number;
-  setSplitCount: (v: number) => void;
-  partialEnabled: boolean;
-  setPartialEnabled: (v: boolean) => void;
-  partialAmount: string;
-  setPartialAmount: (v: string) => void;
-  minPartialAmount: number;
   agreed: boolean;
   setAgreed: (v: boolean) => void;
   canPay: boolean;
@@ -673,6 +660,8 @@ function ReviewStep(props: {
   setPhone: (v: string) => void;
   selectedAddOnIds: string[];
   onToggleAddOn: (id: string) => void;
+  selectedPriceTierId: string;
+  setSelectedPriceTierId: (id: string) => void;
 }) {
   const {
     embedded,
@@ -685,15 +674,6 @@ function ReviewStep(props: {
     setEndTime,
     payment,
     setPayment,
-    splitEnabled,
-    setSplitEnabled,
-    splitCount,
-    setSplitCount,
-    partialEnabled,
-    setPartialEnabled,
-    partialAmount,
-    setPartialAmount,
-    minPartialAmount,
     agreed,
     setAgreed,
     canPay,
@@ -728,6 +708,8 @@ function ReviewStep(props: {
     setPhone,
     selectedAddOnIds,
     onToggleAddOn,
+    selectedPriceTierId,
+    setSelectedPriceTierId,
   } = props;
 
   const today = new Date();
@@ -736,9 +718,7 @@ function ReviewStep(props: {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   const selectedSlot = selectedSlotIndex >= 0 ? generatedSlots[selectedSlotIndex] : undefined;
-  const partialAmountValid =
-    !partialEnabled ||
-    (partialAmount !== "" && Number(partialAmount) >= minPartialAmount && Number(partialAmount) < activePrice);
+  const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
 
   // Full month grid (Monday start) matching Image 2
   const monthGrid = useMemo(() => {
@@ -862,6 +842,43 @@ function ReviewStep(props: {
                 </p>
               </div>
             </div>
+
+            {listing.priceTiers.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Packages</p>
+                    <p className="text-sm font-extrabold text-slate-900">Choose the booking format</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Owner-defined
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {listing.priceTiers.map((tier) => {
+                    const active = selectedPriceTierId === tier.id;
+                    return (
+                      <button
+                        key={tier.id}
+                        type="button"
+                        onClick={() => setSelectedPriceTierId(tier.id)}
+                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                          active ? "border-brand-500 bg-brand-50 shadow-sm" : "border-slate-100 bg-slate-50/60 hover:border-slate-200"
+                        }`}
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{tier.label}</p>
+                          <p className="text-[11px] font-medium text-slate-500">
+                            Book in the same owner-configured format
+                          </p>
+                        </div>
+                        <p className="text-sm font-black text-slate-900">₹{tier.amount.toLocaleString("en-IN")}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Date & Time section */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
@@ -1350,8 +1367,8 @@ function ReviewStep(props: {
               </div>
             )}
 
-            {/* Shown on both mobile and desktop checkout — collecting a phone number or
-                choosing a partial payment can't be desktop-only, mobile is the primary surface. */}
+            {/* Shown on both mobile and desktop checkout — collecting a phone number
+                can't be desktop-only, mobile is the primary surface. */}
             <div className="mt-3">
               {needsPhone && (
                 <div className="mb-3">
@@ -1372,51 +1389,6 @@ function ReviewStep(props: {
                   </p>
                 </div>
               )}
-              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                <label className="flex cursor-pointer items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={partialEnabled}
-                    onChange={(e) => {
-                      setPartialEnabled(e.target.checked);
-                      if (e.target.checked && !partialAmount) setPartialAmount(String(minPartialAmount));
-                    }}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
-                  />
-                  <span>
-                    <span className="block text-[11px] font-bold text-slate-800">Pay a partial amount now</span>
-                    <span className="block text-[10px] text-slate-400">
-                      Pay at least ₹{minPartialAmount.toLocaleString("en-IN")} (20%) now, settle the rest at the venue.
-                    </span>
-                  </span>
-                </label>
-                {partialEnabled && (
-                  <div className="mt-2.5">
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        min={minPartialAmount}
-                        max={activePrice - 1}
-                        value={partialAmount}
-                        onChange={(e) => setPartialAmount(e.target.value)}
-                        placeholder={String(minPartialAmount)}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-800 outline-none focus:border-brand-500"
-                      />
-                    </div>
-                    {!partialAmountValid && (
-                      <p className="mt-1 text-[10px] font-semibold text-rose-600">
-                        Enter an amount between ₹{minPartialAmount.toLocaleString("en-IN")} and ₹{(activePrice - 1).toLocaleString("en-IN")}.
-                      </p>
-                    )}
-                    {partialAmountValid && partialAmount !== "" && (
-                      <p className="mt-1 text-[10px] font-bold text-amber-700">
-                        ₹{(activePrice - Number(partialAmount)).toLocaleString("en-IN")} remaining, payable at the venue.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
               {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-600">{error}</p>}
               {!embedded && (
                 <button
@@ -1428,11 +1400,11 @@ function ReviewStep(props: {
                       ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
                       : "cursor-not-allowed bg-slate-300 text-white"
                   }`}
-                >
+                  >
                   {submitting
                     ? "Booking..."
-                    : partialEnabled && partialAmount
-                    ? `Pay ₹${Number(partialAmount).toLocaleString("en-IN")} Now`
+                    : selectedTier
+                    ? `Confirm ${selectedTier.label}`
                     : "Confirm Booking"}
                 </button>
               )}
@@ -1465,14 +1437,13 @@ function ReviewStep(props: {
 
       {!embedded && mobileStep === "checkout" && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] rounded-t-3xl">
-           <button
+          <button
             onClick={onPay}
             disabled={!canPay || submitting}
             className="w-full rounded-2xl bg-[#0b9c65] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 flex items-center justify-between px-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>
-              PAY ₹{((partialEnabled && partialAmount ? Number(partialAmount) : activePrice) + (agreed ? 19 : 0)).toLocaleString("en-IN")}
-              {partialEnabled && partialAmount && <span className="ml-1 text-[10px] font-semibold opacity-80">of ₹{activePrice.toLocaleString("en-IN")}</span>}
+              PAY ₹{(activePrice + (agreed ? 19 : 0)).toLocaleString("en-IN")}
             </span>
             <ArrowRight className="h-5 w-5" />
           </button>
@@ -1552,7 +1523,7 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
       {isGenuinePartial && (
         <div className="mt-3 flex items-center gap-2 rounded-xl border-l-4 border-amber-400 bg-amber-50 px-3 py-2 text-left text-[11px] text-amber-800">
           <span>
-            This is a <span className="font-black">partial payment</span> booking — <span className="font-black">₹{remaining.toLocaleString("en-IN")} remaining</span> is payable at the venue.
+            This is a <span className="font-black">legacy partial-payment</span> booking — <span className="font-black">₹{remaining.toLocaleString("en-IN")} remaining</span> is payable at the venue.
           </span>
         </div>
       )}

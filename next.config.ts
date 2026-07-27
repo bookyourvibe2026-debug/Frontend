@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    // Stray empty package-lock.json files sit in the parent directory, so Next.js
+    // infers the workspace root as ../ and Turbopack then watches that whole tree.
+    // Pin the root here to keep filesystem watching scoped to this app.
+    root: __dirname,
+  },
   images: {
     // Hosts that serve listing/banner imagery. next/image throws at runtime on any
     // remote host not listed here, so keep this in sync with the upload providers.

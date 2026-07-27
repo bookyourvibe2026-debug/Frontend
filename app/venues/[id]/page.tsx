@@ -556,6 +556,44 @@ function VenueInfoSections({
         </section>
       )}
 
+      {/* Highlights */}
+      {highlights.length > 0 && (
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Highlights</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {highlights.map((h) => (
+              <div
+                key={h}
+                className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-sm text-slate-700 shadow-sm"
+              >
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                <span className="leading-relaxed">{h}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {venue.priceTiers.length > 0 && (
+        <section className="mt-5">
+          <h2 className="text-sm font-extrabold text-slate-900">Packages</h2>
+          <div className="mt-3 grid gap-2">
+            {venue.priceTiers.map((tier) => (
+              <div
+                key={tier.id}
+                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-sm shadow-sm"
+              >
+                <div>
+                  <p className="font-bold text-slate-900">{tier.label}</p>
+                  <p className="text-[11px] text-slate-500">Same owner-configured booking format</p>
+                </div>
+                <p className="font-black text-slate-900">₹{tier.amount.toLocaleString("en-IN")}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Amenities */}
       {amenities.length > 0 && (
         <section className="mt-5">

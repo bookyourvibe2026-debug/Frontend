@@ -14,8 +14,6 @@ export interface CreateBookingInput {
   /** Which sport the player is booking (venues can host several). */
   sport?: string;
   durationMinutes?: number;
-  /** Pay only part of the price now (must be at least 20% of the real total, enforced server-side). */
-  paidAmount?: number;
 }
 
 export function createMyBooking(input: CreateBookingInput) {
