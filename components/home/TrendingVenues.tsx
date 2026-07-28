@@ -63,9 +63,13 @@ function VenueCard({
         >
           <Heart className={`h-4 w-4 ${isFavorite ? "fill-accent-500 text-accent-500" : "text-slate-400"}`} />
         </button>
-        <div className="absolute bottom-3 left-3 flex items-center gap-2">
-          <StatusPill status={venue.status} />
-          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+        {/* inset-x-3 (not just left-3) bounds the row, so a multi-sport venue listing
+            seven categories truncates to one line instead of stacking over the photo. */}
+        <div className="absolute inset-x-3 bottom-3 flex items-center gap-2">
+          <span className="shrink-0">
+            <StatusPill status={venue.status} />
+          </span>
+          <span className="min-w-0 truncate rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
             {venue.sport}
           </span>
         </div>

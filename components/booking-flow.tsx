@@ -106,7 +106,14 @@ function sportEmoji(sportName: string): string {
   if (l.includes("cricket")) return "🏏";
   if (l.includes("turf") || l.includes("football")) return "⚽";
   if (l.includes("pickleball")) return "🏓";
+  // Before the generic "tennis" test, which would otherwise claim table tennis.
+  if (l.includes("table tennis")) return "🏓";
   if (l.includes("tennis")) return "🎾";
+  if (l.includes("basketball")) return "🏀";
+  if (l.includes("swim")) return "🏊";
+  if (l.includes("volleyball")) return "🏐";
+  if (l.includes("skating")) return "⛸️";
+  if (l.includes("snooker") || l.includes("pool")) return "🎱";
   return "🎯";
 }
 

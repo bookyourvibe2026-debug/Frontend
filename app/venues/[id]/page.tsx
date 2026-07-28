@@ -55,7 +55,7 @@ import { ImageCarousel } from "@/components/ImageCarousel";
 import { getVenueById } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
-import { categoryLabel } from "@/lib/taxonomy";
+import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
 
 const DEFAULT_HIGHLIGHTS = ["Well-maintained facility", "Floodlit for evening play", "Easy online booking"];
 const DEFAULT_INCLUSIONS = ["Venue access", "Drinking water", "Changing room"];
@@ -468,7 +468,14 @@ function sportEmoji(sportName: string): string {
   if (l.includes("cricket")) return "🏏";
   if (l.includes("turf") || l.includes("football")) return "⚽";
   if (l.includes("pickleball")) return "🏓";
+  // Before the generic "tennis" test, which would otherwise claim table tennis.
+  if (l.includes("table tennis")) return "🏓";
   if (l.includes("tennis")) return "🎾";
+  if (l.includes("basketball")) return "🏀";
+  if (l.includes("swim")) return "🏊";
+  if (l.includes("volleyball")) return "🏐";
+  if (l.includes("skating")) return "⛸️";
+  if (l.includes("snooker") || l.includes("pool")) return "🎱";
   return "🎯";
 }
 
@@ -520,6 +527,8 @@ function VenueInfoSections({
   amenities: { label: string; Icon: typeof Layers }[];
   onPickSport: (sportName: string) => void;
 }) {
+  const activeCourts = (venue.courts ?? []).filter((c) => c.active !== false);
+
   return (
     <>
       {(venue.reportingStartTime || venue.reportingEndTime) && (
@@ -534,47 +543,25 @@ function VenueInfoSections({
         </div>
       )}
 
-      {/* Courts Available section */}
-      {(venue.courts ?? []).filter((c) => c.active !== false).length > 0 && (
-        <section className="mt-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">Courts Available</h2>
-            <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-bold text-brand-600">
-              {(venue.courts ?? []).filter((c) => c.active !== false).length} Courts
-            </span>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(venue.courts ?? []).filter((c) => c.active !== false).map((court) => (
-              <div key={court.id} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
-                <p className="text-xs font-black text-slate-900">{court.name}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {court.sports.length > 0 ? (
-                    court.sports.map((s) => (
-                      <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        {s}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                      All sports
-                    </span>
-                  )}
-                </div>
-                {/* No per-court rate: every court sells at the venue's time slot price,
-                    which the booking sheet shows against the actual hour picked. */}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Sports available — only what the vendor added on this listing */}
+      {/* Sports available — only what the vendor added on this listing.
+          Individual courts deliberately are NOT listed here: a multi-sport venue has a
+          dozen of them and a flat dump reads as clutter. The count per sport is the
+          useful part; the actual courts come up in the booking sheet once the player
+          has picked a sport and an hour, filtered to what can host that game. */}
       {venueSports(venue).length > 0 && (
         <section className="mt-6">
-          <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900">Sports Available</h2>
+            {activeCourts.length > 0 && (
+              <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-bold text-brand-600">
+                {activeCourts.length} Courts
+              </span>
+            )}
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
             {venueSports(venue).map((catId) => {
               const sportName = categoryLabel(catId);
+              const courtCount = activeCourts.filter((c) => matchesCourtSport(c.sports, sportName)).length;
               return (
                 <button
                   key={catId}
@@ -584,7 +571,9 @@ function VenueInfoSections({
                   <span className="text-3xl">{sportEmoji(sportName)}</span>
                   <div className="mt-1 text-center">
                     <span className="block text-sm font-bold text-slate-800">{sportName}</span>
-                    <span className="block text-[10px] font-semibold text-slate-400">Tap to book</span>
+                    <span className="block text-[10px] font-semibold text-slate-400">
+                      {courtCount > 0 ? `${courtCount} ${courtCount === 1 ? "court" : "courts"} · Tap to book` : "Tap to book"}
+                    </span>
                   </div>
                 </button>
               );

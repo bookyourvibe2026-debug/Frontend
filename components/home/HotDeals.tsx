@@ -72,6 +72,9 @@ export function LastMinuteDeals({ className = "mx-auto mt-8 max-w-7xl px-4 sm:px
   const deals = useMemo(() => {
     const minutesNow = nowMinutes(new Date(nowTick));
     return venues
+      // A poster card with no poster is just a grey placeholder box — not worth a slot
+      // in a row that's meant to sell. Vendors who haven't uploaded a cover sit this out.
+      .filter((venue) => Boolean(venue.coverImage))
       .map((venue) => {
         const best = bestDealNow(venue, minutesNow);
         return best ? { venue, best: best.price, discountPct: best.discountPct } : null;
