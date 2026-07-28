@@ -196,7 +196,10 @@ export default function Sidebar({
               <Link
                 key={href}
                 href={href}
-                onClick={onClose}
+                onClick={() => {
+                  if (!isDashboard) sessionStorage.removeItem(MPIN_SESSION_KEY);
+                  onClose();
+                }}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   active
                     ? "bg-vibe-violet/10 text-vibe-violet"

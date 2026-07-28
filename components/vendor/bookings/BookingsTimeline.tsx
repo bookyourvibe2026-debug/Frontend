@@ -133,19 +133,18 @@ function to12h(t: string): string {
 
 /* ─── Row action menu ───────────────────────────────────────────── */
 
-function RowMenu({ slot, onAction, disabled = false }: { slot: TimelineSlot; onAction: (s: TimelineSlot, a: SlotAction) => void; disabled?: boolean }) {
+function RowMenu({ slot, onAction }: { slot: TimelineSlot; onAction: (s: TimelineSlot, a: SlotAction) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (disabled) setOpen(false);
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open, disabled]);
+  }, [open]);
 
   const isBlocked = slot.status === "Blocked";
   const isFree = slot.status === "Available";
@@ -180,27 +179,23 @@ function RowMenu({ slot, onAction, disabled = false }: { slot: TimelineSlot; onA
     <div className="relative shrink-0" ref={ref}>
       <button
         type="button"
-        disabled={disabled}
         aria-label="Slot actions"
         onClick={(e) => {
           e.stopPropagation();
-          if (disabled) return;
           setOpen((v) => !v);
         }}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition ${disabled ? "opacity-30 cursor-not-allowed" : "hover:bg-white hover:text-slate-700"}`}
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white hover:text-slate-700"
       >
         <MoreVertical size={15} />
       </button>
-      {open && !disabled && (
+      {open && (
         <div className="absolute right-0 top-8 z-30 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
           {items.map((it) => (
             <button
               key={it.action}
               type="button"
-              disabled={disabled}
               onClick={(e) => {
                 e.stopPropagation();
-                if (disabled) return;
                 setOpen(false);
                 onAction(slot, it.action);
               }}
@@ -226,7 +221,6 @@ export function BookingsTimeline({
   selectMode = false,
   selectedKeys,
   onToggleSelect,
-  disabled = false,
 }: {
   slots: TimelineSlot[];
   onSlotClick: (slot: TimelineSlot) => void;
@@ -240,7 +234,6 @@ export function BookingsTimeline({
   /** Start times of the currently-selected available slots. */
   selectedKeys?: string[];
   onToggleSelect?: (slot: TimelineSlot) => void;
-  disabled?: boolean;
 }) {
   const currentSlotRef = useRef<HTMLDivElement>(null);
   const didAutoScroll = useRef(false);
@@ -428,7 +421,7 @@ export function BookingsTimeline({
               ) : (
                 <>
                   {!isFree && !isBlocked && !isEmpty && (
-                    <RowMenu slot={slot} onAction={onAction} disabled={disabled} />
+                    <RowMenu slot={slot} onAction={onAction} />
                   )}
 
                   {isFree && (

@@ -78,8 +78,8 @@ export function MpinGate({
       }
     } catch (error) {
       const e = error as { describe?: () => string; message?: string };
-      const msg = typeof e?.describe === "function" ? e.describe() : e?.message || "Please enter the correct password to continue.";
-      setPinError(msg || "Please enter the correct password to continue.");
+      const msg = typeof e?.describe === "function" ? e.describe() : e?.message || "Something went wrong. Try again.";
+      setPinError(pinMode === "enter" ? "Incorrect MPIN" : msg);
       setInputPin("");
     } finally {
       setSubmitting(false);
@@ -91,8 +91,7 @@ export function MpinGate({
 
   return (
     <div
-      onContextMenu={(e) => e.preventDefault()}
-      className="min-h-screen flex flex-col items-center justify-center p-6 text-white select-none"
+      className="min-h-screen flex flex-col items-center justify-center p-6 text-white"
       style={{ background: "linear-gradient(to bottom, #3b1d6e, #1e1040)" }}
     >
       <div className="bg-white/10 p-3 rounded-2xl mb-6">

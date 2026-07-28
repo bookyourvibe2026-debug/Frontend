@@ -8,7 +8,6 @@ import { VendorPanelSwitcher } from "@/components/vendor/VendorPanelSwitcher";
 
 import { isVendorOwner, restoreVendorSession, vendorLogout, type VendorProfile } from "@/lib/api/auth";
 import { VendorAuthProvider } from "@/components/providers/VendorAuthProvider";
-import { MpinGate } from "@/components/vendor/MpinGate";
 
 export default function VendorPanelLayout({
   children,
@@ -55,29 +54,23 @@ export default function VendorPanelLayout({
     );
   }
 
-  const title = isVendorOwner(session)
-    ? session.businessName || "Partner Dashboard"
-    : session.holderName || "Partner Dashboard";
-
   return (
     <VendorAuthProvider vendor={session} onLoggedOut={() => router.replace("/vendor/login")}>
-      <MpinGate title={title}>
-        <div className="min-h-screen flex bg-cream-200 text-ink">
-          <Sidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            onLogout={() => void handleLogout()}
-            verticals={session.verticals}
-          />
-          <div className="flex-1 min-w-0 flex flex-col">
-            <VendorPanelSwitcher verticals={session.verticals} />
-            <main className="flex-1 px-4 sm:px-6 py-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto">
-              {children}
-            </main>
-          </div>
-          <BottomNav verticals={session.verticals} onLogout={() => void handleLogout()} />
+      <div className="min-h-screen flex bg-cream-200 text-ink">
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onLogout={() => void handleLogout()}
+          verticals={session.verticals}
+        />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <VendorPanelSwitcher verticals={session.verticals} />
+          <main className="flex-1 px-4 sm:px-6 py-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto">
+            {children}
+          </main>
         </div>
-      </MpinGate>
+        <BottomNav verticals={session.verticals} onLogout={() => void handleLogout()} />
+      </div>
     </VendorAuthProvider>
   );
 }
