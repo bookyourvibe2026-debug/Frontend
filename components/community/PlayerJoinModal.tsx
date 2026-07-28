@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Clock, ShieldCheck, Trophy, X } from "lucide-react";
 import { joinHostedMatch, confirmPlayerPayment } from "@/lib/api/hostedMatches";
 import { ApiError } from "@/lib/api/client";
@@ -26,15 +26,36 @@ export function PlayerJoinModal({
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [error, setError] = useState("");
 
+  // Load stored player name & phone on mount
+  useEffect(() => {
+    try {
+      const savedPhone = localStorage.getItem("byv_player_phone");
+      const savedName = localStorage.getItem("byv_player_name");
+      if (savedPhone) setPlayerPhone(savedPhone);
+      if (savedName) setPlayerName(savedName);
+    } catch (e) {}
+  }, []);
+
   // Check if player has already joined/requested
   const myParticipant = match.participants.find(
-    (p) => (userCustomerId && p.customerId === userCustomerId) || (playerPhone && p.phone === playerPhone)
+    (p) =>
+      (userCustomerId && p.customerId === userCustomerId) ||
+      (playerPhone && p.phone === playerPhone)
   );
 
   async function handleSendJoinRequest() {
+    if (!playerPhone || playerPhone.length < 10) {
+      setError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
+      try {
+        localStorage.setItem("byv_player_phone", playerPhone);
+        if (playerName) localStorage.setItem("byv_player_name", playerName);
+      } catch (e) {}
+
       const updated = await joinHostedMatch(match.matchId, {
         name: playerName || undefined,
         phone: playerPhone || undefined,

@@ -93,6 +93,19 @@ export default function CommunityPage() {
     setCopiedLink(false);
   };
 
+  const handleMatchClick = (m: HostedMatch) => {
+    let savedPhone = "";
+    try {
+      savedPhone = localStorage.getItem("byv_player_phone") || "";
+    } catch (e) {}
+
+    if (savedPhone && m.hostPhone === savedPhone) {
+      setManagingMatch(m);
+    } else {
+      setJoiningMatch(m);
+    }
+  };
+
   // Load real open hosted matches & persisted joined matches on mount
   useEffect(() => {
     let cancelled = false;
@@ -438,7 +451,7 @@ export default function CommunityPage() {
 
                         <button
                           type="button"
-                          onClick={() => setJoiningMatch(m)}
+                          onClick={() => handleMatchClick(m)}
                           className={`rounded-full px-4 py-1.5 text-xs font-bold transition shadow-xs ${
                             isFull
                               ? "bg-slate-200 text-slate-500 cursor-not-allowed"
@@ -628,7 +641,7 @@ export default function CommunityPage() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setJoiningMatch(m)}
+                          onClick={() => handleMatchClick(m)}
                           className={`flex items-center gap-1 rounded-full px-5 py-2.5 text-xs font-bold transition shadow-sm ${
                             isFull
                               ? "bg-slate-200 text-slate-500 cursor-not-allowed"
