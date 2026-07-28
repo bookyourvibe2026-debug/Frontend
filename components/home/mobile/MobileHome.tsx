@@ -25,6 +25,7 @@ import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenu
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 import { AdBanner } from "../AdBanner";
 import { HotDeals } from "../HotDeals";
+import { CityRankings } from "../CityRankings";
 
 const MOBILE_QUICK_ACTIONS = [
   { id: "coaches", label: "Coaches", icon: GraduationCap },
@@ -297,6 +298,8 @@ export function MobileHome({
           </>
         )}
       </section>
+
+      <CityRankings variant="mobile" />
 
       <section>
         <MobileSectionRow title="Food & Beverages" />

@@ -15,6 +15,8 @@ export interface CreateBookingInput {
   sport?: string;
   /** Court picked on the venue. Omit to let the backend assign the first free one. */
   courtId?: string;
+  /** Several courts taken in the same slot. Takes precedence over `courtId`. */
+  courtIds?: string[];
   durationMinutes?: number;
 }
 

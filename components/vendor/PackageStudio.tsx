@@ -18,7 +18,7 @@ import {
   Court,
 } from "@/lib/types";
 import { ClockSlotsWidget } from "./ClockSlotsWidget";
-import { SPORT_CATEGORIES, SportCategory, subCategoriesForCategories, venueOptionsFor, VenueSetting } from "@/lib/taxonomy";
+import { SPORT_CATEGORIES, SportCategory, venueOptionsFor, VenueSetting } from "@/lib/taxonomy";
 import { usePexelsImage } from "@/lib/pexels";
 
 type Audience = "admin" | "vendor";
@@ -661,28 +661,17 @@ function CategoryPhoto({ cat }: { cat: SportCategory }) {
   return <div className={`h-full w-full bg-gradient-to-br ${gradientFor(cat.id)} transition duration-300 group-hover:scale-105`} />;
 }
 
-function SubCategoryPhoto({ sub }: { sub: { id: string; label: string } }) {
-  const { url } = usePexelsImage(`${sub.label} sport`);
-  const [errored, setErrored] = useState(false);
-  if (url && !errored) {
-    return (
-      <img
-        src={url}
-        alt={sub.label}
-        onError={() => setErrored(true)}
-        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-      />
-    );
-  }
-  return <div className={`h-full w-full bg-gradient-to-br ${gradientFor(sub.id)} transition duration-300 group-hover:scale-105`} />;
-}
-
 /**
  * Courts are the venue's bookable units. Without them the whole venue is one unit, so a
  * single 6-7 AM booking blocks everyone else out of that hour — with three courts listed,
  * the same hour sells three times over.
+ *
+ * A court belongs to one or more of the games the venue offers: a single hall can be a
+ * badminton court in the morning and a pickleball court in the evening, while a box-cricket
+ * pitch hosts only cricket. Players pick their game first, so the counter at the top shows
+ * exactly how many courts each game will sell.
  */
-function CourtsField({ draft, update }: StepProps) {
+function CourtsField({ draft, update, audience }: StepProps & { audience: Audience }) {
   const courts = draft.courts ?? [];
   // Courts store sport *labels*, matching what a booking sends as its `sport`.
   const sportLabels = draft.categories.map(
@@ -693,120 +682,119 @@ function CourtsField({ draft, update }: StepProps) {
   const patch = (index: number, changes: Partial<Court>) =>
     setCourts(courts.map((c, i) => (i === index ? { ...c, ...changes } : c)));
 
-  const addCourt = () =>
+  /* The slot rate a court inherits when it has no price of its own. Shown throughout this
+     step because "same as slot" is meaningless to a vendor who can't see the number. */
+  const slotPrices = (draft.slotsList ?? []).filter((s) => s.price > 0 && !s.blocked).map((s) => s.price);
+  const slotPrice = slotPrices.length ? Math.min(...slotPrices) : 0;
+  const slotPriceMax = slotPrices.length ? Math.max(...slotPrices) : 0;
+  const slotPriceLabel = !slotPrice
+    ? ""
+    : slotPrice === slotPriceMax
+    ? `₹${slotPrice.toLocaleString("en-IN")}`
+    : `₹${slotPrice.toLocaleString("en-IN")}–₹${slotPriceMax.toLocaleString("en-IN")}`;
+
+  /** A court with no sports listed hosts everything the venue offers. */
+  const hostsSport = (court: Court, label: string) =>
+    court.sports.length === 0 || court.sports.includes(label);
+
+  const addCourt = (sports: string[] = []) =>
     setCourts([
       ...courts,
       {
         id: `court-${Date.now()}-${courts.length}`,
         name: `Court ${courts.length + 1}`,
-        sports: [],
+        sports,
         priceOverride: null,
+        sportPrices: [],
+        image: "",
+        surface: "",
         active: true,
       },
     ]);
 
   return (
     <div>
-      <FieldLabel>Courts</FieldLabel>
-      <p className="mb-2 text-[11px] text-ink-faint">
-        Each court can be booked separately for the same time slot. Add one row per court — a venue
-        with 3 courts sells every slot 3 times. Leave this empty if the whole venue is booked as one.
+      <FieldLabel>Courts per game</FieldLabel>
+      <p className="mb-3 text-[11px] text-ink-faint">
+        Add every court this venue sells, then tick which games each one hosts — a court can host a
+        single game or several. Players pick a game, a date and a time slot, and then see exactly
+        these courts. Add none and the whole venue is sold as one unit at the slot price.
       </p>
+
+      {/* What the vendor set in the Slots step, repeated here so "same as slot" is a real
+          number rather than a term they have to go back two steps to remember. */}
+      <div className="mb-3 rounded-xl border border-vibe-violet/25 bg-vibe-violet/5 px-3.5 py-2.5">
+        <p className="text-[11px] font-bold text-vibe-violet">
+          {slotPriceLabel
+            ? `Your time slot price is ${slotPriceLabel}/hr.`
+            : "No time slot price set yet — add slots in the Slots step first."}
+        </p>
+        <p className="mt-0.5 text-[11px] text-ink-faint">
+          {courts.length === 0
+            ? "That's what a player pays per hour right now."
+            : "Every court below sells at that same rate. Change it in the Slots step and all courts follow."}
+        </p>
+      </div>
+
+      {/* Per-game counter: the same view the player gets, so a game with no court is obvious. */}
+      {sportLabels.length > 0 && courts.length > 0 && (
+        <div className="mb-3 space-y-1.5">
+          {sportLabels.map((label) => {
+            const forSport = courts.filter((c) => hostsSport(c, label));
+            return (
+              <div
+                key={label}
+                className="flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-white px-3.5 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-ink">{label}</p>
+                  <p className="truncate text-[11px] text-ink-faint">
+                    {forSport.length === 0
+                      ? "No court yet — players can't book this game"
+                      : forSport.map((c) => c.name || "Untitled court").join(", ")}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                      forSport.length === 0 ? "bg-red-50 text-red-500" : "bg-vibe-violet/10 text-vibe-violet"
+                    }`}
+                  >
+                    {forSport.length} {forSport.length === 1 ? "court" : "courts"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => addCourt([label])}
+                    className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-ink hover:border-vibe-violet"
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="space-y-2">
         {courts.map((court, index) => (
-          <div key={court.id} className="rounded-xl border border-surface-border bg-cream-200/30 p-3">
-            <div className="flex items-center gap-2">
-              <input
-                value={court.name}
-                onChange={(e) => patch(index, { name: e.target.value })}
-                placeholder={`Court ${index + 1}`}
-                className={inputClass}
-              />
-            {(() => {
-              const isCourtActive = court.active !== false;
-              return (
-                <button
-                  type="button"
-                  onClick={() => patch(index, { active: !isCourtActive })}
-                  title={isCourtActive ? "Court is bookable" : "Court is hidden from booking"}
-                  className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${
-                    isCourtActive
-                      ? "border-vibe-violet bg-vibe-violet text-white"
-                      : "border-surface-border bg-white text-ink-faint"
-                  }`}
-                >
-                  {isCourtActive ? "Active" : "Off"}
-                </button>
-              );
-            })()}
-              <button
-                type="button"
-                onClick={() => setCourts(courts.filter((_, i) => i !== index))}
-                className="shrink-0 rounded-lg border border-surface-border bg-white p-2 text-ink-faint hover:text-red-500"
-                aria-label={`Remove ${court.name || `court ${index + 1}`}`}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold text-ink-faint">Hosts:</span>
-              {sportLabels.length === 0 ? (
-                <span className="text-[11px] text-ink-faint">Pick sports above first</span>
-              ) : (
-                sportLabels.map((label) => {
-                  // An empty list means "every sport", so nothing is highlighted until narrowed.
-                  const on = court.sports.includes(label);
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() =>
-                        patch(index, {
-                          sports: on
-                            ? court.sports.filter((s) => s !== label)
-                            : [...court.sports, label],
-                        })
-                      }
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition ${
-                        on
-                          ? "border-vibe-violet bg-vibe-violet text-white"
-                          : "border-surface-border bg-white text-ink-faint"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })
-              )}
-              {court.sports.length === 0 && sportLabels.length > 0 && (
-                <span className="text-[11px] text-ink-faint">(all sports)</span>
-              )}
-            </div>
-
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-ink-faint">Price / hour:</span>
-              <input
-                type="number"
-                min={0}
-                value={court.priceOverride ?? ""}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  patch(index, { priceOverride: raw === "" ? null : Number(raw) });
-                }}
-                placeholder="Same as slot"
-                className="w-36 rounded-lg border border-surface-border bg-white px-3 py-1.5 text-sm font-bold text-ink outline-none focus:border-vibe-violet"
-              />
-              <span className="text-[11px] text-ink-faint">Leave blank to use the slot price</span>
-            </div>
-          </div>
+          <CourtRow
+            key={court.id}
+            court={court}
+            index={index}
+            sportLabels={sportLabels}
+            galleryImages={draft.images}
+            audience={audience}
+            slotPrice={slotPrice}
+            onPatch={(changes) => patch(index, changes)}
+            onRemove={() => setCourts(courts.filter((_, i) => i !== index))}
+          />
         ))}
       </div>
 
       <button
         type="button"
-        onClick={addCourt}
+        onClick={() => addCourt()}
         className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white px-3 py-2 text-[12px] font-bold text-ink hover:border-vibe-violet"
       >
         <Plus size={14} /> Add court
@@ -815,7 +803,188 @@ function CourtsField({ draft, update }: StepProps) {
   );
 }
 
-function DetailsStep({ draft, update }: StepProps) {
+/** One court's card in the courts builder — name, games, photo, surface and rates. */
+function CourtRow({
+  court,
+  index,
+  sportLabels,
+  galleryImages,
+  audience,
+  slotPrice,
+  onPatch,
+  onRemove,
+}: {
+  court: Court;
+  index: number;
+  sportLabels: string[];
+  galleryImages: ListingImage[];
+  audience: Audience;
+  /** Cheapest configured slot rate — what this court charges when it has no price of its own. */
+  slotPrice: number;
+  onPatch: (changes: Partial<Court>) => void;
+  onRemove: () => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const isCourtActive = court.active !== false;
+
+  async function uploadCourtPhoto(file: File | undefined) {
+    if (!file) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const result = await uploadImage(audience, file);
+      onPatch({ image: result.url });
+    } catch (err) {
+      setUploadError(err instanceof ApiError ? err.describe() : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-surface-border bg-cream-200/30 p-3">
+      <div className="flex items-center gap-2">
+        <input
+          value={court.name}
+          onChange={(e) => onPatch({ name: e.target.value })}
+          placeholder={`Court ${index + 1}`}
+          className={inputClass}
+        />
+        <button
+          type="button"
+          onClick={() => onPatch({ active: !isCourtActive })}
+          title={isCourtActive ? "Court is bookable" : "Court is hidden from booking"}
+          className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${
+            isCourtActive
+              ? "border-vibe-violet bg-vibe-violet text-white"
+              : "border-surface-border bg-white text-ink-faint"
+          }`}
+        >
+          {isCourtActive ? "Active" : "Off"}
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 rounded-lg border border-surface-border bg-white p-2 text-ink-faint hover:text-red-500"
+          aria-label={`Remove ${court.name || `court ${index + 1}`}`}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold text-ink-faint">Games on this court:</span>
+        {sportLabels.length === 0 ? (
+          <span className="text-[11px] text-ink-faint">Pick games above first</span>
+        ) : (
+          sportLabels.map((label) => {
+            const on = court.sports.includes(label);
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() =>
+                  onPatch({
+                    sports: on ? court.sports.filter((s) => s !== label) : [...court.sports, label],
+                  })
+                }
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition ${
+                  on
+                    ? "border-vibe-violet bg-vibe-violet text-white"
+                    : "border-surface-border bg-white text-ink-faint"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })
+        )}
+        {court.sports.length === 0 && sportLabels.length > 0 && (
+          <span className="text-[11px] text-ink-faint">(hosts every game)</span>
+        )}
+      </div>
+
+      {/* Court photo — shown on the court card the player picks from at checkout. */}
+      <div className="mt-3">
+        <span className="text-[11px] font-semibold text-ink-faint">Court photo</span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              void uploadCourtPhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          {court.image ? (
+            <span className="relative h-14 w-20 overflow-hidden rounded-lg border border-vibe-violet">
+              <img src={court.image} alt={court.name} className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onPatch({ image: "" })}
+                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white"
+                aria-label="Remove court photo"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ) : null}
+
+          {/* Re-using a venue photo is the common case, so those come first. */}
+          {galleryImages
+            .filter((img) => img.url && img.url !== court.image)
+            .slice(0, 6)
+            .map((img) => (
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onPatch({ image: img.url })}
+                className="h-14 w-20 overflow-hidden rounded-lg border border-surface-border opacity-80 transition hover:opacity-100"
+                title={`Use ${img.label}`}
+              >
+                <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
+              </button>
+            ))}
+
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => fileInput.current?.click()}
+            className="flex h-14 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-surface-border bg-white text-[10px] font-bold text-ink-faint hover:border-vibe-violet disabled:opacity-60"
+          >
+            {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            {uploading ? "Uploading" : "Upload"}
+          </button>
+        </div>
+        {uploadError && <p className="mt-1 text-[11px] font-semibold text-vibe-coral">{uploadError}</p>}
+      </div>
+
+      <div className="mt-3">
+        <span className="text-[11px] font-semibold text-ink-faint">Surface / size</span>
+        <input
+          value={court.surface ?? ""}
+          onChange={(e) => onPatch({ surface: e.target.value })}
+          placeholder="e.g. Outdoor · Synthetic · Full court"
+          className="mt-1 w-full rounded-lg border border-surface-border bg-white px-3 py-1.5 text-sm text-ink outline-none focus:border-vibe-violet"
+        />
+      </div>
+
+      {/* Price lives in the Slots step and nowhere else — a court-level rate is what used
+          to make the slot card and the court list quote two different numbers. */}
+      <p className="mt-2 text-[11px] font-semibold text-vibe-violet">
+        {slotPrice
+          ? `Players pay the time slot price, ₹${slotPrice.toLocaleString("en-IN")}/hr, on this court.`
+          : "Players pay the time slot price on this court — set it in the Slots step."}
+      </p>
+    </div>
+  );
+}
+
+function DetailsStep({ draft, update, audience }: StepProps & { audience: Audience }) {
   const gameVenue: VenueSetting = draft.gameVenue ?? "both";
   const categoryOptions = draft.type === "Game" ? venueOptionsFor(gameVenue) : SPORT_CATEGORIES;
 
@@ -885,8 +1054,22 @@ function DetailsStep({ draft, update }: StepProps) {
                     ? draft.categories.filter((c) => c !== cat.id)
                     : [...draft.categories, cat.id];
                   update("categories", next);
-                  const validSubIds = new Set(subCategoriesForCategories(next).map((s) => s.id));
-                  update("subCategories", draft.subCategories.filter((s) => validSubIds.has(s)));
+                  // Courts are keyed by sport label, so dropping a game must also
+                  // release the courts that only existed to host it.
+                  const validLabels = new Set(
+                    next.map((id) => SPORT_CATEGORIES.find((c) => c.id === id)?.label ?? id)
+                  );
+                  const courts = draft.courts ?? [];
+                  if (courts.length > 0) {
+                    update(
+                      "courts",
+                      courts
+                        .map((court) => ({ ...court, sports: court.sports.filter((s) => validLabels.has(s)) }))
+                        // A court that listed only the removed game would silently become
+                        // an "all games" court, so it goes with the game instead.
+                        .filter((court, i) => court.sports.length > 0 || courts[i]!.sports.length === 0)
+                    );
+                  }
                 }}
                 className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border-2 text-left shadow-sm transition ${
                   isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
@@ -951,49 +1134,7 @@ function DetailsStep({ draft, update }: StepProps) {
         </div>
       )}
 
-      {draft.type !== "Event" && <CourtsField draft={draft} update={update} />}
-
-      {draft.categories.length > 0 && (
-        <div>
-          <FieldLabel>Sub-Category (select all that apply)</FieldLabel>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {subCategoriesForCategories(draft.categories).map((sub) => {
-              const isSelected = draft.subCategories.includes(sub.id);
-              return (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() =>
-                    update(
-                      "subCategories",
-                      isSelected
-                        ? draft.subCategories.filter((s) => s !== sub.id)
-                        : [...draft.subCategories, sub.id]
-                    )
-                  }
-                  className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border-2 text-left shadow-sm transition ${
-                    isSelected ? "border-vibe-lime ring-2 ring-vibe-lime/40" : "border-surface-border hover:border-vibe-lime/50"
-                  }`}
-                >
-                  <div className="h-full w-full bg-cream-300">
-                    <SubCategoryPhoto sub={sub} />
-                  </div>
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-                  {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-lime/25" />}
-                  <span className={`absolute inset-x-0 bottom-0 px-2.5 py-2 text-xs font-bold drop-shadow-sm ${isSelected ? "text-white" : "text-white"}`}>
-                    {sub.label}
-                  </span>
-                  {isSelected && (
-                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-lime text-vibe-indigo shadow">
-                      <Check size={12} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {draft.type !== "Event" && <CourtsField draft={draft} update={update} audience={audience} />}
     </div>
   );
 }
@@ -3012,6 +3153,10 @@ export function PackageStudio({
       courts: (draft.courts ?? []).map((c) => ({
         ...c,
         active: c.active !== false,
+        // Blank photo/surface are "not set", not empty values worth storing.
+        image: c.image?.trim() ? c.image : undefined,
+        surface: c.surface?.trim() ? c.surface.trim() : undefined,
+        sportPrices: (c.sportPrices ?? []).filter((p) => p.price > 0),
       })),
     };
 
@@ -3130,7 +3275,7 @@ export function PackageStudio({
             />
           )}
           {step === 2 && <BookingStep draft={draft} update={update} />}
-          {step === 3 && <DetailsStep draft={draft} update={update} />}
+          {step === 3 && <DetailsStep draft={draft} update={update} audience={audience} />}
           {step === 4 && <LocationStep draft={draft} update={update} />}
           {step === 5 && <PricingStep draft={draft} update={update} audience={audience} />}
           {step === 6 && <LaunchStep draft={draft} update={update} />}

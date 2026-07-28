@@ -53,6 +53,34 @@ export function getVenueAvailability(id: string, date: string) {
   return apiRequest<BookedRange[]>(`/venues/${id}/availability`, { query: { date } });
 }
 
+/** One row of the city ranking board — a venue plus the booking volume it ranks on. */
+export interface RankedVenue {
+  rank: number;
+  listingId: string;
+  slug?: string;
+  title: string;
+  city: string;
+  area: string;
+  address: string;
+  image: string;
+  price: number;
+  categories: string[];
+  tags: string[];
+  bookings: number;
+}
+
+export interface VenueRankings {
+  items: RankedVenue[];
+  /** Every locality in the city, for the area filter. */
+  areas: string[];
+  city: string;
+}
+
+/** Top venues in a city by booking volume, optionally narrowed to one locality. */
+export function getVenueRankings(params: { city: string; area?: string; limit?: number; days?: number }) {
+  return apiRequest<VenueRankings>("/venues/rankings", { query: params });
+}
+
 export async function getVendorProfile(vendorId: string) {
   const result = await apiRequest<{ vendor: VendorPublicProfile; listings: Listing[] }>(
     `/venues/vendors/${vendorId}`

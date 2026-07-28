@@ -322,8 +322,11 @@ export default function BookingsPage() {
       const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
       // Distinct courts taken in this window — a booking with no courtId predates
       // courts and sits on court 1, matching how the backend resolves it.
+      // A single booking can hold several courts, so each of its courtIds counts.
       const takenCourtIds = new Set(
-        activeCourts.length > 0 ? matches.map((m) => m.courtId || activeCourts[0]!.id) : []
+        activeCourts.length > 0
+          ? matches.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
+          : []
       );
       const courtsTotal = activeCourts.length;
       const courtsFree = courtsTotal > 0 ? courtsTotal - takenCourtIds.size : 0;
@@ -365,7 +368,7 @@ export default function BookingsPage() {
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
         paidAmount: match?.paidAmount,
-        courtName: match?.courtName,
+        courtName: match?.courtNames?.length ? match.courtNames.join(", ") : match?.courtName,
         courtsFree,
         courtsTotal,
       };

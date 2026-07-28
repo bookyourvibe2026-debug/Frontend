@@ -73,20 +73,15 @@ function freeCourtsFor(
   return courts.filter((c) => !takenIds.has(c.id));
 }
 
-/** A court's own rate replaces the slot rate; courts without one inherit the slot price. */
-function priceForCourt(slotPrice: number, court: Court | undefined, durationMin: number): number {
-  if (!court || court.priceOverride == null) return slotPrice;
-  return Math.round((durationMin / 60) * court.priceOverride);
-}
-
 /**
- * What the player pays for a slot on a court. Last Min Boost is applied last, matching
- * the backend's order (court rate first, then the discount) so the quote and the charge
- * agree — see booking.service.ts.
+ * What one hour costs — the price the vendor set on that time slot, straight from the
+ * listing API. It is the only rate in the product: every court in a slot costs the same,
+ * so the slot card and the court list can never disagree. Booking two courts costs the
+ * slot price twice. Last Min Boost is the only thing applied on top, matching the
+ * backend's order so the quote and the charge agree — see booking.service.ts.
  */
-function finalSlotPrice(slot: { price: number; boostPct?: number }, court: Court | undefined, durationMin: number): number {
-  const withCourt = priceForCourt(slot.price, court, durationMin);
-  return slot.boostPct ? boostedPrice(withCourt, slot.boostPct) : withCourt;
+function finalSlotPrice(slot: { price: number; boostPct?: number }): number {
+  return slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price;
 }
 
 /* Start times a venue can be booked from. */
@@ -214,6 +209,8 @@ export default function BookingFlow({
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
 
   function toggleSlotSelection(index: number) {
+    // A different set of hours opens a different set of courts, so the pick starts over.
+    setCourtPicks(null);
     setSelectedSlotIndices((prev) => {
       if (prev.includes(index)) {
         return prev.filter((i) => i !== index);
@@ -248,8 +245,10 @@ export default function BookingFlow({
     const id = setInterval(() => setNowTick(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
-  // Which court the player picked. "" = none yet; the effect below auto-picks the first free one.
-  const [selectedCourtId, setSelectedCourtId] = useState("");
+  // Courts the player picked. `null` means "hasn't chosen yet", which is what lets the
+  // first free court be pre-selected while an explicit empty pick still stays empty.
+  // Several courts can be taken for the same slot — a group booking 2 of 3 courts.
+  const [courtPicks, setCourtPicks] = useState<string[] | null>(null);
 
   // Courts that can host the selected sport. A court with no sports listed hosts everything.
   const courtsForSport = useMemo(() => {
@@ -528,11 +527,24 @@ export default function BookingFlow({
     );
   }, [courtsForSport, generatedSlots, selectedSlotIndices]);
 
-  const effectiveCourtId = freeCourts.some((c) => c.id === selectedCourtId)
-    ? selectedCourtId
-    : (freeCourts[0]?.id ?? "");
+  // Until the player picks, the first free court stands in — the same one they'd tap
+  // anyway. Anything taken while they were deciding drops out instead of failing at
+  // payment, so what's shown as selected is always still bookable.
+  const effectiveCourtIds = useMemo(() => {
+    const base = courtPicks ?? (freeCourts[0] ? [freeCourts[0].id] : []);
+    return base.filter((id) => freeCourts.some((c) => c.id === id));
+  }, [courtPicks, freeCourts]);
 
-  const selectedCourt = courtsForSport.find((c) => c.id === effectiveCourtId);
+  const toggleCourt = (id: string) =>
+    setCourtPicks((prev) => {
+      const base = prev ?? (freeCourts[0] ? [freeCourts[0].id] : []);
+      return base.includes(id) ? base.filter((c) => c !== id) : [...base, id];
+    });
+
+  const selectedCourts = useMemo(
+    () => courtsForSport.filter((c) => effectiveCourtIds.includes(c.id)),
+    [courtsForSport, effectiveCourtIds]
+  );
 
   const activePrice = useMemo(() => {
     const addOnsTotal = (listing.addOns ?? [])
@@ -544,14 +556,17 @@ export default function BookingFlow({
     }
     if (listing.type === "Turf") {
       if (selectedSlotIndices.length === 0) return addOnsTotal;
+      // Every court booked pays the slot price, so 2 courts for an hour costs it twice.
+      // A venue without courts is a single unit and pays it once.
+      const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
       const slotsTotal = selectedSlotIndices.reduce((sum, idx) => {
         const slot = generatedSlots[idx];
-        return sum + (slot ? finalSlotPrice(slot, selectedCourt, 60) : 0);
+        return sum + (slot ? finalSlotPrice(slot) * courtCount : 0);
       }, 0);
       return slotsTotal + addOnsTotal;
     }
     return listing.price + addOnsTotal;
-  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourt]);
+  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
   const canPay =
@@ -562,7 +577,7 @@ export default function BookingFlow({
       : selectedSlotIndices.length > 0 &&
         !isDateHoliday &&
         selectedSlotIndices.every((idx) => generatedSlots[idx]?.status === "Available") &&
-        (courtsForSport.length === 0 || !!effectiveCourtId));
+        (courtsForSport.length === 0 || effectiveCourtIds.length > 0));
 
   const partialConfig = listing.partialPayment ?? { enabled: true, type: "percentage", value: 25 };
   const payNowAmount = useMemo(() => {
@@ -628,7 +643,8 @@ export default function BookingFlow({
         dateTime,
         payment,
         sport: sport || undefined,
-        courtId: effectiveCourtId || undefined,
+        courtId: effectiveCourtIds[0] || undefined,
+        courtIds: effectiveCourtIds.length > 0 ? effectiveCourtIds : undefined,
         priceTierId: selectedPriceTierId || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
@@ -666,7 +682,11 @@ export default function BookingFlow({
           embedded={embedded}
           listing={listing}
           date={date}
-          setDate={setDate}
+          setDate={(v) => {
+            // Another day has its own free courts, so the pick resets with the date.
+            setCourtPicks(null);
+            setDate(v);
+          }}
           time={time}
           setTime={setTime}
           endTime={endTime}
@@ -710,11 +730,15 @@ export default function BookingFlow({
           setVisibleMonth={setVisibleMonth}
           setVisibleYear={setVisibleYear}
           selectedSport={sport}
-          onSelectSport={setSport}
+          onSelectSport={(s) => {
+            // Each game has its own courts — a badminton pick can't carry into cricket.
+            setCourtPicks(null);
+            setSport(s);
+          }}
           freeCourts={freeCourts}
           courtsForSport={courtsForSport}
-          selectedCourtId={effectiveCourtId}
-          onSelectCourt={setSelectedCourtId}
+          selectedCourtIds={effectiveCourtIds}
+          onToggleCourt={toggleCourt}
         />
       )}
 
@@ -910,8 +934,9 @@ function ReviewStep(props: {
   freeCourts: Court[];
   /** Every court that hosts the selected sport — taken ones render disabled. */
   courtsForSport: Court[];
-  selectedCourtId: string;
-  onSelectCourt: (id: string) => void;
+  /** Courts the player has taken for the selected slots — several are allowed. */
+  selectedCourtIds: string[];
+  onToggleCourt: (id: string) => void;
   needsPhone: boolean;
   phone: string;
   setPhone: (v: string) => void;
@@ -954,8 +979,8 @@ function ReviewStep(props: {
     onToggleSlotSelection,
     freeCourts,
     courtsForSport,
-    selectedCourtId,
-    onSelectCourt,
+    selectedCourtIds,
+    onToggleCourt,
     activePrice,
     payNowAmount,
     payAtVenueAmount,
@@ -977,6 +1002,43 @@ function ReviewStep(props: {
 
   const today = new Date();
   const [mobileStep, setMobileStep] = useState<"slots" | "checkout">("slots");
+
+  /**
+   * Bookable slots first, everything already taken (or in the past) after them —
+   * a player scrolling a busy evening shouldn't wade through sold-out cards to
+   * reach the ones they can actually book. Time order is kept inside each group.
+   */
+  const orderedSlots = useMemo(() => {
+    const rank = (s: { status: string }) => (s.status === "Available" ? 0 : s.status === "Past" ? 2 : 1);
+    return [...filteredGeneratedSlots].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
+  }, [filteredGeneratedSlots]);
+
+  /* The slot strip is a 2-row carousel rather than a full grid — a venue open 06:00–24:00
+     otherwise renders 18 cards and buries the courts and the price under a wall of slots.
+     Arrows page it sideways; booked slots stay in the same strip, just after the free ones. */
+  const slotStripRef = useRef<HTMLDivElement>(null);
+  const [slotEdges, setSlotEdges] = useState({ atStart: true, atEnd: false });
+
+  function onSlotStripScroll() {
+    const el = slotStripRef.current;
+    if (!el) return;
+    setSlotEdges({
+      atStart: el.scrollLeft <= 4,
+      atEnd: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4,
+    });
+  }
+
+  function pageSlots(direction: -1 | 1) {
+    const el = slotStripRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * Math.max(220, el.clientWidth * 0.85), behavior: "smooth" });
+  }
+
+  /** Same rule for courts: free ones first, already-booked ones greyed out at the end. */
+  const orderedCourts = useMemo(() => {
+    const free = new Set(freeCourts.map((c) => c.id));
+    return [...courtsForSport].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
+  }, [courtsForSport, freeCourts]);
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
@@ -1406,12 +1468,44 @@ function ReviewStep(props: {
                             )}
                           </div>
 
-                          {/* Time Slots Grid (2-3 columns on mobile, 4+ on larger screens) */}
-                          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-                            {filteredGeneratedSlots.map((slot) => {
+                          {/* Time slots — two rows that scroll sideways, newest-free first. */}
+                          <div className="relative">
+                            {orderedSlots.length > 4 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => pageSlots(-1)}
+                                  disabled={slotEdges.atStart}
+                                  aria-label="Previous time slots"
+                                  className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => pageSlots(1)}
+                                  disabled={slotEdges.atEnd}
+                                  aria-label="More time slots"
+                                  className="absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+
+                            <div
+                              ref={slotStripRef}
+                              onScroll={onSlotStripScroll}
+                              className={`grid grid-flow-col grid-rows-2 auto-cols-[minmax(9.25rem,1fr)] gap-2.5 overflow-x-auto scroll-smooth py-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                                orderedSlots.length > 4 ? "px-9" : ""
+                              }`}
+                            >
+                            {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
-                              const finalPrice = slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price;
+                              // Exactly the rate the vendor set on this time slot — the same
+                              // number every court in it shows, so the two never disagree.
+                              const finalPrice = finalSlotPrice(slot);
 
                               return (
                                 <button
@@ -1458,6 +1552,17 @@ function ReviewStep(props: {
                                       </span>
                                     </div>
 
+                                    {available && courtsForSport.length > 0 && (
+                                      <span
+                                        className={`mt-1 block text-[10px] font-bold ${
+                                          isSelected ? "text-white/80" : "text-slate-500"
+                                        }`}
+                                      >
+                                        {slot.freeCourtIds.length}{" "}
+                                        {slot.freeCourtIds.length === 1 ? "court" : "courts"}
+                                      </span>
+                                    )}
+
                                     {!available && (
                                       <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         {slot.status}
@@ -1497,58 +1602,112 @@ function ReviewStep(props: {
                                 </button>
                               );
                             })}
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Court picker — only for venues that actually have courts. */}
+                      {/* Court picker — only for venues that actually have courts.
+                          Free courts sit above booked ones, and more than one can be taken
+                          for the same slot (a group renting 2 of 3 courts is one booking). */}
                       {courtsForSport.length > 0 && selectedSlotIndices.length > 0 && (
                         <div className="mt-4">
-                          <div className="flex items-center justify-between">
-                            <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                              Select Court *
-                            </label>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {freeCourts.length} of {courtsForSport.length} free
+                          <div className="flex items-baseline justify-between">
+                            <p className="text-base font-black text-slate-900">
+                              {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
+                            </p>
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                              {selectedCourtIds.length} selected
                             </span>
                           </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {courtsForSport.map((court) => {
+
+                          <div className="mt-2.5 space-y-2.5">
+                            {orderedCourts.map((court) => {
                               const isFree = freeCourts.some((c) => c.id === court.id);
-                              const active = selectedCourtId === court.id;
+                              const active = isFree && selectedCourtIds.includes(court.id);
+                              // Every court costs the slot price, so this is the same figure
+                              // shown on the slot card above (times the hours picked).
                               const totalCourtPrice = selectedSlotIndices.reduce((sum, idx) => {
                                 const slot = generatedSlots[idx];
-                                return sum + (slot ? finalSlotPrice(slot, court, 60) : 0);
+                                return sum + (slot ? finalSlotPrice(slot) : 0);
                               }, 0);
+                              const meta = [court.surface, ...(court.sports ?? [])].filter(Boolean).join(" | ");
+                              const photo = court.image || listing.coverImage || listing.images?.[0]?.url;
+
                               return (
                                 <button
                                   key={court.id}
                                   type="button"
                                   disabled={!isFree}
-                                  onClick={() => onSelectCourt(court.id)}
-                                  className={`rounded-2xl border px-3 py-3 text-left transition ${
+                                  onClick={() => {
+                                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+                                    onToggleCourt(court.id);
+                                  }}
+                                  className={`flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition ${
                                     active
-                                      ? "border-[#0b9c65] bg-[#0b9c65] text-white shadow-sm"
+                                      ? "border-[#0b9c65] bg-[#0b9c65]/5 shadow-sm"
                                       : isFree
-                                      ? "border-slate-200 bg-white text-slate-800 hover:border-[#0b9c65]"
-                                      : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+                                      ? "border-slate-200 bg-white hover:border-[#0b9c65]/60"
+                                      : "cursor-not-allowed border-slate-100 bg-slate-50 opacity-60"
                                   }`}
                                 >
-                                  <p className="text-[12px] font-extrabold leading-tight">{court.name}</p>
-                                  <p
-                                    className={`mt-1 text-[11px] font-bold ${
-                                      active ? "text-white/80" : isFree ? "text-slate-500" : "text-slate-300"
+                                  <span className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                                    {photo ? (
+                                      <img src={photo} alt={court.name} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <span className="flex h-full w-full items-center justify-center text-slate-300">
+                                        <ImageIcon className="h-5 w-5" />
+                                      </span>
+                                    )}
+                                  </span>
+
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-extrabold text-slate-900">
+                                      {court.name}
+                                    </span>
+                                    {meta && (
+                                      <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">
+                                        {meta}
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`mt-1 block text-[13px] font-black ${
+                                        isFree ? "text-slate-900" : "text-slate-400"
+                                      }`}
+                                    >
+                                      {isFree ? `₹${totalCourtPrice.toLocaleString("en-IN")}` : "Booked"}
+                                    </span>
+                                  </span>
+
+                                  <span
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${
+                                      active
+                                        ? "border-[#0b9c65] bg-[#0b9c65] text-white"
+                                        : isFree
+                                        ? "border-slate-300 bg-white text-transparent"
+                                        : "border-slate-200 bg-slate-100 text-transparent"
                                     }`}
                                   >
-                                    {isFree ? `INR ${totalCourtPrice.toLocaleString("en-IN")}` : "Booked"}
-                                  </p>
+                                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                  </span>
                                 </button>
                               );
                             })}
                           </div>
+
                           {freeCourts.length === 0 && (
                             <p className="mt-2 text-[11px] font-semibold text-amber-600">
                               Every court is booked for one or more selected slots. Pick another slot.
+                            </p>
+                          )}
+                          {freeCourts.length > 0 && selectedCourtIds.length === 0 && (
+                            <p className="mt-2 text-[11px] font-semibold text-amber-600">
+                              Pick at least one court to continue.
+                            </p>
+                          )}
+                          {selectedCourtIds.length > 1 && (
+                            <p className="mt-2 text-[11px] font-semibold text-slate-500">
+                              {selectedCourtIds.length} courts booked together for {selectedSlotSummaryText}.
                             </p>
                           )}
                         </div>
@@ -1800,13 +1959,24 @@ function ReviewStep(props: {
       {/* Mobile Sticky Footers */}
       {!embedded && mobileStep === "slots" && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] rounded-t-3xl">
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-bold text-[#0b9c65] uppercase">Pay Now: ₹{payNowAmount.toLocaleString("en-IN")} • Total: ₹{activePrice.toLocaleString("en-IN")}</p>
             <p className="text-2xl font-black text-slate-900">₹{payNowAmount.toLocaleString("en-IN")}</p>
+            {listing.type === "Turf" && courtsForSport.length > 0 && selectedSlotIndices.length > 0 && (
+              <p className="truncate text-[11px] font-semibold text-slate-500">
+                {selectedCourtIds.length} {selectedCourtIds.length === 1 ? "court" : "courts"} selected ·{" "}
+                {selectedSlotSummaryText}
+              </p>
+            )}
           </div>
           <button
             onClick={() => setMobileStep("checkout")}
-            disabled={!date || (listing.type === "Turf" && selectedSlotIndices.length === 0)}
+            disabled={
+              !date ||
+              (listing.type === "Turf" &&
+                (selectedSlotIndices.length === 0 ||
+                  (courtsForSport.length > 0 && selectedCourtIds.length === 0)))
+            }
             className="rounded-2xl bg-brand-600 hover:bg-brand-700 px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             CONTINUE
@@ -1877,6 +2047,12 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
         <Row label="Order ID" value={<span className="font-mono font-bold">{booking.orderId}</span>} />
         <Row label="Venue" value={`${listing.title} · ${listing.categories.map(categoryLabel).join(", ") || listing.type}`} />
         <Row label="Date & Time" value={new Date(booking.dateTime).toLocaleString("en-GB")} />
+        {(booking.courtNames?.length || booking.courtName) && (
+          <Row
+            label={booking.courtNames && booking.courtNames.length > 1 ? "Courts" : "Court"}
+            value={booking.courtNames?.length ? booking.courtNames.join(", ") : booking.courtName}
+          />
+        )}
         {isGenuinePartial ? (
           <>
             <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">

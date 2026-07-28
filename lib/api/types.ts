@@ -71,7 +71,19 @@ export interface Court {
   sports: string[];
   /** Replaces the slot's hourly rate on this court. Undefined/null = inherit. */
   priceOverride?: number | null;
+  /** Per-sport hourly rates, for a court that hosts several games at different prices. */
+  sportPrices?: CourtSportPrice[];
+  /** Court photo shown at checkout — picked from the listing's own images. */
+  image?: string;
+  /** Surface/size line under the court name — "Outdoor · Synthetic · Full court". */
+  surface?: string;
   active: boolean;
+}
+
+/** One sport's hourly rate on a court hosting several games. */
+export interface CourtSportPrice {
+  sport: string;
+  price: number;
 }
 
 export interface Listing {
@@ -167,10 +179,15 @@ export interface Booking {
   phone: string;
   email?: string;
   sport?: string;
-  /** Which court was booked. Absent on bookings taken before courts existed. */
+  /** Which court was booked. Absent on bookings taken before courts existed.
+   *  With several courts booked together this is the first of `courtIds`. */
   courtId?: string;
   /** Court name as it was at booking time. */
   courtName?: string;
+  /** Every court this booking occupies — a player can take 2 of 3 courts for one hour. */
+  courtIds?: string[];
+  /** Court names as they were at booking time, aligned with `courtIds`. */
+  courtNames?: string[];
   numberOfPlayers?: number;
   foodIncluded?: boolean;
   dateTime: string;

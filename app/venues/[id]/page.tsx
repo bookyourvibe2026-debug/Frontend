@@ -560,11 +560,8 @@ function VenueInfoSections({
                     </span>
                   )}
                 </div>
-                {court.priceOverride != null && (
-                  <p className="mt-2 text-[11px] font-extrabold text-brand-600">
-                    ₹{court.priceOverride.toLocaleString("en-IN")}/hr
-                  </p>
-                )}
+                {/* No per-court rate: every court sells at the venue's time slot price,
+                    which the booking sheet shows against the actual hour picked. */}
               </div>
             ))}
           </div>
