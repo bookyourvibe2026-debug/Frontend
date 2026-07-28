@@ -4,13 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  LogIn,
+  LogOut,
   Menu,
   ShieldCheck,
   Store,
+  User,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
+import { LoginModal } from "@/components/home/modals/LoginModal";
+import { SignupModal } from "@/components/home/modals/SignupModal";
 
 const MOBILE_NAV_LINKS = [
   { label: "Home", href: "/" },
@@ -24,6 +30,9 @@ const MOBILE_NAV_LINKS = [
 
 export function MobileTopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
+  const { customer, status, logout } = useCustomerAuth();
+  const isLoggedIn = status === "authenticated";
 
   return (
     <>
@@ -36,10 +45,33 @@ export function MobileTopBar() {
           priority
         />
         <div className="flex shrink-0 items-center gap-1.5">
+          {status !== "loading" && (
+            isLoggedIn ? (
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition active:scale-95 hover:bg-rose-100"
+                title="Logout"
+                aria-label="Logout"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Logout</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAuthView("login")}
+                className="flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition active:scale-95"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Login</span>
+              </button>
+            )
+          )}
           <button
             aria-label="Toggle menu"
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition active:scale-95"
           >
             {menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
@@ -79,6 +111,38 @@ export function MobileTopBar() {
             </nav>
 
             <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3">
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    <User className="h-4 w-4 text-brand-500" /> My Profile ({customer?.name?.split(" ")[0] || "User"})
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      logout();
+                    }}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-700 active:scale-95"
+                  >
+                    <LogOut className="h-4 w-4 text-rose-600" /> Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setAuthView("login");
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm active:scale-95"
+                >
+                  <LogIn className="h-4 w-4" /> Login / Sign Up
+                </button>
+              )}
               <Link
                 href="/vendor/login"
                 onClick={() => setMenuOpen(false)}
@@ -96,6 +160,21 @@ export function MobileTopBar() {
             </div>
           </div>
         </>
+      )}
+
+      {authView === "login" && (
+        <LoginModal
+          onClose={() => setAuthView(null)}
+          onLoggedIn={() => setAuthView(null)}
+          onSwitchToSignup={() => setAuthView("signup")}
+        />
+      )}
+      {authView === "signup" && (
+        <SignupModal
+          onClose={() => setAuthView(null)}
+          onSignedUp={() => setAuthView(null)}
+          onSwitchToLogin={() => setAuthView("login")}
+        />
       )}
     </>
   );

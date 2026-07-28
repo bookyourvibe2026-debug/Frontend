@@ -10,6 +10,8 @@ import {
   Gamepad2,
   GraduationCap,
   Home,
+  LogIn,
+  LogOut,
   Menu,
   ShieldCheck,
   Store,
@@ -41,7 +43,7 @@ const MORE_LINKS = [
 /** Fixed mobile app-shell bottom tab bar — replaces the desktop footer's nav role on small screens. */
 export function BottomNav() {
   const pathname = usePathname();
-  const { customer, status } = useCustomerAuth();
+  const { customer, status, logout } = useCustomerAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
   const isLoggedIn = status === "authenticated";
@@ -117,21 +119,46 @@ export function BottomNav() {
                 );
               })}
             </nav>
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-              <Link
-                href="/vendor/login"
-                onClick={() => setMoreOpen(false)}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
-              >
-                <Store className="h-4 w-4 text-brand-500" /> Vendor Panel
-              </Link>
-              <Link
-                href="/admin/login"
-                onClick={() => setMoreOpen(false)}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
-              >
-                <ShieldCheck className="h-4 w-4 text-brand-500" /> Admin Panel
-              </Link>
+            <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3">
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    logout();
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-700 active:scale-95"
+                >
+                  <LogOut className="h-4 w-4 text-rose-600" /> Logout
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setAuthView("login");
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm active:scale-95"
+                >
+                  <LogIn className="h-4 w-4" /> Login / Sign Up
+                </button>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/vendor/login"
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
+                >
+                  <Store className="h-4 w-4 text-brand-500" /> Vendor Panel
+                </Link>
+                <Link
+                  href="/admin/login"
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
+                >
+                  <ShieldCheck className="h-4 w-4 text-brand-500" /> Admin Panel
+                </Link>
+              </div>
             </div>
           </div>
         </>
