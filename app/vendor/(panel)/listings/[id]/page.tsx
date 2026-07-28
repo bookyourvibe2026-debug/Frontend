@@ -869,7 +869,6 @@ function AgendaTab({ listing }: { listing: Listing }) {
               <div className="space-y-2">
                 <ActionRow icon={<Ban size={16} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance" onClick={() => setSlotBlocked(activeSlot, true)} />
                 <ActionRow icon={<BookOpen size={16} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for walk-in guest" onClick={() => setOfflineModal(true)} />
-                <ActionRow icon={<Pause size={16} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot" onClick={() => holdSlot(activeSlot)} />
               </div>
             ) : (
               <div className="space-y-2">

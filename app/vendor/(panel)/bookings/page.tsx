@@ -1406,7 +1406,6 @@ export default function BookingsPage() {
               <div className="space-y-2">
                 <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setBlockReasonOpen(true)} />
                 <ActionRow icon={<BookOpen size={18} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for a walk-in or phone customer" onClick={() => startOfflineBooking(activeSlot)} />
-                <ActionRow icon={<Pause size={18} className="text-amber-500" />} color="amber" title="Keep on Hold" sub="Temporarily reserve this slot without full payment" onClick={() => setPendingConfirm({ title: "Keep on Hold", seconds: 8, run: () => holdSlot(activeSlot) })} />
               </div>
             ) : (
               <div className="space-y-3">
