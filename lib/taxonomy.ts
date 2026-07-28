@@ -169,3 +169,45 @@ export function subCategoryLabel(id: string): string {
   }
   return id;
 }
+
+/** Checks if a court hosting `courtSports` supports the player's selected `targetSport`.
+ * An empty `courtSports` array means the court hosts all sports for the venue. */
+export function matchesCourtSport(courtSports: string[] | undefined, targetSport: string | undefined): boolean {
+  if (!targetSport || !targetSport.trim()) return true;
+  if (!courtSports || courtSports.length === 0) return true;
+
+  const targetLower = targetSport.trim().toLowerCase();
+
+  return courtSports.some((s) => {
+    const sLower = s.trim().toLowerCase();
+    // 1. Direct case-insensitive match or substring match
+    if (sLower === targetLower || sLower.includes(targetLower) || targetLower.includes(sLower)) return true;
+
+    // 2. Map category ID <-> Label (e.g. "badminton" <-> "Badminton")
+    const catByTarget = SPORT_CATEGORIES.find((c) => c.id.toLowerCase() === targetLower || c.label.toLowerCase() === targetLower);
+    if (catByTarget) {
+      if (sLower === catByTarget.id.toLowerCase() || sLower === catByTarget.label.toLowerCase()) return true;
+    }
+
+    const catByS = SPORT_CATEGORIES.find((c) => c.id.toLowerCase() === sLower || c.label.toLowerCase() === sLower);
+    if (catByS) {
+      if (targetLower === catByS.id.toLowerCase() || targetLower === catByS.label.toLowerCase()) return true;
+    }
+
+    // 3. SubCategory mapping (e.g. "badminton-single" -> parent category "badminton" / "Badminton")
+    for (const cat of SPORT_CATEGORIES) {
+      const isSubOfCat = cat.subCategories.some((sub) => sub.id.toLowerCase() === targetLower || sub.label.toLowerCase() === targetLower);
+      if (isSubOfCat) {
+        if (sLower === cat.id.toLowerCase() || sLower === cat.label.toLowerCase()) return true;
+      }
+
+      const isSubOfS = cat.subCategories.some((sub) => sub.id.toLowerCase() === sLower || sub.label.toLowerCase() === sLower);
+      if (isSubOfS) {
+        if (targetLower === cat.id.toLowerCase() || targetLower === cat.label.toLowerCase()) return true;
+      }
+    }
+
+    return false;
+  });
+}
+

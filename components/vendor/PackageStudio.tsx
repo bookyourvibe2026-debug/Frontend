@@ -723,18 +723,23 @@ function CourtsField({ draft, update }: StepProps) {
                 placeholder={`Court ${index + 1}`}
                 className={inputClass}
               />
-              <button
-                type="button"
-                onClick={() => patch(index, { active: !court.active })}
-                title={court.active ? "Court is bookable" : "Court is hidden from booking"}
-                className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${
-                  court.active
-                    ? "border-vibe-violet bg-vibe-violet text-white"
-                    : "border-surface-border bg-white text-ink-faint"
-                }`}
-              >
-                {court.active ? "Active" : "Off"}
-              </button>
+            {(() => {
+              const isCourtActive = court.active !== false;
+              return (
+                <button
+                  type="button"
+                  onClick={() => patch(index, { active: !isCourtActive })}
+                  title={isCourtActive ? "Court is bookable" : "Court is hidden from booking"}
+                  className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${
+                    isCourtActive
+                      ? "border-vibe-violet bg-vibe-violet text-white"
+                      : "border-surface-border bg-white text-ink-faint"
+                  }`}
+                >
+                  {isCourtActive ? "Active" : "Off"}
+                </button>
+              );
+            })()}
               <button
                 type="button"
                 onClick={() => setCourts(courts.filter((_, i) => i !== index))}
@@ -3000,7 +3005,15 @@ export function PackageStudio({
     // Auto fallback for empty listing title to vendor profile business name
     const finalTitle = draft.title.trim() || profileName || `Udaipur ${draft.type} Club`;
     const startingPrice = computeStartingPrice(draft);
-    const finalDraft = { ...draft, title: finalTitle, price: startingPrice };
+    const finalDraft = {
+      ...draft,
+      title: finalTitle,
+      price: startingPrice,
+      courts: (draft.courts ?? []).map((c) => ({
+        ...c,
+        active: c.active !== false,
+      })),
+    };
 
     if (finalDraft.categories.length === 0) {
       setFormError("Select at least one category.");

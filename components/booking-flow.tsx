@@ -20,7 +20,7 @@ import { SignupModal } from "@/components/home/modals/SignupModal";
 import { cancelMyBooking, confirmMyBookingPayment, createMyBooking } from "@/lib/api/customerBookings";
 import { getVenueAvailability, type BookedRange } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
-import { categoryLabel } from "@/lib/taxonomy";
+import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
 // `nowMinutes` is aliased: the slot generator already has a local of that name.
 import { activeBoostPct, boostedPrice, nowMinutes as minutesOfDay } from "@/lib/lastMinBoost";
 import { downloadBookingTicket } from "@/lib/ticket";
@@ -253,9 +253,9 @@ export default function BookingFlow({
 
   // Courts that can host the selected sport. A court with no sports listed hosts everything.
   const courtsForSport = useMemo(() => {
-    const all = (listing.courts ?? []).filter((c) => c.active);
+    const all = (listing.courts ?? []).filter((c) => c.active !== false);
     if (!sport) return all;
-    return all.filter((c) => c.sports.length === 0 || c.sports.includes(sport));
+    return all.filter((c) => matchesCourtSport(c.sports, sport));
   }, [listing.courts, sport]);
 
   useEffect(() => {
