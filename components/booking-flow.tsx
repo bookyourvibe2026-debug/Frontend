@@ -17,7 +17,7 @@ import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
-import { createMyBooking } from "@/lib/api/customerBookings";
+import { cancelMyBooking, confirmMyBookingPayment, createMyBooking } from "@/lib/api/customerBookings";
 import { getVenueAvailability, type BookedRange } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { categoryLabel } from "@/lib/taxonomy";
@@ -206,22 +206,25 @@ export default function BookingFlow({
   const today = new Date();
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
-  const [durationMin, setDurationMin] = useState(120); // Default 2 hours (120 mins)
+  const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
   // "All" by default so every time slot shows up before the player narrows down.
   const [activeDaypart, setActiveDaypart] = useState<string>("All");
   const [time, setTime] = useState(START_TIMES[6]);
   const [endTime, setEndTime] = useState(START_TIMES[8]);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(-1);
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
-  // `generatedSlots` gets a new length/index mapping every time duration/date changes,
-  // so a raw index can silently end up pointing at a different slot than the one the
-  // player actually tapped. This tracks the real start time they picked so it can be
-  // re-resolved to whatever index represents that same time after regeneration.
-  const selectedStartTimeRef = useRef<string | null>(null);
-  function pickSlot(slot: { startTime: string; originalIndex: number }) {
-    selectedStartTimeRef.current = slot.startTime;
-    setSelectedSlotIndex(slot.originalIndex);
+
+  function toggleSlotSelection(index: number) {
+    setSelectedSlotIndices((prev) => {
+      if (prev.includes(index)) {
+        return prev.filter((i) => i !== index);
+      } else {
+        return [...prev, index].sort((a, b) => a - b);
+      }
+    });
   }
+
+  const selectedSlotIndex = selectedSlotIndices[0] ?? -1;
+  const durationMin = Math.max(60, selectedSlotIndices.length * 60);
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -352,30 +355,19 @@ export default function BookingFlow({
     return { startMin: minVal, endMin: maxVal, baseHourlyRate: Math.round(sum / slotsConfig.length), isDateHoliday: false, holidayReason: "" };
   }, [listing, date]);
 
-  // The stepper can go all the way up to the venue's full day for the selected
-  // date (e.g. 6 AM–11 PM = 1020 mins), in 30-min steps.
-  const maxDurationMin = Math.max(30, Math.min(1440, Math.floor((endMin - startMin) / 30) * 30));
-  useEffect(() => {
-    if (durationMin > maxDurationMin) setDurationMin(maxDurationMin);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxDurationMin]);
+  const maxDurationMin = Math.max(60, Math.min(1440, Math.floor((endMin - startMin) / 60) * 60));
 
-  // Generate slots dynamically based on durationMin selection
+  // Generate 1-hour slots
   const generatedSlots = useMemo(() => {
     if (listing.type !== "Turf" || !date || isDateHoliday) return [];
 
-    // A slot that's already started earlier today can't be booked — mark it "Past"
-    // so it renders disabled instead of letting the player pick a bygone time.
     const isToday = date === todayISO();
     const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
     const slots: any[] = [];
-    // Prefer per-date overrides if present, otherwise use global slotsList
     const override = listing.dateOverrides?.find((o) => o.date === date && !o.isHoliday);
     const slotsConfig = override?.slots && override.slots.length > 0 ? override.slots : (listing.slotsList || []);
 
-    // Vendor-blocked windows count as unavailable, exactly like real bookings — but
-    // they close the venue outright, so they take out every court rather than one.
     const unavailableRanges: UnavailableRange[] = [
       ...bookedRanges,
       ...slotsConfig
@@ -388,18 +380,12 @@ export default function BookingFlow({
         })),
     ];
 
-    /* Last Min Boost — the vendor's rule discounts specific hourly starts, but only
-     * while the slot is unbooked and the clock is inside their trigger window. It only
-     * runs for today: the window is a time-of-day comparison, so a 5:30 PM shopper must
-     * not pick up tomorrow's 6 PM deal. Mirrors booking.service.ts. */
     const boostNow = isToday ? minutesOfDay(new Date(nowTick)) : -1;
     const boostFor = (startTime24: string, status: string) =>
       status === "Available" && isToday
         ? activeBoostPct(listing.lastMinBoost, startTime24, boostNow, sport || undefined)
         : 0;
 
-    /* A slot is only sold out once every court on it is taken, so a three-court
-     * venue keeps selling 6-7 AM until all three are gone. */
     const statusFor = (slotStart: number, slotEnd: number) => {
       if (courtsForSport.length === 0) return slotStatusFor(slotStart, slotEnd, unavailableRanges);
       return freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).length > 0
@@ -409,13 +395,14 @@ export default function BookingFlow({
     const freeIdsFor = (slotStart: number, slotEnd: number) =>
       freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).map((c) => c.id);
 
-    // If no structured slots config, fall back to continuous window using startMin/endMin
+    const slotDuration = 60; // 1-hour duration per slot
+
     if (!slotsConfig || slotsConfig.length === 0) {
       let current = startMin;
       let idx = 0;
-      while (current + durationMin <= endMin) {
+      while (current + slotDuration <= endMin) {
         const slotStart = current;
-        const slotEnd = current + durationMin;
+        const slotEnd = current + slotDuration;
         const startTime24 = minutesToTime24(slotStart);
         const endTime24 = minutesToTime24(slotEnd);
         const startTime12 = minutesToTime12(slotStart);
@@ -425,7 +412,7 @@ export default function BookingFlow({
         if (startHour >= 12 && startHour < 17) label = "Afternoon";
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
-        const price = Math.round((durationMin / 60) * baseHourlyRate);
+        const price = baseHourlyRate;
         const slotStatus = isToday && slotStart <= nowMinutes ? "Past" : statusFor(slotStart, slotEnd);
         slots.push({
           startTime: startTime24,
@@ -439,15 +426,12 @@ export default function BookingFlow({
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx,
         });
-        current = slotEnd;
+        current += slotDuration;
         idx++;
       }
       return slots;
     }
 
-    // Build slots from configured slot windows (per-date or global).
-    // Contiguous windows are merged into one continuous range so long durations
-    // can span across them — a 6 AM–11 PM venue can take a 1020-min booking.
     const windows = slotsConfig
       .map((cfg) => {
         const start = time24ToMinutes(cfg.startTime);
@@ -471,11 +455,10 @@ export default function BookingFlow({
 
     let idx = 0;
     for (const range of ranges) {
-      // step in 15-minute increments to offer more choices
       let current = range.start;
-      while (current + durationMin <= range.end) {
+      while (current + slotDuration <= range.end) {
         const slotStart = current;
-        const slotEnd = current + durationMin;
+        const slotEnd = current + slotDuration;
         const startTime24 = minutesToTime24(slotStart % 1440);
         const endTime24 = minutesToTime24(slotEnd % 1440);
         const startTime12 = minutesToTime12(slotStart);
@@ -486,16 +469,13 @@ export default function BookingFlow({
         else if (startHour >= 17 && startHour < 22) label = "Evening";
         else if (startHour >= 22 || startHour < 5) label = "Night";
 
-        // Price = each covered window's hourly rate, pro-rated by the minutes used in it.
         let priceRaw = 0;
         for (const seg of range.segments) {
           const overlap = Math.min(seg.end, slotEnd) - Math.max(seg.start, slotStart);
           if (overlap > 0) priceRaw += (overlap / 60) * seg.hourly;
         }
-        const price = Math.round(priceRaw);
+        const price = Math.round(priceRaw) || baseHourlyRate;
 
-        // slotStart can run past 1440 for a window that continues past midnight —
-        // that's tomorrow's continuation, not "past", so only flag it within today itself.
         const slotStatus =
           isToday && slotStart < 1440 && slotStart <= nowMinutes ? "Past" : statusFor(slotStart, slotEnd);
 
@@ -513,11 +493,11 @@ export default function BookingFlow({
         });
 
         idx++;
-        current += 15; // advance by 15 minutes for finer granularity
+        current += slotDuration;
       }
     }
     return slots;
-  }, [listing, date, startMin, endMin, durationMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
+  }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
 
   // Filter generated slots by activeDaypart select filter — "All" shows every time of day.
   const filteredGeneratedSlots = useMemo(() => {
@@ -526,41 +506,28 @@ export default function BookingFlow({
   }, [generatedSlots, activeDaypart]);
 
   useEffect(() => {
-    // Re-select when the date or duration changes and the current pick is gone/unavailable.
     if (listing.type === "Turf" && date) {
-      // Prefer re-resolving by the actual start time the player tapped — indices shift
-      // whenever `generatedSlots` regenerates (a shorter/longer array on duration change),
-      // so checking the raw index alone can silently land on a different, unrelated slot
-      // that just happens to still be in-bounds and Available.
-      const wantedStart = selectedStartTimeRef.current;
-      const byStartTime = wantedStart
-        ? generatedSlots.find((s) => s.startTime === wantedStart && s.status === "Available")
-        : undefined;
-      if (byStartTime) {
-        setSelectedSlotIndex(byStartTime.originalIndex);
-        return;
+      const validIndices = selectedSlotIndices.filter(
+        (idx) => generatedSlots[idx] && generatedSlots[idx].status === "Available"
+      );
+      if (validIndices.length > 0) {
+        setSelectedSlotIndices(validIndices);
+      } else {
+        const firstAvail = generatedSlots.find((s) => s.status === "Available");
+        setSelectedSlotIndices(firstAvail ? [firstAvail.originalIndex] : []);
       }
-      const currentSlot = generatedSlots[selectedSlotIndex];
-      if (currentSlot && currentSlot.status === "Available") {
-        selectedStartTimeRef.current = currentSlot.startTime;
-        return;
-      }
-      const firstAvail = generatedSlots.find((s) => s.status === "Available");
-      selectedStartTimeRef.current = firstAvail ? firstAvail.startTime : null;
-      setSelectedSlotIndex(firstAvail ? firstAvail.originalIndex : -1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, listing.type, durationMin, bookedRanges]);
+  }, [date, listing.type, bookedRanges]);
 
-  // Courts actually bookable for the slot the player is on right now.
+  // Courts actually bookable for all selected slots.
   const freeCourts = useMemo(() => {
-    const ids: string[] = generatedSlots[selectedSlotIndex]?.freeCourtIds ?? [];
-    return courtsForSport.filter((c) => ids.includes(c.id));
-  }, [courtsForSport, generatedSlots, selectedSlotIndex]);
+    if (selectedSlotIndices.length === 0) return courtsForSport;
+    return courtsForSport.filter((c) =>
+      selectedSlotIndices.every((idx) => (generatedSlots[idx]?.freeCourtIds ?? []).includes(c.id))
+    );
+  }, [courtsForSport, generatedSlots, selectedSlotIndices]);
 
-  // Derived rather than synced through an effect: changing slot, sport or date can take
-  // the player's court away, and falling back here avoids a cascading re-render. Their
-  // explicit pick still wins for as long as it stays free.
   const effectiveCourtId = freeCourts.some((c) => c.id === selectedCourtId)
     ? selectedCourtId
     : (freeCourts[0]?.id ?? "");
@@ -576,25 +543,43 @@ export default function BookingFlow({
       return selectedTier.amount + addOnsTotal;
     }
     if (listing.type === "Turf") {
-      const activeSlot = generatedSlots[selectedSlotIndex];
-      return (activeSlot ? finalSlotPrice(activeSlot, selectedCourt, durationMin) : 0) + addOnsTotal;
+      if (selectedSlotIndices.length === 0) return addOnsTotal;
+      const slotsTotal = selectedSlotIndices.reduce((sum, idx) => {
+        const slot = generatedSlots[idx];
+        return sum + (slot ? finalSlotPrice(slot, selectedCourt, 60) : 0);
+      }, 0);
+      return slotsTotal + addOnsTotal;
     }
     return listing.price + addOnsTotal;
-  }, [listing, generatedSlots, selectedSlotIndex, selectedAddOnIds, selectedPriceTierId, selectedCourt, durationMin]);
+  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourt]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
-  // Play Protect ("agreed") is an optional paid add-on, not a required agreement —
-  // it must never gate the pay button itself.
   const canPay =
     phoneValid &&
     !!date &&
     (listing.type !== "Turf"
       ? !!time
-      : selectedSlotIndex !== -1 &&
+      : selectedSlotIndices.length > 0 &&
         !isDateHoliday &&
-        generatedSlots[selectedSlotIndex]?.status === "Available" &&
-        // A venue with courts needs one picked; a court-less venue books as a whole.
+        selectedSlotIndices.every((idx) => generatedSlots[idx]?.status === "Available") &&
         (courtsForSport.length === 0 || !!effectiveCourtId));
+
+  const partialConfig = listing.partialPayment ?? { enabled: true, type: "percentage", value: 25 };
+  const payNowAmount = useMemo(() => {
+    if (partialConfig.enabled === false) return activePrice;
+    if (partialConfig.type === "fixed") {
+      return Math.min(activePrice, Math.max(1, Math.round(partialConfig.value)));
+    }
+    const pct = Math.min(100, Math.max(1, partialConfig.value));
+    return Math.min(activePrice, Math.max(1, Math.round((activePrice * pct) / 100)));
+  }, [activePrice, partialConfig]);
+
+  const payAtVenueAmount = Math.max(0, activePrice - payNowAmount);
+
+  const [paymentGatewayOpen, setPaymentGatewayOpen] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [selectedPayMethod, setSelectedPayMethod] = useState<"UPI" | "Card" | "NetBanking">("UPI");
 
   useEffect(() => {
     onStateChange?.({ canPay, submitting, confirmed: step === "confirmed" });
@@ -629,9 +614,12 @@ export default function BookingFlow({
     setError("");
     try {
       let dateTime = "";
+      let durationMinutes = undefined;
       if (listing.type === "Turf") {
-        const activeSlot = generatedSlots[selectedSlotIndex];
-        dateTime = new Date(`${date}T${activeSlot.startTime}:00`).toISOString();
+        const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
+        const earliestSlot = generatedSlots[sortedIndices[0]];
+        dateTime = new Date(`${date}T${earliestSlot.startTime}:00`).toISOString();
+        durationMinutes = sortedIndices.length * 60;
       } else {
         dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
       }
@@ -644,14 +632,30 @@ export default function BookingFlow({
         priceTierId: selectedPriceTierId || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
-        durationMinutes: listing.type === "Turf" ? durationMin : undefined,
+        durationMinutes,
       });
-      setBooking(created);
-      setStep("confirmed");
+      setPendingBooking(created);
+      setPaymentGatewayOpen(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleConfirmPayment() {
+    if (!pendingBooking) return;
+    setConfirmingPayment(true);
+    setError("");
+    try {
+      const confirmed = await confirmMyBookingPayment(pendingBooking.orderId);
+      setBooking(confirmed);
+      setPaymentGatewayOpen(false);
+      setStep("confirmed");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Payment confirmation failed. Please try again.");
+    } finally {
+      setConfirmingPayment(false);
     }
   }
 
@@ -688,7 +692,6 @@ export default function BookingFlow({
           dateSelected={dateSelected}
           setDateSelected={setDateSelected}
           durationMin={durationMin}
-          setDurationMin={setDurationMin}
           maxDurationMin={maxDurationMin}
           activeDaypart={activeDaypart}
           setActiveDaypart={setActiveDaypart}
@@ -696,9 +699,12 @@ export default function BookingFlow({
           filteredGeneratedSlots={filteredGeneratedSlots}
           isDateHoliday={isDateHoliday}
           holidayReason={holidayReason}
-          selectedSlotIndex={selectedSlotIndex}
-          onPickSlot={pickSlot}
+          selectedSlotIndices={selectedSlotIndices}
+          onToggleSlotSelection={toggleSlotSelection}
           activePrice={activePrice}
+          payNowAmount={payNowAmount}
+          payAtVenueAmount={payAtVenueAmount}
+          partialConfig={partialConfig}
           visibleMonth={visibleMonth}
           visibleYear={visibleYear}
           setVisibleMonth={setVisibleMonth}
@@ -714,6 +720,133 @@ export default function BookingFlow({
 
       {step === "confirmed" && booking && (
         <ConfirmedStep listing={listing} booking={booking} onClose={onClose} embedded={embedded} />
+      )}
+
+      {/* Mandatory Partial Payment Gateway Modal */}
+      {paymentGatewayOpen && pendingBooking && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            {/* Gateway Header */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-5 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 backdrop-blur-xs">
+                    <ShieldCheck className="h-5 w-5 text-white" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-extrabold tracking-wide uppercase">BYV Secure Checkout</h3>
+                    <p className="text-[10px] text-emerald-100 font-medium">Powered by BYV Payment Gateway</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentGatewayOpen(false);
+                    setError("Payment cancelled. Booking remains unconfirmed and slot is not reserved.");
+                  }}
+                  className="rounded-full bg-white/10 p-1.5 text-white transition hover:bg-white/20"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-white/10 backdrop-blur-xs p-3 flex items-center justify-between border border-white/20">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-100">Order Reference</p>
+                  <p className="text-xs font-mono font-bold text-white">{pendingBooking.orderId}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-100">Venue</p>
+                  <p className="text-xs font-extrabold text-white truncate max-w-[140px]">{listing.title}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="p-5 space-y-4">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-500 font-medium">
+                  <span>Total Booking Price</span>
+                  <span className="font-bold text-slate-800">₹{pendingBooking.totalAmount.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    Mandatory Partial Payment (Paying Now)
+                  </span>
+                  <span className="text-base font-black">₹{(pendingBooking.paidAmount ?? payNowAmount).toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between text-amber-800 font-semibold bg-amber-50/70 p-2 rounded-xl border border-amber-100/60">
+                  <span>Balance Due at Venue</span>
+                  <span className="font-extrabold">₹{(pendingBooking.totalAmount - (pendingBooking.paidAmount ?? payNowAmount)).toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              {/* Payment Methods */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Select Payment Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPayMethod("UPI")}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
+                      selectedPayMethod === "UPI"
+                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-lg">⚡</span>
+                    <span className="text-[11px] mt-1">UPI / QR</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPayMethod("Card")}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
+                      selectedPayMethod === "Card"
+                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-lg">💳</span>
+                    <span className="text-[11px] mt-1">Cards</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPayMethod("NetBanking")}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
+                      selectedPayMethod === "NetBanking"
+                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-lg">🏦</span>
+                    <span className="text-[11px] mt-1">NetBanking</span>
+                  </button>
+                </div>
+              </div>
+
+              {error && <p className="rounded-xl bg-rose-50 p-2.5 text-center text-xs font-semibold text-rose-600">{error}</p>}
+
+              {/* Complete Payment Button */}
+              <button
+                type="button"
+                disabled={confirmingPayment}
+                onClick={handleConfirmPayment}
+                className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-4 text-sm font-extrabold uppercase tracking-wide text-white shadow-lg shadow-emerald-600/30 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+              >
+                {confirmingPayment
+                  ? "Processing Payment..."
+                  : `PAY ₹${(pendingBooking.paidAmount ?? payNowAmount).toLocaleString("en-IN")} TO LOCK SLOT`}
+              </button>
+
+              <p className="text-center text-[10px] text-slate-400">
+                🔒 128-bit SSL Encrypted • 100% Secure Transaction
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
@@ -754,7 +887,6 @@ function ReviewStep(props: {
   dateSelected: boolean;
   setDateSelected: (v: boolean) => void;
   durationMin: number;
-  setDurationMin: (v: number) => void;
   maxDurationMin: number;
   activeDaypart: string;
   setActiveDaypart: (v: string) => void;
@@ -762,16 +894,19 @@ function ReviewStep(props: {
   filteredGeneratedSlots: any[];
   isDateHoliday: boolean;
   holidayReason: string;
-  selectedSlotIndex: number;
-  onPickSlot: (slot: { startTime: string; originalIndex: number }) => void;
+  selectedSlotIndices: number[];
+  onToggleSlotSelection: (index: number) => void;
   activePrice: number;
+  payNowAmount: number;
+  payAtVenueAmount: number;
+  partialConfig: { enabled: boolean; type: "percentage" | "fixed"; value: number };
   visibleMonth: number;
   visibleYear: number;
   setVisibleMonth: (v: number | ((n: number) => number)) => void;
   setVisibleYear: (v: number | ((n: number) => number)) => void;
   selectedSport?: string;
   onSelectSport: (s: string) => void;
-  /** Courts still open for the selected slot. */
+  /** Courts still open for the selected slots. */
   freeCourts: Court[];
   /** Every court that hosts the selected sport — taken ones render disabled. */
   courtsForSport: Court[];
@@ -808,7 +943,6 @@ function ReviewStep(props: {
     dateSelected,
     setDateSelected,
     durationMin,
-    setDurationMin,
     maxDurationMin,
     activeDaypart,
     setActiveDaypart,
@@ -816,13 +950,16 @@ function ReviewStep(props: {
     filteredGeneratedSlots,
     isDateHoliday,
     holidayReason,
-    selectedSlotIndex,
-    onPickSlot,
+    selectedSlotIndices,
+    onToggleSlotSelection,
     freeCourts,
     courtsForSport,
     selectedCourtId,
     onSelectCourt,
     activePrice,
+    payNowAmount,
+    payAtVenueAmount,
+    partialConfig,
     visibleMonth,
     visibleYear,
     setVisibleMonth,
@@ -843,8 +980,33 @@ function ReviewStep(props: {
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
-  const selectedSlot = selectedSlotIndex >= 0 ? generatedSlots[selectedSlotIndex] : undefined;
   const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
+
+  const selectedSlotSummaryText = useMemo(() => {
+    if (selectedSlotIndices.length === 0) return "Tap available slots below";
+    const sorted = [...selectedSlotIndices].sort((a, b) => a - b);
+    if (sorted.length === 1) {
+      const s = generatedSlots[sorted[0]];
+      return s ? `${s.startTime12} – ${s.endTime12}` : "Selected";
+    }
+    let isContiguous = true;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1] !== sorted[i] + 1) {
+        isContiguous = false;
+        break;
+      }
+    }
+    if (isContiguous) {
+      const first = generatedSlots[sorted[0]];
+      const last = generatedSlots[sorted[sorted.length - 1]];
+      return first && last ? `${first.startTime12} – ${last.endTime12}` : `${sorted.length} Slots`;
+    } else {
+      return sorted
+        .map((idx) => generatedSlots[idx]?.startTime12)
+        .filter(Boolean)
+        .join(", ");
+    }
+  }, [selectedSlotIndices, generatedSlots]);
 
   // Full month grid (Monday start) matching Image 2
   const monthGrid = useMemo(() => {
@@ -1209,180 +1371,138 @@ function ReviewStep(props: {
                     </div>
                   ) : (
                     <>
-                      {/* Time card — selected range on the left, duration stepper on the right */}
-                      <div className="mt-2 flex items-stretch overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-                        <div className="flex flex-1 items-center gap-3 bg-gradient-to-r from-sky-100/80 via-sky-50/60 to-white p-3.5">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm ring-1 ring-sky-100">
-                            <Clock className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Selected time</p>
-                            <p className="text-[14px] font-extrabold leading-tight text-slate-800">
-                              {selectedSlot ? `${selectedSlot.startTime12} – ${selectedSlot.endTime12}` : "Pick a start time"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 border-l border-slate-100 px-3">
-                          <button
-                            type="button"
-                            disabled={durationMin <= 30}
-                            onClick={() => setDurationMin(Math.max(30, durationMin - 30))}
-                            aria-label="Decrease duration"
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="w-16 whitespace-nowrap text-center text-[13px] font-black text-slate-800">{durationMin} min</span>
-                          <button
-                            type="button"
-                            disabled={durationMin >= maxDurationMin}
-                            onClick={() => setDurationMin(Math.min(maxDurationMin, durationMin + 30))}
-                            aria-label="Increase duration"
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Time ruler — tap a time to set the start; the green band shows the selected range */}
+                      {/* Time Slot Selection Grid Section */}
                       {filteredGeneratedSlots.length === 0 ? (
-                        <p className="mt-3 py-3 text-center text-xs italic text-slate-500">
-                          {activeDaypart === "All" ? "No slots available on this date." : `No slots available for ${activeDaypart}.`}
+                        <p className="mt-3 py-4 text-center text-xs italic text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          {activeDaypart === "All"
+                            ? "No slots available on this date."
+                            : `No slots available for ${activeDaypart}.`}
                         </p>
                       ) : (
-                        <div className="mt-3 snap-x snap-mandatory overflow-x-auto scroll-smooth pb-1 scrollbar-none">
-                          {(() => {
-                            const selStartM = selectedSlot ? time24ToMinutes(selectedSlot.startTime) : -1;
-                            const selEndM = selectedSlot ? selStartM + durationMin : -1;
-                            const cols = filteredGeneratedSlots.map((slot) => {
-                              const m = time24ToMinutes(slot.startTime);
-                              return { slot, inRange: selectedSlot ? m >= selStartM && m < selEndM : false };
-                            });
-                            // Derive both end markers from the same `inRange` flags used for the
-                            // fill colour — anchoring the start marker to `selectedSlotIndex`
-                            // instead let the round handle drift onto a different column than
-                            // where the red fill actually began whenever indices didn't line up.
-                            const firstInRange = cols.findIndex((c) => c.inRange);
-                            const lastInRange = cols.reduce((acc, c, i) => (c.inRange ? i : acc), -1);
-                            return (
-                              <div className="flex min-w-max">
-                                {cols.map(({ slot, inRange }, i) => {
-                                  const available = slot.status === "Available";
-                                  const isStartCol = i === firstInRange;
-                                  const isEndCol = i === lastInRange;
-                                  return (
-                                    <button
-                                      key={slot.originalIndex}
-                                      type="button"
-                                      disabled={!available}
-                                      title={
-                                        available
-                                          ? `${slot.startTime12} · ₹${slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price}${
-                                              slot.boostPct ? ` (Last Minute Deal ${slot.boostPct}% off)` : ""
-                                            }`
-                                          : `${slot.startTime12} · ${slot.status}`
-                                      }
-                                      onClick={() => {
-                                        // Light haptic tick on selection — most mobile browsers support this,
-                                        // desktop/unsupported browsers just silently no-op.
-                                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
-                                        onPickSlot({ startTime: slot.startTime, originalIndex: slot.originalIndex });
-                                      }}
-                                      className="flex w-[74px] shrink-0 snap-center flex-col items-stretch"
-                                    >
-                                      <span
-                                        className={`text-center text-[11px] font-bold ${
-                                          !available ? "text-slate-300 line-through" : inRange ? "text-slate-900" : "text-slate-500"
-                                        }`}
-                                      >
-                                        {slot.startTime12}
-                                      </span>
-                                      <span className="mx-auto mt-1 h-1.5 w-px bg-slate-300" />
-                                      {/* Track segment + round slider handles at the range ends */}
-                                      <span className="relative mt-1.5 h-2 w-full">
-                                        <span
-                                          className={`absolute inset-0 ${inRange ? "bg-brand-500" : "bg-slate-200"} ${
-                                            isStartCol ? "rounded-l-full" : ""
-                                          } ${isEndCol ? "rounded-r-full" : ""}`}
-                                        />
-                                        {isStartCol && (
-                                          <span className="absolute left-0 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand-600 shadow" />
-                                        )}
-                                        {isEndCol && (
-                                          <span className="absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-white bg-brand-600 shadow" />
-                                        )}
-                                      </span>
-                                      <span
-                                        className={`mt-2.5 text-center text-[9px] font-bold ${
-                                          available
-                                            ? slot.boostPct
-                                              ? "text-red-600"
-                                              : inRange
-                                                ? "text-brand-600"
-                                                : "text-slate-400"
-                                            : slot.status === "Booked"
-                                            ? "text-rose-400"
-                                            : slot.status === "Past"
-                                            ? "text-slate-300"
-                                            : "text-amber-500"
-                                        }`}
-                                      >
-                                        {available
-                                          ? `₹${slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price}`
-                                          : slot.status}
-                                      </span>
-                                      {/* Last Minute Deal marker — the slot is live-discounted right now. */}
-                                      <span className="mt-0.5 block text-center text-[8px] font-black text-red-500">
-                                        {available && slot.boostPct ? `${slot.boostPct}% OFF` : " "}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
+                        <div className="mt-3 space-y-3">
+                          {/* Selected Time Summary Box */}
+                          <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-200">
+                                <Clock className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                  {selectedSlotIndices.length > 1
+                                    ? `${selectedSlotIndices.length} Slots Selected`
+                                    : selectedSlotIndices.length === 1
+                                    ? "Selected Slot"
+                                    : "No Slot Selected"}
+                                </p>
+                                <p className="text-[13px] font-extrabold text-slate-900 truncate">
+                                  {selectedSlotSummaryText}
+                                </p>
                               </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Last Minute Deal — live only while the vendor's trigger window is open. */}
-                      {selectedSlotIndex !== -1 && generatedSlots[selectedSlotIndex]?.boostPct > 0 && (
-                        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                          <span className="flex items-center gap-1.5 text-[11px] font-black text-red-600">
-                            <span className="rounded-md bg-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
-                              Last Minute Deal
-                            </span>
-                            {generatedSlots[selectedSlotIndex].boostPct}% OFF
-                          </span>
-                          <span className="text-[11px] font-bold text-slate-500">
-                            was{" "}
-                            <span className="line-through">
-                              ₹
-                              {priceForCourt(
-                                generatedSlots[selectedSlotIndex].price,
-                                courtsForSport.find((c) => c.id === selectedCourtId),
-                                durationMin
-                              ).toLocaleString("en-IN")}
-                            </span>
-                          </span>
-                        </div>
-                      )}
-
-                      {selectedSlotIndex !== -1 && generatedSlots[selectedSlotIndex] && (
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Start time</p>
-                            <p className="text-[13px] font-extrabold text-slate-900">{generatedSlots[selectedSlotIndex].startTime12}</p>
+                            </div>
+                            {selectedSlotIndices.length > 0 && (
+                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 shrink-0">
+                                {selectedSlotIndices.length * 60} min
+                              </span>
+                            )}
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">End time</p>
-                            <p className="text-[13px] font-extrabold text-slate-900">{generatedSlots[selectedSlotIndex].endTime12}</p>
+
+                          {/* Time Slots Grid (2-3 columns on mobile, 4+ on larger screens) */}
+                          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                            {filteredGeneratedSlots.map((slot) => {
+                              const isSelected = selectedSlotIndices.includes(slot.originalIndex);
+                              const available = slot.status === "Available";
+                              const finalPrice = slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price;
+
+                              return (
+                                <button
+                                  key={slot.originalIndex}
+                                  type="button"
+                                  disabled={!available}
+                                  onClick={() => {
+                                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+                                    onToggleSlotSelection(slot.originalIndex);
+                                  }}
+                                  className={`relative flex flex-col justify-between rounded-2xl border p-3 text-left transition-all duration-150 active:scale-[0.98] ${
+                                    isSelected
+                                      ? "border-brand-600 bg-brand-500 text-white shadow-md shadow-brand-500/20 ring-2 ring-brand-400 font-bold"
+                                      : available
+                                      ? "border-slate-200 bg-white text-slate-900 hover:border-brand-300 hover:shadow-sm"
+                                      : "border-slate-100 bg-slate-100/70 text-slate-400 cursor-not-allowed opacity-60"
+                                  }`}
+                                >
+                                  {/* Last Minute Deal Badge */}
+                                  {available && slot.boostPct > 0 && (
+                                    <span
+                                      className={`absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider ${
+                                        isSelected ? "bg-white text-brand-600" : "bg-red-500 text-white shadow-xs"
+                                      }`}
+                                    >
+                                      {slot.boostPct}% OFF
+                                    </span>
+                                  )}
+
+                                  <div>
+                                    {/* 1-Hour Time Duration e.g. 7:00 AM – 8:00 AM */}
+                                    <div className="flex items-center gap-1.5 pr-1">
+                                      <Clock
+                                        className={`h-3.5 w-3.5 shrink-0 ${
+                                          isSelected ? "text-white" : available ? "text-brand-500" : "text-slate-400"
+                                        }`}
+                                      />
+                                      <span
+                                        className={`text-[12px] font-extrabold leading-snug ${
+                                          isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
+                                        }`}
+                                      >
+                                        {slot.startTime12} – {slot.endTime12}
+                                      </span>
+                                    </div>
+
+                                    {!available && (
+                                      <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        {slot.status}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Price & Selection Checkbox */}
+                                  <div className="mt-2.5 flex items-center justify-between border-t pt-2 border-current/10">
+                                    <div className="flex items-baseline gap-1">
+                                      <span
+                                        className={`text-xs sm:text-sm font-black ${
+                                          isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400"
+                                        }`}
+                                      >
+                                        ₹{finalPrice.toLocaleString("en-IN")}
+                                      </span>
+                                      {slot.boostPct > 0 && available && (
+                                        <span className={`text-[10px] line-through ${isSelected ? "text-white/70" : "text-slate-400"}`}>
+                                          ₹{slot.price}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <span
+                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
+                                        isSelected
+                                          ? "border-white bg-white text-brand-600"
+                                          : available
+                                          ? "border-slate-300 bg-slate-50 text-transparent"
+                                          : "border-slate-200 bg-slate-100 text-transparent"
+                                      }`}
+                                    >
+                                      <Check className="h-3 w-3 stroke-[3]" />
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
 
                       {/* Court picker — only for venues that actually have courts. */}
-                      {courtsForSport.length > 0 && selectedSlotIndex !== -1 && generatedSlots[selectedSlotIndex] && (
+                      {courtsForSport.length > 0 && selectedSlotIndices.length > 0 && (
                         <div className="mt-4">
                           <div className="flex items-center justify-between">
                             <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -1396,11 +1516,10 @@ function ReviewStep(props: {
                             {courtsForSport.map((court) => {
                               const isFree = freeCourts.some((c) => c.id === court.id);
                               const active = selectedCourtId === court.id;
-                              const price = finalSlotPrice(
-                                generatedSlots[selectedSlotIndex],
-                                court,
-                                durationMin
-                              );
+                              const totalCourtPrice = selectedSlotIndices.reduce((sum, idx) => {
+                                const slot = generatedSlots[idx];
+                                return sum + (slot ? finalSlotPrice(slot, court, 60) : 0);
+                              }, 0);
                               return (
                                 <button
                                   key={court.id}
@@ -1411,8 +1530,8 @@ function ReviewStep(props: {
                                     active
                                       ? "border-[#0b9c65] bg-[#0b9c65] text-white shadow-sm"
                                       : isFree
-                                        ? "border-slate-200 bg-white text-slate-800 hover:border-[#0b9c65]"
-                                        : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+                                      ? "border-slate-200 bg-white text-slate-800 hover:border-[#0b9c65]"
+                                      : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
                                   }`}
                                 >
                                   <p className="text-[12px] font-extrabold leading-tight">{court.name}</p>
@@ -1421,7 +1540,7 @@ function ReviewStep(props: {
                                       active ? "text-white/80" : isFree ? "text-slate-500" : "text-slate-300"
                                     }`}
                                   >
-                                    {isFree ? `INR ${price}` : "Booked"}
+                                    {isFree ? `INR ${totalCourtPrice.toLocaleString("en-IN")}` : "Booked"}
                                   </p>
                                 </button>
                               );
@@ -1429,11 +1548,55 @@ function ReviewStep(props: {
                           </div>
                           {freeCourts.length === 0 && (
                             <p className="mt-2 text-[11px] font-semibold text-amber-600">
-                              Every court is booked for this time. Pick another slot.
+                              Every court is booked for one or more selected slots. Pick another slot.
                             </p>
                           )}
                         </div>
                       )}
+
+                      {/* Mandatory Partial Payment Breakdown */}
+                      <div className="mt-4 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white p-4 shadow-sm">
+                        <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs">
+                              💳
+                            </span>
+                            <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                              Payment Breakdown
+                            </span>
+                          </div>
+                          <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white tracking-wider">
+                            {partialConfig.type === "fixed" ? `₹${partialConfig.value} Fixed Deposit` : `${partialConfig.value}% Partial Payment`}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span>Total Booking Price</span>
+                            <span className="font-bold text-slate-900">₹{activePrice.toLocaleString("en-IN")}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between rounded-xl bg-emerald-100/70 px-3 py-2 text-emerald-950 font-bold">
+                            <span className="flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                              Mandatory Partial Payment (Pay Now)
+                            </span>
+                            <span className="text-sm font-black text-emerald-800">₹{payNowAmount.toLocaleString("en-IN")}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-amber-900 font-semibold">
+                            <span>Remaining Amount (Pay at Venue)</span>
+                            <span className="font-bold text-amber-800">₹{payAtVenueAmount.toLocaleString("en-IN")}</span>
+                          </div>
+                        </div>
+
+                        <p className="mt-3 text-[10px] font-medium leading-relaxed text-slate-500 flex items-start gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>
+                            Slot reservation requires completing the mandatory partial payment of <strong className="text-slate-800">₹{payNowAmount.toLocaleString("en-IN")}</strong> online. Balance <strong className="text-slate-800">₹{payAtVenueAmount.toLocaleString("en-IN")}</strong> is due at check-in.
+                          </span>
+                        </p>
+                      </div>
 
                     </>
                   )}
@@ -1468,7 +1631,6 @@ function ReviewStep(props: {
           </div>
 
           {/* RIGHT COLUMN */}
-          {/* RIGHT COLUMN */}
           <div className={`flex flex-col gap-3 shrink-0 w-full lg:w-80 ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}>
             {/* Checkout Header Card */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
@@ -1500,7 +1662,7 @@ function ReviewStep(props: {
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Time</p>
                     <p className="text-xs font-bold text-slate-800">
-                      {listing.type === "Turf" && selectedSlot ? `${selectedSlot.startTime12} to ${selectedSlot.endTime12}` : "Select Time"}
+                      {listing.type === "Turf" && selectedSlotIndices.length > 0 ? selectedSlotSummaryText : "Select Time"}
                     </p>
                   </div>
                 </div>
@@ -1614,7 +1776,7 @@ function ReviewStep(props: {
                   onClick={onPay}
                   className={`hidden w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition lg:block ${
                     canPay && !submitting
-                      ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:scale-[1.01]"
+                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:scale-[1.01]"
                       : "cursor-not-allowed bg-slate-300 text-white"
                   }`}
                   >
@@ -1622,7 +1784,7 @@ function ReviewStep(props: {
                     ? "Booking..."
                     : selectedTier
                     ? `Confirm ${selectedTier.label}`
-                    : "Confirm Booking"}
+                    : `PAY ₹${(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM`}
                 </button>
               )}
             </div>
@@ -1639,12 +1801,12 @@ function ReviewStep(props: {
       {!embedded && mobileStep === "slots" && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] rounded-t-3xl">
           <div>
-            <p className="text-[10px] font-bold text-[#0b9c65] uppercase">{formatDurationText(durationMin)} • {listing.type}</p>
-            <p className="text-2xl font-black text-slate-900">₹{activePrice.toLocaleString("en-IN")}</p>
+            <p className="text-[10px] font-bold text-[#0b9c65] uppercase">Pay Now: ₹{payNowAmount.toLocaleString("en-IN")} • Total: ₹{activePrice.toLocaleString("en-IN")}</p>
+            <p className="text-2xl font-black text-slate-900">₹{payNowAmount.toLocaleString("en-IN")}</p>
           </div>
           <button
             onClick={() => setMobileStep("checkout")}
-            disabled={!date || (listing.type === "Turf" && selectedSlotIndex === -1)}
+            disabled={!date || (listing.type === "Turf" && selectedSlotIndices.length === 0)}
             className="rounded-2xl bg-brand-600 hover:bg-brand-700 px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             CONTINUE
@@ -1660,7 +1822,7 @@ function ReviewStep(props: {
             className="w-full rounded-2xl bg-[#0b9c65] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 flex items-center justify-between px-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>
-              PAY ₹{(activePrice + (agreed ? 19 : 0)).toLocaleString("en-IN")}
+              PAY ₹{(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM
             </span>
             <ArrowRight className="h-5 w-5" />
           </button>

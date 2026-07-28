@@ -6,6 +6,7 @@ import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
 import { NAV_ITEMS_BY_VERTICAL, SHARED_NAV_ITEMS, MOBILE_NAV_ORDER } from "@/components/vendor/Sidebar";
 import { LastMinBoostSheet } from "@/components/vendor/LastMinBoostSheet";
+import { PartialPaymentSheet } from "@/components/vendor/PartialPaymentSheet";
 import { addVendorVerticals } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
 import type { VendorVertical } from "@/lib/api/types";
@@ -17,6 +18,7 @@ import {
   Instagram, 
   Linkedin,
   Megaphone,
+  CreditCard,
   ShieldCheck,
   ClipboardList,
   PhoneCall,
@@ -100,6 +102,7 @@ export default function MorePage() {
   const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
   const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
   const [boostOpen, setBoostOpen] = useState(false);
+  const [partialPaymentOpen, setPartialPaymentOpen] = useState(false);
   const [addingVertical, setAddingVertical] = useState<VendorVertical | null>(null);
   const [verticalError, setVerticalError] = useState<string | null>(null);
 
@@ -380,6 +383,14 @@ export default function MorePage() {
       {/* Actions */}
       <div className="space-y-3 mb-6">
         <button
+          onClick={() => setPartialPaymentOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-md hover:bg-emerald-700 transition-colors"
+        >
+          <CreditCard size={16} />
+          Mandatory Partial Payment
+        </button>
+
+        <button
           onClick={() => setBoostOpen(true)}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#dc2626] py-3 text-sm font-semibold text-white shadow-md hover:bg-red-700 transition-colors"
         >
@@ -443,6 +454,7 @@ export default function MorePage() {
       </div>
 
       {boostOpen && <LastMinBoostSheet onClose={() => setBoostOpen(false)} />}
+      {partialPaymentOpen && <PartialPaymentSheet onClose={() => setPartialPaymentOpen(false)} />}
     </div>
   );
 }

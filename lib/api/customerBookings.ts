@@ -37,3 +37,11 @@ export function cancelMyBooking(orderId: string, cancellationReason?: string) {
     audience: "customer",
   });
 }
+
+export function confirmMyBookingPayment(orderId: string, paymentId?: string) {
+  return apiRequest<Booking>(`/bookings/${orderId}/confirm-payment`, {
+    method: "POST",
+    body: { paymentId },
+    audience: "customer",
+  });
+}

@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield, Bell } from "lucide-react";
+import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield, Bell, Trophy } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { Toast } from "@/components/admin/Toast";
+import { HostMatchModal } from "@/components/community/HostMatchModal";
+import { HostManageModal } from "@/components/community/HostManageModal";
+import { PlayerJoinModal } from "@/components/community/PlayerJoinModal";
+import { getOpenHostedMatches } from "@/lib/api/hostedMatches";
+import type { HostedMatch } from "@/lib/api/types";
 
 interface Match {
   id: string;
@@ -53,6 +58,7 @@ const TESTIMONIALS = [
 
 export default function CommunityPage() {
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
+  const [realHostedMatches, setRealHostedMatches] = useState<HostedMatch[]>([]);
   const [clubs, setClubs] = useState<Club[]>(INITIAL_CLUBS);
   const [joinedMatches, setJoinedMatches] = useState<string[]>([]);
   const [joinedClubs, setJoinedClubs] = useState<string[]>([]);
@@ -60,7 +66,12 @@ export default function CommunityPage() {
   const [noticeModalOpen, setNoticeModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Modals state
+  // Real Hosted Match Modals state
+  const [hostMatchModalOpen, setHostMatchModalOpen] = useState(false);
+  const [managingMatch, setManagingMatch] = useState<HostedMatch | null>(null);
+  const [joiningMatch, setJoiningMatch] = useState<HostedMatch | null>(null);
+
+  // Legacy Modals state
   const [lobbyModalOpen, setLobbyModalOpen] = useState(false);
   const [clubModalOpen, setClubModalOpen] = useState(false);
   const [selectedJoinMatch, setSelectedJoinMatch] = useState<Match | null>(null);
@@ -82,8 +93,15 @@ export default function CommunityPage() {
     setCopiedLink(false);
   };
 
-  // Load persisted joined matches, clubs, and notifications on mount
+  // Load real open hosted matches & persisted joined matches on mount
   useEffect(() => {
+    let cancelled = false;
+    getOpenHostedMatches()
+      .then((data) => {
+        if (!cancelled) setRealHostedMatches(data);
+      })
+      .catch(() => {});
+
     try {
       const savedMatches = localStorage.getItem("byv_joined_matches");
       if (savedMatches) setJoinedMatches(JSON.parse(savedMatches));
@@ -121,6 +139,9 @@ export default function CommunityPage() {
     } catch (e) {
       console.error(e);
     }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleJoinMatch = (id: string, title: string) => {
@@ -340,7 +361,7 @@ export default function CommunityPage() {
 
           <div className="grid grid-cols-2 gap-2.5">
             <button
-              onClick={() => setLobbyModalOpen(true)}
+              onClick={() => setHostMatchModalOpen(true)}
               className="flex items-center justify-center gap-1.5 rounded-2xl bg-brand-600 py-3 text-xs font-bold text-white shadow-md shadow-brand-500/20"
             >
               <Plus className="h-4 w-4" /> Host Match
@@ -471,7 +492,7 @@ export default function CommunityPage() {
             </div>
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
               <button
-                onClick={() => setLobbyModalOpen(true)}
+                onClick={() => setHostMatchModalOpen(true)}
                 className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition hover:scale-[1.02]"
               >
                 <Plus className="h-4 w-4" /> Host Match Lobby
@@ -888,6 +909,37 @@ export default function CommunityPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* HOST MATCH MODALS */}
+      {hostMatchModalOpen && (
+        <HostMatchModal
+          onClose={() => setHostMatchModalOpen(false)}
+          onMatchCreated={(m) => {
+            setRealHostedMatches((prev) => [m, ...prev]);
+            setToast("Host Match published to community feed!");
+          }}
+        />
+      )}
+
+      {managingMatch && (
+        <HostManageModal
+          match={managingMatch}
+          onClose={() => setManagingMatch(null)}
+          onUpdated={(m) => {
+            setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item)));
+          }}
+        />
+      )}
+
+      {joiningMatch && (
+        <PlayerJoinModal
+          match={joiningMatch}
+          onClose={() => setJoiningMatch(null)}
+          onUpdated={(m) => {
+            setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item)));
+          }}
+        />
       )}
 
       <Toast message={toast} onDone={() => setToast(null)} />

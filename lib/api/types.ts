@@ -51,6 +51,12 @@ export interface SportCapacity {
   maxPlayers: number;
 }
 
+export interface PartialPaymentConfig {
+  enabled: boolean;
+  type: "percentage" | "fixed";
+  value: number;
+}
+
 export type { LastMinBoost } from "@/lib/lastMinBoost";
 import type { LastMinBoost } from "@/lib/lastMinBoost";
 
@@ -123,6 +129,8 @@ export interface Listing {
   dateOverrides?: DateOverride[];
   /** Last Min Boost rule — see lib/lastMinBoost.ts. Absent until the vendor configures one. */
   lastMinBoost?: LastMinBoost;
+  /** Mandatory partial payment rule configured by venue owner. */
+  partialPayment?: PartialPaymentConfig;
   technicalSpecs?: TechnicalSpec[];
   createdAt: string;
   updatedAt: string;
@@ -786,6 +794,65 @@ export interface Subscription {
   endDate?: string | null;
   sessionsRemaining?: number;
   status: SubscriptionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HostedMatchStatus =
+  | "Draft"
+  | "Awaiting Host Payment"
+  | "Open for Joining"
+  | "Full"
+  | "Completed"
+  | "Cancelled";
+
+export type ParticipantStatus =
+  | "Pending Approval"
+  | "Payment Pending"
+  | "Confirmed"
+  | "Rejected"
+  | "Cancelled";
+
+export interface HostedMatchParticipant {
+  participantId: string;
+  customerId?: string | null;
+  name: string;
+  phone?: string;
+  email?: string;
+  joinedAt: string;
+  status: ParticipantStatus;
+  paymentStatus: "pending" | "paid" | "failed";
+  paymentOrderId?: string;
+  amountPaid: number;
+}
+
+export interface HostedMatch {
+  _id: string;
+  matchId: string;
+  listingId: string | Listing;
+  vendorId: string;
+  hostCustomerId: string;
+  hostName: string;
+  hostPhone: string;
+  hostEmail?: string;
+  sport: string;
+  date: string;
+  dateTime: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  courtId?: string;
+  courtName?: string;
+  pricingType: "host_pays_all" | "split_cost";
+  totalTurfCost: number;
+  hostPaidAmount: number;
+  entryFeePerPlayer: number;
+  maxPlayers: number;
+  bookingId?: string | null;
+  hostPaymentOrderId?: string;
+  hostPaymentStatus: "pending" | "paid" | "failed";
+  status: HostedMatchStatus;
+  participants: HostedMatchParticipant[];
   createdAt: string;
   updatedAt: string;
 }

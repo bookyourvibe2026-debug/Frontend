@@ -113,6 +113,12 @@ export interface Listing {
   dateOverrides?: DateOverride[];
   /** Last Min Boost rule — see lib/lastMinBoost.ts. */
   lastMinBoost?: LastMinBoost;
+  /** Mandatory partial payment rule configured by venue owner. */
+  partialPayment?: {
+    enabled: boolean;
+    type: "percentage" | "fixed";
+    value: number;
+  };
   technicalSpecs?: TechnicalSpec[];
 }
 

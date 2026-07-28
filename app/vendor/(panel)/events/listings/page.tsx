@@ -54,7 +54,7 @@ export default function EventListingsPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="Community, Events & Coaching"
+        eyebrow="Community & Events"
         title="Event Listings"
         description="Publish and manage your events. Each listing takes bookings and check-ins just like a turf slot."
         right={

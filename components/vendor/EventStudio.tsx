@@ -34,7 +34,6 @@ const EVENT_SUBCATEGORIES = [
   { id: "workshop", label: "Workshop" },
   { id: "corporate-offsite", label: "Corporate Offsite" },
   { id: "trek-adventure", label: "Trek / Adventure" },
-  { id: "coaching-camp", label: "Coaching / Camp" },
   { id: "other", label: "Other" },
 ];
 
