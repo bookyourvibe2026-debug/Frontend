@@ -35,7 +35,7 @@ function AdminLoginInner() {
       return;
     }
     if (!password.trim()) {
-      setError("Enter your password.");
+      setError("Please enter the correct password to continue.");
       return;
     }
 
