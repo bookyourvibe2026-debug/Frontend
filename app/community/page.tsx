@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield, Bell, Trophy } from "lucide-react";
+import { Plus, Users, Calendar, MapPin, Check, X, MessageSquare, Shield, Bell, Trophy, Clock } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { Toast } from "@/components/admin/Toast";
@@ -391,6 +391,69 @@ export default function CommunityPage() {
                 )}
               </button>
             </div>
+
+            {/* REAL LIVE HOSTED MATCHES FEED (MOBILE) */}
+            {realHostedMatches.length > 0 && (
+              <div className="mb-4 space-y-3">
+                {realHostedMatches.map((m) => {
+                  const turfTitle = typeof m.listingId === "object" ? m.listingId.title : "Sports Venue";
+                  const turfLocation = typeof m.listingId === "object" ? `${m.listingId.city || ""}` : "";
+                  const confirmedCount = m.participants.filter((p) => p.status === "Confirmed").length;
+                  const spotsAvailable = Math.max(0, m.maxPlayers - confirmedCount);
+                  const isFull = confirmedCount >= m.maxPlayers;
+
+                  return (
+                    <MobileCard key={m._id} className="flex flex-col gap-2.5 border-emerald-100 bg-gradient-to-br from-emerald-50/30 to-white">
+                      <div className="flex items-center justify-between">
+                        <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[10px] font-extrabold text-brand-700 uppercase tracking-wider">
+                          {m.sport}
+                        </span>
+                        {m.entryFeePerPlayer === 0 ? (
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                            FREE JOIN
+                          </span>
+                        ) : (
+                          <span className="text-xs font-black text-emerald-700">
+                            ₹{m.entryFeePerPlayer} / player
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="text-base font-extrabold text-slate-900 leading-snug">{turfTitle}</h3>
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="h-3 w-3 text-slate-400 shrink-0" /> {turfLocation || "Venue Location"} • Host: <span className="font-bold text-slate-700">{m.hostName}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs border-t border-slate-100 pt-2 mt-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-brand-500" /> {m.startTime} – {m.endTime}
+                          </span>
+                          <span className="text-[11px] font-bold text-emerald-700">
+                            {spotsAvailable} / {m.maxPlayers} Spots Left
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setJoiningMatch(m)}
+                          className={`rounded-full px-4 py-1.5 text-xs font-bold transition shadow-xs ${
+                            isFull
+                              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
+                        >
+                          {isFull ? "Full" : m.entryFeePerPlayer === 0 ? "Free Join" : "Join Match"}
+                        </button>
+                      </div>
+                    </MobileCard>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               {matches.map((match) => {
                 const isJoined = joinedMatches.includes(match.id);
@@ -512,6 +575,76 @@ export default function CommunityPage() {
             <h2 className="text-2xl font-extrabold text-slate-900">Active Match Lobbies</h2>
             <p className="text-sm text-slate-500">Jump into open spots or team up for upcoming matches</p>
           </div>
+
+          {/* REAL LIVE HOSTED MATCHES FEED (DESKTOP) */}
+          {realHostedMatches.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xs font-extrabold text-brand-600 uppercase tracking-widest mb-4">
+                🔥 Live Player-Hosted Matches
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {realHostedMatches.map((m) => {
+                  const turfTitle = typeof m.listingId === "object" ? m.listingId.title : "Sports Venue";
+                  const turfCity = typeof m.listingId === "object" ? `${m.listingId.city || ""}` : "";
+                  const confirmedCount = m.participants.filter((p) => p.status === "Confirmed").length;
+                  const spotsAvailable = Math.max(0, m.maxPlayers - confirmedCount);
+                  const isFull = confirmedCount >= m.maxPlayers;
+
+                  return (
+                    <article
+                      key={m._id}
+                      className="flex flex-col justify-between rounded-[1.75rem] border border-emerald-100 bg-gradient-to-br from-emerald-50/40 via-white to-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="rounded-full bg-brand-50 border border-brand-100 px-3 py-1 text-xs font-extrabold text-brand-700">
+                            {m.sport}
+                          </span>
+                          {m.entryFeePerPlayer === 0 ? (
+                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 uppercase tracking-wider">
+                              FREE JOIN
+                            </span>
+                          ) : (
+                            <span className="text-sm font-black text-emerald-700">
+                              ₹{m.entryFeePerPlayer} / player
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="mt-4 text-xl font-extrabold text-slate-950 leading-tight">{turfTitle}</h3>
+                        <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {turfCity || "Venue Location"} • Host: <span className="font-bold text-slate-800">{m.hostName}</span>
+                        </p>
+
+                        <div className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 rounded-xl p-2.5">
+                          <Clock className="h-4 w-4 text-brand-500 shrink-0" />
+                          <span>{m.date} · {m.startTime} – {m.endTime}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+                        <span className="text-xs font-bold text-emerald-700">
+                          {spotsAvailable} / {m.maxPlayers} Spots Available
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJoiningMatch(m)}
+                          className={`flex items-center gap-1 rounded-full px-5 py-2.5 text-xs font-bold transition shadow-sm ${
+                            isFull
+                              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
+                        >
+                          {isFull ? "Lobby Full" : m.entryFeePerPlayer === 0 ? "Free Join" : "Join Match"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-3">
             {matches.map((match) => {
               const isJoined = joinedMatches.includes(match.id);
@@ -916,7 +1049,9 @@ export default function CommunityPage() {
         <HostMatchModal
           onClose={() => setHostMatchModalOpen(false)}
           onMatchCreated={(m) => {
-            setRealHostedMatches((prev) => [m, ...prev]);
+            getOpenHostedMatches()
+              .then((data) => setRealHostedMatches(data))
+              .catch(() => setRealHostedMatches((prev) => [m, ...prev]));
             setToast("Host Match published to community feed!");
           }}
         />
@@ -927,7 +1062,9 @@ export default function CommunityPage() {
           match={managingMatch}
           onClose={() => setManagingMatch(null)}
           onUpdated={(m) => {
-            setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item)));
+            getOpenHostedMatches()
+              .then((data) => setRealHostedMatches(data))
+              .catch(() => setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item))));
           }}
         />
       )}
@@ -937,7 +1074,9 @@ export default function CommunityPage() {
           match={joiningMatch}
           onClose={() => setJoiningMatch(null)}
           onUpdated={(m) => {
-            setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item)));
+            getOpenHostedMatches()
+              .then((data) => setRealHostedMatches(data))
+              .catch(() => setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item))));
           }}
         />
       )}
