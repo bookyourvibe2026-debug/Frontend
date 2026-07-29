@@ -88,30 +88,30 @@ export function SportsCategoryBar({
               key={cat.id}
               type="button"
               onClick={() => handleCategoryClick(cat.id)}
-              className={`group relative flex h-[100px] w-[94px] shrink-0 flex-col items-center justify-between rounded-[22px] border p-3 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
+              className={`group relative flex h-[78px] w-[76px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
                 isSelected
                   ? "border-[#0b9c65] bg-emerald-50/50 ring-2 ring-[#0b9c65]/30 shadow-md shadow-[#0b9c65]/15 scale-[1.03]"
                   : "border-slate-100 bg-white text-slate-700 hover:border-slate-300 hover:shadow-xs"
               } ${pillClassName}`}
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 text-3xl transition group-hover:scale-110">
+              <span className="flex items-center justify-center text-[34px] leading-none transition group-hover:scale-110">
                 {cat.emoji ? (
                   <span>{cat.emoji}</span>
                 ) : cat.image ? (
                   <Image
                     src={cat.image}
                     alt={cat.label}
-                    width={32}
-                    height={32}
+                    width={34}
+                    height={34}
                     unoptimized
-                    className="h-8 w-8 object-contain"
+                    className="h-8.5 w-8.5 object-contain"
                   />
                 ) : cat.icon ? (
-                  <cat.icon className={`h-7 w-7 ${isSelected ? "text-[#0b9c65]" : "text-slate-500"}`} />
+                  <cat.icon className={`h-8 w-8 ${isSelected ? "text-[#0b9c65]" : "text-slate-500"}`} />
                 ) : null}
               </span>
               <span
-                className={`text-xs font-black tracking-tight truncate w-full ${
+                className={`text-[11px] font-extrabold tracking-tight truncate w-full ${
                   isSelected ? "text-[#0b9c65]" : "text-slate-800"
                 }`}
               >

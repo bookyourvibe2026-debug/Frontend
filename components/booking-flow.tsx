@@ -229,17 +229,17 @@ function SportChips({
             key={catId}
             type="button"
             onClick={() => handleSelect(name)}
-            className={`group relative flex h-[88px] w-[82px] shrink-0 flex-col items-center justify-between rounded-2xl border p-2.5 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
+            className={`group relative flex h-[78px] w-[76px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
               active
                 ? "border-[#0b9c65] bg-white ring-2 ring-[#0b9c65]/20 shadow-md shadow-[#0b9c65]/15 scale-[1.02]"
                 : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-xs"
             }`}
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-2xl transition group-hover:scale-110">
+            <span className="flex items-center justify-center text-[34px] leading-none transition group-hover:scale-110">
               {sportEmoji(name)}
             </span>
             <span
-              className={`text-[11.5px] font-extrabold tracking-tight truncate w-full ${
+              className={`text-[11px] font-extrabold tracking-tight truncate w-full ${
                 active ? "text-[#0b9c65]" : "text-slate-800"
               }`}
             >
