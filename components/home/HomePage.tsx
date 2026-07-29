@@ -107,7 +107,7 @@ export default function HomePage() {
         // Keep old mapping for compatibility with other components
         "book-now": "/venues",
         "find-players": "/community",
-        offers: "/offers",
+        offers: "/deals",
         venue: `/venues?category=${gameId}`,
         food: "/food",
         challenge: "/challenges",

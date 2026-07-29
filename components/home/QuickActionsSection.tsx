@@ -29,18 +29,18 @@ export function QuickActionsSection({
         onAction={onViewAllQuickActions}
       />
 
-      <div className="flex flex-wrap items-center justify-start gap-5 sm:gap-7 py-4">
+      <div className="flex flex-wrap items-center justify-start gap-6 sm:gap-8 py-4">
         {QUICK_ACTIONS.map((a) => (
           <button
             key={a.id}
             type="button"
             onClick={() => onQuickAction(a.id, "")}
-            className="flex flex-col items-center gap-2.5 text-center group cursor-pointer transition active:scale-95 duration-150"
+            className="flex w-24 flex-col items-center gap-3 text-center group cursor-pointer transition active:scale-95 duration-150"
           >
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-brand-500 shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-slate-50 transition duration-200 group-hover:scale-105 group-hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] group-hover:border-brand-200">
-              <a.icon className="h-6 w-6 stroke-[1.75]" />
+            <span className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-white text-[#f97316] shadow-md shadow-slate-200/50 border border-slate-100 transition duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:border-orange-200">
+              <a.icon className="h-9 w-9 stroke-[2]" />
             </span>
-            <span className="text-xs font-semibold text-slate-800 tracking-tight group-hover:text-brand-600 transition-colors duration-200 sm:text-sm">
+            <span className="text-xs font-extrabold text-slate-800 tracking-tight group-hover:text-[#f97316] transition-colors duration-200 sm:text-sm">
               {a.label}
             </span>
           </button>

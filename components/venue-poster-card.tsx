@@ -51,10 +51,7 @@ export function VenuePosterCard({
       )}
 
       <div className="absolute inset-x-0 bottom-0 p-3.5">
-        {subtitle && (
-          <p className="truncate text-[9.5px] font-bold uppercase tracking-[0.15em] text-white/70">{subtitle}</p>
-        )}
-        <h3 className="mt-0.5 line-clamp-2 text-[14.5px] font-black leading-tight text-white">{title}</h3>
+        <h3 className="line-clamp-2 text-[14.5px] font-black leading-tight text-white">{title}</h3>
         <div className="mt-1.5 flex items-center justify-between gap-2">
           {city && (
             <span className="flex min-w-0 items-center gap-1 truncate text-[11px] font-medium text-white/70">

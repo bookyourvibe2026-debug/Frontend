@@ -115,7 +115,6 @@ export default function VendorProfilePage() {
                   href={`/venues/${listing.slug || listing._id}`}
                   image={listing.coverImage}
                   title={listing.title}
-                  subtitle={listing.categories.map(categoryLabel).join(", ") || listing.type}
                   city={listing.city}
                   price={listing.price}
                 />

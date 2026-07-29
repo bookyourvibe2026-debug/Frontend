@@ -23,7 +23,37 @@ interface VenueCard {
   badge?: string;
 }
 
+import { useRouter } from "next/navigation";
+import { SPORT_CATEGORIES } from "@/lib/taxonomy";
+import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
+
+const EMOJI_MAP: Record<string, string> = {
+  cricket: "🏏",
+  football: "⚽",
+  badminton: "🏸",
+  pickleball: "🏓",
+  tennis: "🎾",
+  "table-tennis": "🏓",
+  basketball: "🏀",
+  volleyball: "🏐",
+  swimming: "🏊",
+  "snooker-pool": "🎱",
+  skating: "🛼",
+  "indoor-games": "🎮",
+};
+
+const VENUE_CATEGORIES: SportCategoryItem[] = [
+  { id: "", label: "All Sports", emoji: "⚡" },
+  ...SPORT_CATEGORIES.map((cat) => ({
+    id: cat.id,
+    label: cat.label,
+    emoji: EMOJI_MAP[cat.id],
+    image: cat.image,
+  })),
+];
+
 function VenuesPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const category = searchParams.get("category") ?? "";
   const [venues, setVenues] = useState<Listing[]>([]);
@@ -79,7 +109,6 @@ function VenuesPageInner() {
           id: l._id,
           href: `/venues/${l.slug || l._id}`,
           title: l.title,
-          subtitle: l.categories.map(categoryLabel).join(", ") || l.type,
           image: l.coverImage,
           city: l.city,
           price: l.price,
@@ -91,7 +120,6 @@ function VenuesPageInner() {
         id: vendorId,
         href: `/venues/vendor/${vendorId}`,
         title: profile?.businessName ?? listings[0].title,
-        subtitle: `${listings.length} venues`,
         image: profile?.poster || profile?.banner || listings[0].coverImage,
         city: profile?.city ?? listings[0].city,
         price: Math.min(...listings.map((l) => l.price)),
@@ -103,7 +131,6 @@ function VenuesPageInner() {
         id: l._id,
         href: `/venues/${l.slug || l._id}`,
         title: l.title,
-        subtitle: l.categories.map(categoryLabel).join(", ") || l.type,
         image: l.coverImage,
         city: l.city,
         price: l.price,
@@ -132,6 +159,15 @@ function VenuesPageInner() {
               Location, sport, and price — at a glance.
             </p>
           </div>
+
+          <SportsCategoryBar
+            categories={VENUE_CATEGORIES}
+            selectedId={category}
+            variant="card"
+            onSelectCategory={(id) => {
+              router.push(id ? `/venues?category=${id}` : "/venues");
+            }}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             {cards.map((card) => (

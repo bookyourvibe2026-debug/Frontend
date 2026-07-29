@@ -14,7 +14,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon, Layers } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
@@ -25,7 +25,7 @@ import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
 // `nowMinutes` is aliased: the slot generator already has a local of that name.
 import { activeBoostPct, boostedPrice, nowMinutes as minutesOfDay } from "@/lib/lastMinBoost";
 import { downloadBookingTicket } from "@/lib/ticket";
-import type { Booking, Court, Listing, PaymentMethod } from "@/lib/api/types";
+import type { AddOn, Booking, Court, Listing, PaymentMethod } from "@/lib/api/types";
 
 type Step = "review" | "confirmed";
 
@@ -100,6 +100,70 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Game-specific Add-ons & Equipment filtering.
+ * Ensures users only see add-ons relevant to their selected sport (e.g. Cricket kit for Cricket,
+ * Football/Bibs for Football, Badminton rackets for Badminton, Swimming goggles for Swimming).
+ */
+export function isAddOnForSport(addOn: AddOn, selectedSport?: string): boolean {
+  if (!selectedSport) return true;
+  const s = selectedSport.toLowerCase().trim();
+
+  // 1. Explicit sport mapping if vendor configured sports on this add-on
+  if (addOn.sports && addOn.sports.length > 0) {
+    return addOn.sports.some((sp: string) => {
+      const spLower = sp.toLowerCase().trim();
+      return (
+        spLower === s ||
+        categoryLabel(spLower).toLowerCase() === categoryLabel(s).toLowerCase() ||
+        categoryLabel(spLower).toLowerCase().includes(s) ||
+        s.includes(categoryLabel(spLower).toLowerCase())
+      );
+    });
+  }
+
+  // 2. Smart text keyword matching for add-ons (including default/legacy ones)
+  const label = addOn.label.toLowerCase();
+
+  // Keyword dictionary per sport
+  const sportKeywords: Record<string, string[]> = {
+    cricket: ["cricket", "bat", "stump", "pad", "glove", "helmet", "umpire", "leather ball", "season ball", "cric"],
+    football: ["football", "futsal", "bib", "cone", "goalkeeper", "shin guard", "shin-guard", "goalie"],
+    badminton: ["badminton", "racket", "racquet", "shuttle", "shuttlecock", "feather", "stringing"],
+    pickleball: ["pickleball", "paddle"],
+    tennis: ["tennis", "racket", "racquet", "tennis ball"],
+    swimming: ["swimming", "swim", "goggles", "goggle", "cap", "kickboard", "float", "fin", "trunks", "suit"],
+    basketball: ["basketball", "hoop"],
+    volleyball: ["volleyball"],
+    "table-tennis": ["table tennis", "ping pong", "tt ball"],
+    "snooker-pool": ["cue", "snooker", "pool", "chalk"],
+    skating: ["skate", "skating", "knee pad", "elbow pad"],
+  };
+
+  // Find if label matches the selected sport's keywords
+  const selectedSportKey = Object.keys(sportKeywords).find(
+    (k) => s.includes(k) || categoryLabel(s).toLowerCase().includes(k)
+  );
+
+  if (selectedSportKey) {
+    const currentSportKeywords = sportKeywords[selectedSportKey];
+    const isExplicitForCurrentSport = currentSportKeywords.some((kw) => label.includes(kw));
+
+    // Check if label explicitly matches keywords of OTHER sports
+    for (const [sportKey, keywords] of Object.entries(sportKeywords)) {
+      if (sportKey !== selectedSportKey) {
+        if (keywords.some((kw) => label.includes(kw))) {
+          // If it matches another sport's exclusive keyword, exclude it unless it also matched this sport
+          if (!isExplicitForCurrentSport) return false;
+        }
+      }
+    }
+  }
+
+  // General add-ons (e.g. "Chilled water crate", "Coaching trial session", "Towel") or items for this sport
+  return true;
+}
+
 /** Emoji per sport — mirrors the venue page's grid so both surfaces match. */
 function sportEmoji(sportName: string): string {
   const l = sportName.toLowerCase();
@@ -130,24 +194,57 @@ function SportChips({
   onSelect: (s: string) => void;
   className?: string;
 }) {
-  if (!listing.categories || listing.categories.length === 0) return null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const categories = useMemo(() => {
+    const raw = listing.categories ?? [];
+    if (!sport || raw.length <= 1) return raw;
+
+    const activeCatId = raw.find((catId) => categoryLabel(catId).toLowerCase() === sport.toLowerCase());
+    if (!activeCatId) return raw;
+
+    const rest = raw.filter((catId) => catId !== activeCatId);
+    return [activeCatId, ...rest];
+  }, [listing.categories, sport]);
+
+  const handleSelect = (name: string) => {
+    onSelect(name);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ left: 0, behavior: "smooth" });
+    }
+  };
+
+  if (!categories || categories.length === 0) return null;
+
   return (
     <div
-      className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      ref={scrollRef}
+      className={`flex items-center gap-2.5 overflow-x-auto py-1.5 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
-      {listing.categories.map((catId) => {
+      {categories.map((catId) => {
         const name = categoryLabel(catId);
-        const active = sport === name;
+        const active = sport?.toLowerCase() === name.toLowerCase();
         return (
           <button
             key={catId}
             type="button"
-            onClick={() => onSelect(name)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] font-bold transition ${
-              active ? "border-[#0b9c65] bg-[#0b9c65] text-white shadow-sm" : "border-slate-200 bg-white text-slate-600"
+            onClick={() => handleSelect(name)}
+            className={`group relative flex h-[88px] w-[82px] shrink-0 flex-col items-center justify-between rounded-2xl border p-2.5 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
+              active
+                ? "border-[#0b9c65] bg-white ring-2 ring-[#0b9c65]/20 shadow-md shadow-[#0b9c65]/15 scale-[1.02]"
+                : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-xs"
             }`}
           >
-            <span>{sportEmoji(name)}</span> {name}
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-2xl transition group-hover:scale-110">
+              {sportEmoji(name)}
+            </span>
+            <span
+              className={`text-[11.5px] font-extrabold tracking-tight truncate w-full ${
+                active ? "text-[#0b9c65]" : "text-slate-800"
+              }`}
+            >
+              {name}
+            </span>
           </button>
         );
       })}
@@ -294,24 +391,22 @@ export default function BookingFlow({
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
-  // Generate all *upcoming* dates for the currently visible month/year — past dates are never bookable.
+  // Generate all upcoming dates for continuous scrolling across months and years (180 days into future)
   const dateOptions = useMemo(() => {
-    const list: { iso: string; dayNum: number; weekday: string; monthLabel: string }[] = [];
-    const month = visibleMonth;
-    const year = visibleYear;
+    const list: { iso: string; dayNum: number; weekday: string; monthLabel: string; month: number; year: number }[] = [];
     const minIso = todayISO();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    for (let dnum = 1; dnum <= daysInMonth; dnum++) {
-      const d = new Date(year, month, dnum);
+    const startDate = new Date();
+    for (let i = 0; i < 180; i++) {
+      const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
       const iso = localDateISO(d);
       if (iso < minIso) continue;
       const dayNum = d.getDate();
       const weekday = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
       const monthLabel = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      list.push({ iso, dayNum, weekday, monthLabel });
+      list.push({ iso, dayNum, weekday, monthLabel, month: d.getMonth(), year: d.getFullYear() });
     }
     return list;
-  }, [visibleMonth, visibleYear]);
+  }, []);
 
   const activeMonthLabel = useMemo(() => {
     return `${new Date(visibleYear, visibleMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
@@ -753,6 +848,7 @@ export default function BookingFlow({
           }}
           freeCourts={freeCourts}
           courtsForSport={courtsForSport}
+          selectedCourts={selectedCourts}
           selectedCourtIds={effectiveCourtIds}
           onToggleCourt={toggleCourt}
         />
@@ -924,7 +1020,7 @@ function ReviewStep(props: {
   error: string;
   onClose: () => void;
   onPay: () => void;
-  dateOptions: { iso: string; dayNum: number; weekday: string; monthLabel: string }[];
+  dateOptions: { iso: string; dayNum: number; weekday: string; monthLabel: string; month: number; year: number }[];
   activeMonthLabel: string;
   dateSelected: boolean;
   setDateSelected: (v: boolean) => void;
@@ -955,6 +1051,8 @@ function ReviewStep(props: {
   freeCourts: Court[];
   /** Every court that hosts the selected sport — taken ones render disabled. */
   courtsForSport: Court[];
+  /** Courts currently selected for the booking. */
+  selectedCourts: Court[];
   /** Courts the player has taken for the selected slots — several are allowed. */
   selectedCourtIds: string[];
   onToggleCourt: (id: string) => void;
@@ -1000,6 +1098,7 @@ function ReviewStep(props: {
     onToggleSlotSelection,
     freeCourts,
     courtsForSport,
+    selectedCourts,
     selectedCourtIds,
     onToggleCourt,
     activePrice,
@@ -1026,6 +1125,62 @@ function ReviewStep(props: {
 
   const today = new Date();
   const [mobileStep, setMobileStep] = useState<"slots" | "checkout">("slots");
+
+  const dateStripRef = useRef<HTMLDivElement>(null);
+
+  // Track horizontal scrolling of date strip to dynamically update Month Header
+  const handleDateStripScroll = () => {
+    if (!dateStripRef.current || dateOptions.length === 0) return;
+    const container = dateStripRef.current;
+    const cardWidth = 60; // 48px width + 12px gap
+    const activeIdx = Math.max(
+      0,
+      Math.min(dateOptions.length - 1, Math.floor((container.scrollLeft + cardWidth / 2) / cardWidth))
+    );
+    const currentOpt = dateOptions[activeIdx];
+    if (currentOpt && currentOpt.monthLabel.toUpperCase() !== activeMonthLabel.toUpperCase()) {
+      setVisibleMonth(currentOpt.month);
+      setVisibleYear(currentOpt.year);
+    }
+  };
+
+  const navigateMonth = (direction: "next" | "prev") => {
+    if (!dateStripRef.current || dateOptions.length === 0) return;
+    const currentOpt = dateOptions.find((d) => d.monthLabel.toUpperCase() === activeMonthLabel.toUpperCase()) || dateOptions[0];
+    let targetIdx = -1;
+
+    if (direction === "next") {
+      targetIdx = dateOptions.findIndex(
+        (d) => d.year > currentOpt.year || (d.year === currentOpt.year && d.month > currentOpt.month)
+      );
+    } else {
+      const startOfCurrentIdx = dateOptions.findIndex(
+        (d) => d.month === currentOpt.month && d.year === currentOpt.year
+      );
+      const scrollLeft = dateStripRef.current.scrollLeft;
+      if (startOfCurrentIdx >= 0 && scrollLeft > startOfCurrentIdx * 60 + 20) {
+        targetIdx = startOfCurrentIdx;
+      } else {
+        const prevMonth = currentOpt.month === 0 ? 11 : currentOpt.month - 1;
+        const prevYear = currentOpt.month === 0 ? currentOpt.year - 1 : currentOpt.year;
+        targetIdx = dateOptions.findIndex((d) => d.month === prevMonth && d.year === prevYear);
+      }
+    }
+
+    if (targetIdx >= 0) {
+      dateStripRef.current.scrollTo({ left: targetIdx * 60, behavior: "smooth" });
+    }
+  };
+
+  const selectedCourtDisplay = useMemo(() => {
+    if (selectedCourts.length === 1) {
+      return selectedCourts[0].name;
+    }
+    if (selectedCourts.length > 1) {
+      return `${selectedCourts.length} Courts`;
+    }
+    return freeCourts[0]?.name || courtsForSport[0]?.name || "";
+  }, [selectedCourts, freeCourts, courtsForSport]);
 
   /**
    * Bookable slots first, everything already taken (or in the past) after them —
@@ -1195,13 +1350,6 @@ function ReviewStep(props: {
         <div className="mt-3 flex flex-col gap-3 lg:flex-row">
           {/* LEFT COLUMN */}
           <div className={`flex flex-col gap-3 flex-1 min-w-0 ${mobileStep === "checkout" ? "hidden lg:flex" : "flex"}`}>
-            {/* Safety Notice */}
-            {!embedded && (
-              <div className="lg:hidden flex items-start gap-2 rounded-xl bg-blue-50 p-3 text-xs text-blue-800">
-                <span className="text-blue-500 font-black text-lg leading-none mt-0.5">✨</span>
-                <span><span className="font-bold">Game On! Essential Safety Notice:</span> Appropriate sports shoes are mandatory to utilize this venue for your safety.</span>
-              </div>
-            )}
             {/* Venue info */}
             <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50 text-xl ring-1 ring-slate-100">
@@ -1264,16 +1412,13 @@ function ReviewStep(props: {
                 <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} />
               </div>
 
-              {/* Month header — year locked to the running year; expand icon opens the full calendar */}
+              {/* Month header — continuous month navigation & dynamic scroll tracking */}
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    disabled={visibleMonth === today.getMonth()}
-                    onClick={() => {
-                      // prev month — never earlier than the current month, year stays locked
-                      if (visibleMonth > today.getMonth()) setVisibleMonth((m) => m - 1);
-                    }}
+                    disabled={dateOptions.length > 0 && activeMonthLabel === dateOptions[0].monthLabel}
+                    onClick={() => navigateMonth("prev")}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <ChevronLeft size={16} />
@@ -1283,12 +1428,8 @@ function ReviewStep(props: {
                   </span>
                   <button
                     type="button"
-                    disabled={visibleMonth === 11}
-                    onClick={() => {
-                      // next month — stops at December so the year can't roll over
-                      if (visibleMonth < 11) setVisibleMonth((m) => m + 1);
-                    }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                    onClick={() => navigateMonth("next")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-50"
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -1397,8 +1538,12 @@ function ReviewStep(props: {
                   </div>
                 </div>
               ) : (
-                /* Compact date strip — weekday over a big date number, dot under the selected day */
-                <div className="mt-2 flex gap-3 overflow-x-auto pb-1 scrollbar-none">
+                /* Compact date strip — continuous scrolling stream with automatic month tracking */
+                <div
+                  ref={dateStripRef}
+                  onScroll={handleDateStripScroll}
+                  className="mt-2 flex gap-3 overflow-x-auto pb-1 scroll-smooth scrollbar-none"
+                >
                   {dateOptions.map((opt) => {
                     const isSelected = date === opt.iso;
                     return (
@@ -1408,6 +1553,8 @@ function ReviewStep(props: {
                         onClick={() => {
                           setDate(opt.iso);
                           setDateSelected(true);
+                          setVisibleMonth(opt.month);
+                          setVisibleYear(opt.year);
                         }}
                         className="flex w-12 shrink-0 flex-col items-center gap-1"
                       >
@@ -1468,7 +1615,7 @@ function ReviewStep(props: {
                         <div className="mt-3 space-y-3">
                           {/* Selected Time Summary Box */}
                           <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-white p-3.5 shadow-sm">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-200">
                                 <Clock className="h-4 w-4" />
                               </span>
@@ -1485,51 +1632,57 @@ function ReviewStep(props: {
                                 </p>
                               </div>
                             </div>
-                            {selectedSlotIndices.length > 0 && (
-                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 shrink-0">
+
+                            {/* Interactive Plus / Minus Hour Selector */}
+                            <div className="flex items-center gap-1 rounded-full bg-emerald-100/90 border border-emerald-300/80 px-1.5 py-1 text-emerald-900 shrink-0 shadow-2xs">
+                              <button
+                                type="button"
+                                disabled={selectedSlotIndices.length <= 1}
+                                onClick={() => {
+                                  if (selectedSlotIndices.length > 1) {
+                                    const maxIdx = Math.max(...selectedSlotIndices);
+                                    onToggleSlotSelection(maxIdx);
+                                  }
+                                }}
+                                aria-label="Decrease hour selection"
+                                title="Decrease duration"
+                                className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 shadow-2xs border border-emerald-200 transition hover:bg-emerald-50 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                              >
+                                <Minus className="h-3 w-3 stroke-[3]" />
+                              </button>
+                              <span className="px-1.5 text-xs font-black text-emerald-950 select-none min-w-[52px] text-center">
                                 {selectedSlotIndices.length * 60} min
                               </span>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedSlotIndices.length === 0) {
+                                    const firstAvail = orderedSlots.find((s) => s.status === "Available");
+                                    if (firstAvail) onToggleSlotSelection(firstAvail.originalIndex);
+                                  } else {
+                                    const maxIdx = Math.max(...selectedSlotIndices);
+                                    const nextSlot = generatedSlots.find(
+                                      (s) => s.originalIndex > maxIdx && s.status === "Available"
+                                    );
+                                    if (nextSlot) onToggleSlotSelection(nextSlot.originalIndex);
+                                  }
+                                }}
+                                aria-label="Increase hour selection"
+                                title="Increase duration"
+                                className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 shadow-2xs border border-emerald-200 transition hover:bg-emerald-50 active:scale-90"
+                              >
+                                <Plus className="h-3 w-3 stroke-[3]" />
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Time slots — two rows that scroll sideways, newest-free first. */}
-                          <div className="relative">
-                            {orderedSlots.length > 4 && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => pageSlots(-1)}
-                                  disabled={slotEdges.atStart}
-                                  aria-label="Previous time slots"
-                                  className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-                                >
-                                  <ChevronLeft className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => pageSlots(1)}
-                                  disabled={slotEdges.atEnd}
-                                  aria-label="More time slots"
-                                  className="absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-                                >
-                                  <ChevronRight className="h-4 w-4" />
-                                </button>
-                              </>
-                            )}
-
-                            <div
-                              ref={slotStripRef}
-                              onScroll={onSlotStripScroll}
-                              className={`grid grid-flow-col grid-rows-2 auto-cols-[minmax(9.25rem,1fr)] gap-2.5 overflow-x-auto scroll-smooth py-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                                orderedSlots.length > 4 ? "px-9" : ""
-                              }`}
-                            >
+                          {/* Time slots — compact, ultra-sleek, single-line pills grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-[280px] overflow-y-auto pr-1 text-center">
                             {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
-                              // Exactly the rate the vendor set on this time slot — the same
-                              // number every court in it shows, so the two never disagree.
                               const finalPrice = finalSlotPrice(slot);
+                              const timeRangeText = `${slot.startTime12.replace(/^0/, "")} - ${slot.endTime12.replace(/^0/, "")}`;
 
                               return (
                                 <button
@@ -1540,93 +1693,58 @@ function ReviewStep(props: {
                                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
                                     onToggleSlotSelection(slot.originalIndex);
                                   }}
-                                  className={`relative flex flex-col justify-between rounded-2xl border p-3 text-left transition-all duration-150 active:scale-[0.98] ${
+                                  className={`relative flex flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200 cursor-pointer active:scale-95 border min-h-[44px] ${
                                     isSelected
-                                      ? "border-brand-600 bg-brand-500 text-white shadow-md shadow-brand-500/20 ring-2 ring-brand-400 font-bold"
+                                      ? "bg-[#0b9c65] text-white border-[#0b9c65] shadow-md shadow-[#0b9c65]/30 ring-2 ring-[#0b9c65]/30 scale-[1.02]"
                                       : available
-                                      ? "border-slate-200 bg-white text-slate-900 hover:border-brand-300 hover:shadow-sm"
-                                      : "border-slate-100 bg-slate-100/70 text-slate-400 cursor-not-allowed opacity-60"
+                                      ? "bg-white text-slate-900 border-slate-200 hover:border-[#0b9c65] hover:bg-emerald-50/30 shadow-2xs"
+                                      : "bg-slate-100/80 text-slate-400 border-slate-200/60 cursor-not-allowed opacity-50"
                                   }`}
                                 >
                                   {/* Last Minute Deal Badge */}
                                   {available && slot.boostPct > 0 && (
                                     <span
-                                      className={`absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider ${
-                                        isSelected ? "bg-white text-brand-600" : "bg-red-500 text-white shadow-xs"
+                                      className={`absolute -top-1.5 -right-1 rounded-full px-1.5 py-0.2 text-[7.5px] font-black uppercase tracking-wider ${
+                                        isSelected ? "bg-white text-[#0b9c65] shadow-xs" : "bg-red-500 text-white shadow-xs"
                                       }`}
                                     >
                                       {slot.boostPct}% OFF
                                     </span>
                                   )}
 
-                                  <div>
-                                    {/* 1-Hour Time Duration e.g. 7:00 AM – 8:00 AM */}
-                                    <div className="flex items-center gap-1.5 pr-1">
-                                      <Clock
-                                        className={`h-3.5 w-3.5 shrink-0 ${
-                                          isSelected ? "text-white" : available ? "text-brand-500" : "text-slate-400"
-                                        }`}
-                                      />
-                                      <span
-                                        className={`text-[12px] font-extrabold leading-snug ${
-                                          isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
-                                        }`}
-                                      >
-                                        {slot.startTime12} – {slot.endTime12}
-                                      </span>
-                                    </div>
+                                  <span
+                                    className={`text-[10.5px] font-extrabold whitespace-nowrap tracking-tight leading-tight ${
+                                      isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
+                                    }`}
+                                  >
+                                    {timeRangeText}
+                                  </span>
 
-                                    {available && courtsForSport.length > 0 && (
-                                      <span
-                                        className={`mt-1 block text-[10px] font-bold ${
-                                          isSelected ? "text-white/80" : "text-slate-500"
-                                        }`}
-                                      >
-                                        {slot.freeCourtIds.length}{" "}
-                                        {slot.freeCourtIds.length === 1 ? "court" : "courts"}
-                                      </span>
-                                    )}
-
-                                    {!available && (
-                                      <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        {slot.status}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Price & Selection Checkbox */}
-                                  <div className="mt-2.5 flex items-center justify-between border-t pt-2 border-current/10">
-                                    <div className="flex items-baseline gap-1">
-                                      <span
-                                        className={`text-xs sm:text-sm font-black ${
-                                          isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400"
-                                        }`}
-                                      >
-                                        ₹{finalPrice.toLocaleString("en-IN")}
-                                      </span>
-                                      {slot.boostPct > 0 && available && (
-                                        <span className={`text-[10px] line-through ${isSelected ? "text-white/70" : "text-slate-400"}`}>
-                                          ₹{slot.price}
+                                  <div className="mt-0.5 flex items-center justify-center gap-1">
+                                    {available ? (
+                                      <div className="flex items-baseline gap-1">
+                                        <span
+                                          className={`text-[10px] font-black ${
+                                            isSelected ? "text-white/90" : "text-slate-600"
+                                          }`}
+                                        >
+                                          ₹{finalPrice.toLocaleString("en-IN")}
                                         </span>
-                                      )}
-                                    </div>
-
-                                    <span
-                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
-                                        isSelected
-                                          ? "border-white bg-white text-brand-600"
-                                          : available
-                                          ? "border-slate-300 bg-slate-50 text-transparent"
-                                          : "border-slate-200 bg-slate-100 text-transparent"
-                                      }`}
-                                    >
-                                      <Check className="h-3 w-3 stroke-[3]" />
-                                    </span>
+                                        {slot.boostPct > 0 && (
+                                          <span className={`text-[8.5px] line-through ${isSelected ? "text-white/70" : "text-slate-400"}`}>
+                                            ₹{slot.price}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                        Booked
+                                      </span>
+                                    )}
                                   </div>
                                 </button>
                               );
                             })}
-                            </div>
                           </div>
                         </div>
                       )}
@@ -1886,8 +2004,9 @@ function ReviewStep(props: {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900">{listing.title}</h3>
-                  <p className="mt-0.5 text-xs font-medium text-slate-500">
+                  <p className="mt-0.5 text-xs font-medium text-slate-500 truncate max-w-[220px] sm:max-w-none">
                     {selectedSport ? `${selectedSport} • ` : ""}{listing.type}
+                    {selectedCourtDisplay ? ` • ${selectedCourtDisplay}` : ""}
                   </p>
                 </div>
                 {selectedSport && (
@@ -1910,7 +2029,7 @@ function ReviewStep(props: {
                   <Clock className="h-4 w-4 text-brand-500 mt-0.5" />
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Time</p>
-                    <p className="text-xs font-bold text-slate-800">
+                    <p className="text-xs font-bold text-slate-800 truncate">
                       {listing.type === "Turf" && selectedSlotIndices.length > 0 ? selectedSlotSummaryText : "Select Time"}
                     </p>
                   </div>
@@ -1951,49 +2070,69 @@ function ReviewStep(props: {
               </label>
             </div>
 
-            {/* Add-ons — only the ones the vendor configured on this package. */}
-            {(listing.addOns ?? []).length > 0 && (
-              <div className="rounded-2xl border border-slate-100 bg-white p-4">
-                <p className="mb-3 text-sm font-bold text-slate-800">Add-ons</p>
-                <div className="space-y-2">
-                  {listing.addOns.map((addOn) => {
-                    const added = selectedAddOnIds.includes(addOn.id);
-                    return (
-                      <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          {addOn.image ? (
-                            <img
-                              src={addOn.image.url}
-                              alt={addOn.label}
-                              className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
-                              <ImageIcon className="h-5 w-5" />
-                            </span>
-                          )}
-                          <div>
-                            <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
-                            <p className="text-[10px] font-semibold text-slate-500">₹{addOn.price.toLocaleString("en-IN")}</p>
+            {/* Add-ons — filtered specifically to the currently selected game. */}
+            {(() => {
+              const allAddOns = listing.addOns ?? [];
+              if (allAddOns.length === 0) return null;
+              const filteredAddOns = allAddOns.filter((addOn) => isAddOnForSport(addOn, selectedSport));
+
+              return (
+                <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-bold text-slate-800">Add-ons &amp; Equipment</p>
+                    {selectedSport && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                        {categoryLabel(selectedSport) || selectedSport}
+                      </span>
+                    )}
+                  </div>
+
+                  {filteredAddOns.length === 0 ? (
+                    <p className="py-4 text-center text-xs font-semibold text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      No add-ons available for this sport.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredAddOns.map((addOn) => {
+                        const added = selectedAddOnIds.includes(addOn.id);
+                        return (
+                          <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              {addOn.image ? (
+                                <img
+                                  src={addOn.image.url}
+                                  alt={addOn.label}
+                                  className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                                />
+                              ) : (
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
+                                  <ImageIcon className="h-5 w-5" />
+                                </span>
+                              )}
+                              <div>
+                                <p className="text-xs font-bold text-slate-800">{addOn.label}</p>
+                                <p className="text-[10px] font-semibold text-slate-500">₹{addOn.price.toLocaleString("en-IN")}</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onToggleAddOn(addOn.id)}
+                              className={`rounded-md border px-3 py-1 text-[10px] font-bold transition ${
+                                added
+                                  ? "border-brand-500 bg-brand-500 text-white"
+                                  : "border-brand-400/60 bg-white text-brand-500 hover:bg-brand-50"
+                              }`}
+                            >
+                              {added ? "ADDED" : "ADD"}
+                            </button>
                           </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onToggleAddOn(addOn.id)}
-                          className={`rounded-md border px-3 py-1 text-[10px] font-bold transition ${
-                            added
-                              ? "border-brand-500 bg-brand-500 text-white"
-                              : "border-brand-400/60 bg-white text-brand-500 hover:bg-brand-50"
-                          }`}
-                        >
-                          {added ? "ADDED" : "ADD"}
-                        </button>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Shown on both mobile and desktop checkout — collecting a phone number
                 can't be desktop-only, mobile is the primary surface. */}

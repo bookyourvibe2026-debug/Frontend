@@ -2240,6 +2240,28 @@ function AddOnRow({
             Remove photo
           </button>
         )}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-ink-faint mr-1">Applies to:</span>
+          {["cricket", "football", "badminton", "pickleball", "swimming", "tennis", "basketball"].map((sp) => {
+            const active = (addOn.sports ?? []).includes(sp);
+            return (
+              <button
+                key={sp}
+                type="button"
+                onClick={() => {
+                  const current = addOn.sports ?? [];
+                  const updated = current.includes(sp) ? current.filter((s) => s !== sp) : [...current, sp];
+                  onChange({ sports: updated });
+                }}
+                className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase transition ${
+                  active ? "bg-vibe-violet text-white" : "bg-cream-200/80 text-ink-soft hover:bg-cream-300"
+                }`}
+              >
+                {sp}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

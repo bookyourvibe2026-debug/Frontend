@@ -10,6 +10,9 @@ import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
 import { browseVenues } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
 
+import { useRouter } from "next/navigation";
+import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
+
 const NOTES: Record<string, string> = {
   cricket: "Fast bookings, turf-friendly",
   football: "Turf matches and friendly kickoffs",
@@ -19,25 +22,33 @@ const NOTES: Record<string, string> = {
   "table-tennis": "Quick rallies, fun evenings",
 };
 
-// Fallback icons for sports that don't have a dedicated image asset yet.
-const FALLBACK_ICONS: Record<string, LucideIcon> = {
-  basketball: CircleDot,
-  volleyball: Volleyball,
-  swimming: Waves,
-  "snooker-pool": CircleDot,
-  skating: Footprints,
-  "indoor-games": Gamepad2,
+const EMOJI_MAP: Record<string, string> = {
+  cricket: "🏏",
+  football: "⚽",
+  badminton: "🏸",
+  pickleball: "🏓",
+  tennis: "🎾",
+  "table-tennis": "🏓",
+  basketball: "🏀",
+  volleyball: "🏐",
+  swimming: "🏊",
+  "snooker-pool": "🎱",
+  skating: "🛼",
+  "indoor-games": "🎮",
 };
 
-const SPORTS = SPORT_CATEGORIES.map((cat) => ({
+const CATEGORIES: SportCategoryItem[] = SPORT_CATEGORIES.map((cat) => ({
   id: cat.id,
   label: cat.label,
+  emoji: EMOJI_MAP[cat.id],
   image: cat.image,
-  icon: cat.image ? undefined : FALLBACK_ICONS[cat.id] ?? CircleDot,
   note: NOTES[cat.id] ?? "Live availability, easy booking",
 }));
 
+const SPORTS = CATEGORIES;
+
 export default function GamesPage() {
+  const router = useRouter();
   const [venues, setVenues] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,29 +76,15 @@ export default function GamesPage() {
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
               Pick a sport, then jump to the right venue.
             </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Browse what&rsquo;s popular right now and move into booking fast.
-            </p>
           </div>
 
-          <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
-            {SPORTS.map((sport) => (
-              <Link
-                key={sport.id}
-                href={`/venues?category=${sport.id}`}
-                className="flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-slate-600 transition hover:border-brand-200"
-              >
-                <span className="flex h-8 w-8 items-center justify-center">
-                  {sport.image ? (
-                    <Image src={sport.image} alt={sport.label} width={28} height={28} unoptimized className="h-7 w-7 object-contain" />
-                  ) : sport.icon ? (
-                    <sport.icon className="h-6 w-6 text-brand-500" />
-                  ) : null}
-                </span>
-                <span className="whitespace-nowrap text-[11px] font-semibold">{sport.label}</span>
-              </Link>
-            ))}
-          </div>
+          <SportsCategoryBar
+            categories={CATEGORIES}
+            variant="card"
+            onSelectCategory={(sportId) => {
+              router.push(`/venues?category=${sportId}`);
+            }}
+          />
 
 
 
@@ -97,14 +94,14 @@ export default function GamesPage() {
               {venues.map((venue) => (
                 <MobileCard key={venue._id} className="!p-4">
                   {/* Banner opens the venue too — not just the "View details" button */}
-                  <Link href={`/venues/${venue.slug || venue._id}`} className="relative block overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                  <Link href={`/venues/${venue.slug || venue._id}`} className="relative flex h-36 flex-col justify-end overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
                     {venue.coverImage && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                      <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80" />
                     )}
-                    <div className="relative">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
-                      <h2 className="mt-1 text-lg font-extrabold">{venue.title}</h2>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="relative z-10">
+                      <h2 className="text-lg font-extrabold text-white">{venue.title}</h2>
                     </div>
                   </Link>
                   <div className="mt-3 flex items-center justify-between gap-3">
@@ -196,9 +193,8 @@ export default function GamesPage() {
               <Link
                 key={sport.id}
                 href={`/venues?category=${sport.id}`}
-                className={`group overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
-                  index === 0 ? "sm:col-span-2 xl:col-span-2" : ""
-                }`}
+                className={`group overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${index === 0 ? "sm:col-span-2 xl:col-span-2" : ""
+                  }`}
               >
                 <div className="flex items-center gap-4">
                   <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
@@ -236,14 +232,14 @@ export default function GamesPage() {
                 href={`/venues/${venue.slug || venue._id}`}
                 className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
-                <div className="relative overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
+                <div className="relative flex h-40 flex-col justify-end overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
                   {venue.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80" />
                   )}
-                  <div className="relative">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90">{venue.categories.map(categoryLabel).join(", ") || "General"}</p>
-                    <h3 className="mt-1 text-lg font-black">{venue.title}</h3>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-black text-white">{venue.title}</h3>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">

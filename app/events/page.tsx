@@ -48,7 +48,6 @@ export default function EventsPage() {
                 href={`/venues/${event.slug || event._id}`}
                 image={event.coverImage}
                 title={event.title}
-                subtitle={event.categories.join(", ") || "Event"}
                 city={event.city}
                 price={event.price > 0 ? event.price : undefined}
                 badge={eventBadge(event)}
@@ -82,7 +81,6 @@ export default function EventsPage() {
               href={`/venues/${event.slug || event._id}`}
               image={event.coverImage}
               title={event.title}
-              subtitle={event.categories.join(", ") || "Event"}
               city={event.city}
               price={event.price > 0 ? event.price : undefined}
               badge={eventBadge(event)}

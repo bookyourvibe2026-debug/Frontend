@@ -213,9 +213,6 @@ function ListingCard({
         >
           <Share2 size={13} />
         </button>
-        <p className="text-white/80 text-[11px] font-semibold tracking-wide uppercase">
-          {listing.categories.map(categoryLabel).join(", ") || "Uncategorized"}
-        </p>
       </div>
       <div className="p-4 flex-1 flex flex-col">
         <h4 className="font-display font-semibold text-ink text-sm">{listing.title}</h4>

@@ -162,7 +162,7 @@ export default function VenueDetailPage() {
   }
 
   const isEvent = venue.type === "Event";
-  const highlights = venue.highlights.length > 0 ? venue.highlights : DEFAULT_HIGHLIGHTS;
+  const highlights = getVenueHighlights(venue);
   const inclusions = venue.inclusions.length > 0 ? venue.inclusions : DEFAULT_INCLUSIONS;
   const exclusions = venue.exclusions.length > 0 ? venue.exclusions : DEFAULT_EXCLUSIONS;
   const desktopAmenities = inclusions.map((item) => {
@@ -221,20 +221,6 @@ export default function VenueDetailPage() {
           {/* LEFT — details */}
           <div>
             {/* Hero gallery */}
-            <div className="relative h-64 w-full overflow-hidden rounded-3xl border border-brand-200 bg-slate-900 sm:h-80">
-              <ImageCarousel images={galleryImages} alt={venue.title} className="h-full w-full" />
-              <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  {categoryText}
-                </span>
-              </div>
-            </div>
-
-            {/* Summary */}
-            <section className="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-extrabold text-slate-900">Summary</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{venue.description}</p>
-            </section>
 
             {venue.videoUrl && (
               <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -346,6 +332,9 @@ export default function VenueDetailPage() {
                 </div>
               </section>
             )}
+
+            {/* Summary — placed at the end after map */}
+            <VenueSummaryCard description={venue.description} title={venue.title} />
           </div>
 
           {/* RIGHT — sticky booking card */}
@@ -511,6 +500,131 @@ function LocalWeatherCard({ city }: { city: string }) {
   );
 }
 
+function getVenueHighlights(venue: Listing): string[] {
+  if (venue.highlights && venue.highlights.length >= 4) {
+    return venue.highlights;
+  }
+  const sports = venueSports(venue).map(categoryLabel);
+  const items: string[] = [...(venue.highlights ?? [])];
+
+  if (sports.length > 0 && !items.some((i) => i.toLowerCase().includes("sport"))) {
+    items.push(`${sports.length} sport${sports.length > 1 ? "s" : ""} on one campus — ${sports.slice(0, 7).join(", ")}`);
+  }
+  const courtsCount = (venue.courts ?? []).filter((c) => c.active !== false).length;
+  if (courtsCount > 0 && !items.some((i) => i.toLowerCase().includes("court"))) {
+    items.push(`${courtsCount} bookable court${courtsCount > 1 ? "s" : ""} with professional surface and floodlights`);
+  }
+  if (!items.some((i) => i.toLowerCase().includes("booking"))) {
+    items.push("Instant slot reservation & automated QR check-in");
+  }
+  if (venue.inclusions && venue.inclusions.length > 0) {
+    for (const inc of venue.inclusions) {
+      if (!items.includes(inc)) items.push(inc);
+    }
+  }
+  if (!items.some((i) => i.toLowerCase().includes("parking"))) {
+    items.push("Free parking, clean changing rooms & drinking water");
+  }
+  return items;
+}
+
+function VenueSummaryCard({ description, title }: { description?: string; title?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = description?.trim() || `Welcome to ${title || "this venue"}. Book court slots live with instant confirmation.`;
+  const isLong = text.length > 150;
+
+  return (
+    <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs font-bold text-brand-600 hover:text-brand-700 transition"
+          >
+            {expanded ? "Show Less ↑" : "Show More ↓"}
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600">
+        {isLong && !expanded ? `${text.slice(0, 150).trim()}…` : text}
+      </p>
+    </section>
+  );
+}
+
+function HighlightsSection({ highlights }: { highlights: string[] }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!highlights || highlights.length === 0) return null;
+
+  const visibleItems = showAll ? highlights : highlights.slice(0, 4);
+  const remainingCount = highlights.length - 4;
+
+  return (
+    <section className="mt-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-extrabold text-slate-900">Highlights</h2>
+        {highlights.length > 4 && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="text-xs font-bold text-brand-600 hover:text-brand-700 transition"
+          >
+            {showAll ? "Show Less ↑" : `Show All (+${remainingCount}) ↓`}
+          </button>
+        )}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {visibleItems.map((h) => (
+          <div
+            key={h}
+            className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-sm text-slate-700 shadow-sm"
+          >
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+            <span className="leading-relaxed">{h}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AmenitiesSection({ amenities }: { amenities: { label: string; Icon: typeof Layers }[] }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!amenities || amenities.length === 0) return null;
+
+  const visibleItems = showAll ? amenities : amenities.slice(0, 4);
+  const remainingCount = amenities.length - 4;
+
+  return (
+    <section className="mt-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
+        {amenities.length > 4 && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="text-xs font-bold text-brand-600 hover:text-brand-700 transition"
+          >
+            {showAll ? "Show Less ↑" : `Show All (+${remainingCount}) ↓`}
+          </button>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {visibleItems.map(({ label, Icon }) => (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm"
+          >
+            <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /**
  * Every info section of a venue (hours, specs, weather, sports, amenities,
  * players, reviews). Rendered by both the mobile shell and the desktop page so
@@ -582,23 +696,8 @@ function VenueInfoSections({
         </section>
       )}
 
-      {/* Highlights */}
-      {highlights.length > 0 && (
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Highlights</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {highlights.map((h) => (
-              <div
-                key={h}
-                className="flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-sm text-slate-700 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-                <span className="leading-relaxed">{h}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Highlights — 4 points by default + Show All */}
+      <HighlightsSection highlights={highlights} />
 
       {venue.priceTiers.length > 0 && (
         <section className="mt-5">
@@ -620,22 +719,8 @@ function VenueInfoSections({
         </section>
       )}
 
-      {/* Amenities */}
-      {amenities.length > 0 && (
-        <section className="mt-5">
-          <h2 className="text-sm font-extrabold text-slate-900">Amenities</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {amenities.map(({ label, Icon }) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-              >
-                <Icon className="h-3.5 w-3.5 text-brand-500" /> {label}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Amenities — 4 points by default + Show All */}
+      <AmenitiesSection amenities={amenities} />
 
       {/* Technical Specifications */}
       <section className="mt-5">
@@ -982,9 +1067,6 @@ function MobileVenueDetail({
             </button>
           </div>
         </div>
-        <div className="absolute bottom-3 left-4 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-          {categoryText}
-        </div>
       </div>
 
       <div className="rounded-t-3xl -mt-5 relative bg-slate-50 px-4 pt-5">
@@ -1154,11 +1236,10 @@ function MobileVenueDetail({
               </div>
             )}
 
-            {/* Description */}
-            <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-extrabold text-slate-900">Summary</h2>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{venue.description}</p>
-            </section>
+            {/* Summary — placed at the end after map */}
+            <VenueSummaryCard description={venue.description} title={venue.title} />
+
+            {/* Video — shown for all types when videoUrl exists */}
 
             {/* Video — shown for all types when videoUrl exists */}
             {venue.videoUrl && (

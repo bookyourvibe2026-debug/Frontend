@@ -30,6 +30,8 @@ export interface AddOn {
   label: string;
   price: number;
   image?: ListingImage;
+  /** Sports/games this add-on belongs to. Empty/undefined = available for all games. */
+  sports?: string[];
 }
 
 export interface Coupon {

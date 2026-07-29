@@ -35,16 +35,18 @@ const MOBILE_QUICK_ACTIONS = [
   { id: "community", label: "Community", icon: Handshake },
 ];
 
-const CHOOSE_GAME_CHIPS = [
-  { id: "cricket", label: "Cricket", image: "/bat.png" },
-  { id: "football", label: "Football", image: "/football.png" },
-  { id: "badminton", label: "Badminton", image: "/badminton.png" },
-  { id: "pickleball", label: "Pickleball", image: "/pickball.png" },
-  { id: "tennis", label: "Tennis", image: "/tennis.png" },
-  { id: "snooker", label: "Snooker" },
-  { id: "swimming", label: "Swimming" },
-  { id: "more", label: "More" },
-] as const;
+import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
+
+const CHOOSE_GAME_CHIPS: SportCategoryItem[] = [
+  { id: "cricket", label: "Cricket", emoji: "🏏", image: "/bat.png" },
+  { id: "football", label: "Football", emoji: "⚽", image: "/football.png" },
+  { id: "badminton", label: "Badminton", emoji: "🏸", image: "/badminton.png" },
+  { id: "pickleball", label: "Pickleball", emoji: "🏓", image: "/pickball.png" },
+  { id: "tennis", label: "Tennis", emoji: "🎾", image: "/tennis.png" },
+  { id: "snooker", label: "Snooker", emoji: "🎱" },
+  { id: "swimming", label: "Swimming", emoji: "🏊" },
+  { id: "more", label: "More", icon: LayoutGrid },
+];
 
 function MobileVenueCard({
   venue,
@@ -210,33 +212,19 @@ export function MobileHome({
 
       <section>
         <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onViewAllSports} />
-        <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
-          {CHOOSE_GAME_CHIPS.map((c) => (
-            <MobileChip
-              key={c.id}
-              label={c.label}
-              selected={selectedGame === c.id}
-              onClick={() => {
-                if (c.id === "more") {
-                  onViewAllSports();
-                  return;
-                }
-                setSelectedGame(c.id);
-                onChooseGame();
-              }}
-              icon={c.id === "swimming" ? Waves : c.id === "more" ? LayoutGrid : undefined}
-              image={
-                "image" in c ? (
-                  <Image src={c.image} alt={c.label} width={28} height={28} unoptimized className="h-7 w-7 object-contain" />
-                ) : c.id === "snooker" ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                    8
-                  </span>
-                ) : undefined
-              }
-            />
-          ))}
-        </div>
+        <SportsCategoryBar
+          categories={CHOOSE_GAME_CHIPS}
+          selectedId={selectedGame}
+          variant="card"
+          onSelectCategory={(id) => {
+            if (id === "more") {
+              onViewAllSports();
+              return;
+            }
+            setSelectedGame(id);
+            onChooseGame();
+          }}
+        />
       </section>
 
       <AdBanner className="" />
@@ -249,18 +237,18 @@ export function MobileHome({
           actionLabel="View All"
           onAction={onViewAllQuickActions}
         />
-        <div className="flex flex-wrap items-start justify-start gap-x-[15px] gap-y-3.5 pt-1">
+        <div className="-mx-4 flex items-start gap-3.5 overflow-x-auto px-4 pt-2 pb-1 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {MOBILE_QUICK_ACTIONS.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => onQuickAction(a.id, "")}
-              className="flex flex-col items-center gap-1.5 text-center group active:scale-95 transition-transform"
+              className="flex shrink-0 w-[74px] flex-col items-center gap-2 text-center group active:scale-95 transition-transform"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-brand-500 shadow-[0_6px_16px_rgba(15,23,42,0.05)] border border-slate-50 transition hover:border-brand-200 group-active:bg-slate-50">
-                <a.icon className="h-5 w-5 stroke-[1.75]" />
+              <span className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-white text-[#f97316] shadow-md shadow-slate-200/50 border border-slate-100/80 transition-all duration-300 group-hover:scale-105 group-hover:border-orange-200">
+                <a.icon className="h-8 w-8 stroke-[2]" />
               </span>
-              <span className="text-[9px] font-semibold leading-tight text-slate-800 tracking-tight sm:text-xs">
+              <span className="text-[11px] font-extrabold leading-tight text-slate-800 tracking-tight">
                 {a.label}
               </span>
             </button>

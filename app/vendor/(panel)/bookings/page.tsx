@@ -1049,10 +1049,6 @@ export default function BookingsPage() {
     <div className="relative flex min-h-[60vh] flex-col overflow-x-hidden bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
       {/* ── HEADER: venue, today card, date strip ── */}
       <div className="z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
-        <div className="mb-2">
-          <PageBack fallback="/vendor/dashboard" />
-        </div>
-
         <div className="mb-3 flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
           <button className="flex-1 bg-vibe-navy px-3 py-2.5 text-center text-[11px] font-bold text-white">
             Turf Bookings
