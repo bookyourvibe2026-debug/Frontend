@@ -50,6 +50,9 @@ function VenuesPageInner() {
         });
         setVendorProfiles(map);
       })
+      .catch((err) => {
+        console.error("Failed to load venues:", err);
+      })
       .finally(() => setLoading(false));
   }, [category]);
 

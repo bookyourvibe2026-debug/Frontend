@@ -166,6 +166,7 @@ export interface Booking {
   dateTime: string;
   totalAmount: number;
   paidAmount?: number;
+  paymentType?: "partial" | "full";
   platformFee: number;
   yourEarning: number;
   payment: "Cashfree (Online)" | "Cash (Offline)" | "UPI";

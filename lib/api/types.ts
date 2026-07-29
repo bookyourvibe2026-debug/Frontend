@@ -193,6 +193,7 @@ export interface Booking {
   dateTime: string;
   totalAmount: number;
   paidAmount?: number;
+  paymentType?: "partial" | "full";
   platformFee: number;
   taxes: number;
   affiliateAmount: number;

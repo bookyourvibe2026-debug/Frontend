@@ -156,12 +156,17 @@ async function performFetch(path: string, options: RequestOptions, token: string
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  return fetch(buildUrl(path, options.query), {
-    method: options.method ?? "GET",
-    headers,
-    credentials: "include",
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  try {
+    return await fetch(buildUrl(path, options.query), {
+      method: options.method ?? "GET",
+      headers,
+      credentials: "include",
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to fetch";
+    throw new ApiError(0, `Network error: ${msg}. Please check if the backend server is running.`);
+  }
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -207,12 +212,17 @@ async function performUpload(path: string, form: FormData, token: string | null)
   if (token) headers.Authorization = `Bearer ${token}`;
 
   // No Content-Type header — the browser sets multipart/form-data with the correct boundary itself.
-  return fetch(joinApiPath(path), {
-    method: "POST",
-    headers,
-    credentials: "include",
-    body: form,
-  });
+  try {
+    return await fetch(joinApiPath(path), {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: form,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Upload failed";
+    throw new ApiError(0, `Network error during upload: ${msg}. Please check if the backend server is running.`);
+  }
 }
 
 /** Like apiRequest, but for multipart file uploads (FormData bodies) with the same token-refresh behavior. */

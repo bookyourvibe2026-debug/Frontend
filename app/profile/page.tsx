@@ -534,9 +534,19 @@ export default function ProfilePage() {
                           {b.listingTitle ?? "Venue Booking"}
                         </p>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[b.status]}`}
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            b.status === "Part Paid" || (b.paymentType === "partial" && (b.paidAmount ?? 0) < b.totalAmount)
+                              ? "bg-amber-100 text-amber-800"
+                              : b.status === "Confirmed"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : STATUS_STYLES[b.status] || "bg-slate-100 text-slate-700"
+                          }`}
                         >
-                          {b.status}
+                          {b.status === "Part Paid"
+                            ? "Partially Paid"
+                            : b.status === "Confirmed"
+                            ? "Fully Paid"
+                            : b.status}
                         </span>
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -549,12 +559,12 @@ export default function ProfilePage() {
                           {dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <span>Order #{b.orderId}</span>
-                        {b.status === "Part Paid" && (b.paidAmount ?? 0) > 0 && (b.paidAmount ?? 0) < b.totalAmount ? (
+                        {(b.status === "Part Paid" || b.paymentType === "partial") && (b.paidAmount ?? 0) > 0 && (b.paidAmount ?? 0) < b.totalAmount ? (
                           <span className="font-black text-rose-600">
                             ₹{b.totalAmount - (b.paidAmount ?? 0)} remaining <span className="font-normal text-slate-400">of ₹{b.totalAmount}</span>
                           </span>
                         ) : (
-                          <span className="font-semibold text-slate-700">₹{b.totalAmount}</span>
+                          <span className="font-semibold text-slate-700">₹{b.totalAmount} <span className="text-[11px] font-bold text-emerald-600">(Fully Paid)</span></span>
                         )}
                       </div>
                     </div>

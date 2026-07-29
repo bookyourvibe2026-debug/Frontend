@@ -13,7 +13,10 @@ const CSV_HEADERS = [
   "Customer",
   "Listing",
   "Event Date",
-  "Collected",
+  "Payment Mode",
+  "Paid Now",
+  "Venue Balance",
+  "Total Amount",
   "Platform Fee",
   "Taxes",
   "Affiliate Amt",
@@ -75,19 +78,27 @@ export default function AdminBookingsPage() {
   }, [bookings]);
 
   const handleExport = useCallback(() => {
-    const rows = filtered.map((b) => [
-      b.orderId,
-      b.customerName,
-      b.listingTitle ?? "",
-      new Date(b.dateTime).toLocaleDateString("en-GB"),
-      b.totalAmount,
-      b.platformFee,
-      b.taxes,
-      b.affiliateAmount,
-      b.vendorEarning,
-      b.status,
-      b.paymentStatus,
-    ]);
+    const rows = filtered.map((b) => {
+      const paid = b.paidAmount ?? b.totalAmount;
+      const remaining = Math.max(0, b.totalAmount - paid);
+      const isFull = b.paymentType === "full" || remaining === 0;
+      return [
+        b.orderId,
+        b.customerName,
+        b.listingTitle ?? "",
+        new Date(b.dateTime).toLocaleDateString("en-GB"),
+        isFull ? "Full Payment" : "Partial Payment",
+        paid,
+        remaining,
+        b.totalAmount,
+        b.platformFee,
+        b.taxes,
+        b.affiliateAmount,
+        b.vendorEarning,
+        b.status,
+        b.paymentStatus,
+      ];
+    });
     const csv = [CSV_HEADERS, ...rows].map((r) => r.map((cell) => `"${cell}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -166,53 +177,69 @@ export default function AdminBookingsPage() {
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Listing</th>
               <th className="px-4 py-3">Event Date</th>
-              <th className="px-4 py-3">Collected</th>
+              <th className="px-4 py-3">Payment Mode</th>
+              <th className="px-4 py-3">Paid Now</th>
+              <th className="px-4 py-3">Venue Bal</th>
+              <th className="px-4 py-3">Total Amount</th>
               <th className="px-4 py-3">Platform Fee</th>
-              <th className="px-4 py-3">Taxes</th>
-              <th className="px-4 py-3">Affiliate Amt</th>
               <th className="px-4 py-3">Vendor Earning</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((b) => (
-              <tr key={b._id} className="border-b border-surface-border last:border-0">
-                <td className="px-4 py-3 font-mono text-xs text-ink-soft">{b.orderId}</td>
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-ink">{b.customerName}</p>
-                  <p className="text-xs text-ink-faint">{b.email}</p>
-                  {b.isAffiliate && <Badge tone="info">Affiliate</Badge>}
-                </td>
-                <td className="px-4 py-3 text-ink-soft">{b.listingTitle}</td>
-                <td className="px-4 py-3 text-ink-faint">
-                  {new Date(b.dateTime).toLocaleDateString("en-GB")}
-                  <br />
-                  <span className="text-[10px]">Booked {new Date(b.createdAt).toLocaleDateString("en-GB")}</span>
-                </td>
-                <td className="px-4 py-3 font-semibold text-ink">₹{b.totalAmount.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-vibe-coral">₹{b.platformFee.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-vibe-coral">₹{b.taxes.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-vibe-coral">₹{b.affiliateAmount.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 font-semibold text-ink">₹{b.vendorEarning.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3">
-                  <Badge tone={STATUS_BADGE_TONE[b.status]}>{b.status}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge tone={PAYMENT_BADGE_TONE[b.paymentStatus]}>{b.paymentStatus}</Badge>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((b) => {
+              const paid = b.paidAmount ?? b.totalAmount;
+              const remaining = Math.max(0, b.totalAmount - paid);
+              const isFull = b.paymentType === "full" || remaining === 0;
+
+              return (
+                <tr key={b._id} className="border-b border-surface-border last:border-0">
+                  <td className="px-4 py-3 font-mono text-xs text-ink-soft">{b.orderId}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-ink">{b.customerName}</p>
+                    <p className="text-xs text-ink-faint">{b.email}</p>
+                    {b.isAffiliate && <Badge tone="info">Affiliate</Badge>}
+                  </td>
+                  <td className="px-4 py-3 text-ink-soft">{b.listingTitle}</td>
+                  <td className="px-4 py-3 text-ink-faint">
+                    {new Date(b.dateTime).toLocaleDateString("en-GB")}
+                    <br />
+                    <span className="text-[10px]">Booked {new Date(b.createdAt).toLocaleDateString("en-GB")}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge tone={isFull ? "success" : "pending"}>
+                      {isFull ? "Full Payment" : "Partial Payment"}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-emerald-700">₹{paid.toLocaleString("en-IN")}</td>
+                  <td className="px-4 py-3 font-semibold text-rose-600">
+                    {remaining > 0 ? `₹${remaining.toLocaleString("en-IN")}` : "₹0"}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-ink">₹{b.totalAmount.toLocaleString("en-IN")}</td>
+                  <td className="px-4 py-3 text-vibe-coral">₹{b.platformFee.toLocaleString("en-IN")}</td>
+                  <td className="px-4 py-3 font-semibold text-ink">₹{b.vendorEarning.toLocaleString("en-IN")}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={STATUS_BADGE_TONE[b.status]}>
+                      {b.status === "Part Paid" ? "Partially Paid" : b.status === "Confirmed" ? "Fully Paid" : b.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge tone={PAYMENT_BADGE_TONE[b.paymentStatus]}>{b.paymentStatus}</Badge>
+                  </td>
+                </tr>
+              );
+            })}
             {loading && (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-sm text-ink-faint">
+                <td colSpan={12} className="px-4 py-10 text-center text-sm text-ink-faint">
                   Loading bookings...
                 </td>
               </tr>
             )}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-sm text-ink-faint">
+                <td colSpan={12} className="px-4 py-10 text-center text-sm text-ink-faint">
                   No bookings match this filter.
                 </td>
               </tr>
