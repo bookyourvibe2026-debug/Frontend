@@ -1855,115 +1855,6 @@ function ReviewStep(props: {
                         </div>
                       )}
 
-                      {/* Payment Option Selection & Breakdown */}
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs">
-                              💳
-                            </span>
-                            <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                              Select Payment Option
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            {canPartial ? "Partial or Full" : "Full Payment"}
-                          </span>
-                        </div>
-
-                        {canPartial && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {/* Partial Payment Card */}
-                            <button
-                              type="button"
-                              onClick={() => setPaymentOption("partial")}
-                              className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                                paymentOption === "partial"
-                                  ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-xs font-black text-slate-900">Partial Payment</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                                  paymentOption === "partial" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
-                                }`}>
-                                  {partialConfig.type === "fixed" ? `₹${partialConfig.value} Deposit` : `${partialConfig.value}% Deposit`}
-                                </span>
-                              </div>
-                              <p className="text-[11px] font-bold text-emerald-700">
-                                Pay Advance Now
-                              </p>
-                              <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                                Lock slot with deposit, pay balance at venue
-                              </p>
-                            </button>
-
-                            {/* Full Payment Card */}
-                            <button
-                              type="button"
-                              onClick={() => setPaymentOption("full")}
-                              className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                                paymentOption === "full"
-                                  ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-xs font-black text-slate-900">Full Payment</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                                  paymentOption === "full" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
-                                }`}>
-                                  100% Online
-                                </span>
-                              </div>
-                              <p className="text-[11px] font-bold text-emerald-700">
-                                Pay ₹{activePrice.toLocaleString("en-IN")} Now
-                              </p>
-                              <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                                Pay total amount online, zero balance at venue
-                              </p>
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Payment Breakdown Box */}
-                        <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 text-xs">
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span>Total Booking Amount</span>
-                            <span className="font-bold text-slate-900">₹{activePrice.toLocaleString("en-IN")}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between rounded-lg bg-emerald-100/90 px-3 py-2 text-emerald-950 font-bold">
-                            <span className="flex items-center gap-1.5">
-                              <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                              Pay Now ({paymentOption === "full" || !canPartial ? "Full Payment" : "Advance Deposit"})
-                            </span>
-                            <span className="text-sm font-black text-emerald-800">₹{payNowAmount.toLocaleString("en-IN")}</span>
-                          </div>
-
-                          {payAtVenueAmount > 0 ? (
-                            <div className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-amber-900 font-semibold">
-                              <span>Remaining Balance (Pay at Venue)</span>
-                              <span className="font-bold text-amber-800">₹{payAtVenueAmount.toLocaleString("en-IN")}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-emerald-900 font-semibold">
-                              <span>Remaining Balance (Pay at Venue)</span>
-                              <span className="font-bold text-emerald-700">₹0 (Fully Paid)</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <p className="text-[10px] font-medium leading-relaxed text-slate-500 flex items-start gap-1.5 pt-0.5">
-                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>
-                            {paymentOption === "full" || !canPartial
-                              ? `Full online payment of ₹${payNowAmount.toLocaleString("en-IN")} will confirm your booking with no balance due at the venue.`
-                              : `Partial payment of ₹${payNowAmount.toLocaleString("en-IN")} locks your slot now. Remaining balance ₹${payAtVenueAmount.toLocaleString("en-IN")} is payable at check-in.`}
-                          </span>
-                        </p>
-                      </div>
 
                     </>
                   )}
@@ -2133,6 +2024,116 @@ function ReviewStep(props: {
                 </div>
               );
             })()}
+
+            {/* Payment Option Selection & Breakdown */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs">
+                    💳
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                    Select Payment Option
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {canPartial ? "Partial or Full" : "Full Payment"}
+                </span>
+              </div>
+
+              {canPartial && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
+                  {/* Partial Payment Card */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentOption("partial")}
+                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                      paymentOption === "partial"
+                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-black text-slate-900">Partial Payment</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
+                        paymentOption === "partial" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        {partialConfig.type === "fixed" ? `₹${partialConfig.value} Deposit` : `${partialConfig.value}% Deposit`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-bold text-emerald-700">
+                      Pay Advance Now
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Lock slot with deposit, pay balance at venue
+                    </p>
+                  </button>
+
+                  {/* Full Payment Card */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentOption("full")}
+                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                      paymentOption === "full"
+                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-black text-slate-900">Full Payment</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
+                        paymentOption === "full" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        100% Online
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-bold text-emerald-700">
+                      Pay ₹{activePrice.toLocaleString("en-IN")} Now
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Pay total amount online, zero balance at venue
+                    </p>
+                  </button>
+                </div>
+              )}
+
+              {/* Payment Breakdown Box */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Total Booking Amount</span>
+                  <span className="font-bold text-slate-900">₹{activePrice.toLocaleString("en-IN")}</span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-emerald-100/90 px-3 py-2 text-emerald-950 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                    Pay Now ({paymentOption === "full" || !canPartial ? "Full Payment" : "Advance Deposit"})
+                  </span>
+                  <span className="text-sm font-black text-emerald-800">₹{payNowAmount.toLocaleString("en-IN")}</span>
+                </div>
+
+                {payAtVenueAmount > 0 ? (
+                  <div className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-amber-900 font-semibold">
+                    <span>Remaining Balance (Pay at Venue)</span>
+                    <span className="font-bold text-amber-800">₹{payAtVenueAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-emerald-900 font-semibold">
+                    <span>Remaining Balance (Pay at Venue)</span>
+                    <span className="font-bold text-emerald-700">₹0 (Fully Paid)</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-[10px] font-medium leading-relaxed text-slate-500 flex items-start gap-1.5 pt-0.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  {paymentOption === "full" || !canPartial
+                    ? `Full online payment of ₹${payNowAmount.toLocaleString("en-IN")} will confirm your booking with no balance due at the venue.`
+                    : `Partial payment of ₹${payNowAmount.toLocaleString("en-IN")} locks your slot now. Remaining balance ₹${payAtVenueAmount.toLocaleString("en-IN")} is payable at check-in.`}
+                </span>
+              </p>
+            </div>
 
             {/* Shown on both mobile and desktop checkout — collecting a phone number
                 can't be desktop-only, mobile is the primary surface. */}
