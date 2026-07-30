@@ -256,7 +256,8 @@ export default function VenueDetailPage() {
                 amenities={desktopAmenities}
                 onPickSport={(sport) => {
                   setSelectedSport(sport);
-                  setSportModalOpen(true);
+                  setSelectedSportForBooking(sport);
+                  setBooking(true);
                 }}
               />
             )}
@@ -433,9 +434,10 @@ export default function VenueDetailPage() {
           selectedSport={selectedSport}
           onSelect={setSelectedSport}
           onClose={() => setSportModalOpen(false)}
-          onContinue={() => {
+          onContinue={(sport) => {
+            const chosen = sport || selectedSport;
             setSportModalOpen(false);
-            setSelectedSportForBooking(selectedSport);
+            setSelectedSportForBooking(chosen);
             setBooking(true);
           }}
         />
@@ -787,7 +789,7 @@ function SportPickerSheet({
   selectedSport: string;
   onSelect: (sport: string) => void;
   onClose: () => void;
-  onContinue: () => void;
+  onContinue: (sport?: string) => void;
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
@@ -808,8 +810,11 @@ function SportPickerSheet({
             return (
               <button
                 key={catId}
-                onClick={() => onSelect(sportName)}
-                className={`flex w-full items-center justify-between rounded-2xl border p-4 transition ${
+                onClick={() => {
+                  onSelect(sportName);
+                  onContinue(sportName);
+                }}
+                className={`flex w-full items-center justify-between rounded-2xl border p-4 transition hover:border-[#0b9c65] cursor-pointer ${
                   isSelected ? "border-[#0b9c65] bg-[#0b9c65]/5" : "border-slate-100 bg-white"
                 }`}
               >
@@ -831,7 +836,7 @@ function SportPickerSheet({
 
         <button
           disabled={!selectedSport}
-          onClick={onContinue}
+          onClick={() => onContinue(selectedSport)}
           className="mt-6 w-full rounded-2xl bg-[#0b9c65] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           CONTINUE
@@ -1137,7 +1142,7 @@ function MobileVenueDetail({
                 venue={venue}
                 highlights={highlights}
                 amenities={amenities}
-                onPickSport={(sport) => { setSelectedSport(sport); setSportModalOpen(true); }}
+                onPickSport={(sport) => { setSelectedSport(sport); onOpenBooking(sport); }}
               />
             )}
 
@@ -1286,9 +1291,10 @@ function MobileVenueDetail({
           selectedSport={selectedSport}
           onSelect={setSelectedSport}
           onClose={() => setSportModalOpen(false)}
-          onContinue={() => {
+          onContinue={(sport) => {
+            const chosen = sport || selectedSport;
             setSportModalOpen(false);
-            onOpenBooking(selectedSport);
+            onOpenBooking(chosen);
           }}
         />
       )}

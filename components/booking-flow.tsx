@@ -301,8 +301,8 @@ export default function BookingFlow({
   const { status, customer } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
-  const [date, setDate] = useState("");
-  const [dateSelected, setDateSelected] = useState(false);
+  const [date, setDate] = useState(() => todayISO());
+  const [dateSelected, setDateSelected] = useState(true);
   const today = new Date();
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
