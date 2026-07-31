@@ -876,3 +876,24 @@ export interface HostedMatch {
   createdAt: string;
   updatedAt: string;
 }
+
+export type NotificationType =
+  | "join_request"
+  | "request_accepted"
+  | "request_rejected"
+  | "payment_confirmed";
+
+export interface CustomerNotification {
+  _id: string;
+  recipientCustomerId?: string | null;
+  recipientPhone?: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  matchId?: string;
+  participantId?: string;
+  actionUrl?: string;
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

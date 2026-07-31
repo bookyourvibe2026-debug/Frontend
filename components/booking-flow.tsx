@@ -229,19 +229,17 @@ function SportChips({
             key={catId}
             type="button"
             onClick={() => handleSelect(name)}
-            className={`group relative flex h-[78px] w-[76px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${
-              active
-                ? "border-[#0b9c65] bg-white ring-2 ring-[#0b9c65]/20 shadow-md shadow-[#0b9c65]/15 scale-[1.02]"
-                : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-xs"
-            }`}
+            className={`group relative flex h-[78px] w-[76px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${active
+              ? "border-[#0b9c65] bg-white ring-2 ring-[#0b9c65]/20 shadow-md shadow-[#0b9c65]/15 scale-[1.02]"
+              : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-xs"
+              }`}
           >
             <span className="flex items-center justify-center text-[34px] leading-none transition group-hover:scale-110">
               {sportEmoji(name)}
             </span>
             <span
-              className={`text-[11px] font-extrabold tracking-tight truncate w-full ${
-                active ? "text-[#0b9c65]" : "text-slate-800"
-              }`}
+              className={`text-[11px] font-extrabold tracking-tight truncate w-full ${active ? "text-[#0b9c65]" : "text-slate-800"
+                }`}
             >
               {name}
             </span>
@@ -301,8 +299,8 @@ export default function BookingFlow({
   const { status, customer } = useCustomerAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
-  const [date, setDate] = useState(() => todayISO());
-  const [dateSelected, setDateSelected] = useState(true);
+  const [date, setDate] = useState("");
+  const [dateSelected, setDateSelected] = useState(false);
   const today = new Date();
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
@@ -620,7 +618,7 @@ export default function BookingFlow({
         setSelectedSlotIndices(firstAvail ? [firstAvail.originalIndex] : []);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, listing.type, bookedRanges]);
 
   // Courts actually bookable for all selected slots.
@@ -679,9 +677,9 @@ export default function BookingFlow({
     (listing.type !== "Turf"
       ? !!time
       : selectedSlotIndices.length > 0 &&
-        !isDateHoliday &&
-        selectedSlotIndices.every((idx) => generatedSlots[idx]?.status === "Available") &&
-        (courtsForSport.length === 0 || effectiveCourtIds.length > 0));
+      !isDateHoliday &&
+      selectedSlotIndices.every((idx) => generatedSlots[idx]?.status === "Available") &&
+      (courtsForSport.length === 0 || effectiveCourtIds.length > 0));
 
   const partialConfig = listing.partialPayment ?? { enabled: true, type: "percentage", value: 25 };
   const canPartial = partialConfig.enabled !== false;
@@ -724,9 +722,9 @@ export default function BookingFlow({
 
   if (status === "guest") {
     return authView === "login" ? (
-      <LoginModal onClose={onClose} onLoggedIn={() => {}} onSwitchToSignup={() => setAuthView("signup")} />
+      <LoginModal onClose={onClose} onLoggedIn={() => { }} onSwitchToSignup={() => setAuthView("signup")} />
     ) : (
-      <SignupModal onClose={onClose} onSignedUp={() => {}} onSwitchToLogin={() => setAuthView("login")} />
+      <SignupModal onClose={onClose} onSignedUp={() => { }} onSwitchToLogin={() => setAuthView("login")} />
     );
   }
 
@@ -929,11 +927,10 @@ export default function BookingFlow({
                   <button
                     type="button"
                     onClick={() => setSelectedPayMethod("UPI")}
-                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
-                      selectedPayMethod === "UPI"
-                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${selectedPayMethod === "UPI"
+                      ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
                   >
                     <span className="text-lg">⚡</span>
                     <span className="text-[11px] mt-1">UPI / QR</span>
@@ -941,11 +938,10 @@ export default function BookingFlow({
                   <button
                     type="button"
                     onClick={() => setSelectedPayMethod("Card")}
-                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
-                      selectedPayMethod === "Card"
-                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${selectedPayMethod === "Card"
+                      ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
                   >
                     <span className="text-lg">💳</span>
                     <span className="text-[11px] mt-1">Cards</span>
@@ -953,11 +949,10 @@ export default function BookingFlow({
                   <button
                     type="button"
                     onClick={() => setSelectedPayMethod("NetBanking")}
-                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${
-                      selectedPayMethod === "NetBanking"
-                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
+                    className={`flex flex-col items-center justify-center rounded-2xl border p-3 transition ${selectedPayMethod === "NetBanking"
+                      ? "border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500 font-bold"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
                   >
                     <span className="text-lg">🏦</span>
                     <span className="text-[11px] mt-1">NetBanking</span>
@@ -1309,7 +1304,7 @@ function ReviewStep(props: {
         embedded
           ? "w-full"
           : // Full screen on mobile ("page poora khule"); modal-sized on desktop.
-            "relative flex h-full w-full max-w-4xl flex-col bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
+          "relative flex h-full w-full max-w-4xl flex-col bg-slate-50 shadow-2xl sm:max-h-[90vh] sm:rounded-3xl"
       }
     >
       {!embedded && (
@@ -1384,9 +1379,8 @@ function ReviewStep(props: {
                         key={tier.id}
                         type="button"
                         onClick={() => setSelectedPriceTierId(tier.id)}
-                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
-                          active ? "border-brand-500 bg-brand-50 shadow-sm" : "border-slate-100 bg-slate-50/60 hover:border-slate-200"
-                        }`}
+                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${active ? "border-brand-500 bg-brand-50 shadow-sm" : "border-slate-100 bg-slate-50/60 hover:border-slate-200"
+                          }`}
                       >
                         <div>
                           <p className="text-sm font-bold text-slate-900">{tier.label}</p>
@@ -1456,11 +1450,10 @@ function ReviewStep(props: {
                           key={mName}
                           type="button"
                           onClick={() => setVisibleMonth(mIdx)}
-                          className={`rounded-2xl px-3.5 py-1.5 text-xs font-black transition shrink-0 ${
-                            isCurrentMonth
-                              ? "bg-slate-900 text-white shadow-md"
-                              : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                          }`}
+                          className={`rounded-2xl px-3.5 py-1.5 text-xs font-black transition shrink-0 ${isCurrentMonth
+                            ? "bg-slate-900 text-white shadow-md"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                            }`}
                         >
                           {mName}
                         </button>
@@ -1562,9 +1555,8 @@ function ReviewStep(props: {
                           {opt.weekday}
                         </span>
                         <span
-                          className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg font-extrabold transition ${
-                            isSelected ? "bg-brand-600 text-white shadow-md" : "text-slate-700 hover:bg-slate-100"
-                          }`}
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg font-extrabold transition ${isSelected ? "bg-brand-600 text-white shadow-md" : "text-slate-700 hover:bg-slate-100"
+                            }`}
                         >
                           {opt.dayNum}
                         </span>
@@ -1624,8 +1616,8 @@ function ReviewStep(props: {
                                   {selectedSlotIndices.length > 1
                                     ? `${selectedSlotIndices.length} Slots Selected`
                                     : selectedSlotIndices.length === 1
-                                    ? "Selected Slot"
-                                    : "No Slot Selected"}
+                                      ? "Selected Slot"
+                                      : "No Slot Selected"}
                                 </p>
                                 <p className="text-[13px] font-extrabold text-slate-900 truncate">
                                   {selectedSlotSummaryText}
@@ -1693,29 +1685,26 @@ function ReviewStep(props: {
                                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
                                     onToggleSlotSelection(slot.originalIndex);
                                   }}
-                                  className={`relative flex flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200 cursor-pointer active:scale-95 border min-h-[44px] ${
-                                    isSelected
-                                      ? "bg-[#0b9c65] text-white border-[#0b9c65] shadow-md shadow-[#0b9c65]/30 ring-2 ring-[#0b9c65]/30 scale-[1.02]"
-                                      : available
+                                  className={`relative flex flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200 cursor-pointer active:scale-95 border min-h-[44px] ${isSelected
+                                    ? "bg-[#0b9c65] text-white border-[#0b9c65] shadow-md shadow-[#0b9c65]/30 ring-2 ring-[#0b9c65]/30 scale-[1.02]"
+                                    : available
                                       ? "bg-white text-slate-900 border-slate-200 hover:border-[#0b9c65] hover:bg-emerald-50/30 shadow-2xs"
                                       : "bg-slate-100/80 text-slate-400 border-slate-200/60 cursor-not-allowed opacity-50"
-                                  }`}
+                                    }`}
                                 >
                                   {/* Last Minute Deal Badge */}
                                   {available && slot.boostPct > 0 && (
                                     <span
-                                      className={`absolute -top-1.5 -right-1 rounded-full px-1.5 py-0.2 text-[7.5px] font-black uppercase tracking-wider ${
-                                        isSelected ? "bg-white text-[#0b9c65] shadow-xs" : "bg-red-500 text-white shadow-xs"
-                                      }`}
+                                      className={`absolute -top-1.5 -right-1 rounded-full px-1.5 py-0.2 text-[7.5px] font-black uppercase tracking-wider ${isSelected ? "bg-white text-[#0b9c65] shadow-xs" : "bg-red-500 text-white shadow-xs"
+                                        }`}
                                     >
                                       {slot.boostPct}% OFF
                                     </span>
                                   )}
 
                                   <span
-                                    className={`text-[10.5px] font-extrabold whitespace-nowrap tracking-tight leading-tight ${
-                                      isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
-                                    }`}
+                                    className={`text-[10.5px] font-extrabold whitespace-nowrap tracking-tight leading-tight ${isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
+                                      }`}
                                   >
                                     {timeRangeText}
                                   </span>
@@ -1724,9 +1713,8 @@ function ReviewStep(props: {
                                     {available ? (
                                       <div className="flex items-baseline gap-1">
                                         <span
-                                          className={`text-[10px] font-black ${
-                                            isSelected ? "text-white/90" : "text-slate-600"
-                                          }`}
+                                          className={`text-[10px] font-black ${isSelected ? "text-white/90" : "text-slate-600"
+                                            }`}
                                         >
                                           ₹{finalPrice.toLocaleString("en-IN")}
                                         </span>
@@ -1785,13 +1773,12 @@ function ReviewStep(props: {
                                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
                                     onToggleCourt(court.id);
                                   }}
-                                  className={`flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition ${
-                                    active
-                                      ? "border-[#0b9c65] bg-[#0b9c65]/5 shadow-sm"
-                                      : isFree
+                                  className={`flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition ${active
+                                    ? "border-[#0b9c65] bg-[#0b9c65]/5 shadow-sm"
+                                    : isFree
                                       ? "border-slate-200 bg-white hover:border-[#0b9c65]/60"
                                       : "cursor-not-allowed border-slate-100 bg-slate-50 opacity-60"
-                                  }`}
+                                    }`}
                                 >
                                   <span className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                                     {photo ? (
@@ -1813,22 +1800,20 @@ function ReviewStep(props: {
                                       </span>
                                     )}
                                     <span
-                                      className={`mt-1 block text-[13px] font-black ${
-                                        isFree ? "text-slate-900" : "text-slate-400"
-                                      }`}
+                                      className={`mt-1 block text-[13px] font-black ${isFree ? "text-slate-900" : "text-slate-400"
+                                        }`}
                                     >
                                       {isFree ? `₹${totalCourtPrice.toLocaleString("en-IN")}` : "Booked"}
                                     </span>
                                   </span>
 
                                   <span
-                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${
-                                      active
-                                        ? "border-[#0b9c65] bg-[#0b9c65] text-white"
-                                        : isFree
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${active
+                                      ? "border-[#0b9c65] bg-[#0b9c65] text-white"
+                                      : isFree
                                         ? "border-slate-300 bg-white text-transparent"
                                         : "border-slate-200 bg-slate-100 text-transparent"
-                                    }`}
+                                      }`}
                                   >
                                     <Check className="h-3.5 w-3.5 stroke-[3]" />
                                   </span>
@@ -1966,7 +1951,6 @@ function ReviewStep(props: {
               const allAddOns = listing.addOns ?? [];
               if (allAddOns.length === 0) return null;
               const filteredAddOns = allAddOns.filter((addOn) => isAddOnForSport(addOn, selectedSport));
-
               return (
                 <div className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -2008,11 +1992,10 @@ function ReviewStep(props: {
                             <button
                               type="button"
                               onClick={() => onToggleAddOn(addOn.id)}
-                              className={`rounded-md border px-3 py-1 text-[10px] font-bold transition ${
-                                added
-                                  ? "border-brand-500 bg-brand-500 text-white"
-                                  : "border-brand-400/60 bg-white text-brand-500 hover:bg-brand-50"
-                              }`}
+                              className={`rounded-md border px-3 py-1 text-[10px] font-bold transition ${added
+                                ? "border-brand-500 bg-brand-500 text-white"
+                                : "border-brand-400/60 bg-white text-brand-500 hover:bg-brand-50"
+                                }`}
                             >
                               {added ? "ADDED" : "ADD"}
                             </button>
@@ -2047,17 +2030,15 @@ function ReviewStep(props: {
                   <button
                     type="button"
                     onClick={() => setPaymentOption("partial")}
-                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                      paymentOption === "partial"
-                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${paymentOption === "partial"
+                      ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-black text-slate-900">Partial Payment</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                        paymentOption === "partial" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
-                      }`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${paymentOption === "partial" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
+                        }`}>
                         {partialConfig.type === "fixed" ? `₹${partialConfig.value} Deposit` : `${partialConfig.value}% Deposit`}
                       </span>
                     </div>
@@ -2073,17 +2054,15 @@ function ReviewStep(props: {
                   <button
                     type="button"
                     onClick={() => setPaymentOption("full")}
-                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                      paymentOption === "full"
-                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+                    className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${paymentOption === "full"
+                      ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-black text-slate-900">Full Payment</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                        paymentOption === "full" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
-                      }`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${paymentOption === "full" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
+                        }`}>
                         100% Online
                       </span>
                     </div>
@@ -2163,17 +2142,16 @@ function ReviewStep(props: {
                   type="button"
                   disabled={!canPay || submitting}
                   onClick={onPay}
-                  className={`hidden w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition lg:block ${
-                    canPay && !submitting
-                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:scale-[1.01]"
-                      : "cursor-not-allowed bg-slate-300 text-white"
-                  }`}
-                  >
+                  className={`hidden w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wide transition lg:block ${canPay && !submitting
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:scale-[1.01]"
+                    : "cursor-not-allowed bg-slate-300 text-white"
+                    }`}
+                >
                   {submitting
                     ? "Booking..."
                     : selectedTier
-                    ? `Confirm ${selectedTier.label}`
-                    : `PAY ₹${(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM`}
+                      ? `Confirm ${selectedTier.label}`
+                      : `PAY ₹${(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM`}
                 </button>
               )}
             </div>
@@ -2249,7 +2227,7 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
       `Order ID: ${booking.orderId}`,
     ].join("\n");
     if (typeof navigator !== "undefined" && navigator.share) {
-      navigator.share({ title: "My BYV Booking", text: message }).catch(() => {});
+      navigator.share({ title: "My BYV Booking", text: message }).catch(() => { });
     } else {
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     }

@@ -289,23 +289,6 @@ export function MobileHome({
 
       <CityRankings variant="mobile" />
 
-      <section>
-        <MobileSectionRow title="Food & Beverages" />
-        {/* Food ordering isn't live yet — shown as Coming Soon rather than linking to /food. */}
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-400">
-            <CupSoda className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-500">Hungry between games?</p>
-            <p className="text-xs text-slate-400">Courtside snacks &amp; drinks</p>
-          </div>
-          <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
-            Coming Soon
-          </span>
-        </div>
-      </section>
-
       {/* The "Challenge a Friend" duel now lives only in the Community banner below —
           the compact card here said the same thing twice on one screen. */}
 
@@ -383,6 +366,23 @@ export function MobileHome({
             <Swords className="h-3.5 w-3.5" /> Or Challenge a Player
           </button>
         </MobileCard>
+      </section>
+
+      <section>
+        <MobileSectionRow title="Food & Beverages" />
+        {/* Food ordering isn't live yet — shown as Coming Soon rather than linking to /food. */}
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-400">
+            <CupSoda className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-500">Hungry between games?</p>
+            <p className="text-xs text-slate-400">Courtside snacks &amp; drinks</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
+            Coming Soon
+          </span>
+        </div>
       </section>
 
       <section>

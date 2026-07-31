@@ -9,8 +9,9 @@ import { Toast } from "@/components/admin/Toast";
 import { HostMatchModal } from "@/components/community/HostMatchModal";
 import { HostManageModal } from "@/components/community/HostManageModal";
 import { PlayerJoinModal } from "@/components/community/PlayerJoinModal";
-import { getOpenHostedMatches } from "@/lib/api/hostedMatches";
-import type { HostedMatch } from "@/lib/api/types";
+import { getOpenHostedMatches, getHostedMatchDetails } from "@/lib/api/hostedMatches";
+import type { HostedMatch, CustomerNotification } from "@/lib/api/types";
+import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 
 interface Match {
   id: string;
@@ -86,6 +87,7 @@ export default function CommunityPage() {
 
   const [clubName, setClubName] = useState("");
   const [clubSport, setClubSport] = useState("Badminton");
+  const { customer } = useCustomerAuth();
   const [clubPlace, setClubPlace] = useState("");
 
   const openJoinModal = (match: Match) => {
@@ -93,16 +95,110 @@ export default function CommunityPage() {
     setCopiedLink(false);
   };
 
+  function getMatchButtonState(m: HostedMatch, userCustomerId?: string, savedPhone?: string) {
+    const isHost = (userCustomerId && m.hostCustomerId === userCustomerId) || (savedPhone && m.hostPhone === savedPhone);
+    const myParticipant = m.participants.find(
+      (p) => (userCustomerId && p.customerId === userCustomerId) || (savedPhone && p.phone === savedPhone)
+    );
+
+    const confirmedCount = m.participants.filter((p) => p.status === "Confirmed").length;
+    const isFull = confirmedCount >= m.maxPlayers;
+
+    if (isHost) {
+      return {
+        text: "You are Hosting",
+        isHost: true,
+        disabled: false,
+        className: "bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold shadow-sm",
+      };
+    }
+
+    if (myParticipant) {
+      if (myParticipant.status === "Pending Approval") {
+        return {
+          text: "Request Sent (Pending)",
+          isHost: false,
+          disabled: false,
+          className: "bg-amber-100 text-amber-900 border border-amber-300 font-bold",
+        };
+      }
+      if (myParticipant.status === "Payment Pending") {
+        return {
+          text: `Pay Entry Fee (₹${m.entryFeePerPlayer})`,
+          isHost: false,
+          disabled: false,
+          className: "bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-extrabold shadow-md animate-pulse",
+        };
+      }
+      if (myParticipant.status === "Confirmed") {
+        return {
+          text: "Confirmed ✓",
+          isHost: false,
+          disabled: false,
+          className: "bg-emerald-100 text-emerald-800 border border-emerald-300 font-black",
+        };
+      }
+      if (myParticipant.status === "Rejected") {
+        return {
+          text: "Declined",
+          isHost: false,
+          disabled: false,
+          className: "bg-rose-100 text-rose-700 border border-rose-200 font-semibold",
+        };
+      }
+    }
+
+    if (isFull) {
+      return {
+        text: "Lobby Full",
+        isHost: false,
+        disabled: true,
+        className: "bg-slate-200 text-slate-500 cursor-not-allowed",
+      };
+    }
+
+    return {
+      text: m.entryFeePerPlayer === 0 ? "Request to Join (Free)" : "Request to Join",
+      isHost: false,
+      disabled: false,
+      className: "bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs",
+    };
+  }
+
   const handleMatchClick = (m: HostedMatch) => {
     let savedPhone = "";
     try {
       savedPhone = localStorage.getItem("byv_player_phone") || "";
     } catch (e) {}
 
-    if (savedPhone && m.hostPhone === savedPhone) {
+    const cId = (customer as any)?._id || customer?.id;
+    const isHost = (cId && m.hostCustomerId === cId) || (savedPhone && m.hostPhone === savedPhone);
+
+    if (isHost) {
       setManagingMatch(m);
     } else {
       setJoiningMatch(m);
+    }
+  };
+
+  const handleSelectNotification = async (notif: CustomerNotification) => {
+    if (!notif.matchId) return;
+    try {
+      const m = await getHostedMatchDetails(notif.matchId);
+      let savedPhone = "";
+      try {
+        savedPhone = localStorage.getItem("byv_player_phone") || "";
+      } catch (e) {}
+
+      const cId = (customer as any)?._id || customer?.id;
+      const isHost = (cId && m.hostCustomerId === cId) || (savedPhone && m.hostPhone === savedPhone);
+      if (isHost || notif.type === "join_request") {
+        setManagingMatch(m);
+      } else {
+        setJoiningMatch(m);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -413,7 +509,13 @@ export default function CommunityPage() {
                   const turfLocation = typeof m.listingId === "object" ? `${m.listingId.city || ""}` : "";
                   const confirmedCount = m.participants.filter((p) => p.status === "Confirmed").length;
                   const spotsAvailable = Math.max(0, m.maxPlayers - confirmedCount);
-                  const isFull = confirmedCount >= m.maxPlayers;
+
+                  let savedPhone = "";
+                  try {
+                    savedPhone = localStorage.getItem("byv_player_phone") || "";
+                  } catch (e) {}
+
+                  const btnState = getMatchButtonState(m, (customer as any)?._id || customer?.id, savedPhone);
 
                   return (
                     <MobileCard key={m._id} className="flex flex-col gap-2.5 border-emerald-100 bg-gradient-to-br from-emerald-50/30 to-white">
@@ -451,14 +553,11 @@ export default function CommunityPage() {
 
                         <button
                           type="button"
+                          disabled={btnState.disabled}
                           onClick={() => handleMatchClick(m)}
-                          className={`rounded-full px-4 py-1.5 text-xs font-bold transition shadow-xs ${
-                            isFull
-                              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                          }`}
+                          className={`rounded-full px-4 py-1.5 text-xs transition ${btnState.className}`}
                         >
-                          {isFull ? "Full" : m.entryFeePerPlayer === 0 ? "Free Join" : "Join Match"}
+                          {btnState.text}
                         </button>
                       </div>
                     </MobileCard>
@@ -601,7 +700,13 @@ export default function CommunityPage() {
                   const turfCity = typeof m.listingId === "object" ? `${m.listingId.city || ""}` : "";
                   const confirmedCount = m.participants.filter((p) => p.status === "Confirmed").length;
                   const spotsAvailable = Math.max(0, m.maxPlayers - confirmedCount);
-                  const isFull = confirmedCount >= m.maxPlayers;
+
+                  let savedPhone = "";
+                  try {
+                    savedPhone = localStorage.getItem("byv_player_phone") || "";
+                  } catch (e) {}
+
+                  const btnState = getMatchButtonState(m, (customer as any)?._id || customer?.id, savedPhone);
 
                   return (
                     <article
@@ -641,14 +746,11 @@ export default function CommunityPage() {
                         </span>
                         <button
                           type="button"
+                          disabled={btnState.disabled}
                           onClick={() => handleMatchClick(m)}
-                          className={`flex items-center gap-1 rounded-full px-5 py-2.5 text-xs font-bold transition shadow-sm ${
-                            isFull
-                              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                          }`}
+                          className={`flex items-center gap-1 rounded-full px-5 py-2.5 text-xs transition ${btnState.className}`}
                         >
-                          {isFull ? "Lobby Full" : m.entryFeePerPlayer === 0 ? "Free Join" : "Join Match"}
+                          {btnState.text}
                         </button>
                       </div>
                     </article>

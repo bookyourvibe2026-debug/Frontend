@@ -109,6 +109,7 @@ export interface RequestOptions {
   body?: unknown;
   /** Any plain object of primitive filters/pagination params; undefined/null/empty values are omitted. */
   query?: object;
+  headers?: Record<string, string>;
   /** Attach the given audience's access token as a Bearer header, refreshing once on 401. */
   audience?: Audience;
 }
@@ -152,7 +153,7 @@ function normalizeApiBaseUrl(baseUrl: string): string {
 }
 
 async function performFetch(path: string, options: RequestOptions, token: string | null): Promise<Response> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...options.headers };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 

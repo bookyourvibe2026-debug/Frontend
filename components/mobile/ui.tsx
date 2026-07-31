@@ -17,6 +17,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
+import { CustomerNotificationBell } from "@/components/notifications/CustomerNotificationBell";
 
 const MOBILE_NAV_LINKS = [
   { label: "Home", href: "/" },
@@ -45,6 +46,7 @@ export function MobileTopBar() {
           priority
         />
         <div className="flex shrink-0 items-center gap-1.5">
+          <CustomerNotificationBell />
           {status !== "loading" && (
             isLoggedIn ? (
               <button

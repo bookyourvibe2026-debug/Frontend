@@ -8,6 +8,7 @@ import { BrandLogo } from "./brand-logo";
 import { useCustomerAuth } from "./providers/CustomerAuthProvider";
 import { LoginModal } from "./home/modals/LoginModal";
 import { SignupModal } from "./home/modals/SignupModal";
+import { CustomerNotificationBell } from "./notifications/CustomerNotificationBell";
 
 const NAV_LINKS = [
   { label: "Home", href: "/" },
@@ -76,6 +77,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <CustomerNotificationBell />
           <Link
             href="/vendor/register"
             className="hidden rounded-full border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100 lg:inline-flex"
