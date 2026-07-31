@@ -36,7 +36,7 @@ export function CustomerNotificationBell({
 
   useEffect(() => {
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 15_000); // Polling every 15s for real-time notifications
+    const interval = setInterval(fetchNotifs, 8_000); // Fast 8s real-time polling
     return () => clearInterval(interval);
   }, [playerPhone]);
 
