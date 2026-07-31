@@ -78,6 +78,100 @@ function toIsoDate(d: Date) {
 function durHrs(start: string, end: string) {
   return +(slotDurMins(start, end) / 60).toFixed(1);
 }
+
+function getVendorSportEmoji(sport: string) {
+  const l = (sport || "").toLowerCase();
+  if (l.includes("cricket")) return "🏏";
+  if (l.includes("foot") || l.includes("socc")) return "⚽";
+  if (l.includes("badm")) return "🏸";
+  if (l.includes("tenn") || l.includes("padel") || l.includes("squash")) return "🎾";
+  if (l.includes("basket")) return "🏀";
+  if (l.includes("volley")) return "🏐";
+  if (l.includes("swim")) return "🏊‍♂️";
+  if (l.includes("table") || l.includes("tt")) return "🏓";
+  if (l.includes("snooker") || l.includes("pool") || l.includes("billiards")) return "🎱";
+  if (l.includes("golf")) return "⛳";
+  if (l.includes("box")) return "🥊";
+  return "🏆";
+}
+
+function VendorSportDropdown({
+  sports,
+  selectedSport,
+  onSelect,
+}: {
+  sports: string[];
+  selectedSport: string;
+  onSelect: (sport: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
+  }, [open]);
+
+  const currentSport = selectedSport || sports[0] || "Sports";
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 transition-all hover:border-vibe-violet focus:border-vibe-violet focus:ring-2 focus:ring-vibe-violet/20 cursor-pointer shadow-2xs"
+      >
+        <span className="flex items-center gap-2 truncate">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-sm">
+            {getVendorSportEmoji(currentSport)}
+          </span>
+          <span className="truncate font-extrabold capitalize text-slate-900">{currentSport}</span>
+        </span>
+        <ChevronDown size={15} className={`text-slate-400 transition-transform duration-200 ${open ? "rotate-180 text-vibe-violet" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-[120] mt-1.5 w-full min-w-[200px] rounded-2xl border border-slate-100 bg-white p-1.5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 px-2 py-1 border-b border-slate-100 mb-1">
+            Select Sport / Court
+          </div>
+          <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-none">
+            {sports.map((cat) => {
+              const isSelected = cat.toLowerCase() === currentSport.toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    onSelect(cat);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-bold transition cursor-pointer ${
+                    isSelected
+                      ? "bg-vibe-violet/10 text-vibe-violet font-extrabold border border-vibe-violet/20"
+                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <span className="text-base">{getVendorSportEmoji(cat)}</span>
+                    <span className="capitalize">{cat}</span>
+                  </span>
+                  {isSelected && <Check size={14} className="text-vibe-violet shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 /** Slot length in minutes, tolerating an end time that wraps past midnight ("23:00"→"00:00"). */
 function slotDurMins(start: string, end: string) {
   const d = t24m(end) - t24m(start);
@@ -427,12 +521,13 @@ export default function BookingsPage() {
 
   /* ── Header-derived data ── */
   const weekDates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
+    () => Array.from({ length: 365 }, (_, i) => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - 3 + i); // 3 days in past + 362 days in future
       return d;
     }),
-    [weekStart]
+    []
   );
 
   /** Slots taken by any kind of booking — drives the "x/y Slots Booked" ring. */
@@ -1492,11 +1587,12 @@ export default function BookingsPage() {
                     onClick={() => setSetupSportsSelected(prev => 
                       isSelected ? prev.filter(s => s !== sport) : [...prev, sport]
                     )}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${
-                      isSelected ? "bg-vibe-violet text-white border-vibe-violet" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                      isSelected ? "bg-vibe-violet text-white border-vibe-violet shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                     }`}
                   >
-                    {sport}
+                    <span>{getVendorSportEmoji(sport)}</span>
+                    <span className="capitalize">{sport}</span>
                   </button>
                 );
               })}
@@ -1505,7 +1601,7 @@ export default function BookingsPage() {
             <button 
               onClick={saveSetupSports} 
               disabled={setupSportsSelected.length === 0 || setupSportsSaving}
-              className="w-full rounded-xl bg-vibe-violet text-white py-3 text-sm font-bold hover:bg-indigo-700 transition disabled:opacity-50"
+              className="w-full rounded-xl bg-vibe-violet text-white py-3 text-sm font-bold hover:bg-indigo-700 transition disabled:opacity-50 cursor-pointer"
             >
               {setupSportsSaving ? "Saving..." : "Save Sports"}
             </button>
@@ -1605,12 +1701,11 @@ export default function BookingsPage() {
               </div>
               <div>
                 <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Sport / Court</label>
-                <select value={offlineSport} onChange={e => setOfflineSport(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet bg-white">
-                  {selectedTurf?.categories?.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                <VendorSportDropdown
+                  sports={selectedTurf?.categories ?? ["Sports"]}
+                  selectedSport={offlineSport}
+                  onSelect={(s) => setOfflineSport(s)}
+                />
               </div>
               {offlineMode !== "multiple" && (
                 <div>

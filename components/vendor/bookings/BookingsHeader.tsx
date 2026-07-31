@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, Clock, MapPin, QrCode } from "lucide-react";
 
 /* ─── Slots-booked ring ─────────────────────────────────────────── */
@@ -79,6 +80,32 @@ export function BookingsHeader({
   onPrevWeek: () => void;
   onNextWeek: () => void;
 }) {
+  const dateStripRef = useRef<HTMLDivElement>(null);
+
+  const scrollStrip = (offset: number) => {
+    if (dateStripRef.current) {
+      dateStripRef.current.scrollBy({ left: offset, behavior: "smooth" });
+    }
+  };
+
+  const handleVendorDateScroll = () => {
+    if (!dateStripRef.current || dates.length === 0) return;
+    const container = dateStripRef.current;
+    const children = Array.from(container.children) as HTMLElement[];
+    const containerLeft = container.getBoundingClientRect().left;
+
+    for (const child of children) {
+      const rect = child.getBoundingClientRect();
+      if (rect.left >= containerLeft - 10 && rect.left <= containerLeft + 60) {
+        const iso = child.getAttribute("data-iso");
+        if (iso) {
+          onSelectDate(iso);
+        }
+        break;
+      }
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Venue + location */}
@@ -108,7 +135,7 @@ export function BookingsHeader({
       <div className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-            Today <span className="text-slate-300">•</span> <span className="text-slate-700">{dateLabel}</span>
+            Selected <span className="text-slate-300">•</span> <span className="text-slate-700">{dateLabel}</span>
           </p>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${
@@ -163,23 +190,30 @@ export function BookingsHeader({
         <button
           type="button"
           aria-label="Previous days"
-          onClick={onPrevWeek}
+          onClick={() => scrollStrip(-240)}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
         >
           <ChevronLeft size={15} />
         </button>
 
-        <div className="flex flex-1 gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {dates.map((d) => {
+        <div
+          ref={dateStripRef}
+          className="flex flex-1 gap-1.5 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden items-end"
+        >
+          {dates.map((d, i) => {
             const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
             const isSel = iso === selectedDate;
             const isToday = iso === todayIso;
             const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            const isFirst = d.getDate() === 1 || i === 0;
+            const monthShort = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+
             return (
               <button
                 key={iso}
+                data-iso={iso}
                 onClick={() => onSelectDate(iso)}
-                className={`flex h-[54px] flex-1 shrink-0 basis-0 flex-col items-center justify-center rounded-xl border transition ${
+                className={`relative flex h-[54px] w-12 shrink-0 flex-col items-center justify-center rounded-xl border transition ${
                   isSel
                     ? "border-vibe-navy bg-vibe-navy text-white shadow-md"
                     : isWeekend
@@ -187,7 +221,12 @@ export function BookingsHeader({
                     : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                 }`}
               >
-                <span className="text-[8px] font-bold uppercase leading-none">
+                {isFirst && (
+                  <span className="absolute -top-2.5 rounded bg-slate-800 px-1 py-0.2 text-[7.5px] font-black text-white uppercase tracking-widest z-10">
+                    {monthShort}
+                  </span>
+                )}
+                <span className="text-[8px] font-bold uppercase leading-none mt-0.5">
                   {d.toLocaleDateString("en-US", { weekday: "short" })}
                 </span>
                 <span className={`mt-1 text-[15px] font-black leading-none ${isSel ? "text-white" : ""}`}>
@@ -204,7 +243,7 @@ export function BookingsHeader({
         <button
           type="button"
           aria-label="Next days"
-          onClick={onNextWeek}
+          onClick={() => scrollStrip(240)}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
         >
           <ChevronRight size={15} />

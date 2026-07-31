@@ -229,16 +229,22 @@ function SportChips({
             key={catId}
             type="button"
             onClick={() => handleSelect(name)}
-            className={`group relative flex h-[78px] w-[76px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${active
-              ? "border-[#0b9c65] bg-white ring-2 ring-[#0b9c65]/20 shadow-md shadow-[#0b9c65]/15 scale-[1.02]"
-              : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-xs"
+            className={`group relative flex h-[82px] w-[80px] shrink-0 flex-col items-center justify-center gap-1 rounded-[20px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${active
+              ? "border-[#0b9c65] bg-gradient-to-b from-emerald-50/50 to-white ring-2 ring-[#0b9c65]/30 shadow-md shadow-[#0b9c65]/15 scale-[1.03]"
+              : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:shadow-sm"
               }`}
           >
-            <span className="flex items-center justify-center text-[34px] leading-none transition group-hover:scale-110">
+            {active && (
+              <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+            <span className="flex items-center justify-center text-[32px] leading-none transition duration-200 group-hover:scale-110">
               {sportEmoji(name)}
             </span>
             <span
-              className={`text-[11px] font-extrabold tracking-tight truncate w-full ${active ? "text-[#0b9c65]" : "text-slate-800"
+              className={`text-[11px] font-black tracking-tight truncate w-full capitalize ${active ? "text-[#0b9c65]" : "text-slate-700"
                 }`}
             >
               {name}
@@ -297,11 +303,11 @@ export default function BookingFlow({
   selectedSport?: string;
 }) {
   const { status, customer } = useCustomerAuth();
+  const today = new Date();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
-  const [date, setDate] = useState("");
-  const [dateSelected, setDateSelected] = useState(false);
-  const today = new Date();
+  const [date, setDate] = useState(() => todayISO());
+  const [dateSelected, setDateSelected] = useState(true);
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
@@ -389,19 +395,21 @@ export default function BookingFlow({
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
-  // Generate all upcoming dates for continuous scrolling across months and years (180 days into future)
+  // Generate all upcoming dates for continuous scrolling across months and years (365 days into future)
   const dateOptions = useMemo(() => {
-    const list: { iso: string; dayNum: number; weekday: string; monthLabel: string; month: number; year: number }[] = [];
+    const list: { iso: string; dayNum: number; weekday: string; monthLabel: string; monthShort: string; isFirstOfMonth: boolean; month: number; year: number }[] = [];
     const minIso = todayISO();
     const startDate = new Date();
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 365; i++) {
       const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
       const iso = localDateISO(d);
       if (iso < minIso) continue;
       const dayNum = d.getDate();
       const weekday = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
       const monthLabel = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      list.push({ iso, dayNum, weekday, monthLabel, month: d.getMonth(), year: d.getFullYear() });
+      const monthShort = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+      const isFirstOfMonth = dayNum === 1 || list.length === 0;
+      list.push({ iso, dayNum, weekday, monthLabel, monthShort, isFirstOfMonth, month: d.getMonth(), year: d.getFullYear() });
     }
     return list;
   }, []);
@@ -843,6 +851,8 @@ export default function BookingFlow({
             // Each game has its own courts — a badminton pick can't carry into cricket.
             setCourtPicks(null);
             setSport(s);
+            if (!date) setDate(todayISO());
+            setDateSelected(true);
           }}
           freeCourts={freeCourts}
           courtsForSport={courtsForSport}
@@ -1015,7 +1025,7 @@ function ReviewStep(props: {
   error: string;
   onClose: () => void;
   onPay: () => void;
-  dateOptions: { iso: string; dayNum: number; weekday: string; monthLabel: string; month: number; year: number }[];
+  dateOptions: { iso: string; dayNum: number; weekday: string; monthLabel: string; monthShort?: string; isFirstOfMonth?: boolean; month: number; year: number }[];
   activeMonthLabel: string;
   dateSelected: boolean;
   setDateSelected: (v: boolean) => void;
@@ -1127,15 +1137,20 @@ function ReviewStep(props: {
   const handleDateStripScroll = () => {
     if (!dateStripRef.current || dateOptions.length === 0) return;
     const container = dateStripRef.current;
-    const cardWidth = 60; // 48px width + 12px gap
-    const activeIdx = Math.max(
-      0,
-      Math.min(dateOptions.length - 1, Math.floor((container.scrollLeft + cardWidth / 2) / cardWidth))
-    );
-    const currentOpt = dateOptions[activeIdx];
-    if (currentOpt && currentOpt.monthLabel.toUpperCase() !== activeMonthLabel.toUpperCase()) {
-      setVisibleMonth(currentOpt.month);
-      setVisibleYear(currentOpt.year);
+    const children = Array.from(container.children) as HTMLElement[];
+    const containerLeft = container.getBoundingClientRect().left;
+
+    for (const child of children) {
+      const rect = child.getBoundingClientRect();
+      if (rect.left >= containerLeft - 20 && rect.left <= containerLeft + 80) {
+        const iso = child.getAttribute("data-iso");
+        const opt = dateOptions.find((d) => d.iso === iso);
+        if (opt && (opt.month !== visibleMonth || opt.year !== visibleYear)) {
+          setVisibleMonth(opt.month);
+          setVisibleYear(opt.year);
+        }
+        break;
+      }
     }
   };
 
@@ -1535,13 +1550,14 @@ function ReviewStep(props: {
                 <div
                   ref={dateStripRef}
                   onScroll={handleDateStripScroll}
-                  className="mt-2 flex gap-3 overflow-x-auto pb-1 scroll-smooth scrollbar-none"
+                  className="mt-2 flex gap-3 overflow-x-auto pb-1 scroll-smooth scrollbar-none items-end"
                 >
                   {dateOptions.map((opt) => {
                     const isSelected = date === opt.iso;
                     return (
                       <button
                         key={opt.iso}
+                        data-iso={opt.iso}
                         type="button"
                         onClick={() => {
                           setDate(opt.iso);
@@ -1549,9 +1565,14 @@ function ReviewStep(props: {
                           setVisibleMonth(opt.month);
                           setVisibleYear(opt.year);
                         }}
-                        className="flex w-12 shrink-0 flex-col items-center gap-1"
+                        className="relative flex w-12 shrink-0 flex-col items-center gap-1 group"
                       >
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {opt.isFirstOfMonth && (
+                          <span className="absolute -top-3 rounded bg-slate-900 px-1 py-0.2 text-[8px] font-black uppercase text-white tracking-widest shadow-xs">
+                            {opt.monthShort}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
                           {opt.weekday}
                         </span>
                         <span
