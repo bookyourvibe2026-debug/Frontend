@@ -751,3 +751,33 @@ export function createVendorExpense(input: CreateExpenseInput) {
 export function deleteVendorExpense(id: string) {
   return apiRequest<null>(`/vendor/expenses/${id}`, { method: "DELETE", audience: AUD });
 }
+
+/* ---- Custom Sports ---- */
+
+export interface VendorCustomSport {
+  _id: string;
+  sportName: string;
+  iconUrl: string;
+  createdBy: string;
+  venue: "both" | "indoor" | "outdoor";
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getVendorCustomSports() {
+  return apiRequest<VendorCustomSport[]>("/vendor/custom-sports", { audience: AUD });
+}
+
+export function createVendorCustomSport(input: { sportName: string; iconUrl: string; venue?: string }) {
+  return apiRequest<VendorCustomSport>("/vendor/custom-sports", { method: "POST", body: input, audience: AUD });
+}
+
+export function updateVendorCustomSport(id: string, input: { sportName?: string; iconUrl?: string; venue?: string }) {
+  return apiRequest<VendorCustomSport>(`/vendor/custom-sports/${id}`, { method: "PUT", body: input, audience: AUD });
+}
+
+export function deleteVendorCustomSport(id: string) {
+  return apiRequest<{ success: boolean }>(`/vendor/custom-sports/${id}`, { method: "DELETE", audience: AUD });
+}
+

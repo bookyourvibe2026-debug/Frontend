@@ -17,6 +17,8 @@ export interface SportCategory {
   image?: string;
   venue: VenueSetting;
   subCategories: SubCategoryOption[];
+  isCustom?: boolean;
+  customId?: string;
 }
 
 export const SPORT_CATEGORIES: SportCategory[] = [

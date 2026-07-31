@@ -1,9 +1,16 @@
 "use client";
 
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid, LocateFixed } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid, LocateFixed, Pencil } from "lucide-react";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
+import {
+  createVendorCustomSport,
+  deleteVendorCustomSport,
+  getVendorCustomSports,
+  updateVendorCustomSport,
+  VendorCustomSport,
+} from "@/lib/api/vendor";
 import {
   AddOn,
   BookingType,
@@ -984,12 +991,331 @@ function CourtRow({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  CUSTOM SPORT MODAL & MANAGEMENT                                    */
+/* ------------------------------------------------------------------ */
+
+interface CustomSportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  editingSport: SportCategory | null;
+  audience: Audience;
+  existingSportNames: string[];
+  onSaved: (sport: VendorCustomSport, isEdit: boolean) => void;
+}
+
+function CustomSportModal({
+  isOpen,
+  onClose,
+  editingSport,
+  audience,
+  existingSportNames,
+  onSaved,
+}: CustomSportModalProps) {
+  const [name, setName] = useState("");
+  const [iconUrl, setIconUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (editingSport) {
+        setName(editingSport.label);
+        setIconUrl(editingSport.image || "");
+      } else {
+        setName("");
+        setIconUrl("");
+      }
+      setError(null);
+    }
+  }, [isOpen, editingSport]);
+
+  if (!isOpen) return null;
+
+  async function handleFileSelected(file?: File) {
+    if (!file) return;
+    setError(null);
+
+    if (!file.type.startsWith("image/")) {
+      setError("Only image files (JPG, PNG, SVG, WebP) are allowed.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Maximum image size is 2 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const res = await uploadVendorImage(file, "listings");
+      setIconUrl(res.url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Failed to upload image.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Sport Name cannot be empty.");
+      return;
+    }
+
+    if (!iconUrl) {
+      setError("Sport Icon or Image is required.");
+      return;
+    }
+
+    const isDuplicate = existingSportNames.some((existing) => {
+      if (editingSport && existing.toLowerCase() === editingSport.label.toLowerCase()) {
+        return false;
+      }
+      return existing.toLowerCase() === trimmed.toLowerCase();
+    });
+
+    if (isDuplicate) {
+      setError(`A sport named "${trimmed}" already exists.`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingSport?.customId) {
+        const updated = await updateVendorCustomSport(editingSport.customId, {
+          sportName: trimmed,
+          iconUrl,
+        });
+        onSaved(updated, true);
+      } else {
+        const created = await createVendorCustomSport({
+          sportName: trimmed,
+          iconUrl,
+        });
+        onSaved(created, false);
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Failed to save custom sport.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-surface-border bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between border-b border-surface-border pb-4">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-vibe-violet/10 text-vibe-violet">
+              <Plus size={18} />
+            </span>
+            <h3 className="text-lg font-black text-ink">
+              {editingSport ? "Edit Sport" : "Add New Sport"}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 text-ink-faint hover:bg-cream-200 hover:text-ink transition cursor-pointer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          {error && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              Sport Name *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Squash, Padel, Golf..."
+              className={inputClass}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              Sport Icon / Image * (Max 2 MB)
+            </label>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png, image/jpeg, image/svg+xml, image/webp"
+              className="hidden"
+              onChange={(e) => {
+                handleFileSelected(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+
+            {iconUrl ? (
+              <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl border border-surface-border bg-cream-200/50 p-2">
+                <img src={iconUrl} alt="Sport Preview" className="h-full w-full object-contain" />
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-cream-100 cursor-pointer"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIconUrl("")}
+                    className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  handleFileSelected(e.dataTransfer.files?.[0]);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`flex h-36 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center transition cursor-pointer ${
+                  dragOver
+                    ? "border-vibe-violet bg-vibe-violet/10"
+                    : "border-surface-border bg-cream-200/40 hover:border-vibe-violet/50 hover:bg-cream-200"
+                }`}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 size={24} className="animate-spin text-vibe-violet" />
+                    <span className="text-xs font-bold text-ink-faint">Uploading icon...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-vibe-violet shadow-sm">
+                      <Upload size={18} />
+                    </span>
+                    <p className="text-xs font-bold text-ink">
+                      Click to upload or drag &amp; drop icon
+                    </p>
+                    <p className="text-[10px] text-ink-faint">
+                      PNG, JPG, SVG, WebP (Max 2 MB)
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-surface-border pt-4 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-surface-border px-4 py-2.5 text-xs font-bold text-ink-soft hover:bg-cream-200 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || uploading}
+              className="rounded-xl bg-vibe-violet px-5 py-2.5 text-xs font-bold text-white transition hover:bg-vibe-violetSoft disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? "Saving..." : "Save Sport"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function DetailsStep({ draft, update, audience }: StepProps & { audience: Audience }) {
   const gameVenue: VenueSetting = draft.gameVenue ?? "both";
   const categoryOptions = draft.type === "Game" ? venueOptionsFor(gameVenue) : SPORT_CATEGORIES;
 
+  const [customSports, setCustomSports] = useState<VendorCustomSport[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingSport, setEditingSport] = useState<SportCategory | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (audience === "vendor") {
+      getVendorCustomSports()
+        .then((res) => setCustomSports(res || []))
+        .catch(() => {});
+    }
+  }, [audience]);
+
+  const customCategories: SportCategory[] = customSports.map((cs) => ({
+    id: cs._id,
+    label: cs.sportName,
+    image: cs.iconUrl,
+    venue: cs.venue || "both",
+    subCategories: [],
+    isCustom: true,
+    customId: cs._id,
+  }));
+
+  const allCategories = [...categoryOptions, ...customCategories];
+
+  async function handleDeleteCustomSport(cat: SportCategory) {
+    if (!cat.customId) return;
+    if (!confirm(`Are you sure you want to delete "${cat.label}"?`)) return;
+    try {
+      await deleteVendorCustomSport(cat.customId);
+      setCustomSports((prev) => prev.filter((s) => s._id !== cat.customId));
+      if (draft.categories.includes(cat.id)) {
+        update("categories", draft.categories.filter((c) => c !== cat.id));
+      }
+      setToastMessage("Custom sport deleted successfully.");
+    } catch (err) {
+      setToastMessage("Failed to delete custom sport.");
+    }
+  }
+
+  function handleSportSaved(sport: VendorCustomSport, isEdit: boolean) {
+    if (isEdit) {
+      setCustomSports((prev) => prev.map((s) => (s._id === sport._id ? sport : s)));
+      setToastMessage("Sport updated successfully.");
+    } else {
+      setCustomSports((prev) => [sport, ...prev]);
+      setToastMessage("New sport added successfully.");
+    }
+  }
+
   return (
     <div className="space-y-5">
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-2xl animate-in slide-in-from-bottom-5 duration-200">
+          <span>{toastMessage}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 text-slate-400 hover:text-white cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div>
         <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
         <p className="text-xs text-ink-faint">Name this listing, then set its type &amp; category.</p>
@@ -1043,55 +1369,99 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
       <div>
         <FieldLabel>Category * (select all that apply)</FieldLabel>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {categoryOptions.map((cat) => {
+          {allCategories.map((cat) => {
             const isSelected = draft.categories.includes(cat.id);
             return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  const next = isSelected
-                    ? draft.categories.filter((c) => c !== cat.id)
-                    : [...draft.categories, cat.id];
-                  update("categories", next);
-                  // Courts are keyed by sport label, so dropping a game must also
-                  // release the courts that only existed to host it.
-                  const validLabels = new Set(
-                    next.map((id) => SPORT_CATEGORIES.find((c) => c.id === id)?.label ?? id)
-                  );
-                  const courts = draft.courts ?? [];
-                  if (courts.length > 0) {
-                    update(
-                      "courts",
-                      courts
-                        .map((court) => ({ ...court, sports: court.sports.filter((s) => validLabels.has(s)) }))
-                        // A court that listed only the removed game would silently become
-                        // an "all games" court, so it goes with the game instead.
-                        .filter((court, i) => court.sports.length > 0 || courts[i]!.sports.length === 0)
+              <div key={cat.id} className="relative aspect-[4/3] overflow-hidden rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = isSelected
+                      ? draft.categories.filter((c) => c !== cat.id)
+                      : [...draft.categories, cat.id];
+                    update("categories", next);
+                    const validLabels = new Set(
+                      next.map((id) => allCategories.find((c) => c.id === id)?.label ?? id)
                     );
-                  }
-                }}
-                className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border-2 text-left shadow-sm transition ${
-                  isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
-                }`}
-              >
-                <div className="h-full w-full bg-cream-300">
-                  <CategoryPhoto cat={cat} />
-                </div>
-                {/* Scrim keeps the label readable over any photo, incl. the splash fallback */}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-                {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-violet/25" />}
-                <span className="absolute inset-x-0 bottom-0 px-2.5 py-2 text-sm font-bold text-white drop-shadow-sm">
-                  {cat.label}
-                </span>
-                {isSelected && (
-                  <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white shadow">
-                    <Check size={12} />
+                    const courts = draft.courts ?? [];
+                    if (courts.length > 0) {
+                      update(
+                        "courts",
+                        courts
+                          .map((court) => ({ ...court, sports: court.sports.filter((s) => validLabels.has(s)) }))
+                          .filter((court, i) => court.sports.length > 0 || courts[i]!.sports.length === 0)
+                      );
+                    }
+                  }}
+                  className={`group relative h-full w-full overflow-hidden rounded-2xl border-2 text-left shadow-sm transition cursor-pointer ${
+                    isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
+                  }`}
+                >
+                  <div className="h-full w-full bg-cream-300">
+                    <CategoryPhoto cat={cat} />
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                  {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-violet/25" />}
+                  <span className="absolute inset-x-0 bottom-0 px-2.5 py-2 text-sm font-bold text-white drop-shadow-sm">
+                    {cat.label}
                   </span>
+                  {isSelected && (
+                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white shadow">
+                      <Check size={12} />
+                    </span>
+                  )}
+                </button>
+
+                {/* Edit & Delete Action Buttons for Custom Sports only */}
+                {cat.isCustom && (
+                  <div className="absolute left-1.5 top-1.5 z-20 flex gap-1">
+                    <button
+                      type="button"
+                      title="Edit Custom Sport"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSport(cat);
+                        setModalOpen(true);
+                      }}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-vibe-violet transition cursor-pointer"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete Custom Sport"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCustomSport(cat);
+                      }}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-rose-600 transition cursor-pointer"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
             );
           })}
+
+          {/* + Add New Sport Card */}
+          {audience === "vendor" && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSport(null);
+                setModalOpen(true);
+              }}
+              className="group relative flex aspect-[4/3] flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 border-dashed border-vibe-violet/40 bg-vibe-violet/5 text-center transition hover:border-vibe-violet hover:bg-vibe-violet/10 cursor-pointer"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-vibe-violet text-white shadow-md transition group-hover:scale-110">
+                <Plus size={18} />
+              </span>
+              <span className="text-xs font-black text-vibe-violet">
+                + Add New Sport
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1101,7 +1471,7 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
           <p className="mb-2 text-[11px] text-ink-faint">How many players are allowed on court at once, for each sport you selected.</p>
           <div className="space-y-2">
             {draft.categories.map((catId) => {
-              const label = categoryOptions.find((c) => c.id === catId)?.label ?? catId;
+              const label = allCategories.find((c) => c.id === catId)?.label ?? catId;
               const current = (draft.sportCapacities ?? []).find((s) => s.category === catId);
               return (
                 <div key={catId} className="flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-cream-200/30 px-3.5 py-2.5">
@@ -1135,6 +1505,15 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
       )}
 
       {draft.type !== "Event" && <CourtsField draft={draft} update={update} audience={audience} />}
+
+      <CustomSportModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editingSport={editingSport}
+        audience={audience}
+        existingSportNames={allCategories.map((c) => c.label)}
+        onSaved={handleSportSaved}
+      />
     </div>
   );
 }
