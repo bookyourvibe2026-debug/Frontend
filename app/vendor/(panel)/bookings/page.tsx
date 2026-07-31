@@ -562,7 +562,7 @@ export default function BookingsPage() {
       await createVendorBooking({
         listingId: selectedTurf.id,
         customerName: "Club Booking",
-        phone: "0000000000",
+        phone: "9999999999",
         sport: selectedTurf.categories?.[0] || "Sports",
         dateTime: new Date(`${selectedDate}T${first.startTime}:00`).toISOString(),
         endTime: last.endTime,
