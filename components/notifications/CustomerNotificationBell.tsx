@@ -27,8 +27,8 @@ export function CustomerNotificationBell({
       setLoading(true);
       const data = await getCustomerNotifications(playerPhone || undefined);
       setNotifications(data);
-    } catch (e) {
-      console.error(e);
+    } catch (_) {
+      // Quietly ignore background network/offline errors
     } finally {
       setLoading(false);
     }
