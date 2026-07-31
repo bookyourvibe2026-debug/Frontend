@@ -204,6 +204,7 @@ export interface Booking {
   paymentStatus: PaymentStatus;
   paymentOrderId?: string;
   status: BookingStatus;
+  bookingType?: "regular" | "club_together" | "offline";
   isAffiliate: boolean;
   cancellationReason?: string;
   checkedIn: boolean;

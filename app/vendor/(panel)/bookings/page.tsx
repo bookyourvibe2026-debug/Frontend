@@ -282,7 +282,7 @@ export default function BookingsPage() {
       ? override.isHoliday ? [] : (override.slots || [])
       : (selectedTurf.slotsList || []);
 
-    return base.map((slot) => {
+    const mapped = base.map((slot) => {
       if (slot.blocked) {
         return {
           startTime: slot.startTime,
@@ -295,13 +295,9 @@ export default function BookingsPage() {
       }
 
       // Find bookings on this date + turf that match the start time or overlap range.
-      // A multi-court venue can have several at once — one per court — so collect them
-      // all and show the first, rather than pretending a single booking fills the slot.
       const matches = bookings.filter((bk) => {
         const d = new Date(bk.dateTime);
-        // Local date formatted as YYYY-MM-DD in IST timezone
         const bkDate = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-        // Start time formatted as HH:mm in IST timezone (24-hour)
         const bkTime = d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
         
         const bkListingId = String(bk.listingId ?? bk.listing ?? "");
@@ -320,9 +316,6 @@ export default function BookingsPage() {
       });
 
       const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
-      // Distinct courts taken in this window — a booking with no courtId predates
-      // courts and sits on court 1, matching how the backend resolves it.
-      // A single booking can hold several courts, so each of its courtIds counts.
       const takenCourtIds = new Set(
         activeCourts.length > 0
           ? matches.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
@@ -343,15 +336,10 @@ export default function BookingsPage() {
         customerName = match.customerName ?? match.customer;
         phone = match.phone;
         arrived = Boolean(match.checkedIn);
-        // Walk-in = no customerId (the vendor typed this booking in themselves).
-        // Payment method doesn't decide this — a real BYV customer can still pay cash at the venue.
         const isWalkIn = !match.customerId;
         const isHold = customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending" || match.status === "Part Paid") status = "Part Paid";
-        // A walk-in stays a walk-in whatever its status becomes (Confirmed, Completed…).
-        // Only a booking a player actually made in the app is "Booked" — that's the one
-        // the timeline brands as BYV.
         else status = isWalkIn ? "Offline Booked" : "Booked";
       }
 
@@ -373,14 +361,33 @@ export default function BookingsPage() {
         courtsTotal,
       };
     })
-      // Late-night slots (12–2 AM on a turf that opens at 6 AM) belong at the bottom
-      // of the day, so the list always reads open → close.
       .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins));
+
+    // Combine consecutive slots that belong to the exact same booking into one continuous block (e.g. 11:00 AM – 01:00 PM)
+    const merged: AgendaSlot[] = [];
+    for (let i = 0; i < mapped.length; i++) {
+      const current = mapped[i];
+      if (merged.length > 0) {
+        const last = merged[merged.length - 1];
+        if (
+          current.bookingId &&
+          last.bookingId &&
+          current.bookingId === last.bookingId &&
+          last.endTime === current.startTime
+        ) {
+          last.endTime = current.endTime;
+          last.price += current.price;
+          last.label = `${last.startTime} - ${current.endTime}`;
+          continue;
+        }
+      }
+      merged.push({ ...current });
+    }
+    return merged;
   }, [selectedTurf, selectedDate, bookings, selectedTurfId, dayStartMins]);
 
   /* ── "All Slots" filter: status + time of day + source + quick ── */
   const visibleSlots = useMemo(() => {
-    // "Next Booking" = the single next upcoming booked slot (today only).
     let nextBookedStart: string | null = null;
     if (filters.quick === "Next Booking") {
       const upcoming = resolvedSlots
@@ -392,19 +399,12 @@ export default function BookingsPage() {
 
     return resolvedSlots
       .map((s) => {
-        // A slot nobody ever booked stays on the agenda as a historical "Empty"
-        // marker once it's passed, instead of vanishing — so the vendor can see
-        // this morning's slot simply went unbooked.
         if (isToday && s.status === "Available" && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) {
           return { ...s, status: "Empty" as SlotStatus };
         }
         return s;
       })
       .filter((s) => {
-        // Slots that have already finished today are just clutter — once the clock
-        // passes a slot's end time, drop it from the agenda instead of leaving it
-        // sitting at the top of the list. "Empty" (a past slot nobody booked) is the
-        // one exception — see the map step above.
         if (isToday && s.status !== "Empty" && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) return false;
 
         const hour = Number(s.startTime.split(":")[0]);
@@ -521,36 +521,28 @@ export default function BookingsPage() {
     setApplyClubDaily(false);
   }
 
-  /** Book the selected (consecutive) slots as one combined offline booking — and,
-   * if the vendor asked for it, also rewrite the schedule so this becomes the
-   * standing slot every day, not just a one-off for today. */
+  /** Book the selected (consecutive) slots as one combined offline booking — instantly merge and save! */
   async function startClubBooking() {
-    if (selectedSlots.length === 0 || !selectedTurf) return;
-    if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
-      setSetupSportsSelected([]);
-      setSetupSportsOpen(true);
+    if (selectedSlots.length === 0 || !selectedTurf) {
+      alert("Please select at least 1 slot to club together.");
       return;
     }
-    const first = selectedSlots[0];
-    const last = selectedSlots[selectedSlots.length - 1];
-    const combined: AgendaSlot = {
-      startTime: first.startTime,
-      endTime: last.endTime,
-      price: selectionTotal,
-      status: "Available",
-      label: selectedSlots.length > 1 ? `${first.label} (${selectedSlots.length} Slots)` : first.label,
-    };
+    if (selectedSlots.some((s) => s.status !== "Available")) {
+      alert("Selected slots must be available to club together.");
+      return;
+    }
+    if (!selectionContiguous) {
+      alert("Please select consecutive slots to club together.");
+      return;
+    }
 
-    if (applyClubDaily && selectedSlots.length > 1) {
-      setClubbing(true);
-      try {
+    setClubbing(true);
+    try {
+      const first = selectedSlots[0];
+      const last = selectedSlots[selectedSlots.length - 1];
+
+      if (applyClubDaily && selectedSlots.length > 1) {
         const clubbedKeys = new Set(selectedSlots.map((s) => s.startTime));
-        // A schedule slot's `price` is an hourly rate (both the customer duration
-        // picker and the backend charge it as ₹/hr × hours booked) — average it
-        // across the merged range, not sum it, or a customer booking this exact
-        // 2-hr block online would be charged double (2hrs × the summed "hourly" price).
-        // `combined` above is unrelated: that's the flat total for *this one* manual
-        // booking being created right now, never re-multiplied by duration.
         const mergedHourlyRate = Math.round(selectionTotal / selectedSlots.length);
         const mergedSlot = { startTime: first.startTime, endTime: last.endTime, label: first.label, price: mergedHourlyRate };
         const mergeInto = (list?: typeof selectedTurf.slotsList) =>
@@ -558,37 +550,51 @@ export default function BookingsPage() {
             (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
           );
 
-        // Rewrite the default daily template (applies to every day going forward)…
         const newSlotsList = mergeInto(selectedTurf.slotsList);
-        // …and EVERY existing date override too — a date that already has its own
-        // override (from bulk/weekend pricing, a past holiday edit, etc.) keeps its
-        // own frozen slot list independent of the template, so "apply every day"
-        // has to reach into each of those directly or most future dates would
-        // silently keep showing the old, un-clubbed slots.
         const overrides = (selectedTurf.dateOverrides || []).map((o) =>
           !o.isHoliday ? { ...o, slots: mergeInto(o.slots) } : o
         );
         const updated = { ...selectedTurf, slotsList: newSlotsList, dateOverrides: overrides };
         const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
         setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
-      } catch {
-        alert("Couldn't apply this slot to every day — the offline booking will still be created for today.");
       }
+
+      await createVendorBooking({
+        listingId: selectedTurf.id,
+        customerName: "Club Booking",
+        phone: "0000000000",
+        sport: selectedTurf.categories?.[0] || "Sports",
+        dateTime: new Date(`${selectedDate}T${first.startTime}:00`).toISOString(),
+        endTime: last.endTime,
+        totalAmount: selectionTotal,
+        paidAmount: 0,
+        payment: "Cash (Offline)",
+        status: "Confirmed",
+        bookingType: "club_together",
+      });
+
+      const b = await getVendorBookings({ limit: 500 });
+      setBookings(b.items as unknown as ApiBooking[]);
+
+      exitSelectMode();
+      alert("Club booking created successfully.");
+    } catch (err) {
+      alert(err instanceof ApiError ? err.describe() : "Failed to create club booking");
+    } finally {
       setClubbing(false);
     }
-
-    setOfflineMode("single");
-    setMultiSlots([]);
-    setOfflineSport(selectedTurf.categories[0] || "");
-    setOfflineAmount("");
-    setOfflineSpanCount(selectedSlots.length);
-    setActiveSlot(combined);
-    setOfflineModal(true);
   }
 
   /** Book each selected slot as its own booking, sharing one customer's details. */
   function startMultipleBooking() {
-    if (selectedSlots.length === 0 || !selectedTurf) return;
+    if (selectedSlots.length === 0 || !selectedTurf) {
+      alert("Please select at least 1 slot.");
+      return;
+    }
+    if (selectedSlots.some((s) => s.status !== "Available")) {
+      alert("Selected slots must be available.");
+      return;
+    }
     if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
       setSetupSportsSelected([]);
       setSetupSportsOpen(true);
@@ -596,7 +602,6 @@ export default function BookingsPage() {
     }
     const first = selectedSlots[0];
     const last = selectedSlots[selectedSlots.length - 1];
-    // Display-only slot so the modal header shows the whole span + combined total.
     const display: AgendaSlot = {
       startTime: first.startTime,
       endTime: last.endTime,

@@ -215,8 +215,8 @@ export function getVendorBookings(params: { status?: BookingStatus; page?: numbe
 
 export interface CreateVendorBookingInput {
   listingId: string;
-  customerName: string;
-  phone: string;
+  customerName?: string;
+  phone?: string;
   /** Sport the slot is booked for (manual/walk-in bookings). */
   sport?: string;
   /** Court inside the venue. Omit to let the backend prefer a free one. */
@@ -228,10 +228,11 @@ export interface CreateVendorBookingInput {
   dateTime: string;
   /** Slot end as "HH:mm". */
   endTime?: string;
+  bookingType?: "regular" | "club_together" | "offline";
   totalAmount: number;
   paidAmount?: number;
-  payment: Booking["payment"];
-  status: BookingStatus;
+  payment?: Booking["payment"];
+  status?: BookingStatus;
 }
 
 export function createVendorBooking(input: CreateVendorBookingInput) {
