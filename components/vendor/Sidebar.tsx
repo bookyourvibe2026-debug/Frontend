@@ -41,7 +41,6 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
     { href: "/vendor/events/dashboard", label: "Events Dashboard", icon: LayoutDashboard },
     { href: "/vendor/events/listings", label: "Event Listings", icon: Ticket },
     { href: "/vendor/events/scanner", label: "Ticket Scanner", icon: ScanLine },
-    { href: "/vendor/profile", label: "Profile", icon: Settings2 },
   ],
   food: [
     { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
@@ -60,7 +59,7 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
 /** Mobile bottom-nav order, when it should differ from the desktop sidebar's reading order. */
 export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
   turf: ["/vendor/bookings", "/vendor/notifications", "/vendor/dashboard", "/vendor/pricing"],
-  events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard", "/vendor/profile"],
+  events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard"],
   // Dashboard sits 3rd so the bottom-nav floats it to the centre.
   coaches: ["/vendor/coaches", "/vendor/coaches/schedule", "/vendor/coaches/dashboard", "/vendor/coaches/notifications"],
   food: ["/vendor/food/menu", "/vendor/food/orders", "/vendor/food/dashboard", "/vendor/food/profile"],
@@ -92,14 +91,22 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [appMode, setAppMode] = useState<VendorVertical>(verticals[0] ?? "turf");
+  const [appMode, setAppMode] = useState<VendorVertical>(() => {
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
+      if (stored && verticals.includes(stored)) return stored;
+    }
+    return verticals[0] ?? "turf";
+  });
 
   useEffect(() => {
+    // Only switch active vertical if pathname explicitly matches a vertical-specific route
     const matched = verticals.find((v) =>
       NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
     );
     if (matched) {
       setAppMode(matched);
+      localStorage.setItem("byv_vendor_active_vertical", matched);
     }
   }, [pathname, verticals]);
 
@@ -113,10 +120,9 @@ export default function Sidebar({
     router.push(home);
     onClose();
   }
-  // Events organizers don't use Role Access, and Profile is already in their main nav
-  // (so it also shows in the mobile bottom nav) — drop both from the shared list here.
+
   const sharedItems = activeMode === "events"
-    ? SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/role-access" && item.href !== "/vendor/profile")
+    ? SHARED_NAV_ITEMS.filter((item) => item.href !== "/vendor/role-access")
     : SHARED_NAV_ITEMS;
   const navItems = [...NAV_ITEMS_BY_VERTICAL[activeMode], ...sharedItems];
 

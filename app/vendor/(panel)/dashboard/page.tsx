@@ -223,9 +223,8 @@ export default function DashboardPage() {
         unlock();
       }
     } catch (error: any) {
-      console.error("MPIN error:", error);
       const msg = typeof error?.describe === "function" ? error.describe() : error?.message || "Something went wrong. Try again.";
-      setPinError(pinMode === "enter" ? "Incorrect MPIN" : msg);
+      setPinError(pinMode === "enter" ? "Incorrect MPIN. Please try again." : msg);
       setInputPin("");
     } finally {
       setSubmitting(false);
