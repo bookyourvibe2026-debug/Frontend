@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu } from "lucide-react";
 import Sidebar from "@/components/vendor/Sidebar";
 import BottomNav from "@/components/vendor/BottomNav";
 import { VendorPanelSwitcher } from "@/components/vendor/VendorPanelSwitcher";
@@ -56,14 +57,36 @@ export default function VendorPanelLayout({
 
   return (
     <VendorAuthProvider vendor={session} onLoggedOut={() => router.replace("/vendor/login")}>
-      <div className="min-h-screen flex bg-cream-200 text-ink">
+      <div className="min-h-screen flex bg-cream-200 text-ink relative">
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onLogout={() => void handleLogout()}
           verticals={session.verticals}
         />
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col lg:pl-64">
+          {/* Sticky Mobile Header */}
+          <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-white/95 backdrop-blur-md border-b border-surface-border shadow-2xs">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 rounded-xl text-ink-soft hover:bg-slate-100 hover:text-ink transition cursor-pointer"
+                aria-label="Open navigation menu"
+              >
+                <Menu size={22} />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-vibe-violet to-vibe-limeDark flex items-center justify-center text-white font-display font-bold text-xs">
+                  BV
+                </div>
+                <span className="font-display font-bold text-ink text-sm">
+                  Book Your Vibes
+                </span>
+              </div>
+            </div>
+          </div>
+
           <VendorPanelSwitcher verticals={session.verticals} />
           <main className="flex-1 px-4 sm:px-6 py-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto">
             {children}

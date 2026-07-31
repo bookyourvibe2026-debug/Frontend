@@ -126,6 +126,18 @@ export default function Sidebar({
     .filter((h) => pathname === h || pathname?.startsWith(h + "/"))
     .sort((a, b) => b.length - a.length)[0];
 
+  // Lock body scrolling on mobile when sidebar is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
   return (
     <>
       {/* mobile backdrop */}
@@ -133,16 +145,16 @@ export default function Sidebar({
         <button
           aria-label="Close menu"
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-ink/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-xs lg:hidden"
         />
       )}
 
       <aside
-        className={`fixed z-40 inset-y-0 left-0 w-64 shrink-0 border-r border-surface-border bg-white transform transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed z-50 inset-y-0 left-0 w-64 shrink-0 border-r border-surface-border bg-white flex flex-col transform transition-transform duration-200 lg:fixed lg:top-0 lg:bottom-0 lg:left-0 lg:z-30 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between h-16 px-5 border-b border-surface-border">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-surface-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-vibe-violet to-vibe-limeDark flex items-center justify-center text-white font-display font-semibold">
               BV
@@ -156,7 +168,7 @@ export default function Sidebar({
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden text-ink-faint hover:text-ink"
+            className="lg:hidden text-ink-faint hover:text-ink p-1 rounded-lg hover:bg-slate-100"
             aria-label="Close sidebar"
           >
             <X size={18} />
@@ -164,7 +176,7 @@ export default function Sidebar({
         </div>
 
         {verticals.length > 1 && (
-          <div className="p-3 border-b border-surface-border">
+          <div className="p-3 border-b border-surface-border shrink-0">
             <p className="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-faint">Switch panel</p>
             <div
               className="grid gap-1 rounded-xl bg-cream-200 p-1 text-xs font-semibold"
@@ -185,7 +197,7 @@ export default function Sidebar({
           </div>
         )}
 
-        <nav className="px-3 py-5 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">
             Navigation
           </p>
@@ -202,7 +214,7 @@ export default function Sidebar({
                 }}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-vibe-violet/10 text-vibe-violet"
+                    ? "bg-vibe-violet/10 text-vibe-violet font-bold"
                     : "text-ink-soft hover:bg-cream-300"
                 }`}
               >
@@ -213,10 +225,10 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="absolute bottom-0 inset-x-0 p-3 border-t border-surface-border">
+        <div className="p-3 border-t border-surface-border bg-white shrink-0 mt-auto">
           <button
             onClick={onLogout}
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-vibe-coral hover:bg-vibe-coral/10 w-full transition-colors"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-vibe-coral hover:bg-vibe-coral/10 w-full transition-colors cursor-pointer"
           >
             <LogOut size={18} />
             Logout

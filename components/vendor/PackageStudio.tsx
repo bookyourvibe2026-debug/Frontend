@@ -2067,36 +2067,74 @@ function BookingStep({ draft, update }: StepProps) {
 
   function generateBulkSlots() {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
-    if (!rangeValid) return; // Generate Slots is disabled in this state too — belt & suspenders.
+    if (!rangeValid) return;
     const dur = parseInt(bulkDuration);
-    save(generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur));
+    const generated = generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur);
+    // Preserve price override for matching start times if available
+    const merged = generated.map((gen) => {
+      const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
+      return match ? { ...gen, price: match.price } : gen;
+    });
+    save(merged);
   }
+
+  /* Auto-generate slots when generator parameters change to keep UI strictly synchronized */
+  useEffect(() => {
+    if (!rangeValid) return;
+    const dur = parseInt(bulkDuration);
+    const generated = generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur);
+    // Merge existing prices if any match
+    const merged = generated.map((gen) => {
+      const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
+      return match ? { ...gen, price: match.price } : gen;
+    });
+    // Only update if generated slot layout has changed to avoid loop
+    const isDifferent =
+      merged.length !== activeSlots.length ||
+      merged.some((s, idx) => s.startTime !== activeSlots[idx]?.startTime || s.endTime !== activeSlots[idx]?.endTime);
+
+    if (isDifferent) {
+      save(merged);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkDuration, bulkStartTime, bulkEndTime]);
 
   function deleteSlot(i: number) { save(activeSlots.filter((_, idx) => idx !== i)); }
   function updateSlotPrice(i: number, price: number) { save(activeSlots.map((s, idx) => idx === i ? { ...s, price } : s)); }
 
-  /* Clock dial click — toggle every slot touching that hour, using the current
-     duration for anything newly created. Matching by overlap (not exact start-time
-     equality) means a click always removes whatever the dial is visually showing for
-     that hour, even if slots were generated at a different duration previously —
-     so the dial and the slot list can never end up disagreeing. */
+  function deleteDayPartGroup(partName: string) {
+    save(activeSlots.filter((s) => s.label !== partName));
+  }
+
+  function setDayPartGroupPrice(partName: string) {
+    const input = prompt(`Enter price (₹) for all ${partName} slots:`);
+    if (!input) return;
+    const price = Number(input.replace(/\D/g, "")) || 0;
+    save(activeSlots.map((s) => (s.label === partName ? { ...s, price } : s)));
+  }
+
+  /* Clock dial click — toggle every slot in the 1-hour block [hour * 60, (hour + 1) * 60) */
   const handleSelectHour = (hour: number) => {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
     const dur = parseInt(bulkDuration);
-    const startMin = hour * 60;
-    const endMin = startMin + dur;
-    if (overlapsClosedWindow(startMin, endMin)) return; // 2–4 AM is always closed
+    const blockStart = hour * 60;
+    const blockEnd = blockStart + 60;
+
+    if (overlapsClosedWindow(blockStart, blockEnd)) return; // 2–4 AM is fixed maintenance window
 
     const overlapping = activeSlots.filter((s) => {
       const sStart = t24m(s.startTime);
       const sEnd = t24m(s.endTime);
-      return sStart < endMin && sEnd > startMin;
+      return sStart < blockEnd && sEnd > blockStart;
     });
 
     if (overlapping.length > 0) {
+      // Remove all slots overlapping this 1-hour block
       save(activeSlots.filter((s) => !overlapping.includes(s)));
     } else {
-      save([...activeSlots, { startTime: m2t(startMin), endTime: m2t(endMin), label: dayPart(startMin), price: 0 }]);
+      // Generate slots for this hour using current duration
+      const newSubSlots = generateSlotsInRange(blockStart, blockEnd, dur);
+      save([...activeSlots, ...newSubSlots]);
     }
   };
 
@@ -2499,7 +2537,32 @@ function BookingStep({ draft, update }: StepProps) {
 
                   return (
                     <div key={part} className="border-b border-slate-100 pb-3 last:border-0">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">{part}</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{part}</p>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">
+                            {partSlots.length}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDayPartGroupPrice(part)}
+                            className="text-[9px] font-bold text-vibe-violet hover:underline"
+                          >
+                            Set Price
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteDayPartGroup(part)}
+                            className="text-[9px] font-bold text-rose-500 hover:underline"
+                          >
+                            Clear Group
+                          </button>
+                        </div>
+                      </div>
+
                       <div className={`grid ${gridCols} gap-2`}>
                         {partSlots.map((slot) => {
                           return (
@@ -2508,7 +2571,7 @@ function BookingStep({ draft, update }: StepProps) {
                                 {slot.startTime} - {slot.endTime}
                               </span>
                               <span className="text-[9px] text-slate-400 uppercase mt-1">
-                                {slot.label}
+                                {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
                               </span>
 
                               <button type="button" onClick={() => deleteSlot(slot.originalIndex)}

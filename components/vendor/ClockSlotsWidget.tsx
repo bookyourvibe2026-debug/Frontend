@@ -250,7 +250,6 @@ export function ClockSlotsWidget({
   };
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if ((e.target as SVGElement).tagName === "path") return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left - center;
     const y = e.clientY - rect.top - center;
@@ -259,7 +258,7 @@ export function ClockSlotsWidget({
     let angleDeg = (angleRad * 180) / Math.PI + 90;
     if (angleDeg < 0) angleDeg += 360;
 
-    const positionHour = Math.round(angleDeg / 30) % 12;
+    const positionHour = Math.floor(angleDeg / 30) % 12;
     const realHour = toRealHour(positionHour);
     if (CLOSED_HOURS.has(realHour)) return; // 2–4 AM is a fixed closed window — nothing to select
     selectHour(realHour);
