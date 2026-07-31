@@ -177,13 +177,13 @@ export function CustomerNotificationBell({
                         {n.message}
                       </p>
                       {n.type === "request_accepted" && (
-                        <span className="mt-1.5 inline-block rounded-full bg-emerald-600 px-3 py-0.5 text-[10px] font-black text-white uppercase tracking-wider">
-                          Pay Entry Fee →
+                        <span className="mt-1.5 inline-block rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-black text-white uppercase tracking-wider shadow-xs hover:bg-emerald-700">
+                          PAY NOW →
                         </span>
                       )}
                       {n.type === "join_request" && (
-                        <span className="mt-1.5 inline-block rounded-full bg-amber-500 px-3 py-0.5 text-[10px] font-black text-white uppercase tracking-wider">
-                          Review Request →
+                        <span className="mt-1.5 inline-block rounded-full bg-gradient-to-r from-amber-500 to-amber-600 px-3 py-1 text-[10px] font-black text-white uppercase tracking-wider shadow-xs hover:from-amber-600 hover:to-amber-700">
+                          REVIEW REQUEST →
                         </span>
                       )}
                     </div>

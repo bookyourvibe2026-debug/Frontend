@@ -143,17 +143,21 @@ export function PlayerJoinModal({
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center space-y-3">
                   <Check className="h-6 w-6 text-emerald-600 mx-auto" />
                   <div>
-                    <p className="font-extrabold text-emerald-950 text-xs">Host Accepted Your Request!</p>
+                    <p className="font-extrabold text-emerald-950 text-xs">Host Approved Your Request!</p>
                     <p className="text-[11px] text-emerald-700 mt-0.5">
                       Please complete your entry fee of <strong className="text-emerald-950">₹{match.entryFeePerPlayer}</strong> to confirm your spot.
                     </p>
                   </div>
+
+                  {/* 10-Minute Payment Countdown */}
+                  <CountdownTimer expiresAt={myParticipant.approvalExpiresAt} />
+
                   <button
                     type="button"
                     onClick={() => setPaymentModalOpen(true)}
-                    className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 py-3 font-extrabold text-white shadow-md transition"
+                    className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 font-extrabold uppercase text-white shadow-md shadow-emerald-600/30 transition hover:scale-[1.01]"
                   >
-                    PAY ENTRY FEE (₹{match.entryFeePerPlayer})
+                    PAY NOW (₹{match.entryFeePerPlayer})
                   </button>
                 </div>
               )}
@@ -258,6 +262,42 @@ export function PlayerJoinModal({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CountdownTimer({ expiresAt }: { expiresAt?: string }) {
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    if (!expiresAt) return 600; // default 10 mins
+    const diff = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+    return Math.max(0, diff);
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const mins = Math.floor(timeLeft / 60);
+  const secs = timeLeft % 60;
+
+  if (timeLeft === 0) {
+    return (
+      <div className="rounded-xl bg-rose-100 p-2 text-center text-xs font-black text-rose-700">
+        ⚠️ Payment window expired. Spot released.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-amber-100 p-2.5 text-center text-xs font-extrabold text-amber-900 flex items-center justify-center gap-1.5 animate-pulse">
+      <Clock className="h-4 w-4 text-amber-700 shrink-0" />
+      <span>
+        Payment window expires in{" "}
+        <strong className="font-mono text-sm">{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</strong>
+      </span>
     </div>
   );
 }

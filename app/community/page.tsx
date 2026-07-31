@@ -9,6 +9,8 @@ import { Toast } from "@/components/admin/Toast";
 import { HostMatchModal } from "@/components/community/HostMatchModal";
 import { HostManageModal } from "@/components/community/HostManageModal";
 import { PlayerJoinModal } from "@/components/community/PlayerJoinModal";
+import { RequestsDrawer } from "@/components/community/RequestsDrawer";
+import { ReviewRequestModal } from "@/components/community/ReviewRequestModal";
 import { getOpenHostedMatches, getHostedMatchDetails } from "@/lib/api/hostedMatches";
 import type { HostedMatch, CustomerNotification } from "@/lib/api/types";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
@@ -71,6 +73,8 @@ export default function CommunityPage() {
   const [hostMatchModalOpen, setHostMatchModalOpen] = useState(false);
   const [managingMatch, setManagingMatch] = useState<HostedMatch | null>(null);
   const [joiningMatch, setJoiningMatch] = useState<HostedMatch | null>(null);
+  const [requestsDrawerOpen, setRequestsDrawerOpen] = useState(false);
+  const [reviewNotif, setReviewNotif] = useState<CustomerNotification | null>(null);
 
   // Legacy Modals state
   const [lobbyModalOpen, setLobbyModalOpen] = useState(false);
@@ -182,6 +186,10 @@ export default function CommunityPage() {
   };
 
   const handleSelectNotification = async (notif: CustomerNotification) => {
+    if (notif.type === "join_request") {
+      setReviewNotif(notif);
+      return;
+    }
     if (!notif.matchId) return;
     try {
       const m = await getHostedMatchDetails(notif.matchId);
@@ -192,7 +200,7 @@ export default function CommunityPage() {
 
       const cId = (customer as any)?._id || customer?.id;
       const isHost = (cId && m.hostCustomerId === cId) || (savedPhone && m.hostPhone === savedPhone);
-      if (isHost || notif.type === "join_request") {
+      if (isHost) {
         setManagingMatch(m);
       } else {
         setJoiningMatch(m);
@@ -488,7 +496,7 @@ export default function CommunityPage() {
               <h2 className="text-base font-extrabold text-slate-900">Open Match Lobbies</h2>
               <button
                 type="button"
-                onClick={() => setNoticeModalOpen(true)}
+                onClick={() => setRequestsDrawerOpen(true)}
                 className="relative flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
               >
                 <Bell className="h-3.5 w-3.5 text-brand-600" />
@@ -1192,6 +1200,39 @@ export default function CommunityPage() {
             getOpenHostedMatches()
               .then((data) => setRealHostedMatches(data))
               .catch(() => setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item))));
+          }}
+        />
+      )}
+
+      {requestsDrawerOpen && (
+        <RequestsDrawer
+          onClose={() => setRequestsDrawerOpen(false)}
+          onUpdated={(m) => {
+            getOpenHostedMatches()
+              .then((data) => setRealHostedMatches(data))
+              .catch(() => setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item))));
+          }}
+        />
+      )}
+
+      {reviewNotif && (
+        <ReviewRequestModal
+          notification={reviewNotif}
+          matchId={reviewNotif.matchId || ""}
+          participantId={reviewNotif.participantId || ""}
+          playerName={reviewNotif.playerName || "Player"}
+          playerAvatar={reviewNotif.playerAvatar}
+          sport={reviewNotif.sport || "Sport"}
+          turfName={reviewNotif.turfName || "Venue"}
+          date={reviewNotif.date || ""}
+          timeSlot={reviewNotif.timeSlot || ""}
+          entryFee={reviewNotif.entryFee || 0}
+          onClose={() => setReviewNotif(null)}
+          onUpdated={(m) => {
+            getOpenHostedMatches()
+              .then((data) => setRealHostedMatches(data))
+              .catch(() => setRealHostedMatches((prev) => prev.map((item) => (item._id === m._id ? m : item))));
+            setReviewNotif(null);
           }}
         />
       )}

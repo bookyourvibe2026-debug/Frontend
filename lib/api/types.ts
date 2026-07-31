@@ -844,6 +844,7 @@ export interface HostedMatchParticipant {
   paymentStatus: "pending" | "paid" | "failed";
   paymentOrderId?: string;
   amountPaid: number;
+  approvalExpiresAt?: string;
 }
 
 export interface HostedMatch {
@@ -881,7 +882,8 @@ export type NotificationType =
   | "join_request"
   | "request_accepted"
   | "request_rejected"
-  | "payment_confirmed";
+  | "payment_confirmed"
+  | "request_expired";
 
 export interface CustomerNotification {
   _id: string;
@@ -892,6 +894,14 @@ export interface CustomerNotification {
   type: NotificationType;
   matchId?: string;
   participantId?: string;
+  playerName?: string;
+  playerAvatar?: string;
+  sport?: string;
+  turfName?: string;
+  date?: string;
+  timeSlot?: string;
+  entryFee?: number;
+  expiresAt?: string;
   actionUrl?: string;
   read: boolean;
   createdAt: string;
