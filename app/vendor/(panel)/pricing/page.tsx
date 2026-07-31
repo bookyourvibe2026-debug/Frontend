@@ -45,30 +45,30 @@ function datesInScope(scope: BulkScope, year: number, month: number): Date[] {
  */
 const DAY_TONE = {
   weekday: {
-    cell: "border-sky-100 bg-sky-50/70 hover:border-sky-200 hover:bg-sky-50",
-    num: "bg-sky-100/70 text-sky-800",
-    price: "border border-sky-200/70 bg-sky-100/60 text-sky-800",
-    swatch: "bg-sky-300",
+    cell: "border-blue-200 bg-blue-50/70 hover:border-blue-300 hover:bg-blue-100/70",
+    num: "bg-blue-100/70 text-blue-800",
+    price: "border border-blue-200/70 bg-blue-100/60 text-blue-800",
+    swatch: "bg-blue-500",
   },
   weekend: {
-    cell: "border-rose-100 bg-rose-50/70 hover:border-rose-200 hover:bg-rose-50",
-    num: "bg-rose-100/70 text-rose-700",
-    price: "border border-rose-200/70 bg-rose-100/60 text-rose-700",
-    swatch: "bg-rose-300",
+    cell: "border-pink-200 bg-pink-50/70 hover:border-pink-300 hover:bg-pink-100/70",
+    num: "bg-pink-100/70 text-pink-800",
+    price: "border border-pink-200/70 bg-pink-100/60 text-pink-800",
+    swatch: "bg-pink-500",
   },
   holiday: {
-    cell: "border-amber-200 bg-amber-50/80 hover:border-amber-300 hover:bg-amber-50",
-    num: "bg-amber-100/70 text-amber-800",
-    price: "border border-amber-200/70 bg-amber-100/60 text-amber-800",
-    swatch: "bg-amber-300",
+    cell: "border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-100/80",
+    num: "bg-amber-100/70 text-amber-900",
+    price: "border border-amber-300/70 bg-amber-100/60 text-amber-900",
+    swatch: "bg-amber-500",
   },
 } as const;
 
 /** Bulk Pricing target → the same wash its dates wear on the calendar. */
 const BULK_TINT: Record<BulkTarget, string> = {
-  weekdays: "border-sky-200 bg-sky-50 text-sky-800 hover:border-sky-300",
-  weekends: "border-rose-200 bg-rose-50 text-rose-800 hover:border-rose-300",
-  holidays: "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300",
+  weekdays: "border-blue-200 bg-blue-50 text-blue-800 hover:border-blue-300 hover:bg-blue-100/70",
+  weekends: "border-pink-200 bg-pink-50 text-pink-800 hover:border-pink-300 hover:bg-pink-100/70",
+  holidays: "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400 hover:bg-amber-100/70",
 };
 
 /** Icon for each Bulk Pricing target — a quick visual cue on the button. */
@@ -124,6 +124,8 @@ export default function PriceSettingPage() {
   const [bulkScope, setBulkScope] = useState<BulkScope>("month");
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [holidayPopover, setHolidayPopover] = useState<string | null>(null);
+  const [holidayHovered, setHolidayHovered] = useState<string | null>(null);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [eventSheetOpen, setEventSheetOpen] = useState(false);
 
@@ -569,80 +571,119 @@ export default function PriceSettingPage() {
                 const inStreak = holidayStreakDates.has(day.dateStr);
                 const isHolidayOnly = day.isHoliday;
                 const hasOverride = selectedTurf?.dateOverrides?.some((o) => o.date === day.dateStr);
+                const holidayName = INDIAN_HOLIDAYS[day.dateStr];
+                const showTooltip = holidayName && (holidayPopover === day.dateStr || holidayHovered === day.dateStr);
 
-                // Styling logic matching screenshot
+                // Styling logic with exact color mapping
                 let borderBgCls = "";
-                let numCls = "text-slate-600";
-                let priceCls = "bg-slate-100 text-slate-500";
+                let numCls = "text-slate-700";
+                let priceCls = "bg-slate-100 text-slate-600";
 
                 if (day.isPast) {
                   borderBgCls = "border-slate-100 bg-slate-50/50 opacity-30 cursor-not-allowed";
                   numCls = "text-slate-400";
                   priceCls = "bg-slate-100/50 text-slate-400";
                 } else if (isSelected) {
-                  borderBgCls = "border-2 border-[#005e4b] bg-[#005e4b]/5 ring-2 ring-[#005e4b]/15 scale-105 z-10 rounded-2xl";
-                  numCls = "text-[#005e4b] font-black";
-                  priceCls = "bg-[#005e4b] text-white font-extrabold";
+                  borderBgCls = "border-2 border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/30 scale-105 z-20 rounded-2xl shadow-md";
+                  numCls = "text-blue-900 font-black";
+                  priceCls = "bg-blue-600 text-white font-extrabold shadow-2xs";
                 } else if (isEvent) {
-                  borderBgCls = "border-2 border-violet-300 bg-violet-50/50 hover:bg-violet-100/70 rounded-2xl";
-                  numCls = "text-violet-800 font-extrabold";
-                  priceCls = "bg-violet-100 text-violet-800 border border-violet-200";
+                  borderBgCls = "border-2 border-purple-300 bg-purple-50/80 hover:bg-purple-100/90 rounded-2xl shadow-2xs";
+                  numCls = "text-purple-900 font-black";
+                  priceCls = "bg-purple-100 text-purple-900 border border-purple-200 font-extrabold";
                 } else if (hasOverride) {
-                  borderBgCls = "border-2 border-[#00ccc0] bg-[#00ccc0]/5 hover:bg-[#00ccc0]/10 rounded-[24px] scale-[1.01]";
-                  numCls = "text-[#005c56] font-extrabold";
-                  priceCls = "bg-[#00ccc0] text-white font-extrabold px-1.5 py-0.5 rounded-full";
+                  borderBgCls = "border-2 border-teal-300 bg-teal-50/80 hover:bg-teal-100/90 rounded-2xl shadow-2xs";
+                  numCls = "text-teal-900 font-black";
+                  priceCls = "bg-teal-600 text-white font-extrabold px-1.5 py-0.5 rounded-full shadow-2xs";
                 } else if (inStreak) {
-                  borderBgCls = "border-2 border-orange-300 bg-orange-50/50 hover:bg-orange-100/70 rounded-2xl";
-                  numCls = "text-orange-800 font-extrabold";
-                  priceCls = "bg-orange-100 text-orange-800 border border-orange-200";
+                  borderBgCls = "border-2 border-orange-300 bg-orange-50/90 hover:bg-orange-100/90 rounded-2xl shadow-2xs";
+                  numCls = "text-orange-950 font-black";
+                  priceCls = "bg-orange-100 text-orange-900 border border-orange-200 font-extrabold";
                 } else if (isHolidayOnly) {
-                  borderBgCls = "border border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 rounded-2xl";
-                  numCls = "text-amber-800 font-extrabold";
-                  priceCls = "bg-amber-100 text-amber-800 border border-amber-200";
+                  borderBgCls = "border-2 border-amber-300 bg-amber-50/90 hover:bg-amber-100/90 rounded-2xl shadow-2xs";
+                  numCls = "text-amber-950 font-black";
+                  priceCls = "bg-amber-100 text-amber-900 border border-amber-200/80 font-extrabold";
                 } else if (day.isWeekend) {
-                  borderBgCls = "border border-rose-200 bg-rose-50/30 hover:bg-rose-50 rounded-2xl";
-                  numCls = "text-rose-700";
-                  priceCls = "bg-rose-100 text-rose-700 border border-rose-200/50";
+                  borderBgCls = "border border-pink-200 bg-pink-50/70 hover:bg-pink-100/70 rounded-2xl";
+                  numCls = "text-pink-800 font-bold";
+                  priceCls = "bg-pink-100/80 text-pink-800 border border-pink-200/70 font-extrabold";
                 } else {
-                  borderBgCls = "border border-sky-100 bg-sky-50/20 hover:bg-sky-50 rounded-2xl";
-                  numCls = "text-sky-700";
-                  priceCls = "bg-sky-50 text-sky-800 border border-sky-100";
+                  borderBgCls = "border border-blue-200/80 bg-blue-50/50 hover:bg-blue-100/60 rounded-2xl";
+                  numCls = "text-blue-800 font-bold";
+                  priceCls = "bg-blue-100/70 text-blue-800 border border-blue-200/60 font-semibold";
                 }
 
                 return (
-                  <button
-                    key={idx}
-                    disabled={day.isPast}
-                    onClick={() => {
-                      if (byvManaged) {
-                        setToast("BYV is managing this turf's pricing. Turn off dynamic pricing below to edit rates yourself.");
-                        return;
-                      }
-                      setActiveDate(day.dateStr);
-                    }}
-                    className={`relative flex flex-col items-center justify-between p-1.5 aspect-square w-full transition-all duration-200 ${borderBgCls}`}
-                  >
-                    <span className={`text-[12px] font-extrabold ${numCls}`}>
-                      {day.dayNumber}
-                    </span>
-
-                    {price !== null && (
-                      <span className={`text-[8.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded-md ${priceCls}`}>
-                        {formatPrice(price)}
+                  <div key={idx} className="relative aspect-square w-full">
+                    <button
+                      disabled={day.isPast}
+                      onClick={() => {
+                        if (byvManaged) {
+                          setToast("BYV is managing this turf's pricing. Turn off dynamic pricing below to edit rates yourself.");
+                          return;
+                        }
+                        setActiveDate(day.dateStr);
+                      }}
+                      className={`relative flex flex-col items-center justify-between p-1.5 h-full w-full transition-all duration-200 cursor-pointer ${borderBgCls}`}
+                    >
+                      <span className={`text-[12px] font-extrabold ${numCls}`}>
+                        {day.dayNumber}
                       </span>
-                    )}
 
-                    {/* Small dot/badge indicators to keep layout clean */}
-                    {isEvent && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-violet-500" />
+                      {price !== null && (
+                        <span className={`text-[8.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded-md ${priceCls}`}>
+                          {formatPrice(price)}
+                        </span>
+                      )}
+
+                      {/* Small dot indicators for non-holiday events */}
+                      {isEvent && (
+                        <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-purple-500" />
+                      )}
+                    </button>
+
+                    {/* Holiday Info ⓘ Icon & Tooltip */}
+                    {day.isHoliday && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label={`Holiday details for ${holidayName || "Public Holiday"}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHolidayPopover(holidayPopover === day.dateStr ? null : day.dateStr);
+                          }}
+                          onMouseEnter={() => setHolidayHovered(day.dateStr)}
+                          onMouseLeave={() => setHolidayHovered(null)}
+                          className="absolute top-1 right-1 z-30 flex h-4 w-4 items-center justify-center rounded-full bg-amber-200 text-[9px] font-black text-amber-950 shadow-xs hover:bg-amber-300 hover:scale-110 transition cursor-pointer"
+                        >
+                          ⓘ
+                        </button>
+
+                        {showTooltip && (
+                          <div
+                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 rounded-2xl border border-amber-300 bg-white p-3 shadow-2xl z-50 text-left pointer-events-auto animate-in fade-in zoom-in-95 duration-150"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between border-b border-amber-100 pb-1.5 mb-1.5">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                                <PartyPopper size={11} className="text-amber-600" /> Public Holiday
+                              </span>
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
+                                {fmtDayShort(day.dateStr)}
+                              </span>
+                            </div>
+                            <p className="text-xs font-black text-slate-900">{holidayName}</p>
+                            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{day.dateStr}</p>
+                            {inStreak && (
+                              <div className="mt-2 rounded-xl bg-orange-50 p-1.5 border border-orange-200 text-[9px] font-black text-orange-900">
+                                🔥 3+ Day Holiday Stretch (+{monthInsights.demand}% Demand Surge)
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
-                    {!isEvent && inStreak && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-orange-400" />
-                    )}
-                    {!isEvent && !inStreak && isHolidayOnly && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -650,32 +691,31 @@ export default function PriceSettingPage() {
             {/* Legend */}
             <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3">
               {[
-                { swatch: "bg-sky-400", label: "Weekday" },
-                { swatch: "bg-rose-300", label: "Weekend" },
-                { swatch: "bg-amber-300", label: "Holiday" },
-                { swatch: "bg-orange-400", label: "3+ day holiday stretch" },
-                { swatch: "bg-violet-400", label: "Corporate booking" },
-                { swatch: "bg-[#00ccc0]", label: "Custom price" },
+                { swatch: "bg-blue-500", label: "Weekday" },
+                { swatch: "bg-pink-500", label: "Weekend" },
+                { swatch: "bg-amber-500", label: "Holiday" },
+                { swatch: "bg-orange-500", label: "3+ day holiday stretch" },
+                { swatch: "bg-purple-500", label: "Corporate booking" },
+                { swatch: "bg-teal-500", label: "Custom price" },
               ].map((l) => (
-                <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                  <span className={`h-2 w-2 rounded-full ${l.swatch}`} /> {l.label}
+                <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600">
+                  <span className={`h-2.5 w-2.5 rounded-full ${l.swatch} shadow-xs`} /> {l.label}
                 </span>
               ))}
             </div>
           </div>
 
-          {/* ── CORPORATE / TOURNAMENT BOOKING — sits under the calendar, since the dates
-                it blocks show up as events on the month grid right above it ── */}
-          <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-white p-5 shadow-sm">
-            <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
+          {/* ── CORPORATE / TOURNAMENT BOOKING ── */}
+          <div className="relative overflow-hidden rounded-3xl border border-purple-100 bg-white p-5 shadow-sm">
+            <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-purple-100/70 blur-2xl" />
             <div className="relative flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-purple-800 text-white shadow-md shadow-purple-600/30">
                 <Trophy size={20} />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-[15px] font-black text-slate-900">Corporate / Tournament</p>
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-violet-700">
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-purple-800">
                     Multi-day
                   </span>
                 </div>
@@ -684,7 +724,7 @@ export default function PriceSettingPage() {
                 </p>
                 <button
                   onClick={() => setEventSheetOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-[11px] font-black text-white transition hover:bg-violet-700 active:scale-[0.97]"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2.5 text-[11px] font-black text-white transition hover:bg-purple-700 active:scale-[0.97]"
                 >
                   <CalendarRange size={13} /> Take a Booking
                 </button>
@@ -693,41 +733,41 @@ export default function PriceSettingPage() {
           </div>
 
           {/* ── INSIGHTS & OPPORTUNITIES ── */}
-          <div className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
+          <div className="bg-gradient-to-br from-slate-50/50 via-white to-slate-50 border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-2">
-              <Sparkles className="text-indigo-500" size={18} />
+              <Sparkles className="text-amber-500" size={18} />
               <h2 className="text-sm font-extrabold text-slate-900">Insights & Opportunities</h2>
             </div>
 
             <div className="space-y-3">
-              {/* Alert 1 — long-weekend stretch, only when the viewed month has one */}
+              {/* Alert 1 — long-weekend stretch (Orange Theme matching 3+ day stretch) */}
               {monthInsights.streaks.length > 0 && (
-                <div className="border-l-4 border-rose-500 bg-rose-50/20 rounded-r-2xl p-4 flex gap-3.5">
-                  <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-rose-500 border border-rose-100/55">
+                <div className="border-l-4 border-orange-500 bg-orange-50/30 rounded-r-2xl p-4 flex gap-3.5 border border-orange-200/80">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center shrink-0 text-orange-600 border border-orange-200">
                     <TrendingUp size={16} />
                   </div>
                   <div className="space-y-1.5">
-                    <p className="text-xs font-black text-rose-950">Long Weekend Alert!</p>
+                    <p className="text-xs font-black text-orange-950">Long Weekend Alert!</p>
                     <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
-                      <strong className="text-rose-700">{fmtDayShort(monthInsights.streaks[0].start)} – {fmtDayShort(monthInsights.streaks[0].end)}</strong> is a continuous {monthInsights.streaks[0].days}-day holiday stretch ({monthInsights.streaks[0].name} + Weekend). Demand will surge.
+                      <strong className="text-orange-700">{fmtDayShort(monthInsights.streaks[0].start)} – {fmtDayShort(monthInsights.streaks[0].end)}</strong> is a continuous {monthInsights.streaks[0].days}-day holiday stretch ({monthInsights.streaks[0].name} + Weekend). Demand will surge.
                     </p>
-                    <span className="inline-block bg-rose-100/70 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                    <span className="inline-block bg-orange-100/90 border border-orange-200 text-orange-800 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
                       Expected Demand: +{monthInsights.demand}%
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Alert 2 — peak-demand nudge for weekends + holidays this month */}
-              <div className="border-l-4 border-amber-500 bg-amber-50/20 rounded-r-2xl p-4 flex gap-3.5">
-                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center shrink-0 text-amber-500 border border-amber-100/55">
+              {/* Alert 2 — peak-demand nudge for weekends (Pink Theme matching Weekend) */}
+              <div className="border-l-4 border-pink-500 bg-pink-50/30 rounded-r-2xl p-4 flex gap-3.5 border border-pink-200/80">
+                <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center shrink-0 text-pink-600 border border-pink-200">
                   <Users size={16} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-black text-amber-950">Peak Demand in {monthNames[calMonth]}</p>
+                  <p className="text-xs font-black text-pink-950">Peak Demand in {monthNames[calMonth]}</p>
                   <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
                     {monthInsights.holidays.length > 0 ? (
-                      <>Weekends and <strong className="text-amber-700">{monthInsights.holidays.length} holiday{monthInsights.holidays.length === 1 ? "" : "s"}</strong> this month draw peak bookings. Maximise revenue on your remaining slots.</>
+                      <>Weekends and <strong className="text-pink-700">{monthInsights.holidays.length} holiday{monthInsights.holidays.length === 1 ? "" : "s"}</strong> this month draw peak bookings. Maximise revenue on your remaining slots.</>
                     ) : (
                       <>Weekends draw peak bookings this month. Set weekend rates above weekdays to maximise revenue.</>
                     )}
@@ -735,21 +775,29 @@ export default function PriceSettingPage() {
                 </div>
               </div>
 
-              {/* Alert 3 — the real public holidays in the viewed month */}
-              <div className="border-l-4 border-cyan-500 bg-cyan-50/20 rounded-r-2xl p-4 flex gap-3.5">
-                <div className="w-10 h-10 bg-cyan-50 rounded-full flex items-center justify-center shrink-0 text-cyan-500 border border-cyan-100/55">
+              {/* Alert 3 — public holidays list (Amber/Yellow Theme matching Holiday) */}
+              <div className="border-l-4 border-amber-500 bg-amber-50/30 rounded-r-2xl p-4 flex gap-3.5 border border-amber-200/80">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0 text-amber-600 border border-amber-200">
                   <PartyPopper size={16} />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-black text-cyan-950">Holidays in {monthNames[calMonth]}</p>
+                <div className="space-y-1 flex-1">
+                  <p className="text-xs font-black text-amber-950">Holidays in {monthNames[calMonth]}</p>
                   {monthInsights.holidays.length === 0 ? (
                     <p className="text-[11px] text-slate-500 leading-relaxed font-bold">No public holidays this month.</p>
                   ) : (
-                    <div className="space-y-1">
+                    <div className="space-y-1 mt-1">
                       {monthInsights.holidays.map((h) => (
-                        <p key={h.date} className="text-[11px] text-slate-600 leading-relaxed font-bold flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> {fmtDayShort(h.date)} - {h.name}
-                        </p>
+                        <button
+                          key={h.date}
+                          type="button"
+                          onClick={() => setActiveDate(h.date)}
+                          className="w-full text-left text-[11px] text-slate-700 hover:text-amber-900 leading-relaxed font-bold flex items-center gap-1.5 transition hover:bg-amber-100/50 px-1.5 py-0.5 rounded-lg cursor-pointer"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          <span className="font-extrabold text-amber-900">{fmtDayShort(h.date)}</span>
+                          <span>-</span>
+                          <span>{h.name}</span>
+                        </button>
                       ))}
                     </div>
                   )}
