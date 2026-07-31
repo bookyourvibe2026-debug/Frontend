@@ -1881,6 +1881,53 @@ export const INDIAN_HOLIDAYS: Record<string, string> = {
   "2026-12-31": "New Year Eve",
 };
 
+/* ─── Slot generation — the single source of truth for turning a duration + a time
+   range into concrete slots. Both the bulk "Generate Slots" button and the clock
+   dial's per-hour toggle call through this, so the slot list and the dial can never
+   disagree about what a given duration/range produces. ── */
+function t24m(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+function m2t(m: number) {
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+function dayPart(mins: number) {
+  const h = Math.floor(mins / 60) % 24;
+  if (h >= 5 && h < 12) return "Morning";
+  if (h >= 12 && h < 17) return "Afternoon";
+  if (h >= 17 && h < 21) return "Evening";
+  return "Night";
+}
+
+// Every venue's day has a fixed 2:00–4:00 AM closed window for cleaning/maintenance —
+// no slot may ever be created inside it, no matter where it starts or how long it runs.
+const CLOSED_WINDOW_START = 120;
+const CLOSED_WINDOW_END = 240;
+function overlapsClosedWindow(startMin: number, endMin: number) {
+  return startMin < CLOSED_WINDOW_END && endMin > CLOSED_WINDOW_START;
+}
+
+/** Closing time must be strictly after opening time. */
+function isValidTimeRange(startTime: string, endTime: string) {
+  return t24m(endTime) > t24m(startTime);
+}
+
+/** Splits [startMin, endMin) into fixed-length slots, skipping the closed window. The
+ * only place slot boundaries get computed — Generate Slots and the clock dial both
+ * route through this so a given duration always yields identical slots either way. */
+function generateSlotsInRange(startMin: number, endMin: number, durationMinutes: number): TurfSlot[] {
+  const slots: TurfSlot[] = [];
+  let cur = startMin;
+  while (cur + durationMinutes <= endMin) {
+    if (!overlapsClosedWindow(cur, cur + durationMinutes)) {
+      slots.push({ startTime: m2t(cur), endTime: m2t(cur + durationMinutes), label: dayPart(cur), price: 0 });
+    }
+    cur += durationMinutes;
+  }
+  return slots;
+}
+
 function BookingStep({ draft, update }: StepProps) {
   const [slotPrice, setSlotPrice] = useState(1000);
   const [bulkDuration, setBulkDuration] = useState("60");
@@ -1888,6 +1935,17 @@ function BookingStep({ draft, update }: StepProps) {
   // closed window for cleaning/maintenance) — the generator defaults to that.
   const [bulkStartTime, setBulkStartTime] = useState("04:00");
   const [bulkEndTime, setBulkEndTime] = useState("22:00");
+
+  // Opens At and Closes At must always describe a valid range. If picking a new opening
+  // time pushes past the current closing time, bump the closing time forward instead of
+  // silently leaving an invalid range sitting in state.
+  useEffect(() => {
+    if (t24m(bulkEndTime) > t24m(bulkStartTime)) return;
+    const nextValid = END_TIME_OPTIONS.find((t) => t24m(t.value) > t24m(bulkStartTime));
+    if (nextValid) setBulkEndTime(nextValid.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkStartTime]);
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
 
@@ -1969,23 +2027,6 @@ function BookingStep({ draft, update }: StepProps) {
     : [];
 
   /* helpers */
-  function t24m(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-  function m2t(m: number) { return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }
-  function to12h(t: string) {
-    if (!t) return "";
-    const [hS, mS] = t.split(":");
-    let h = Number(hS) % 24; // "24:00" (midnight close) → 12:00 AM
-    const ap = h >= 12 ? "PM" : "AM";
-    h = h % 12 || 12;
-    return `${String(h).padStart(2, "0")}:${mS} ${ap}`;
-  }
-  function dayPart(mins: number) {
-    const h = Math.floor(mins / 60) % 24;
-    if (h >= 5 && h < 12) return "Morning";
-    if (h >= 12 && h < 17) return "Afternoon";
-    if (h >= 17 && h < 21) return "Evening";
-    return "Night";
-  }
   function fmtDur(mins: number) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -1994,18 +2035,21 @@ function BookingStep({ draft, update }: StepProps) {
     return `${h}h ${m}m`;
   }
 
-  /* persist slots into draft */
+  /* persist slots into draft — always chronologically sorted, so the slot list, the
+     clock dial and the "Opens/Closes" summary can never show three different orderings
+     of the same underlying data. */
   function save(nextSlots: TurfSlot[]) {
+    const sorted = [...nextSlots].sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
     if (isDailyRoutine && !selectedDate) {
-      update("slotsList", nextSlots);
-      update("slotsPerDay", nextSlots.length);
+      update("slotsList", sorted);
+      update("slotsPerDay", sorted.length);
     } else {
       if (!selectedDate) return;
       const existing = draft.dateOverrides ?? [];
       const idx = existing.findIndex((o) => o.date === selectedDate);
-      const entry = { date: selectedDate, isHoliday, holidayName, slots: nextSlots };
+      const entry = { date: selectedDate, isHoliday, holidayName, slots: sorted };
       if (idx > -1) {
-        const next = [...existing]; next[idx] = { ...next[idx], slots: nextSlots };
+        const next = [...existing]; next[idx] = { ...next[idx], slots: sorted };
         update("dateOverrides", next);
       } else {
         update("dateOverrides", [...existing, entry]);
@@ -2013,50 +2057,46 @@ function BookingStep({ draft, update }: StepProps) {
       // `slotsPerDay` is a required summary stat on the backend. When the vendor only ever
       // configures date-specific slots (never touches the Global Default), it would otherwise
       // stay stuck at 0 and fail listing creation — so keep it in sync with whatever slots exist.
-      if (dailySlots.length === 0 && nextSlots.length > 0) {
-        update("slotsPerDay", nextSlots.length);
+      if (dailySlots.length === 0 && sorted.length > 0) {
+        update("slotsPerDay", sorted.length);
       }
     }
   }
 
-  // Fixed daily closed window — 2:00 AM to 4:00 AM, in minutes-from-midnight.
-  const CLOSED_WINDOW_START = 120;
-  const CLOSED_WINDOW_END = 240;
+  const rangeValid = isValidTimeRange(bulkStartTime, bulkEndTime);
 
   function generateBulkSlots() {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
+    if (!rangeValid) return; // Generate Slots is disabled in this state too — belt & suspenders.
     const dur = parseInt(bulkDuration);
-    const newSlots: TurfSlot[] = [];
-    let cur = t24m(bulkStartTime);
-    const end = t24m(bulkEndTime);
-    while (cur + dur <= end) {
-      // Skip anything landing inside the fixed 2:00–4:00 AM closed window.
-      const overlapsClosedWindow = cur < CLOSED_WINDOW_END && cur + dur > CLOSED_WINDOW_START;
-      if (!overlapsClosedWindow) {
-        newSlots.push({ startTime: m2t(cur), endTime: m2t(cur + dur), label: dayPart(cur), price: 0 });
-      }
-      cur += dur;
-    }
-    save(newSlots);
+    save(generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur));
   }
 
   function deleteSlot(i: number) { save(activeSlots.filter((_, idx) => idx !== i)); }
   function updateSlotPrice(i: number, price: number) { save(activeSlots.map((s, idx) => idx === i ? { ...s, price } : s)); }
 
-  /* clock click — toggle a slot at that hour using current duration */
+  /* Clock dial click — toggle every slot touching that hour, using the current
+     duration for anything newly created. Matching by overlap (not exact start-time
+     equality) means a click always removes whatever the dial is visually showing for
+     that hour, even if slots were generated at a different duration previously —
+     so the dial and the slot list can never end up disagreeing. */
   const handleSelectHour = (hour: number) => {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
-    // The clock dial already excludes 2–4 AM from being clicked — this is just a
-    // safety net for any other caller of onSelectHour.
-    if (hour === 2 || hour === 3) return;
-    const startStr = m2t(hour * 60);
     const dur = parseInt(bulkDuration);
-    const endStr = m2t(hour * 60 + dur);
-    const existIdx = activeSlots.findIndex((s) => s.startTime === startStr);
-    if (existIdx > -1) {
-      deleteSlot(existIdx);
+    const startMin = hour * 60;
+    const endMin = startMin + dur;
+    if (overlapsClosedWindow(startMin, endMin)) return; // 2–4 AM is always closed
+
+    const overlapping = activeSlots.filter((s) => {
+      const sStart = t24m(s.startTime);
+      const sEnd = t24m(s.endTime);
+      return sStart < endMin && sEnd > startMin;
+    });
+
+    if (overlapping.length > 0) {
+      save(activeSlots.filter((s) => !overlapping.includes(s)));
     } else {
-      save([...activeSlots, { startTime: startStr, endTime: endStr, label: dayPart(hour * 60), price: 0 }]);
+      save([...activeSlots, { startTime: m2t(startMin), endTime: m2t(endMin), label: dayPart(startMin), price: 0 }]);
     }
   };
 
@@ -2093,7 +2133,13 @@ function BookingStep({ draft, update }: StepProps) {
   /* ════════════════════════════════════════════════════════════════
      TURF — Step 3: Slot Configuration  (professional rebuild)
   ════════════════════════════════════════════════════════════════ */
-  const clockSlots = activeSlots.map((s) => ({ ...s, status: "Available" as const }));
+  // Memoized so the clock dial only gets a new array (and re-runs its own internal
+  // segment/stat memos) when the underlying slots actually change — not on every
+  // unrelated re-render of this step (calendar nav, hover state, etc.).
+  const clockSlots = useMemo(
+    () => activeSlots.map((s) => ({ ...s, status: "Available" as const })),
+    [activeSlots]
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6">
@@ -2317,14 +2363,23 @@ function BookingStep({ draft, update }: StepProps) {
             </div>
 
             {/* Closes At Hour Cards */}
-            <div className="mb-4">
+            <div className="mb-2">
               <FieldLabel>Closes At *</FieldLabel>
               <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50/50">
                 {END_TIME_OPTIONS.map((t) => {
                   const isSelected = bulkEndTime === t.value;
+                  // Closing time must be strictly after opening time — invalid choices are
+                  // shown (so the full range of hours stays visible) but can't be picked.
+                  const disabled = t24m(t.value) <= t24m(bulkStartTime);
                   return (
-                    <button key={t.value} type="button" onClick={() => setBulkEndTime(t.value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${isSelected ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+                    <button key={t.value} type="button" disabled={disabled} onClick={() => setBulkEndTime(t.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                        isSelected
+                          ? "bg-slate-900 text-white"
+                          : disabled
+                          ? "bg-slate-100 text-slate-300 border border-slate-100 cursor-not-allowed"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                      }`}>
                       {t.label}
                     </button>
                   );
@@ -2332,13 +2387,19 @@ function BookingStep({ draft, update }: StepProps) {
               </div>
             </div>
 
+            {!rangeValid && (
+              <p className="mb-3 text-[11px] font-bold text-vibe-coral">
+                ⚠️ Closing time must be after opening time — pick a later closing time to generate slots.
+              </p>
+            )}
+
             <div className="flex justify-end">
-              <button type="button" onClick={generateBulkSlots}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-vibe-violet px-6 py-2.5 text-xs font-bold text-white hover:opacity-90 transition">
+              <button type="button" onClick={generateBulkSlots} disabled={!rangeValid}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-vibe-violet px-6 py-2.5 text-xs font-bold text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40">
                 <Plus size={13} /> Generate Slots
               </button>
             </div>
-            <p className="text-[10px] text-ink-faint mt-3">💡 You can also click any hour on the clock dial to the right to toggle that slot individually.</p>
+            <p className="text-[10px] text-ink-faint mt-3">💡 You can also click any hour on the clock dial to the right to toggle that slot individually — it always uses the duration set above.</p>
           </div>
         )}
 

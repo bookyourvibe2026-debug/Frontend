@@ -336,12 +336,16 @@ export function ClockSlotsWidget({
     return result;
   }, [center, innerRadius, outerRadius, half]);
 
+  // Stats and the "Slot timings" summary below cover the whole day, not just the AM/PM
+  // half currently shown on the dial face — otherwise they'd silently disagree with the
+  // slot count shown on the board (which is always the full day), and switching the
+  // AM/PM toggle would make totals appear to change even though no slot changed.
   const stats = useMemo(() => {
     const hrsByTone: Record<SummaryBucket, number> = { available: 0, taken: 0, blocked: 0 };
-    for (const s of activeSlotsList) {
+    for (const s of slots) {
       hrsByTone[summaryBucket(s.status)] += slotDurationHrs(s);
     }
-    const total = activeSlotsList.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 1;
+    const total = slots.reduce((sum, s) => sum + slotDurationHrs(s), 0) || 1;
     const pct = (hrs: number) => Math.round((hrs / total) * 100);
     return {
       byTone: hrsByTone,
@@ -351,7 +355,20 @@ export function ClockSlotsWidget({
         blocked: pct(hrsByTone.blocked),
       } as Record<SummaryBucket, number>,
     };
-  }, [activeSlotsList]);
+  }, [slots]);
+
+  /** Earliest start / latest end across the whole day's slots — not assumed to already be
+   * sorted, and not scoped to the active AM/PM half (see note above `stats`). */
+  const fullDayRange = useMemo(() => {
+    if (slots.length === 0) return null;
+    let earliest = slots[0];
+    let latest = slots[0];
+    for (const s of slots) {
+      if (timeStringToHours(s.startTime) < timeStringToHours(earliest.startTime)) earliest = s;
+      if (timeStringToHours(s.endTime) > timeStringToHours(latest.endTime)) latest = s;
+    }
+    return { start: earliest.startTime, end: latest.endTime };
+  }, [slots]);
 
   // Hands follow the real current time, refreshed every 30s.
   const [now, setNow] = useState(() => new Date());
@@ -593,9 +610,7 @@ export function ClockSlotsWidget({
       <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-center">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Slot timings</p>
         <p className="mt-1 text-xs font-semibold text-slate-700">
-          {activeSlotsList.length > 0
-            ? `${to12h(activeSlotsList[0].startTime)} - ${to12h(activeSlotsList[activeSlotsList.length - 1].endTime)}`
-            : "No slots configured"}
+          {fullDayRange ? `${to12h(fullDayRange.start)} - ${to12h(fullDayRange.end)}` : "No slots configured"}
         </p>
       </div>
 
