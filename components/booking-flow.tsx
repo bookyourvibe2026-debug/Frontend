@@ -743,11 +743,10 @@ export default function BookingFlow({
     const addOnsTotal = (listing.addOns ?? [])
       .filter((a) => selectedAddOnIds.includes(a.id))
       .reduce((sum, a) => sum + a.price, 0);
-    const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
-    if (selectedTier) {
-      return selectedTier.amount + addOnsTotal;
-    }
     if (listing.type === "Turf") {
+      // Turf pricing is always driven by the selected slots/courts, never by a
+      // package tier — a tier gets auto-selected as soon as one exists, and letting
+      // it win here would silently charge the flat tier price instead of the real total.
       if (selectedSlotIndices.length === 0) return addOnsTotal;
       // Every court booked pays the slot price, so 2 courts for an hour costs it twice.
       // A venue without courts is a single unit and pays it once.
@@ -757,6 +756,10 @@ export default function BookingFlow({
         return sum + (slot ? finalSlotPrice(slot) * courtCount : 0);
       }, 0);
       return slotsTotal + addOnsTotal;
+    }
+    const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
+    if (selectedTier) {
+      return selectedTier.amount + addOnsTotal;
     }
     return listing.price + addOnsTotal;
   }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport]);
