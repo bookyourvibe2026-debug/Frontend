@@ -221,6 +221,7 @@ export interface CreateVendorBookingInput {
   sport?: string;
   /** Court inside the venue. Omit to let the backend prefer a free one. */
   courtId?: string;
+  courtIds?: string[];
   /** How many players are coming (manual/walk-in bookings). */
   numberOfPlayers?: number;
   /** Whether food & beverage is included with the booking. */

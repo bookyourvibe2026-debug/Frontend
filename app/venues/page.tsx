@@ -43,15 +43,12 @@ const EMOJI_MAP: Record<string, string> = {
   "indoor-games": "🎮",
 };
 
-const VENUE_CATEGORIES: SportCategoryItem[] = [
-  { id: "", label: "All Sports", emoji: "⚡" },
-  ...SPORT_CATEGORIES.map((cat) => ({
-    id: cat.id,
-    label: cat.label,
-    emoji: EMOJI_MAP[cat.id],
-    image: cat.image,
-  })),
-];
+const VENUE_CATEGORIES: SportCategoryItem[] = SPORT_CATEGORIES.map((cat) => ({
+  id: cat.id,
+  label: cat.label,
+  emoji: EMOJI_MAP[cat.id],
+  image: cat.image,
+}));
 
 function VenuesPageInner() {
   const router = useRouter();

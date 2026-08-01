@@ -28,6 +28,7 @@ import {
   Repeat,
   QrCode,
   Hash,
+  Trash2,
 } from "lucide-react";
 import { MessageTemplatesModal, type MessageTemplateContext } from "@/components/vendor/MessageTemplatesModal";
 import { NotificationRow, type RowTone, type BookingSource } from "@/components/vendor/notifications/NotificationRow";
@@ -96,14 +97,30 @@ export default function NotificationsPage() {
   const [reminderFilter, setReminderFilter] = useState<"Sent" | "Not Sent" | null>(null);
   /** Order ids the vendor has already messaged — persisted so "reminder sent" survives a reload. */
   const [messagedOrders, setMessagedOrders] = useState<Set<string>>(new Set());
+  const REMOVED_NOTIFS_KEY = "byv_vendor_removed_notifications";
+  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(MESSAGED_ORDERS_KEY);
       if (raw) setMessagedOrders(new Set(JSON.parse(raw)));
+      const removedRaw = window.localStorage.getItem(REMOVED_NOTIFS_KEY);
+      if (removedRaw) setRemovedKeys(new Set(JSON.parse(removedRaw)));
     } catch {
-      // localStorage unavailable — reminder-sent tracking just stays empty for this session.
+      // localStorage unavailable
     }
   }, []);
+
+  function handleRemoveNotification(key: string) {
+    setRemovedKeys((prev) => {
+      const next = new Set(prev).add(key);
+      try {
+        window.localStorage.setItem(REMOVED_NOTIFS_KEY, JSON.stringify([...next]));
+      } catch {
+        // Non-fatal
+      }
+      return next;
+    });
+  }
   function markMessaged(orderId: string) {
     setMessagedOrders((prev) => {
       if (prev.has(orderId)) return prev;
@@ -269,8 +286,8 @@ export default function NotificationsPage() {
     }
     if (reminderFilter === "Sent") list = list.filter((r) => messagedOrders.has(r.key));
     if (reminderFilter === "Not Sent") list = list.filter((r) => !messagedOrders.has(r.key));
-    return list;
-  }, [rows, tab, priceFilters, reminderFilter, messagedOrders]);
+    return list.filter((r) => !removedKeys.has(r.key));
+  }, [rows, tab, priceFilters, reminderFilter, messagedOrders, removedKeys]);
 
   async function acknowledge(orderId: string) {
     try {
@@ -307,6 +324,21 @@ export default function NotificationsPage() {
           )}
         </div>
         <HeaderAction icon={CheckCheck} label="Mark all read" onClick={() => setRead(new Set(rows.map((r) => r.key)))} />
+        <HeaderAction
+          icon={Trash2}
+          label="Clear all"
+          onClick={() => {
+            if (visible.length === 0) return;
+            const next = new Set(removedKeys);
+            visible.forEach((r) => next.add(r.key));
+            setRemovedKeys(next);
+            try {
+              window.localStorage.setItem(REMOVED_NOTIFS_KEY, JSON.stringify([...next]));
+            } catch {
+              // Ignore
+            }
+          }}
+        />
         <HeaderAction icon={Settings} label="Settings" href="/vendor/profile" />
       </div>
 
@@ -365,6 +397,7 @@ export default function NotificationsPage() {
             isLast={i === visible.length - 1}
             expanded={expanded === r.key}
             unread={!read.has(r.key)}
+            onRemove={() => handleRemoveNotification(r.key)}
             onToggle={() => {
               setExpanded(expanded === r.key ? null : r.key);
               setRead((prev) => new Set(prev).add(r.key));

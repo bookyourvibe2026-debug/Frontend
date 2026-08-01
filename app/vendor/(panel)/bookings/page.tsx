@@ -44,6 +44,7 @@ import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/
 import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/bookings/AddBookingSheet";
 import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
 import { ClubSlotDetailsModal } from "@/components/vendor/bookings/ClubSlotDetailsModal";
+import { SportCourtSelectionModal } from "@/components/vendor/bookings/SportCourtSelectionModal";
 import {
   SlotFilterSheet,
   DEFAULT_FILTERS,
@@ -227,6 +228,7 @@ interface AgendaSlot {
   /** How many of the venue's courts are still sellable in this slot (0 when it has none). */
   courtsFree?: number;
   courtsTotal?: number;
+  bookedCourtIds?: string[];
   isClubSlot?: boolean;
   clubId?: string;
   slotIds?: string[];
@@ -260,6 +262,8 @@ export default function BookingsPage() {
   const [addBookingOpen, setAddBookingOpen] = useState(false);
   const [addBookingInitial, setAddBookingInitial] = useState<Partial<AddBookingValues>>({});
   const [addBookingSaving, setAddBookingSaving] = useState(false);
+  const [sportCourtModalOpen, setSportCourtModalOpen] = useState(false);
+  const [sportCourtModalSlot, setSportCourtModalSlot] = useState<AgendaSlot | null>(null);
   /** Start of the visible 7-day strip in the header. */
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
@@ -425,13 +429,14 @@ export default function BookingsPage() {
       const courtsFree = courtsTotal > 0 ? courtsTotal - takenCourtIds.size : 0;
 
       const match = matches[0];
+      const isFullyBooked = courtsTotal > 0 ? courtsFree === 0 : matches.length > 0;
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
       let customerName: string | undefined;
       let phone: string | undefined;
       let arrived = false;
 
-      if (match) {
+      if (match && isFullyBooked) {
         bookingId = match.orderId;
         customerName = match.customerName ?? match.customer;
         phone = match.phone;
@@ -443,15 +448,19 @@ export default function BookingsPage() {
         else status = isWalkIn ? "Offline Booked" : "Booked";
       }
 
+      const displayLabel = courtsTotal > 0 && courtsFree > 0 && takenCourtIds.size > 0
+        ? `${slot.label || slotLabel(slot.startTime)} • ${courtsFree}/${courtsTotal} Courts Free`
+        : slot.label;
+
       return {
         startTime: slot.startTime,
         endTime: slot.endTime,
-        label: slot.label,
+        label: displayLabel,
         price: slot.price,
         status,
-        bookingId,
-        customerName,
-        phone,
+        bookingId: isFullyBooked ? bookingId : undefined,
+        customerName: isFullyBooked ? customerName : undefined,
+        phone: isFullyBooked ? phone : undefined,
         arrived,
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
@@ -459,6 +468,7 @@ export default function BookingsPage() {
         courtName: match?.courtNames?.length ? match.courtNames.join(", ") : match?.courtName,
         courtsFree,
         courtsTotal,
+        bookedCourtIds: Array.from(takenCourtIds),
         isClubSlot: Boolean(slot.isClubSlot || (t24m(slot.endTime) - t24m(slot.startTime) > 60)),
         clubId: slot.clubId,
         slotIds: slot.slotIds,
@@ -801,18 +811,38 @@ export default function BookingsPage() {
 
   async function startOfflineBooking(slot: AgendaSlot) {
     if (!selectedTurf) return;
-    if (!selectedTurf.categories || selectedTurf.categories.length === 0) {
-      setSetupSportsSelected([]);
-      setSetupSportsOpen(true);
-      return;
+    const sports = selectedTurf.categories || [];
+    const activeCourts = (selectedTurf.courts || []).filter((c) => c.active);
+
+    // If venue has 1 or 0 sports AND 1 or 0 courts, skip sport & court selection modal:
+    if (sports.length <= 1 && activeCourts.length <= 1) {
+      setAddBookingInitial({
+        courtId: selectedTurf.id,
+        price: String(slot.price),
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        sport: sports[0] || "",
+        venueCourtId: activeCourts[0]?.id || "",
+      });
+      setAddBookingOpen(true);
+    } else {
+      setSportCourtModalSlot(slot);
+      setSportCourtModalOpen(true);
     }
-    setOfflineMode("single");
-    setMultiSlots([]);
-    setOfflineSport(selectedTurf.categories[0] || "");
-    setOfflineAmount("");
-    setOfflineSpanCount(1);
-    setActiveSlot(slot);
-    setOfflineModal(true);
+  }
+
+  function handleSportCourtConfirm(selectedSport: string, selectedCourtId: string) {
+    setSportCourtModalOpen(false);
+    if (!sportCourtModalSlot || !selectedTurf) return;
+    setAddBookingInitial({
+      courtId: selectedTurf.id,
+      price: String(sportCourtModalSlot.price),
+      startTime: sportCourtModalSlot.startTime,
+      endTime: sportCourtModalSlot.endTime,
+      sport: selectedSport,
+      venueCourtId: selectedCourtId,
+    });
+    setAddBookingOpen(true);
   }
 
   async function startOfflineBookingTwoSlots(slot1: AgendaSlot, slot2: AgendaSlot) {
@@ -1067,7 +1097,7 @@ export default function BookingsPage() {
   function handleSlotAction(slot: AgendaSlot, action: SlotAction) {
     switch (action) {
       case "create-booking":
-        openAddBooking(slot);
+        startOfflineBooking(slot);
         return;
       case "block-slot":
         setActiveSlot(slot);
@@ -1150,6 +1180,10 @@ export default function BookingsPage() {
   function handleTimelineSlotClick(slot: AgendaSlot) {
     if (slot.isClubSlot && slot.status === "Available") {
       setActiveClubSlot(slot);
+      return;
+    }
+    if (slot.status === "Available") {
+      startOfflineBooking(slot);
       return;
     }
     setActiveSlot(slot);
@@ -1530,6 +1564,22 @@ export default function BookingsPage() {
           }
         }}
       />
+      )}
+
+      {/* ── SPORT & COURT SELECTION MODAL ── */}
+      {sportCourtModalOpen && sportCourtModalSlot && selectedTurf && (
+        <SportCourtSelectionModal
+          isOpen={sportCourtModalOpen}
+          sports={selectedTurf.categories || []}
+          courts={(selectedTurf.courts || []).filter((c) => c.active)}
+          bookedCourtIds={sportCourtModalSlot.bookedCourtIds || []}
+          slotTime={`${to12h(sportCourtModalSlot.startTime)} – ${to12h(sportCourtModalSlot.endTime)}`}
+          onClose={() => {
+            setSportCourtModalOpen(false);
+            setSportCourtModalSlot(null);
+          }}
+          onConfirm={handleSportCourtConfirm}
+        />
       )}
 
       {/* ── ADD BOOKING ── */}

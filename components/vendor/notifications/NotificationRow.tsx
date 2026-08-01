@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCheck, ChevronRight, Clock } from "lucide-react";
+import { CheckCheck, ChevronRight, Clock, Trash2 } from "lucide-react";
 
 /**
  * One booking/activity row.
@@ -49,6 +49,7 @@ export function NotificationRow({
   expanded,
   unread,
   onToggle,
+  onRemove,
   children,
 }: {
   name: string;
@@ -64,6 +65,7 @@ export function NotificationRow({
   expanded: boolean;
   unread?: boolean;
   onToggle: () => void;
+  onRemove?: () => void;
   children?: React.ReactNode;
 }) {
   const t = TONES[tone];
@@ -127,11 +129,34 @@ export function NotificationRow({
                 className={`text-slate-300 transition-transform ${expanded ? "rotate-90" : ""}`}
               />
             </span>
-            {!unread && (
-              <span title="Seen" className="flex items-center gap-0.5 text-[8px] font-black text-sky-500">
-                <CheckCheck size={12} /> Seen
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {!unread && (
+                <span title="Seen" className="flex items-center gap-0.5 text-[8px] font-black text-sky-500">
+                  <CheckCheck size={12} /> Seen
+                </span>
+              )}
+              {onRemove && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  title="Remove notification"
+                  aria-label="Remove notification"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      onRemove();
+                    }
+                  }}
+                  className="rounded-md p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                </span>
+              )}
+            </div>
           </div>
         </button>
 
