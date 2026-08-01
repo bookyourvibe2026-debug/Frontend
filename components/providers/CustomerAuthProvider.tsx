@@ -11,6 +11,7 @@ import {
   updateMyCustomerProfile,
   type CustomerProfile,
 } from "@/lib/api/auth";
+import { trackEvent, trackLogin, trackLogout, trackSignup } from "@/lib/analytics";
 
 type Status = "loading" | "authenticated" | "guest";
 
@@ -47,6 +48,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     const profile = await customerLogin({ identifier, password });
     setCustomer(profile);
     setStatus("authenticated");
+    trackLogin(profile.id, "customer");
     return profile;
   }, []);
 
@@ -54,6 +56,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     const profile = await customerGoogleAuth(idToken);
     setCustomer(profile);
     setStatus("authenticated");
+    trackLogin(profile.id, "customer");
     return profile;
   }, []);
 
@@ -61,6 +64,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     const profile = await customerLoginWithOtp({ email, otp });
     setCustomer(profile);
     setStatus("authenticated");
+    trackLogin(profile.id, "customer");
     return profile;
   }, []);
 
@@ -69,20 +73,24 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
       const profile = await customerRegister(input);
       setCustomer(profile);
       setStatus("authenticated");
+      trackSignup(profile.id, profile.phone);
       return profile;
     },
     []
   );
 
   const logout = useCallback(async () => {
+    const cid = customer?.id;
     await customerLogout();
     setCustomer(null);
     setStatus("guest");
-  }, []);
+    trackLogout(cid);
+  }, [customer]);
 
   const updateProfile = useCallback(async (input: { name?: string; avatarUrl?: string; phone?: string }) => {
     const profile = await updateMyCustomerProfile(input);
     setCustomer(profile);
+    trackEvent("profile_updated", { userId: profile.id }, "customer");
     return profile;
   }, []);
 

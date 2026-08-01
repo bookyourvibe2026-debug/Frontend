@@ -9,6 +9,7 @@ import { VenuePosterCard } from "@/components/venue-poster-card";
 import { browseVenues, getVendorProfile, type VendorPublicProfile } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
 import { categoryLabel } from "@/lib/taxonomy";
+import { trackVenueSearch } from "@/lib/analytics";
 
 /** One card on the browsing grid — either a single venue, or a business with
  * several venues (tap it to see all of them, à la a vendor's own storefront). */
@@ -66,6 +67,7 @@ function VenuesPageInner() {
     browseVenues({ limit: 24, category: category || undefined, type: category ? undefined : "Turf" })
       .then(async (result) => {
         setVenues(result.items);
+        trackVenueSearch(category || "All", category || undefined, undefined, result.items.length);
         // One business can list several turfs — fetch each distinct vendor's public
         // profile (business name + poster) so they can be grouped into one card.
         const vendorIds = Array.from(

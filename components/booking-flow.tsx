@@ -25,6 +25,7 @@ import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
 // `nowMinutes` is aliased: the slot generator already has a local of that name.
 import { activeBoostPct, boostedPrice, nowMinutes as minutesOfDay } from "@/lib/lastMinBoost";
 import { downloadBookingTicket } from "@/lib/ticket";
+import { trackEvent } from "@/lib/analytics";
 import type { AddOn, Booking, Court, Listing, PaymentMethod } from "@/lib/api/types";
 
 type Step = "review" | "confirmed";
@@ -764,6 +765,15 @@ export default function BookingFlow({
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
         durationMinutes,
       });
+
+      trackEvent("booking_started", {
+        listingId: listing._id,
+        listingTitle: listing.title,
+        date,
+        totalAmount: activePrice,
+        slotCount: selectedSlotIndices.length,
+      });
+
       setPendingBooking(created);
       setPaymentGatewayOpen(true);
     } catch (err) {
@@ -778,7 +788,15 @@ export default function BookingFlow({
     setConfirmingPayment(true);
     setError("");
     try {
-      const confirmed = await confirmMyBookingPayment(pendingBooking.orderId);
+      const confirmed = await confirmMyBookingPayment(pendingBooking.orderId, selectedPayMethod);
+
+      trackEvent("booking_completed", {
+        bookingId: confirmed._id,
+        listingId: listing._id,
+        totalAmount: activePrice,
+        paymentMethod: selectedPayMethod,
+      });
+
       setBooking(confirmed);
       setPaymentGatewayOpen(false);
       setStep("confirmed");

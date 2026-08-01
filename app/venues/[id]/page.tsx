@@ -56,6 +56,7 @@ import { getVenueById } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
 import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
+import { trackVenueView } from "@/lib/analytics";
 
 const DEFAULT_HIGHLIGHTS = ["Well-maintained facility", "Floodlit for evening play", "Easy online booking"];
 const DEFAULT_INCLUSIONS = ["Venue access", "Drinking water", "Changing room"];
@@ -125,7 +126,12 @@ export default function VenueDetailPage() {
         if (!(err instanceof ApiError)) throw err;
         return null;
       })
-      .then(setVenue)
+      .then((res) => {
+        setVenue(res);
+        if (res) {
+          trackVenueView(res._id, res.title, res.categories?.[0]);
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 

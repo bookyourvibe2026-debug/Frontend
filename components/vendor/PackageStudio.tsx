@@ -27,6 +27,7 @@ import {
 import { ClockSlotsWidget } from "./ClockSlotsWidget";
 import { SPORT_CATEGORIES, SportCategory, venueOptionsFor, VenueSetting } from "@/lib/taxonomy";
 import { usePexelsImage } from "@/lib/pexels";
+import { trackEvent, trackPriceChange } from "@/lib/analytics";
 
 type Audience = "admin" | "vendor";
 
