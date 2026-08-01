@@ -61,6 +61,15 @@ export function getAccessToken(audience: Audience): string | null {
   return tokens[audience];
 }
 
+type TokenListener = (audience: Audience, token: string | null) => void;
+const tokenListeners = new Set<TokenListener>();
+
+/** Lets an auth provider react when a token is cleared elsewhere (e.g. a failed background refresh), so its UI stops assuming the user is still logged in. */
+export function subscribeToTokenChanges(listener: TokenListener): () => void {
+  tokenListeners.add(listener);
+  return () => tokenListeners.delete(listener);
+}
+
 export function setAccessToken(audience: Audience, token: string | null) {
   tokens[audience] = token;
   if (typeof window !== "undefined") {
@@ -70,6 +79,7 @@ export function setAccessToken(audience: Audience, token: string | null) {
       localStorage.removeItem(`byv_${audience}_token`);
     }
   }
+  tokenListeners.forEach((listener) => listener(audience, token));
 }
 
 /** De-dupes concurrent refresh attempts for the same audience. */

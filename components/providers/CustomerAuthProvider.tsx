@@ -11,6 +11,7 @@ import {
   updateMyCustomerProfile,
   type CustomerProfile,
 } from "@/lib/api/auth";
+import { subscribeToTokenChanges } from "@/lib/api/client";
 import { trackEvent, trackLogin, trackLogout, trackSignup } from "@/lib/analytics";
 
 type Status = "loading" | "authenticated" | "guest";
@@ -42,6 +43,15 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    return subscribeToTokenChanges((audience, token) => {
+      if (audience === "customer" && !token) {
+        setCustomer(null);
+        setStatus("guest");
+      }
+    });
   }, []);
 
   const login = useCallback(async (identifier: string, password: string) => {
