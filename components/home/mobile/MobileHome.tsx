@@ -25,7 +25,7 @@ import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenu
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 import { AdBanner } from "../AdBanner";
 import { HotDeals } from "../HotDeals";
-import { CityRankings } from "../CityRankings";
+import { TopPlayersRanking } from "../TopPlayersRanking";
 
 const MOBILE_QUICK_ACTIONS = [
   { id: "coaches", label: "Coaches", icon: GraduationCap },
@@ -287,7 +287,7 @@ export function MobileHome({
         )}
       </section>
 
-      <CityRankings variant="mobile" />
+      <TopPlayersRanking variant="mobile" />
 
       {/* The "Challenge a Friend" duel now lives only in the Community banner below —
           the compact card here said the same thing twice on one screen. */}

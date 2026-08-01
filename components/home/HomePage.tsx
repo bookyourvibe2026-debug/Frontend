@@ -10,7 +10,7 @@ import { QuickActionsSection } from "./QuickActionsSection";
 import { FoodAndBeverages } from "./FoodAndBeverages";
 import { FindYourGames } from "./FindYourGames";
 import { TrendingVenues } from "./TrendingVenues";
-import { CityRankings } from "./CityRankings";
+import { TopPlayersRanking } from "./TopPlayersRanking";
 import { HowItWorks } from "./HowItWorks";
 import { AdBanner } from "./AdBanner";
 import { LastMinuteDeals } from "./HotDeals";
@@ -198,7 +198,7 @@ export default function HomePage() {
           onViewAll={() => router.push("/venues")}
         />
 
-        <CityRankings />
+        <TopPlayersRanking />
 
         <QuickActionsSection
           onQuickAction={handleQuickAction}
