@@ -2100,6 +2100,93 @@ function BookingStep({ draft, update }: StepProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkDuration, bulkStartTime, bulkEndTime]);
 
+  const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
+
+  function isConsecutive(indices: number[], slots: TurfSlot[]): boolean {
+    if (indices.length < 2) return false;
+    const sorted = [...indices].sort((a, b) => a - b);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = slots[sorted[i]];
+      const next = slots[sorted[i + 1]];
+      if (!curr || !next) return false;
+      if (t24m(curr.endTime) !== t24m(next.startTime)) return false;
+    }
+    return true;
+  }
+
+  function handleClubSelectedSlots() {
+    if (selectedSlotIndices.length < 2) return;
+    const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
+    if (!isConsecutive(sortedIndices, activeSlots)) {
+      alert("⚠️ Only consecutive time slots can be clubbed together.");
+      return;
+    }
+    const selectedSlots = sortedIndices.map((idx) => activeSlots[idx]);
+    const earliest = selectedSlots[0];
+    const latest = selectedSlots[selectedSlots.length - 1];
+    const totalPrice = selectedSlots.reduce((sum, s) => sum + s.price, 0);
+    const totalDur = t24m(latest.endTime) - t24m(earliest.startTime);
+    const clubId = "club_" + Math.random().toString(36).substring(2, 9);
+
+    const clubSlot: TurfSlot = {
+      id: clubId,
+      startTime: earliest.startTime,
+      endTime: latest.endTime,
+      label: earliest.label,
+      price: totalPrice,
+      isClubSlot: true,
+      clubId,
+      slotIds: selectedSlots.map((s) => `${s.startTime}-${s.endTime}`),
+      durationMinutes: totalDur,
+    };
+
+    const newSlots = activeSlots.filter((_, idx) => !sortedIndices.includes(idx));
+    newSlots.push(clubSlot);
+    newSlots.sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+
+    save(newSlots);
+    setSelectedSlotIndices([]);
+    trackEvent("club_slot_created", { startTime: earliest.startTime, endTime: latest.endTime, durationMinutes: totalDur }, "vendor");
+  }
+
+  function handleSplitClubSlot(clubIndex: number) {
+    const slot = activeSlots[clubIndex];
+    if (!slot || !slot.isClubSlot) return;
+
+    const startMins = t24m(slot.startTime);
+    const endMins = t24m(slot.endTime);
+    const totalHours = Math.max(1, (endMins - startMins) / 60);
+    const hourlyRate = Math.round(slot.price / totalHours);
+    const splitSlots: TurfSlot[] = [];
+
+    let curr = startMins;
+    while (curr + 60 <= endMins) {
+      const s24 = m2t(curr % 1440);
+      const e24 = m2t((curr + 60) % 1440);
+      const startHour = Math.floor(curr / 60) % 24;
+      let label = "Morning";
+      if (startHour >= 12 && startHour < 17) label = "Afternoon";
+      else if (startHour >= 17 && startHour < 22) label = "Evening";
+      else if (startHour >= 22 || startHour < 5) label = "Night";
+
+      splitSlots.push({
+        startTime: s24,
+        endTime: e24,
+        label,
+        price: hourlyRate,
+        blocked: slot.blocked,
+      });
+      curr += 60;
+    }
+
+    const newSlots = activeSlots.filter((_, idx) => idx !== clubIndex);
+    newSlots.push(...splitSlots);
+    newSlots.sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+
+    save(newSlots);
+    trackEvent("club_slot_deleted", { clubId: slot.clubId }, "vendor");
+  }
+
   function deleteSlot(i: number) { save(activeSlots.filter((_, idx) => idx !== i)); }
   function updateSlotPrice(i: number, price: number) { save(activeSlots.map((s, idx) => idx === i ? { ...s, price } : s)); }
 
@@ -2481,6 +2568,31 @@ function BookingStep({ draft, update }: StepProps) {
             )}
           </div>
 
+          {/* CLUB TOGETHER TOOLBAR */}
+          {selectedSlotIndices.length > 0 && (
+            <div className="mb-3 flex items-center justify-between rounded-xl bg-purple-50 p-2.5 ring-1 ring-purple-200">
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-900">
+                <span>⭐ {selectedSlotIndices.length} slots selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleClubSelectedSlots}
+                  className="rounded-lg bg-vibe-violet px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-vibe-violet/90 transition"
+                >
+                  ⭐ Club Together
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSlotIndices([])}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-700"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeSlots.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center bg-white">
               <Clock3 size={32} className="mx-auto text-slate-300 mb-2" />
@@ -2495,24 +2607,53 @@ function BookingStep({ draft, update }: StepProps) {
                 <table className="w-full text-left text-[11px]">
                   <thead className="sticky top-0 bg-slate-50 z-10">
                     <tr className="border-b border-surface-border text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="px-3 py-2.5 w-6">Select</th>
                       <th className="px-3 py-2.5">#</th>
                       <th className="px-3 py-2.5">Time Range</th>
                       <th className="px-3 py-2.5">Dur.</th>
-                      <th className="px-3 py-2.5">Label</th>
-                      <th className="px-3 py-2.5 w-8" />
+                      <th className="px-3 py-2.5">Label / Type</th>
+                      <th className="px-3 py-2.5 w-16 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {activeSlots.map((slot, i) => {
-                      const durMins = t24m(slot.endTime) - t24m(slot.startTime);
-                      const labelColor = slot.label === "Morning" ? "bg-amber-100 text-amber-700" : slot.label === "Afternoon" ? "bg-sky-100 text-sky-700" : slot.label === "Evening" ? "bg-orange-100 text-orange-700" : "bg-indigo-100 text-indigo-700";
+                      const durMins = slot.durationMinutes || (t24m(slot.endTime) - t24m(slot.startTime));
+                      const isChecked = selectedSlotIndices.includes(i);
                       return (
-                        <tr key={i} className="border-b border-surface-border last:border-0 hover:bg-cream-200/30 group">
+                        <tr key={i} className={`border-b border-surface-border last:border-0 hover:bg-cream-200/30 group ${slot.isClubSlot ? "bg-purple-50/40" : ""}`}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, i]);
+                                else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== i));
+                              }}
+                              className="w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
+                            />
+                          </td>
                           <td className="px-3 py-2 text-slate-400 font-semibold">{i + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800">{to12h(slot.startTime)} – {to12h(slot.endTime)}</td>
+                          <td className="px-3 py-2 font-bold text-slate-800">
+                            {to12h(slot.startTime)} – {to12h(slot.endTime)}
+                          </td>
                           <td className="px-3 py-2 text-slate-500">{fmtDur(durMins)}</td>
-                          <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${labelColor}`}>{slot.label}</span></td>
+                          <td className="px-3 py-2">
+                            {slot.isClubSlot ? (
+                              <span className="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-[9px] font-extrabold uppercase border border-purple-300">
+                                ⭐ Club Slot (₹{slot.price})
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-[9px] font-bold uppercase">
+                                {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right">
+                            {slot.isClubSlot ? (
+                              <button type="button" onClick={() => handleSplitClubSlot(i)} className="text-[9px] font-bold text-purple-700 hover:underline mr-2">
+                                Split
+                              </button>
+                            ) : null}
                             <button type="button" onClick={() => deleteSlot(i)} className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-vibe-coral transition">
                               <Trash2 size={12} />
                             </button>
@@ -2566,9 +2707,32 @@ function BookingStep({ draft, update }: StepProps) {
 
                       <div className={`grid ${gridCols} gap-2`}>
                         {partSlots.map((slot) => {
+                          const isChecked = selectedSlotIndices.includes(slot.originalIndex);
+                          if (slot.isClubSlot) {
+                            return (
+                              <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-purple-300 bg-purple-50/50 relative hover:shadow transition-shadow group ${sizeH}`}>
+                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-extrabold uppercase text-purple-700 mb-1">⭐ Club Slot</span>
+                                <span className="text-xs font-bold text-purple-950 font-mono">{to12h(slot.startTime)} – {to12h(slot.endTime)}</span>
+                                <span className="text-[9px] font-semibold text-purple-700 mt-0.5">{fmtDur(slot.durationMinutes || 120)} · ₹{slot.price}</span>
+                                <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition">
+                                  <button type="button" onClick={() => handleSplitClubSlot(slot.originalIndex)} className="text-[9px] font-bold text-purple-700 hover:underline">Split Club</button>
+                                  <button type="button" onClick={() => deleteSlot(slot.originalIndex)} className="p-0.5 text-slate-400 hover:text-rose-600"><Trash2 size={11} /></button>
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 bg-white relative hover:shadow transition-shadow group ${sizeH}`}>
-                              <span className="text-xs font-bold text-slate-700 font-mono">
+                            <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 bg-white relative hover:shadow transition-shadow group ${sizeH} ${isChecked ? "ring-2 ring-vibe-violet border-vibe-violet" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, slot.originalIndex]);
+                                  else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== slot.originalIndex));
+                                }}
+                                className="absolute top-1.5 left-1.5 w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
+                              />
+                              <span className="text-xs font-bold text-slate-700 font-mono mt-2">
                                 {slot.startTime} - {slot.endTime}
                               </span>
                               <span className="text-[9px] text-slate-400 uppercase mt-1">

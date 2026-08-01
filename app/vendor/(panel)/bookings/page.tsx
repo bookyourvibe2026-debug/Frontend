@@ -43,6 +43,7 @@ import { PageBack } from "@/components/vendor/PageBack";
 import { BookingsTimeline, TimelineLegend, type SlotAction } from "@/components/vendor/bookings/BookingsTimeline";
 import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/bookings/AddBookingSheet";
 import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
+import { ClubSlotDetailsModal } from "@/components/vendor/bookings/ClubSlotDetailsModal";
 import {
   SlotFilterSheet,
   DEFAULT_FILTERS,
@@ -226,6 +227,10 @@ interface AgendaSlot {
   /** How many of the venue's courts are still sellable in this slot (0 when it has none). */
   courtsFree?: number;
   courtsTotal?: number;
+  isClubSlot?: boolean;
+  clubId?: string;
+  slotIds?: string[];
+  durationMinutes?: number;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -271,6 +276,7 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<"timeline" | "clock">("timeline");
   // Active slot action modal
   const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
+  const [activeClubSlot, setActiveClubSlot] = useState<AgendaSlot | null>(null);
   // Long-press quick sheet (press & hold a slot → "Offline Booking" / "Block Slot")
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   // Grouped-list filter (for "See Booking" bottom button)
@@ -453,6 +459,10 @@ export default function BookingsPage() {
         courtName: match?.courtNames?.length ? match.courtNames.join(", ") : match?.courtName,
         courtsFree,
         courtsTotal,
+        isClubSlot: Boolean(slot.isClubSlot || (t24m(slot.endTime) - t24m(slot.startTime) > 60)),
+        clubId: slot.clubId,
+        slotIds: slot.slotIds,
+        durationMinutes: slot.durationMinutes || (t24m(slot.endTime) - t24m(slot.startTime)),
       };
     })
       .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins));
@@ -616,7 +626,7 @@ export default function BookingsPage() {
     setApplyClubDaily(false);
   }
 
-  /** Book the selected (consecutive) slots as one combined offline booking — instantly merge and save! */
+  /** Merge selected consecutive slots into a single Available Club Slot in the listing configuration! */
   async function startClubBooking() {
     if (selectedSlots.length === 0 || !selectedTurf) {
       alert("Please select at least 1 slot to club together.");
@@ -635,16 +645,27 @@ export default function BookingsPage() {
     try {
       const first = selectedSlots[0];
       const last = selectedSlots[selectedSlots.length - 1];
+      const totalDur = t24m(last.endTime) - t24m(first.startTime);
+      const clubId = "club_" + Math.random().toString(36).substring(2, 9);
+      const clubbedKeys = new Set(selectedSlots.map((s) => s.startTime));
 
-      if (applyClubDaily && selectedSlots.length > 1) {
-        const clubbedKeys = new Set(selectedSlots.map((s) => s.startTime));
-        const mergedHourlyRate = Math.round(selectionTotal / selectedSlots.length);
-        const mergedSlot = { startTime: first.startTime, endTime: last.endTime, label: first.label, price: mergedHourlyRate };
-        const mergeInto = (list?: typeof selectedTurf.slotsList) =>
-          [...(list || []).filter((s) => !clubbedKeys.has(s.startTime)), mergedSlot].sort(
-            (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
-          );
+      const clubSlot = {
+        startTime: first.startTime,
+        endTime: last.endTime,
+        label: first.label,
+        price: selectionTotal,
+        isClubSlot: true,
+        clubId,
+        slotIds: selectedSlots.map((s) => `${s.startTime}-${s.endTime}`),
+        durationMinutes: totalDur,
+      };
 
+      const mergeInto = (list?: typeof selectedTurf.slotsList) =>
+        [...(list || []).filter((s) => !clubbedKeys.has(s.startTime)), clubSlot].sort(
+          (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
+        );
+
+      if (applyClubDaily) {
         const newSlotsList = mergeInto(selectedTurf.slotsList);
         const overrides = (selectedTurf.dateOverrides || []).map((o) =>
           !o.isHoliday ? { ...o, slots: mergeInto(o.slots) } : o
@@ -652,29 +673,23 @@ export default function BookingsPage() {
         const updated = { ...selectedTurf, slotsList: newSlotsList, dateOverrides: overrides };
         const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
         setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      } else {
+        const overrides = [...(selectedTurf.dateOverrides || [])];
+        const idx = overrides.findIndex((o) => o.date === selectedDate);
+        const currentSlots = idx > -1 ? (overrides[idx].slots || []) : (selectedTurf.slotsList || []);
+        const next = mergeInto(currentSlots);
+        const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+        if (idx > -1) overrides[idx] = newOverride;
+        else overrides.push(newOverride);
+        const updated = { ...selectedTurf, dateOverrides: overrides };
+        const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+        setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
       }
 
-      await createVendorBooking({
-        listingId: selectedTurf.id,
-        customerName: "Club Booking",
-        phone: "9999999999",
-        sport: selectedTurf.categories?.[0] || "Sports",
-        dateTime: new Date(`${selectedDate}T${first.startTime}:00`).toISOString(),
-        endTime: last.endTime,
-        totalAmount: selectionTotal,
-        paidAmount: 0,
-        payment: "Cash (Offline)",
-        status: "Confirmed",
-        bookingType: "club_together",
-      });
-
-      const b = await getVendorBookings({ limit: 500 });
-      setBookings(b.items as unknown as ApiBooking[]);
-
       exitSelectMode();
-      alert("Club booking created successfully.");
+      alert(`⭐ Club Slot (${to12h(first.startTime)} – ${to12h(last.endTime)}) created successfully as an Available merged slot.`);
     } catch (err) {
-      alert(err instanceof ApiError ? err.describe() : "Failed to create club booking");
+      alert(err instanceof ApiError ? err.describe() : "Failed to create club slot");
     } finally {
       setClubbing(false);
     }
@@ -1132,6 +1147,125 @@ export default function BookingsPage() {
     ? (["Booked", "Offline Booked", "Part Paid", "On Hold"] as SlotStatus[]).includes(activeSlot.status)
     : false;
 
+  function handleTimelineSlotClick(slot: AgendaSlot) {
+    if (slot.isClubSlot && slot.status === "Available") {
+      setActiveClubSlot(slot);
+      return;
+    }
+    setActiveSlot(slot);
+  }
+
+  async function handleBlockClubSlot(slot: AgendaSlot) {
+    if (!selectedTurf) return;
+    try {
+      const overrides = [...(selectedTurf.dateOverrides || [])];
+      const idx = overrides.findIndex((o) => o.date === selectedDate);
+      const currentSlots = idx > -1 ? [...(overrides[idx].slots || [])] : [...(selectedTurf.slotsList || [])];
+      const next = currentSlots.map((s) =>
+        s.startTime === slot.startTime ? { ...s, blocked: !s.blocked } : s
+      );
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      setActiveClubSlot(null);
+    } catch {
+      alert("Failed to update club slot block status");
+    }
+  }
+
+  async function handleEditClubPrice(slot: AgendaSlot) {
+    if (!selectedTurf) return;
+    const input = prompt("Enter new price (₹) for this Club Slot:", String(slot.price));
+    if (!input) return;
+    const newPrice = Number(input.replace(/\D/g, "")) || slot.price;
+
+    try {
+      const overrides = [...(selectedTurf.dateOverrides || [])];
+      const idx = overrides.findIndex((o) => o.date === selectedDate);
+      const currentSlots = idx > -1 ? [...(overrides[idx].slots || [])] : [...(selectedTurf.slotsList || [])];
+      const next = currentSlots.map((s) =>
+        s.startTime === slot.startTime ? { ...s, price: newPrice } : s
+      );
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      setActiveClubSlot(null);
+    } catch {
+      alert("Failed to update price");
+    }
+  }
+
+  async function handleSplitClubSlot(slot: AgendaSlot) {
+    if (!selectedTurf) return;
+    try {
+      const startMins = t24m(slot.startTime);
+      const endMins = t24m(slot.endTime);
+      const totalHours = Math.max(1, (endMins - startMins) / 60);
+      const hourlyRate = Math.round(slot.price / totalHours);
+      const splitSlots: any[] = [];
+
+      let curr = startMins;
+      while (curr + 60 <= endMins) {
+        const sH = Math.floor(curr / 60) % 24;
+        const sM = curr % 60;
+        const eH = Math.floor((curr + 60) / 60) % 24;
+        const eM = (curr + 60) % 60;
+        const sStr = `${String(sH).padStart(2, "0")}:${String(sM).padStart(2, "0")}`;
+        const eStr = `${String(eH).padStart(2, "0")}:${String(eM).padStart(2, "0")}`;
+
+        splitSlots.push({
+          startTime: sStr,
+          endTime: eStr,
+          label: slotLabel(sStr),
+          price: hourlyRate,
+        });
+        curr += 60;
+      }
+
+      const overrides = [...(selectedTurf.dateOverrides || [])];
+      const idx = overrides.findIndex((o) => o.date === selectedDate);
+      const currentSlots = idx > -1 ? [...(overrides[idx].slots || [])] : [...(selectedTurf.slotsList || [])];
+      const filtered = currentSlots.filter((s) => s.startTime !== slot.startTime);
+      const next = [...filtered, ...splitSlots].sort(
+        (a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins)
+      );
+
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      setActiveClubSlot(null);
+      alert("Club slot split into individual 1-hour slots.");
+    } catch {
+      alert("Failed to split club slot");
+    }
+  }
+
+  async function handleDeleteClubSlot(slot: AgendaSlot) {
+    if (!selectedTurf) return;
+    if (!confirm("Are you sure you want to delete this Club Slot?")) return;
+    try {
+      const overrides = [...(selectedTurf.dateOverrides || [])];
+      const idx = overrides.findIndex((o) => o.date === selectedDate);
+      const currentSlots = idx > -1 ? [...(overrides[idx].slots || [])] : [...(selectedTurf.slotsList || [])];
+      const next = currentSlots.filter((s) => s.startTime !== slot.startTime);
+      const newOverride = { date: selectedDate, isHoliday: false, holidayName: "", slots: next };
+      if (idx > -1) overrides[idx] = newOverride; else overrides.push(newOverride);
+      const updated = { ...selectedTurf, dateOverrides: overrides };
+      const saved = await updateVendorListing(selectedTurf.id, mockListingToApiInput(updated));
+      setListings((l) => l.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
+      setActiveClubSlot(null);
+      alert("Club slot deleted.");
+    } catch {
+      alert("Failed to delete club slot");
+    }
+  }
+
   if (error) return <div className="p-10 text-center text-vibe-coral text-sm">{error}</div>;
   if (loading) {
     return <div className="p-10 text-center text-ink-faint text-sm">Loading dashboard…</div>;
@@ -1253,7 +1387,7 @@ export default function BookingsPage() {
               <>
                 <BookingsTimeline
                   slots={visibleSlots}
-                  onSlotClick={setActiveSlot}
+                  onSlotClick={handleTimelineSlotClick}
                   onAction={handleSlotAction}
                   onLongPress={handleSlotLongPress}
                   scrollToNow={isToday}
@@ -1274,7 +1408,7 @@ export default function BookingsPage() {
               <div className="flex justify-center py-4">
                 <ClockSlotsWidget
                   slots={visibleSlots}
-                  onSelectSlot={setActiveSlot}
+                  onSelectSlot={handleTimelineSlotClick}
                   onSelectHour={handleClockHour}
                   onLongPressSlot={handleSlotLongPress}
                   // Picking "Clock" opens the dial fullscreen; closing it returns to the
@@ -1724,6 +1858,30 @@ export default function BookingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── CLUB SLOT DETAILS MODAL ── */}
+      {activeClubSlot && (
+        <ClubSlotDetailsModal
+          isOpen={Boolean(activeClubSlot)}
+          onClose={() => setActiveClubSlot(null)}
+          clubSlot={activeClubSlot}
+          selectedDate={selectedDate}
+          onOfflineBooking={() => {
+            if (!selectedTurf) return;
+            setAddBookingInitial({
+              startTime: activeClubSlot.startTime,
+              endTime: activeClubSlot.endTime,
+              price: String(activeClubSlot.price),
+            });
+            setActiveClubSlot(null);
+            setAddBookingOpen(true);
+          }}
+          onBlockSlot={() => handleBlockClubSlot(activeClubSlot)}
+          onEditPrice={() => handleEditClubPrice(activeClubSlot)}
+          onSplitClub={() => handleSplitClubSlot(activeClubSlot)}
+          onDeleteClub={() => handleDeleteClubSlot(activeClubSlot)}
+        />
       )}
     </div>
   );

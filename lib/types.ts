@@ -131,12 +131,17 @@ export interface Listing {
 }
 
 export interface TurfSlot {
+  id?: string;
   startTime: string;
   endTime: string;
   label: string;
   price: number;
   blocked?: boolean;
   blockedReason?: string;
+  isClubSlot?: boolean;
+  clubId?: string;
+  slotIds?: string[];
+  durationMinutes?: number;
 }
 
 export interface DateOverride {

@@ -52,6 +52,13 @@ function slotStatusFor(slotStart: number, slotEnd: number, booked: UnavailableRa
   return "Available";
 }
 
+function formatDurationText(min: number) {
+  const hrs = Math.floor(min / 60);
+  const mins = min % 60;
+  if (mins === 0) return `${hrs} hrs.`;
+  return `${hrs}h ${mins}m`;
+}
+
 /** Courts still free for one slot window — drives both the slot's status and the court picker. */
 function freeCourtsFor(
   slotStart: number,
@@ -319,19 +326,39 @@ export default function BookingFlow({
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
 
   function toggleSlotSelection(index: number) {
-    // A different set of hours opens a different set of courts, so the pick starts over.
     setCourtPicks(null);
+    const targetSlot = generatedSlots[index];
+    if (!targetSlot || targetSlot.status !== "Available") return;
+
     setSelectedSlotIndices((prev) => {
+      if (prev.length === 0) return [index];
+
+      // Tapping an already-selected slot removes it if it's an endpoint or single selection
       if (prev.includes(index)) {
-        return prev.filter((i) => i !== index);
-      } else {
+        const next = prev.filter((i) => i !== index);
+        return next;
+      }
+
+      // Check if targetSlot is adjacent/consecutive to the currently selected slots range
+      const currentSlots = prev.map((i) => generatedSlots[i]).filter(Boolean);
+      const minStartMins = Math.min(...currentSlots.map((s) => time24ToMinutes(s.startTime)));
+      const maxEndMins = Math.max(...currentSlots.map((s) => time24ToMinutes(s.endTime)));
+
+      const targetStartMins = time24ToMinutes(targetSlot.startTime);
+      const targetEndMins = time24ToMinutes(targetSlot.endTime);
+
+      const isConsecutive = targetStartMins === maxEndMins || targetEndMins === minStartMins;
+
+      if (isConsecutive) {
         return [...prev, index].sort((a, b) => a - b);
       }
+
+      // Non-consecutive tap -> switch selection to new slot
+      return [index];
     });
   }
 
   const selectedSlotIndex = selectedSlotIndices[0] ?? -1;
-  const durationMin = Math.max(60, selectedSlotIndices.length * 60);
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
   const [paymentOption, setPaymentOption] = useState<"partial" | "full">("partial");
   const [agreed, setAgreed] = useState(false);
@@ -542,7 +569,44 @@ export default function BookingFlow({
       return slots;
     }
 
+    const clubConfigs = slotsConfig.filter((c) => c.isClubSlot || (time24ToMinutes(c.endTime) - time24ToMinutes(c.startTime) > 60));
+    const clubWindows = clubConfigs.map((c) => ({
+      start: time24ToMinutes(c.startTime),
+      end: time24ToMinutes(c.endTime),
+      config: c,
+    }));
+
+    let idx = 0;
+
+    // First push all explicit Club Slots as merged bookable units
+    for (const cw of clubWindows) {
+      const slotStart = cw.start;
+      const slotEnd = cw.end;
+      const startTime24 = minutesToTime24(slotStart % 1440);
+      const endTime24 = minutesToTime24(slotEnd % 1440);
+      const startTime12 = minutesToTime12(slotStart);
+      const endTime12 = minutesToTime12(slotEnd);
+      const slotStatus = isToday && slotStart < 1440 && slotStart <= nowMinutes ? "Past" : statusFor(slotStart, slotEnd);
+
+      slots.push({
+        startTime: startTime24,
+        endTime: endTime24,
+        startTime12,
+        endTime12,
+        label: "🏷 Club Booking",
+        price: cw.config.price,
+        status: slotStatus,
+        boostPct: boostFor(startTime24, slotStatus),
+        freeCourtIds: freeIdsFor(slotStart, slotEnd),
+        originalIndex: idx++,
+        isClubSlot: true,
+        clubId: cw.config.clubId || `club_${startTime24}_${endTime24}`,
+        durationMinutes: slotEnd - slotStart,
+      });
+    }
+
     const windows = slotsConfig
+      .filter((cfg) => !cfg.isClubSlot && (time24ToMinutes(cfg.endTime) - time24ToMinutes(cfg.startTime) <= 60))
       .map((cfg) => {
         const start = time24ToMinutes(cfg.startTime);
         let end = time24ToMinutes(cfg.endTime);
@@ -563,12 +627,19 @@ export default function BookingFlow({
       }
     }
 
-    let idx = 0;
     for (const range of ranges) {
       let current = range.start;
       while (current + slotDuration <= range.end) {
         const slotStart = current;
         const slotEnd = current + slotDuration;
+
+        // Skip any 1-hour sub-slot that falls inside an active Club Slot window!
+        const isClubbed = clubWindows.some((cw) => slotStart < cw.end && slotEnd > cw.start);
+        if (isClubbed) {
+          current += slotDuration;
+          continue;
+        }
+
         const startTime24 = minutesToTime24(slotStart % 1440);
         const endTime24 = minutesToTime24(slotEnd % 1440);
         const startTime12 = minutesToTime12(slotStart);
@@ -599,15 +670,26 @@ export default function BookingFlow({
           status: slotStatus,
           boostPct: boostFor(startTime24, slotStatus),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
-          originalIndex: idx,
+          originalIndex: idx++,
         });
 
-        idx++;
         current += slotDuration;
       }
     }
-    return slots;
+
+    // Sort slots by start time and assign final array indices to originalIndex
+    slots.sort((a, b) => time24ToMinutes(a.startTime) - time24ToMinutes(b.startTime));
+    return slots.map((s, index) => ({ ...s, originalIndex: index }));
   }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
+
+  const durationMin = useMemo(() => {
+    if (selectedSlotIndices.length === 0) return 0;
+    return selectedSlotIndices.reduce((sum, idx) => {
+      const slot = generatedSlots[idx];
+      if (!slot) return sum;
+      return sum + (slot.durationMinutes || 60);
+    }, 0);
+  }, [selectedSlotIndices, generatedSlots]);
 
   // Filter generated slots by activeDaypart select filter — "All" shows every time of day.
   const filteredGeneratedSlots = useMemo(() => {
@@ -748,7 +830,11 @@ export default function BookingFlow({
         const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
         const earliestSlot = generatedSlots[sortedIndices[0]];
         dateTime = new Date(`${date}T${earliestSlot.startTime}:00`).toISOString();
-        durationMinutes = sortedIndices.length * 60;
+        if (sortedIndices.length === 1 && earliestSlot?.isClubSlot) {
+          durationMinutes = earliestSlot.durationMinutes || 120;
+        } else {
+          durationMinutes = sortedIndices.length * 60;
+        }
       } else {
         dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
       }
@@ -1254,27 +1340,14 @@ function ReviewStep(props: {
   const selectedSlotSummaryText = useMemo(() => {
     if (selectedSlotIndices.length === 0) return "Tap available slots below";
     const sorted = [...selectedSlotIndices].sort((a, b) => a - b);
-    if (sorted.length === 1) {
-      const s = generatedSlots[sorted[0]];
-      return s ? `${s.startTime12} – ${s.endTime12}` : "Selected";
+    const first = generatedSlots[sorted[0]];
+    const last = generatedSlots[sorted[sorted.length - 1]];
+    if (!first || !last) return "Selected";
+
+    if (sorted.length === 1 && first.isClubSlot) {
+      return `🏷️ Club Slot | ${first.startTime12} – ${first.endTime12} (${formatDurationText(first.durationMinutes || 120)})`;
     }
-    let isContiguous = true;
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i + 1] !== sorted[i] + 1) {
-        isContiguous = false;
-        break;
-      }
-    }
-    if (isContiguous) {
-      const first = generatedSlots[sorted[0]];
-      const last = generatedSlots[sorted[sorted.length - 1]];
-      return first && last ? `${first.startTime12} – ${last.endTime12}` : `${sorted.length} Slots`;
-    } else {
-      return sorted
-        .map((idx) => generatedSlots[idx]?.startTime12)
-        .filter(Boolean)
-        .join(", ");
-    }
+    return `${first.startTime12} – ${last.endTime12}`;
   }, [selectedSlotIndices, generatedSlots]);
 
   // Full month grid (Monday start) matching Image 2
@@ -1323,13 +1396,6 @@ function ReviewStep(props: {
     }
     return cells;
   }, [visibleMonth, visibleYear, props.listing]);
-
-  const formatDurationText = (min: number) => {
-    const hrs = Math.floor(min / 60);
-    const mins = min % 60;
-    if (mins === 0) return `${hrs} hrs.`;
-    return `${hrs}h ${mins}m`;
-  };
 
   return (
     <div
@@ -1652,11 +1718,13 @@ function ReviewStep(props: {
                               </span>
                               <div className="min-w-0">
                                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                  {selectedSlotIndices.length > 1
-                                    ? `${selectedSlotIndices.length} Slots Selected`
-                                    : selectedSlotIndices.length === 1
-                                      ? "Selected Slot"
-                                      : "No Slot Selected"}
+                                  {selectedSlotIndices.length === 1 && generatedSlots[selectedSlotIndices[0]]?.isClubSlot
+                                    ? "⭐ Club Slot Selected"
+                                    : selectedSlotIndices.length > 1
+                                      ? `${selectedSlotIndices.length} Slots Selected`
+                                      : selectedSlotIndices.length === 1
+                                        ? "Selected Slot"
+                                        : "No Slot Selected"}
                                 </p>
                                 <p className="text-[13px] font-extrabold text-slate-900 truncate">
                                   {selectedSlotSummaryText}
@@ -1668,9 +1736,9 @@ function ReviewStep(props: {
                             <div className="flex items-center gap-1 rounded-full bg-emerald-100/90 border border-emerald-300/80 px-1.5 py-1 text-emerald-900 shrink-0 shadow-2xs">
                               <button
                                 type="button"
-                                disabled={selectedSlotIndices.length <= 1}
+                                disabled={selectedSlotIndices.length <= 1 || (selectedSlotIndices.length === 1 && generatedSlots[selectedSlotIndices[0]]?.isClubSlot)}
                                 onClick={() => {
-                                  if (selectedSlotIndices.length > 1) {
+                                  if (selectedSlotIndices.length > 1 && !generatedSlots[selectedSlotIndices[0]]?.isClubSlot) {
                                     const maxIdx = Math.max(...selectedSlotIndices);
                                     onToggleSlotSelection(maxIdx);
                                   }
@@ -1682,11 +1750,13 @@ function ReviewStep(props: {
                                 <Minus className="h-3 w-3 stroke-[3]" />
                               </button>
                               <span className="px-1.5 text-xs font-black text-emerald-950 select-none min-w-[52px] text-center">
-                                {selectedSlotIndices.length * 60} min
+                                {durationMin} min
                               </span>
                               <button
                                 type="button"
+                                disabled={selectedSlotIndices.length === 1 && generatedSlots[selectedSlotIndices[0]]?.isClubSlot}
                                 onClick={() => {
+                                  if (selectedSlotIndices.length === 1 && generatedSlots[selectedSlotIndices[0]]?.isClubSlot) return;
                                   if (selectedSlotIndices.length === 0) {
                                     const firstAvail = orderedSlots.find((s) => s.status === "Available");
                                     if (firstAvail) onToggleSlotSelection(firstAvail.originalIndex);
@@ -1700,7 +1770,7 @@ function ReviewStep(props: {
                                 }}
                                 aria-label="Increase hour selection"
                                 title="Increase duration"
-                                className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 shadow-2xs border border-emerald-200 transition hover:bg-emerald-50 active:scale-90"
+                                className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 shadow-2xs border border-emerald-200 transition hover:bg-emerald-50 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
                               >
                                 <Plus className="h-3 w-3 stroke-[3]" />
                               </button>
@@ -1714,6 +1784,57 @@ function ReviewStep(props: {
                               const available = slot.status === "Available";
                               const finalPrice = finalSlotPrice(slot);
                               const timeRangeText = `${slot.startTime12.replace(/^0/, "")} - ${slot.endTime12.replace(/^0/, "")}`;
+
+                              if (slot.isClubSlot) {
+                                return (
+                                  <button
+                                    key={slot.originalIndex}
+                                    type="button"
+                                    disabled={!available}
+                                    onClick={() => {
+                                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+                                      onToggleSlotSelection(slot.originalIndex);
+                                    }}
+                                    className={`relative flex flex-col items-center justify-center rounded-2xl px-2.5 py-2 transition-all duration-200 cursor-pointer border min-h-[54px] col-span-2 sm:col-span-2 ${
+                                      isSelected
+                                        ? "bg-[#0b9c65] text-white border-[#0b9c65] shadow-md shadow-[#0b9c65]/30 ring-2 ring-[#0b9c65]/30 scale-[1.02]"
+                                        : available
+                                          ? "bg-gradient-to-r from-emerald-50/90 via-teal-50/80 to-white text-slate-900 border-emerald-300 hover:border-[#0b9c65] hover:bg-emerald-100/70 shadow-2xs"
+                                          : "bg-slate-100/80 text-slate-400 border-slate-200/60 cursor-not-allowed opacity-50"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider mb-1 ${
+                                        isSelected
+                                          ? "bg-white text-[#0b9c65]"
+                                          : "bg-emerald-100 text-emerald-900 border border-emerald-300/80 shadow-2xs"
+                                      }`}
+                                    >
+                                      🏷️ CLUB SLOT ({formatDurationText(slot.durationMinutes || 120)})
+                                    </span>
+
+                                    <span
+                                      className={`text-[11px] font-black whitespace-nowrap tracking-tight leading-tight ${
+                                        isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
+                                      }`}
+                                    >
+                                      {timeRangeText}
+                                    </span>
+
+                                    <div className="mt-0.5 flex items-center justify-center gap-1">
+                                      {available ? (
+                                        <span className={`text-[10.5px] font-black ${isSelected ? "text-white/90" : "text-emerald-800"}`}>
+                                          ₹{finalPrice.toLocaleString("en-IN")}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                          Booked
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              }
 
                               return (
                                 <button

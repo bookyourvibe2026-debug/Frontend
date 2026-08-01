@@ -62,6 +62,8 @@ export function customerResetPassword(input: { email: string; otp: string; newPa
 export async function customerLogout() {
   try {
     await apiRequest<null>("/auth/customer/logout", { method: "POST" });
+  } catch {
+    // Ignore network or authentication errors on logout so local session is always wiped
   } finally {
     setAccessToken("customer", null);
   }
@@ -139,6 +141,8 @@ export function vendorLogin(input: { email: string; password: string }) {
 export async function vendorLogout() {
   try {
     await apiRequest<null>("/auth/vendor/logout", { method: "POST" });
+  } catch {
+    // Ignore network or authentication errors on logout so local session is always wiped
   } finally {
     setAccessToken("vendor", null);
     // Clear the per-session MPIN unlock + active-panel so the next vendor on this device starts fresh.
@@ -210,6 +214,8 @@ export function adminLogin(input: { email: string; password: string }) {
 export async function adminLogout() {
   try {
     await apiRequest<null>("/auth/admin/logout", { method: "POST" });
+  } catch {
+    // Ignore network or authentication errors on logout so local session is always wiped
   } finally {
     setAccessToken("admin", null);
   }

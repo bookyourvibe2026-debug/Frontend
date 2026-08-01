@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Lock, MoreVertical, Plus, CalendarPlus, Ban, CircleCheck, Hourglass, XCircle, BadgeCheck, Circle } from "lucide-react";
+function t24m(t: string) {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
 
 /* ─── Slot model ────────────────────────────────────────────────── */
 
@@ -23,6 +28,10 @@ export interface TimelineSlot {
   numberOfPlayers?: number;
   /** Amount actually collected so far — only meaningfully less than `price` on a "Part Paid" slot. */
   paidAmount?: number;
+  isClubSlot?: boolean;
+  clubId?: string;
+  slotIds?: string[];
+  durationMinutes?: number;
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -352,16 +361,45 @@ export function BookingsTimeline({
                   onSlotClick(slot);
                 }
               }}
-              className={`mb-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border p-2.5 text-left transition active:scale-[0.995] sm:p-3 ${s.card} ${
+              className={`mb-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border p-2.5 text-left transition active:scale-[0.995] sm:p-3 ${
+                slot.isClubSlot && isFree ? "border-emerald-200 bg-emerald-50/50" : s.card
+              } ${
                 selectDisabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
               } ${isSelected ? "!border-emerald-500 ring-2 ring-emerald-400/60" : ""}`}
             >
               <div className="min-w-0 flex-1">
-                {isFree ? (
-                  <>
-                    <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Available</p>
-                    <p className="mt-0.5 text-[10px] font-medium text-slate-400">Tap to add booking</p>
-                  </>
+                {slot.isClubSlot && isFree ? (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase">
+                        🏷️ CLUBBED SLOT
+                      </span>
+                      <span className="rounded-full bg-emerald-600 text-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider shadow-2xs">
+                        AVAILABLE (CLUBBED)
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                      AVAILABLE (CLUBBED)
+                    </p>
+                    <p className="mt-0.5 text-xs font-black text-slate-800 font-mono">
+                      {to12h(slot.startTime)} – {to12h(slot.endTime)}
+                    </p>
+                    <p className="mt-0.5 text-[10px] font-semibold text-emerald-800">
+                      Duration: {Math.round((t24m(slot.endTime) - t24m(slot.startTime)) / 60)} Hours · ₹{slot.price}
+                    </p>
+                  </div>
+                ) : isFree ? (
+                  <div className="flex items-center justify-between gap-2 w-full pr-1">
+                    <div>
+                      <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Available</p>
+                      <p className="mt-0.5 text-[10px] font-medium text-slate-400">Tap to add booking</p>
+                    </div>
+                    {typeof slot.price === "number" && slot.price > 0 && (
+                      <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                        ₹{slot.price.toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
                 ) : isBlocked ? (
                   <>
                     <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Blocked</p>
