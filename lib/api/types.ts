@@ -138,6 +138,8 @@ export interface Listing {
   availableFrom: string;
   availableTill: string;
   slotsPerDay: number;
+  rating?: number;
+  reviewCount?: number;
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];

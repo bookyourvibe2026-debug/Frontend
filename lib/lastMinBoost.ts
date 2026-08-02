@@ -26,9 +26,14 @@ export const BOOST_MAX_PCT = 30;
 export const BOOST_DISCOUNT_PRESETS = [10, 15, 20, 25, 30];
 export const BOOST_TRIGGER_OPTIONS = [10, 15, 20, 30, 45, 60];
 
-function toMinutes(time: string): number {
+export function toMinutes(time: string): number {
   const [h = 0, m = 0] = time.split(":").map(Number);
   return h * 60 + m;
+}
+
+export function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function clampBoostPct(pct: number): number {

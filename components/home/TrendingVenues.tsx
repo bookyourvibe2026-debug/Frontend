@@ -72,7 +72,7 @@ function VenueCard({
       <div className="flex flex-1 flex-col gap-1 p-4">
         <h3 className="font-bold text-slate-900">{venue.name}</h3>
         <p className="flex items-center gap-1 text-xs text-slate-500">
-          <MapPin className="h-3.5 w-3.5" aria-hidden /> {venue.area} · {venue.distanceKm} km
+          <MapPin className="h-3.5 w-3.5" aria-hidden /> {venue.area}
         </p>
         <div className="mt-3 flex items-center justify-between">
           <p className="text-sm font-bold text-slate-900">

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type Venue, listingToVenue } from "@/lib/venues";
 import { browseVenues } from "@/lib/api/venues";
+import type { Listing } from "@/lib/api/types";
+import { findActiveBoost, type ActiveBoostInfo } from "@/lib/boostHelpers";
 import { SiteHeader } from "@/components/site-header";
 import { Hero } from "./Hero";
 import { QuickActionsSection } from "./QuickActionsSection";
@@ -24,6 +26,7 @@ import { Footer } from "./Footer";
 import { FiltersModal } from "./modals/FiltersModal";
 import { SignupModal } from "./modals/SignupModal";
 import { MobileHome } from "./mobile/MobileHome";
+import { LastMinBoostBanner } from "./mobile/LastMinBoostBanner";
 import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
@@ -38,6 +41,8 @@ export default function HomePage() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [activeBoost, setActiveBoost] = useState<ActiveBoostInfo | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [challengeOpen, setChallengeOpen] = useState(false);
   const [joinInviteOpen, setJoinInviteOpen] = useState(false);
@@ -45,6 +50,13 @@ export default function HomePage() {
   const filters = useVenueFilters(venues, search);
 
   useEffect(() => {
+    if (status === "loading") return;
+
+    if (status === "authenticated") {
+      setShowOnboarding(false);
+      return;
+    }
+
     if (typeof window === "undefined") return;
     // Some in-app/WebView browsers block or silently no-op sessionStorage — if we can't
     // read it, fail toward NOT showing the splash again rather than showing it every time.
@@ -59,7 +71,7 @@ export default function HomePage() {
     } catch {
       setShowOnboarding(false);
     }
-  }, []);
+  }, [status]);
 
   useEffect(() => {
     if (status === "guest" && new URLSearchParams(window.location.search).get("join") === "player") {
@@ -68,10 +80,19 @@ export default function HomePage() {
   }, [status]);
 
   useEffect(() => {
-    // Trending Venues section shows only Turf/Game — Events appear in their own section
-    browseVenues({ limit: 12, type: "Turf" })
-      .then((result) => setVenues(result.items.map(listingToVenue)))
-      .catch(() => setVenues([]));
+    // Fetch 30 listings so we scan a larger pool for active boosts
+    browseVenues({ limit: 30, type: "Turf" })
+      .then((result) => {
+        setListings(result.items);
+        setVenues(result.items.map(listingToVenue));
+        const boost = findActiveBoost(result.items);
+        setActiveBoost(boost);
+      })
+      .catch(() => {
+        setListings([]);
+        setVenues([]);
+        setActiveBoost(null);
+      });
   }, []);
 
   const openVenue = useCallback(
@@ -164,6 +185,11 @@ export default function HomePage() {
           onJoinCommunity={() => setChallengeOpen(true)}
           onViewAllCommunity={() => router.push("/community")}
           onViewAllEvents={() => router.push("/tournaments")}
+          activeBoost={activeBoost}
+          onExpireBoost={() => {
+            const boost = findActiveBoost(listings);
+            setActiveBoost(boost);
+          }}
         />
       </div>
 
@@ -183,9 +209,22 @@ export default function HomePage() {
           </p>
         )}
 
-        <AdBanner />
-
-        <LastMinuteDeals />
+        {activeBoost ? (
+          <div className="mx-auto mt-8 max-w-5xl px-4 sm:px-6">
+            <LastMinBoostBanner
+              boost={activeBoost}
+              onExpire={() => {
+                const boost = findActiveBoost(listings);
+                setActiveBoost(boost);
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            <AdBanner />
+            <LastMinuteDeals />
+          </>
+        )}
 
         <FindYourGames onSelectSport={handleSelectSport} />
 

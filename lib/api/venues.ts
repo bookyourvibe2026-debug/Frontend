@@ -87,3 +87,20 @@ export async function getVendorProfile(vendorId: string) {
   );
   return { ...result, listings: result.listings.map(withCoverImage) };
 }
+
+export interface Review {
+  _id: string;
+  listingId: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export function getVenueReviews(id: string) {
+  return apiRequest<Review[]>(`/venues/${id}/reviews`);
+}
+
+export function createVenueReview(id: string, data: { customerName: string; rating: number; comment: string }) {
+  return apiRequest<Review>(`/venues/${id}/reviews`, { method: "POST", body: data });
+}

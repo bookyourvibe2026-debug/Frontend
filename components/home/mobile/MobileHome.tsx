@@ -36,6 +36,8 @@ const MOBILE_QUICK_ACTIONS = [
 ];
 
 import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
+import { LastMinBoostBanner } from "./LastMinBoostBanner";
+import { type ActiveBoostInfo } from "@/lib/boostHelpers";
 
 const CHOOSE_GAME_CHIPS: SportCategoryItem[] = [
   { id: "cricket", label: "Cricket", emoji: "🏏", image: "/bat.png" },
@@ -145,6 +147,8 @@ export function MobileHome({
   onJoinCommunity,
   onViewAllCommunity,
   onViewAllEvents,
+  activeBoost,
+  onExpireBoost,
 }: {
   searchValue: string;
   onSearchChange: (v: string) => void;
@@ -161,6 +165,8 @@ export function MobileHome({
   onJoinCommunity: () => void;
   onViewAllCommunity: () => void;
   onViewAllEvents: () => void;
+  activeBoost?: ActiveBoostInfo | null;
+  onExpireBoost?: () => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -227,9 +233,14 @@ export function MobileHome({
         />
       </section>
 
-      <AdBanner className="" />
-
-      <HotDeals className="" />
+      {activeBoost ? (
+        <LastMinBoostBanner boost={activeBoost} onExpire={onExpireBoost} />
+      ) : (
+        <>
+          <AdBanner className="" />
+          <HotDeals className="" />
+        </>
+      )}
 
       <section>
         <MobileSectionRow

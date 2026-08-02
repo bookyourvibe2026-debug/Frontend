@@ -52,7 +52,7 @@ import type { Coach } from "@/lib/api/types";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow from "@/components/booking-flow";
 import { ImageCarousel } from "@/components/ImageCarousel";
-import { getVenueById } from "@/lib/api/venues";
+import { getVenueById, getVenueReviews, createVenueReview, type Review } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
 import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
@@ -119,6 +119,62 @@ export default function VenueDetailPage() {
   // Desktop sport picker (the mobile shell owns its own copy of this state).
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sportModalOpen, setSportModalOpen] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewName, setReviewName] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVenueReviews(id)
+      .then((res) => setReviews(res))
+      .catch(() => {});
+  }, [id]);
+
+  const handleAddReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewName.trim() || !reviewComment.trim()) {
+      setReviewError("Please fill out all fields.");
+      return;
+    }
+    if (reviewComment.trim().length < 5) {
+      setReviewError("Review comment must be at least 5 characters.");
+      return;
+    }
+    setSubmittingReview(true);
+    setReviewError(null);
+    try {
+      const newReview = await createVenueReview(id, {
+        customerName: reviewName,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      setReviews((prev) => [newReview, ...prev]);
+      setReviewSuccess(true);
+      setReviewName("");
+      setReviewComment("");
+      setReviewRating(5);
+      
+      // Update local listing rating/count dynamically
+      if (venue) {
+        const newCount = (venue.reviewCount || 0) + 1;
+        const currentSum = (venue.rating || 0) * (venue.reviewCount || 0);
+        const newRating = Math.round(((currentSum + reviewRating) / newCount) * 10) / 10;
+        setVenue({
+          ...venue,
+          rating: newRating,
+          reviewCount: newCount,
+        });
+      }
+    } catch (err: any) {
+      setReviewError(err?.message || "Failed to submit review.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   useEffect(() => {
     getVenueById(id)
@@ -183,6 +239,20 @@ export default function VenueDetailPage() {
   const galleryImages = allImageUrls.slice(0, 10);
   console.log("DEBUG VENUE:", venue.title, "images:", venue.images, "allImageUrls:", allImageUrls, "galleryImages:", galleryImages);
 
+  const reviewProps = {
+    reviews,
+    reviewName,
+    reviewRating,
+    reviewComment,
+    submittingReview,
+    reviewSuccess,
+    reviewError,
+    onNameChange: setReviewName,
+    onRatingChange: setReviewRating,
+    onCommentChange: setReviewComment,
+    onSubmitReview: handleAddReview,
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="hidden sm:block">
@@ -200,6 +270,9 @@ export default function VenueDetailPage() {
             setSelectedSportForBooking(sport);
             setBooking(true);
           }}
+          favorite={favorite}
+          onToggleFavorite={() => setFavorite((v) => !v)}
+          reviewProps={reviewProps}
         />
       </div>
 
@@ -212,21 +285,34 @@ export default function VenueDetailPage() {
           >
             <ArrowLeft className="h-4 w-4" /> Back to venues
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard?.writeText(window.location.href).catch(() => {});
-            }}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600"
-          >
-            <Share2 className="h-3.5 w-3.5" /> Share Venue
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFavorite((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600 cursor-pointer"
+            >
+              <Heart className={`h-3.5 w-3.5 ${favorite ? "fill-accent-500 text-accent-500" : "text-slate-400"}`} />
+              {favorite ? "Favourited" : "Favourite"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(window.location.href).catch(() => {});
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600 cursor-pointer"
+            >
+              <Share2 className="h-3.5 w-3.5" /> Share Venue
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
           {/* LEFT — details */}
           <div>
             {/* Hero gallery */}
+            <div className="relative h-[400px] w-full overflow-hidden rounded-3xl bg-slate-100 border border-slate-100 shadow-md mb-6">
+              <ImageCarousel images={galleryImages} alt={venue.title} className="h-full w-full" />
+            </div>
 
             {venue.videoUrl && (
               <section className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -265,6 +351,7 @@ export default function VenueDetailPage() {
                   setSelectedSportForBooking(sport);
                   setBooking(true);
                 }}
+                reviewProps={reviewProps}
               />
             )}
 
@@ -349,9 +436,15 @@ export default function VenueDetailPage() {
             <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-lg">
               <div className="flex items-start justify-between gap-3">
                 <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
-                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> 4.8
-                </span>
+                {venue.reviewCount && venue.reviewCount > 0 ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white animate-in fade-in duration-300">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {venue.rating?.toFixed(1)}
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                    No ratings
+                  </span>
+                )}
               </div>
               <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-brand-600">
                 {categoryText} · {venue.city}
@@ -643,11 +736,25 @@ function VenueInfoSections({
   highlights,
   amenities,
   onPickSport,
+  reviewProps,
 }: {
   venue: Listing;
   highlights: string[];
   amenities: { label: string; Icon: typeof Layers }[];
   onPickSport: (sportName: string) => void;
+  reviewProps: {
+    reviews: Review[];
+    reviewName: string;
+    reviewRating: number;
+    reviewComment: string;
+    submittingReview: boolean;
+    reviewSuccess: boolean;
+    reviewError: string | null;
+    onNameChange: (val: string) => void;
+    onRatingChange: (val: number) => void;
+    onCommentChange: (val: string) => void;
+    onSubmitReview: (e: React.FormEvent) => void;
+  };
 }) {
   const activeCourts = (venue.courts ?? []).filter((c) => c.active !== false);
 
@@ -772,12 +879,108 @@ function VenueInfoSections({
       <section className="mt-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-extrabold text-slate-900">Player Reviews</h2>
-          <span className="text-xs font-semibold text-brand-600">View All</span>
+          {reviewProps.reviews.length > 0 && (
+            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {reviewProps.reviews.length} Review{reviewProps.reviews.length > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
-        <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
-          <MessageSquareText className="mx-auto h-6 w-6 text-slate-300" />
-          <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
-        </div>
+        {reviewProps.reviews.length === 0 ? (
+          <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+            <MessageSquareText className="mx-auto h-6 w-6 text-slate-300" />
+            <p className="mt-2 text-xs font-semibold text-slate-500">No reviews yet — be the first to play &amp; review!</p>
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            {reviewProps.reviews.map((r) => (
+              <div key={r._id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-800">{r.customerName}</span>
+                  <span className="flex items-center gap-0.5 text-xs text-amber-500 font-bold bg-amber-50 px-2 py-0.5 rounded-full">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {r.rating}
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">{r.comment}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Add Review Form */}
+      <section className="mt-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-extrabold text-slate-900">Write a Review</h3>
+        <p className="mt-0.5 text-xs text-slate-400">Share your playing experience with other players.</p>
+
+        <form onSubmit={reviewProps.onSubmitReview} className="mt-4 space-y-3">
+          {reviewProps.reviewSuccess && (
+            <div className="rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-600 animate-in fade-in duration-300">
+              ✓ Review submitted successfully! Thank you.
+            </div>
+          )}
+          {reviewProps.reviewError && (
+            <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-600 animate-in fade-in duration-300">
+              ✗ {reviewProps.reviewError}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="reviewer-name" className="block text-xs font-bold text-slate-700">Your Name</label>
+            <input
+              id="reviewer-name"
+              type="text"
+              required
+              value={reviewProps.reviewName}
+              onChange={(e) => reviewProps.onNameChange(e.target.value)}
+              placeholder="e.g. Aman Sharma"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-brand-500 focus:bg-white transition duration-200"
+            />
+          </div>
+
+          <div>
+            <span className="block text-xs font-bold text-slate-700">Rating</span>
+            <div className="mt-1 flex items-center gap-1.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => reviewProps.onRatingChange(star)}
+                  className="p-1 transition hover:scale-110 active:scale-95 cursor-pointer"
+                >
+                  <Star
+                    className={`h-6 w-6 transition duration-150 ${
+                      star <= reviewProps.reviewRating ? "fill-amber-400 text-amber-400" : "text-slate-300"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="reviewer-comment" className="block text-xs font-bold text-slate-700">Your Review</label>
+            <textarea
+              id="reviewer-comment"
+              required
+              rows={3}
+              value={reviewProps.reviewComment}
+              onChange={(e) => reviewProps.onCommentChange(e.target.value)}
+              placeholder="Tell us about the turf quality, lighting, parking..."
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-brand-500 focus:bg-white resize-none transition duration-200"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={reviewProps.submittingReview}
+            className="w-full rounded-xl bg-brand-600 hover:bg-brand-700 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-md shadow-brand-500/20 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+          >
+            {reviewProps.submittingReview ? "Submitting..." : "Submit Review"}
+          </button>
+        </form>
       </section>
     </>
   );
@@ -1017,6 +1220,9 @@ function MobileVenueDetail({
   categoryText,
   galleryImages,
   onOpenBooking,
+  favorite,
+  onToggleFavorite,
+  reviewProps,
 }: {
   venue: Listing;
   highlights: string[];
@@ -1024,9 +1230,11 @@ function MobileVenueDetail({
   categoryText: string;
   galleryImages: string[];
   onOpenBooking: (sport: string) => void;
+  favorite: boolean;
+  onToggleFavorite: () => void;
+  reviewProps: any;
 }) {
   const router = useRouter();
-  const [favorite, setFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "booking" | "academy">("home");
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sportModalOpen, setSportModalOpen] = useState(false);
@@ -1062,7 +1270,7 @@ function MobileVenueDetail({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFavorite((v) => !v)}
+              onClick={onToggleFavorite}
               aria-label="Toggle favorite"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
             >
@@ -1083,9 +1291,15 @@ function MobileVenueDetail({
       <div className="rounded-t-3xl -mt-5 relative bg-slate-50 px-4 pt-5">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-xl font-extrabold text-slate-900">{venue.title}</h1>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
-            <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> 4.8
-          </span>
+          {venue.reviewCount && venue.reviewCount > 0 ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {venue.rating?.toFixed(1)}
+            </span>
+          ) : (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+              No ratings
+            </span>
+          )}
         </div>
         <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
           <MapPin className="h-3.5 w-3.5 shrink-0" /> {venue.city}
@@ -1149,6 +1363,7 @@ function MobileVenueDetail({
                 highlights={highlights}
                 amenities={amenities}
                 onPickSport={(sport) => { setSelectedSport(sport); onOpenBooking(sport); }}
+                reviewProps={reviewProps}
               />
             )}
 

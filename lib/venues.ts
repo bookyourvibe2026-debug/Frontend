@@ -31,7 +31,7 @@ export function listingToVenue(listing: Listing): Venue {
     name: listing.title,
     area: listing.city,
     distanceKm: 0,
-    rating: 4.5,
+    rating: listing.rating || 0,
     pricePerHour: listing.price,
     status: "Available",
     sport: listing.categories.map(categoryLabel).join(", ") || "General",
