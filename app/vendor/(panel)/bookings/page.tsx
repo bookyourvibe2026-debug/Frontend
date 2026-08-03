@@ -532,6 +532,10 @@ export default function BookingsPage() {
         if (filters.source === "Walk-in" && s.status !== "Offline Booked") return false;
         if (filters.source === "Online" && s.status !== "Booked") return false;
 
+        if (filters.sport && filters.sport !== "All") {
+          if (s.sport && s.sport.trim().toLowerCase() !== filters.sport.trim().toLowerCase()) return false;
+        }
+
         if (filters.quick === "Empty Slots" && s.status !== "Available") return false;
         if (filters.quick === "Next Booking" && s.startTime !== nextBookedStart) return false;
 
@@ -1066,6 +1070,8 @@ export default function BookingsPage() {
       setBookings(fresh.items as unknown as ApiBooking[]);
       setAddBookingOpen(false);
       setActiveSlot(null);
+      setSportCourtModalOpen(false);
+      setSportCourtModalSlot(null);
     } catch (e) {
       alert(e instanceof ApiError ? e.describe() : "Failed to create booking");
     }
@@ -1178,10 +1184,6 @@ export default function BookingsPage() {
     : false;
 
   function handleTimelineSlotClick(slot: AgendaSlot) {
-    if (slot.isClubSlot && slot.status === "Available") {
-      setActiveClubSlot(slot);
-      return;
-    }
     if (slot.status === "Available") {
       startOfflineBooking(slot);
       return;
@@ -1546,6 +1548,7 @@ export default function BookingsPage() {
       {filterOpen && (
       <SlotFilterSheet
         initial={filters}
+        sports={selectedTurf?.categories || []}
         onClose={() => setFilterOpen(false)}
         onApply={(next) => {
           setFilters(next);
@@ -1920,13 +1923,9 @@ export default function BookingsPage() {
           selectedDate={selectedDate}
           onOfflineBooking={() => {
             if (!selectedTurf) return;
-            setAddBookingInitial({
-              startTime: activeClubSlot.startTime,
-              endTime: activeClubSlot.endTime,
-              price: String(activeClubSlot.price),
-            });
+            const target = activeClubSlot;
             setActiveClubSlot(null);
-            setAddBookingOpen(true);
+            startOfflineBooking(target);
           }}
           onBlockSlot={() => handleBlockClubSlot(activeClubSlot)}
           onEditPrice={() => handleEditClubPrice(activeClubSlot)}

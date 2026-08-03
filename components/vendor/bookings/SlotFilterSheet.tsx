@@ -20,6 +20,7 @@ import {
   Sun,
   Sunrise,
   Sunset,
+  Trophy,
   User,
   Users,
   X,
@@ -36,6 +37,7 @@ export interface SlotFilters {
   status: StatusFilter;
   timeOfDay: TimeOfDayFilter;
   source: SourceFilter;
+  sport: string;
   quick: QuickFilter | null;
 }
 
@@ -43,8 +45,23 @@ export const DEFAULT_FILTERS: SlotFilters = {
   status: "All",
   timeOfDay: "All Day",
   source: "All",
+  sport: "All",
   quick: null,
 };
+
+function getSportEmoji(sport: string) {
+  const l = (sport || "").toLowerCase();
+  if (l.includes("cricket")) return "🏏";
+  if (l.includes("foot") || l.includes("socc")) return "⚽";
+  if (l.includes("badm")) return "🏸";
+  if (l.includes("tenn") || l.includes("padel") || l.includes("squash")) return "🎾";
+  if (l.includes("basket")) return "🏀";
+  if (l.includes("volley")) return "🏐";
+  if (l.includes("table") || l.includes("tt")) return "🏓";
+  if (l.includes("snooker") || l.includes("pool")) return "🎱";
+  if (l.includes("golf")) return "⛳";
+  return "🏆";
+}
 
 /** Hour ranges backing each Time of Day option, as [startHour, endHour) on a 24h clock. */
 export const TIME_OF_DAY_RANGES: Record<Exclude<TimeOfDayFilter, "All Day">, [number, number]> = {
@@ -67,12 +84,14 @@ export function activeFilterCount(f: SlotFilters): number {
   if (f.status !== "All") n++;
   if (f.timeOfDay !== "All Day") n++;
   if (f.source !== "All") n++;
+  if (f.sport && f.sport !== "All") n++;
   if (f.quick) n++;
   return n;
 }
 
 /** Short label for the trigger button, e.g. "All Slots" / "Morning". */
 export function filterSummary(f: SlotFilters): string {
+  if (f.sport && f.sport !== "All") return `${f.sport} Slots`;
   if (f.timeOfDay !== "All Day") return `${f.timeOfDay} Slots`;
   if (f.status !== "All") return `${f.status}`;
   return "All Slots";
@@ -136,7 +155,7 @@ function Tile({
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition active:scale-[0.97] ${
+      className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition active:scale-[0.97] cursor-pointer ${
         active ? "border-emerald-500 bg-emerald-50/60" : "border-slate-200 bg-white hover:border-slate-300"
       }`}
     >
@@ -156,10 +175,12 @@ function Tile({
 
 export function SlotFilterSheet({
   initial,
+  sports = [],
   onApply,
   onClose,
 }: {
   initial: SlotFilters;
+  sports?: string[];
   onApply: (f: SlotFilters) => void;
   onClose: () => void;
 }) {
@@ -168,6 +189,8 @@ export function SlotFilterSheet({
 
   // Intercept browser back button to close sheet instead of popping page history
   useBackDismiss(true, onClose);
+
+  const availableSports = ["All", ...(sports.length > 0 ? sports : ["Cricket", "Football", "Badminton", "Basketball"])];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
@@ -186,7 +209,7 @@ export function SlotFilterSheet({
             <button
               type="button"
               onClick={() => setDraft(DEFAULT_FILTERS)}
-              className="text-xs font-bold text-emerald-600 transition hover:text-emerald-700"
+              className="text-xs font-bold text-emerald-600 transition hover:text-emerald-700 cursor-pointer"
             >
               Clear All
             </button>
@@ -194,15 +217,49 @@ export function SlotFilterSheet({
               type="button"
               onClick={onClose}
               aria-label="Close sheet"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition cursor-pointer"
             >
               <X size={16} />
             </button>
           </div>
         </div>
 
+        {/* Sport Filter Pills */}
+        <SectionLabel>Sport</SectionLabel>
+        <div className="mb-5 mt-3 flex flex-wrap gap-2">
+          {availableSports.map((sp) => {
+            const isSelected = (draft.sport || "All") === sp;
+            const emoji = getSportEmoji(sp);
+
+            return (
+              <button
+                key={sp}
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, sport: sp }))}
+                className={`relative flex items-center gap-1.5 rounded-2xl border px-3.5 py-2.5 text-xs font-extrabold transition cursor-pointer active:scale-95 ${
+                  isSelected
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-slate-50"
+                }`}
+              >
+                {sp !== "All" && <span className="text-sm">{emoji}</span>}
+                <span className="capitalize">{sp === "All" ? "All Sports" : sp}</span>
+                {isSelected && (
+                  <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+                    <Check size={10} strokeWidth={3} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-slate-100" />
+
         {/* Status */}
-        <SectionLabel>Status</SectionLabel>
+        <div className="mt-5">
+          <SectionLabel>Status</SectionLabel>
+        </div>
         <div className="mb-5 mt-3 grid grid-cols-5 gap-2">
           {STATUS_OPTS.map((o) => (
             <Tile
@@ -269,7 +326,7 @@ export function SlotFilterSheet({
                 key={o.value}
                 type="button"
                 onClick={() => setDraft((d) => ({ ...d, quick: active ? null : o.value }))}
-                className={`flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${
+                className={`flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition active:scale-[0.97] cursor-pointer ${
                   active ? "border-emerald-500 bg-emerald-50/60" : "border-slate-200 bg-white hover:border-slate-300"
                 }`}
               >
@@ -286,7 +343,7 @@ export function SlotFilterSheet({
           <button
             type="button"
             onClick={() => setDraft(DEFAULT_FILTERS)}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-white py-3.5 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-white py-3.5 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 active:scale-[0.98] cursor-pointer"
           >
             <RefreshCw size={15} /> Reset
           </button>
@@ -296,7 +353,7 @@ export function SlotFilterSheet({
               onApply(draft);
               onClose();
             }}
-            className="flex-[1.6] rounded-2xl bg-[#116b3f] py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-[#0d5732] active:scale-[0.98]"
+            className="flex-[1.6] rounded-2xl bg-[#116b3f] py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-[#0d5732] active:scale-[0.98] cursor-pointer"
           >
             Apply Filters
           </button>
