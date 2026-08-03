@@ -6,19 +6,17 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Flame } from "lucide-react";
 import { SectionHeading } from "./ui";
 import { useLastMinuteDeals } from "@/lib/hooks/useLastMinuteDeals";
+import { BOOST_MAX_PCT } from "@/lib/lastMinBoost";
 
-/** Player-facing Last Minute Deals — a single aggregate promo card summarizing the best
- * currently-live discount across every boosted Sport + Court + Slot, polled from the
- * backend. The detailed per-deal cards (with countdowns) live on the full /deals page;
- * this home section is deliberately just a teaser into that page, with no timer of its own
- * since it isn't tied to any one specific slot. */
+/** Player-facing Last Minute Deals — a single aggregate promo card teasing the platform's
+ * max possible discount (not whatever today's live deals happen to cap out at, so the
+ * headline stays a stable "Up to 30% OFF" rather than fluctuating with inventory), linking
+ * into the full /deals page where the real per-deal cards (with countdowns) live. */
 export function LastMinuteDealsSection({ className = "mx-auto mt-8 max-w-7xl px-4 sm:px-6" }: { className?: string }) {
   const router = useRouter();
   const { deals } = useLastMinuteDeals();
 
   if (deals.length === 0) return null;
-
-  const maxDiscount = Math.max(...deals.map((d) => d.discountPct));
 
   return (
     <section className={className}>
@@ -54,11 +52,8 @@ export function LastMinuteDealsSection({ className = "mx-auto mt-8 max-w-7xl px-
             </span>
             <div className="mt-1">
               <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-none">
-                Up to {maxDiscount}% OFF
+                Up to 30% OFF
               </h2>
-              <p className="mt-1.5 text-[11px] font-semibold text-orange-100/90 leading-none">
-                Live on selected courts, today only
-              </p>
             </div>
           </div>
 
