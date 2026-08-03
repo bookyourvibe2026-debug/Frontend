@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { X, Trophy, Building2, Check, Ban, ArrowRight, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { X, Sparkles, Ban, Check } from "lucide-react";
 
 export interface CourtItem {
   id: string;
@@ -24,6 +24,12 @@ function getSportEmoji(sport: string) {
   return "🏆";
 }
 
+function matchSport(courtSports: string[] | undefined, targetSport: string): boolean {
+  if (!courtSports || courtSports.length === 0) return true;
+  const targetLower = targetSport.trim().toLowerCase();
+  return courtSports.some((s) => s.trim().toLowerCase() === targetLower);
+}
+
 export function SportCourtSelectionModal({
   isOpen,
   sports,
@@ -41,71 +47,28 @@ export function SportCourtSelectionModal({
   onClose: () => void;
   onConfirm: (selectedSport: string, selectedCourtId: string) => void;
 }) {
-  const [selectedSport, setSelectedSport] = useState("");
-  const [selectedCourtId, setSelectedCourtId] = useState("");
-  const [step, setStep] = useState<"sport" | "court">("sport");
-
-  // Determine available courts for the chosen sport
-  const activeCourts = courts.filter((c) => c.active !== false);
-  const courtsForSport = activeCourts.filter(
-    (c) => !selectedSport || c.sports.length === 0 || c.sports.includes(selectedSport)
-  );
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const initialSport = sports[0] || "";
-    setSelectedSport(initialSport);
-
-    const filtered = activeCourts.filter(
-      (c) => !initialSport || c.sports.length === 0 || c.sports.includes(initialSport)
-    );
-    const firstAvailableCourt = filtered.find((c) => !bookedCourtIds.includes(c.id)) || filtered[0];
-    setSelectedCourtId(firstAvailableCourt?.id || "");
-
-    // Skip steps if single sport or single court
-    if (sports.length <= 1) {
-      if (filtered.length <= 1) {
-        // Direct auto-confirm if only 1 sport and 1 court
-        onConfirm(initialSport, firstAvailableCourt?.id || "");
-      } else {
-        setStep("court");
-      }
-    } else {
-      setStep("sport");
-    }
-  }, [isOpen, sports, courts, bookedCourtIds]);
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSportSelect = (sport: string) => {
+  const activeCourts = courts.filter((c) => c.active !== false);
+
+  const confirmSport = (sport: string) => {
+    let targetCourts = activeCourts.filter((c) => matchSport(c.sports, sport));
+    if (targetCourts.length === 0) targetCourts = activeCourts;
+
+    const firstAvailable = targetCourts.find((c) => !bookedCourtIds.includes(c.id)) || targetCourts[0];
+    onConfirm(sport, firstAvailable?.id || "");
+  };
+
+  const handleSportClick = (sport: string, isFullyBooked: boolean) => {
+    if (isFullyBooked) return;
     setSelectedSport(sport);
-    const validCourts = activeCourts.filter(
-      (c) => c.sports.length === 0 || c.sports.includes(sport)
-    );
-    const available = validCourts.find((c) => !bookedCourtIds.includes(c.id)) || validCourts[0];
-    setSelectedCourtId(available?.id || "");
-
-    if (validCourts.length <= 1) {
-      // Auto confirm if only 1 court for this sport
-      onConfirm(sport, available?.id || "");
-    } else {
-      setStep("court");
-    }
-  };
-
-  const handleCourtSelect = (courtId: string) => {
-    if (bookedCourtIds.includes(courtId)) return;
-    setSelectedCourtId(courtId);
-  };
-
-  const handleProceed = () => {
-    if (!selectedSport) return;
-    onConfirm(selectedSport, selectedCourtId);
+    confirmSport(sport);
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-xs p-0 sm:items-center sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-xs p-0 sm:items-center sm:p-4 animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl border border-slate-100">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
@@ -114,9 +77,7 @@ export function SportCourtSelectionModal({
               <Sparkles size={14} />
               <span>Select Venue Booking Details</span>
             </div>
-            <h2 className="text-base font-black text-slate-900 mt-0.5">
-              {step === "sport" ? "Select Sport" : `Select Court for ${selectedSport}`}
-            </h2>
+            <h2 className="text-base font-black text-slate-900 mt-0.5">Select Sport</h2>
             <p className="text-[11px] font-medium text-slate-500">
               Slot Time: <span className="font-bold text-slate-800">{slotTime}</span>
             </p>
@@ -130,143 +91,74 @@ export function SportCourtSelectionModal({
           </button>
         </div>
 
-        {/* Step 1: Sport Selection */}
-        {step === "sport" && (
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-600 mb-2">Which sport is being booked?</p>
-            <div className="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
-              {sports.map((sport) => {
-                const sportCourts = activeCourts.filter(
-                  (c) => c.sports.length === 0 || c.sports.includes(sport)
-                );
-                const freeCount = sportCourts.filter((c) => !bookedCourtIds.includes(c.id)).length;
-                const isSelected = selectedSport === sport;
+        {/* Sport Selection Grid */}
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-slate-600 mb-2">Which sport is being booked?</p>
+          <div className="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+            {sports.map((sport) => {
+              let sportCourts = activeCourts.filter((c) => matchSport(c.sports, sport));
+              if (activeCourts.length > 0 && sportCourts.length === 0) {
+                sportCourts = activeCourts;
+              }
 
-                return (
-                  <button
-                    key={sport}
-                    type="button"
-                    onClick={() => handleSportSelect(sport)}
-                    className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-500/20"
-                        : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50"
+              let isFullyBooked = false;
+              let freeCount = 0;
+
+              if (activeCourts.length === 0) {
+                isFullyBooked = bookedCourtIds.length > 0;
+                freeCount = isFullyBooked ? 0 : 1;
+              } else {
+                const freeCourts = sportCourts.filter((c) => !bookedCourtIds.includes(c.id));
+                freeCount = freeCourts.length;
+                isFullyBooked = freeCount === 0;
+              }
+
+              const isSelected = selectedSport === sport;
+
+              return (
+                <button
+                  key={sport}
+                  type="button"
+                  disabled={isFullyBooked}
+                  onClick={() => handleSportClick(sport, isFullyBooked)}
+                  className={`relative flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all ${
+                    isFullyBooked
+                      ? "border-slate-200 bg-slate-50/70 opacity-60 cursor-not-allowed"
+                      : isSelected
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500/20 shadow-sm cursor-pointer"
+                      : "border-slate-200 bg-white text-slate-900 hover:border-emerald-400 hover:bg-slate-50 cursor-pointer active:scale-95 shadow-2xs"
+                  }`}
+                >
+                  <div className="flex w-full items-center justify-between">
+                    <span className="text-2xl">{getSportEmoji(sport)}</span>
+                    {isSelected && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
+                        <Check size={12} />
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-extrabold text-slate-900 mt-1 capitalize">{sport}</span>
+                  <span
+                    className={`text-[10px] font-semibold ${
+                      isFullyBooked
+                        ? "text-rose-600 flex items-center gap-1"
+                        : isSelected
+                        ? "text-emerald-700 font-bold"
+                        : "text-slate-500"
                     }`}
                   >
-                    <span className="text-2xl">{getSportEmoji(sport)}</span>
-                    <span className="text-xs font-extrabold text-slate-900 mt-1">{sport}</span>
-                    <span className="text-[10px] font-semibold text-slate-500">
-                      {freeCount > 0 ? `${freeCount} Court${freeCount > 1 ? "s" : ""} Available` : "Fully Booked"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Court Selection */}
-        {step === "court" && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-slate-600">
-                Select Court ({selectedSport})
-              </p>
-              {sports.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setStep("sport")}
-                  className="text-[11px] font-bold text-emerald-600 hover:underline cursor-pointer"
-                >
-                  Change Sport
+                    {isFullyBooked ? (
+                      <>
+                        <Ban size={10} /> Fully Booked
+                      </>
+                    ) : (
+                      `${freeCount} Court${freeCount > 1 ? "s" : ""} Available`
+                    )}
+                  </span>
                 </button>
-              )}
-            </div>
-
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {courtsForSport.length === 0 ? (
-                <div className="p-4 text-center rounded-2xl border border-dashed border-slate-200 text-xs font-semibold text-slate-500">
-                  No courts configured for {selectedSport}.
-                </div>
-              ) : (
-                courtsForSport.map((court) => {
-                  const isBooked = bookedCourtIds.includes(court.id);
-                  const isSelected = selectedCourtId === court.id;
-
-                  return (
-                    <button
-                      key={court.id}
-                      type="button"
-                      disabled={isBooked}
-                      onClick={() => handleCourtSelect(court.id)}
-                      className={`flex w-full items-center justify-between rounded-2xl border p-3 text-left transition-all ${
-                        isBooked
-                          ? "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
-                          : isSelected
-                          ? "border-emerald-500 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-500/20 cursor-pointer"
-                          : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50 cursor-pointer"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className={`flex h-9 w-9 items-center justify-center rounded-xl font-extrabold text-xs ${
-                            isBooked
-                              ? "bg-rose-100 text-rose-600"
-                              : isSelected
-                              ? "bg-emerald-600 text-white"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          <Building2 size={16} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-extrabold text-slate-900">{court.name}</p>
-                          <p className="text-[10px] font-medium text-slate-500">
-                            {isBooked ? "Booked for this slot" : "Available"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        {isBooked ? (
-                          <span className="flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                            <Ban size={11} /> Booked
-                          </span>
-                        ) : isSelected ? (
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
-                            <Check size={14} />
-                          </span>
-                        ) : null}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
+              );
+            })}
           </div>
-        )}
-
-        {/* Footer Actions */}
-        <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-          >
-            Cancel
-          </button>
-
-          {step === "court" && (
-            <button
-              type="button"
-              disabled={!selectedCourtId || bookedCourtIds.includes(selectedCourtId)}
-              onClick={handleProceed}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer shadow-xs"
-            >
-              <span>Continue to Details</span>
-              <ArrowRight size={14} />
-            </button>
-          )}
         </div>
       </div>
     </div>

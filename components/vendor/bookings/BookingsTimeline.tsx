@@ -394,11 +394,9 @@ export function BookingsTimeline({
                       <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Available</p>
                       <p className="mt-0.5 text-[10px] font-medium text-slate-400">Tap to add booking</p>
                     </div>
-                    {typeof slot.price === "number" && slot.price > 0 && (
-                      <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
-                        ₹{slot.price.toLocaleString("en-IN")}
-                      </span>
-                    )}
+                    <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                      ₹{(slot.price && slot.price > 0 ? slot.price : 1000).toLocaleString("en-IN")}
+                    </span>
                   </div>
                 ) : isBlocked ? (
                   <>

@@ -126,6 +126,14 @@ export default function PriceSettingPage() {
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [holidayPopover, setHolidayPopover] = useState<string | null>(null);
   const [holidayHovered, setHolidayHovered] = useState<string | null>(null);
+
+  // Click anywhere on web hides the holiday info popover box
+  useEffect(() => {
+    if (!holidayPopover) return;
+    const handleGlobalClick = () => setHolidayPopover(null);
+    window.addEventListener("click", handleGlobalClick);
+    return () => window.removeEventListener("click", handleGlobalClick);
+  }, [holidayPopover]);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [eventSheetOpen, setEventSheetOpen] = useState(false);
 
@@ -591,10 +599,6 @@ export default function PriceSettingPage() {
                   borderBgCls = "border-2 border-purple-300 bg-purple-50/80 hover:bg-purple-100/90 rounded-2xl shadow-2xs";
                   numCls = "text-purple-900 font-black";
                   priceCls = "bg-purple-100 text-purple-900 border border-purple-200 font-extrabold";
-                } else if (hasOverride) {
-                  borderBgCls = "border-2 border-teal-300 bg-teal-50/80 hover:bg-teal-100/90 rounded-2xl shadow-2xs";
-                  numCls = "text-teal-900 font-black";
-                  priceCls = "bg-teal-600 text-white font-extrabold px-1.5 py-0.5 rounded-full shadow-2xs";
                 } else if (inStreak) {
                   borderBgCls = "border-2 border-orange-300 bg-orange-50/90 hover:bg-orange-100/90 rounded-2xl shadow-2xs";
                   numCls = "text-orange-950 font-black";
@@ -604,13 +608,17 @@ export default function PriceSettingPage() {
                   numCls = "text-amber-950 font-black";
                   priceCls = "bg-amber-100 text-amber-900 border border-amber-200/80 font-extrabold";
                 } else if (day.isWeekend) {
-                  borderBgCls = "border border-pink-200 bg-pink-50/70 hover:bg-pink-100/70 rounded-2xl";
-                  numCls = "text-pink-800 font-bold";
-                  priceCls = "bg-pink-100/80 text-pink-800 border border-pink-200/70 font-extrabold";
+                  borderBgCls = "border-2 border-pink-200 bg-pink-50/80 hover:bg-pink-100/80 rounded-2xl shadow-2xs";
+                  numCls = "text-pink-900 font-black";
+                  priceCls = "bg-pink-100 text-pink-900 border border-pink-200/80 font-extrabold";
+                } else if (hasOverride) {
+                  borderBgCls = "border-2 border-teal-300 bg-teal-50/80 hover:bg-teal-100/90 rounded-2xl shadow-2xs";
+                  numCls = "text-teal-900 font-black";
+                  priceCls = "bg-teal-600 text-white font-extrabold px-1.5 py-0.5 rounded-full shadow-2xs";
                 } else {
-                  borderBgCls = "border border-blue-200/80 bg-blue-50/50 hover:bg-blue-100/60 rounded-2xl";
-                  numCls = "text-blue-800 font-bold";
-                  priceCls = "bg-blue-100/70 text-blue-800 border border-blue-200/60 font-semibold";
+                  borderBgCls = "border-2 border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 rounded-2xl shadow-2xs";
+                  numCls = "text-blue-900 font-black";
+                  priceCls = "bg-blue-100 text-blue-900 border border-blue-200/70 font-extrabold";
                 }
 
                 return (
@@ -634,6 +642,11 @@ export default function PriceSettingPage() {
                         <span className={`text-[8.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded-md ${priceCls}`}>
                           {formatPrice(price)}
                         </span>
+                      )}
+
+                      {/* Custom Price indicator dot when date has override */}
+                      {hasOverride && !isHolidayOnly && !inStreak && !day.isWeekend && (
+                        <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-teal-500 shadow-2xs" title="Custom Price Set" />
                       )}
 
                       {/* Small dot indicators for non-holiday events */}

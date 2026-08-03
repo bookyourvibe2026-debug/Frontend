@@ -456,7 +456,7 @@ export default function BookingsPage() {
         startTime: slot.startTime,
         endTime: slot.endTime,
         label: displayLabel,
-        price: slot.price,
+        price: (slot.price && slot.price > 0) ? slot.price : (selectedTurf?.price || 1000),
         status,
         bookingId: isFullyBooked ? bookingId : undefined,
         customerName: isFullyBooked ? customerName : undefined,
@@ -1586,8 +1586,9 @@ export default function BookingsPage() {
       {addBookingOpen && (
         <AddBookingSheet
           courts={turfListings.map((t) => ({ id: t.id, title: t.title }))}
-          venueCourts={(selectedTurf?.courts ?? []).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }))}
+          venueCourts={(selectedTurf?.courts ?? []).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name, sports: c.sports }))}
           sports={selectedTurf?.categories ?? []}
+          bookedCourtIds={sportCourtModalSlot?.bookedCourtIds || []}
           initial={addBookingInitial}
           submitting={addBookingSaving}
           onClose={() => setAddBookingOpen(false)}
