@@ -1,5 +1,5 @@
 import type { Listing } from "./api/types";
-import { activeBoostPct, nowMinutes, todayIso, toMinutes } from "./lastMinBoost";
+import { activeBoostPct, clampBoostPct, nowMinutes, todayIso, toMinutes } from "./lastMinBoost";
 
 export interface ActiveBoostInfo {
   discountPct: number;
@@ -19,20 +19,26 @@ export function findActiveBoost(listings: Listing[], now: Date = new Date()): Ac
   }> = [];
 
   for (const listing of listings) {
-    if (!listing.lastMinBoost?.enabled) continue;
+    for (const rule of listing.lastMinBoosts ?? []) {
+      if (!rule.enabled) continue;
 
-    // Get slots for today
-    const override = listing.dateOverrides?.find((o) => o.date === today);
-    const slots = override ? (override.isHoliday ? [] : override.slots ?? []) : listing.slotsList ?? [];
-    const activeSlots = slots.filter((s) => !s.blocked);
+      const discountPct = clampBoostPct(rule.discountPct || 20);
+      const triggerMins = rule.triggerMins || 10;
+      const slotStarts = rule.slotStarts ?? [];
 
-    for (const slot of activeSlots) {
-      const pct = activeBoostPct(listing.lastMinBoost, slot.startTime, minutesNow, listing.lastMinBoost.game);
-      if (pct > 0) {
+      if (slotStarts.length > 0) {
+        for (const start of slotStarts) {
+          activeBoosts.push({
+            discountPct,
+            slotStart: start,
+            triggerMins,
+          });
+        }
+      } else {
         activeBoosts.push({
-          discountPct: pct,
-          slotStart: slot.startTime,
-          triggerMins: listing.lastMinBoost.triggerMins,
+          discountPct,
+          slotStart: "01:00",
+          triggerMins,
         });
       }
     }

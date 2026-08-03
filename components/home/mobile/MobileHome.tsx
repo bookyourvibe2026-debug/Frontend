@@ -24,7 +24,7 @@ import { type Venue } from "@/lib/venues";
 import { DISTANCE_OPTIONS, filterPillClass, PRICE_OPTIONS, SORT_OPTIONS, useVenueFilters } from "../useVenueFilters";
 import { MobileCard, MobileChip, MobileSectionRow, MobileTopBar } from "@/components/mobile/ui";
 import { AdBanner } from "../AdBanner";
-import { HotDeals } from "../HotDeals";
+import { LastMinuteDealsSection } from "../LastMinuteDealsSection";
 import { TopPlayersRanking } from "../TopPlayersRanking";
 
 const MOBILE_QUICK_ACTIONS = [
@@ -36,8 +36,6 @@ const MOBILE_QUICK_ACTIONS = [
 ];
 
 import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
-import { LastMinBoostBanner } from "./LastMinBoostBanner";
-import { type ActiveBoostInfo } from "@/lib/boostHelpers";
 
 const CHOOSE_GAME_CHIPS: SportCategoryItem[] = [
   { id: "cricket", label: "Cricket", emoji: "🏏", image: "/bat.png" },
@@ -147,8 +145,6 @@ export function MobileHome({
   onJoinCommunity,
   onViewAllCommunity,
   onViewAllEvents,
-  activeBoost,
-  onExpireBoost,
 }: {
   searchValue: string;
   onSearchChange: (v: string) => void;
@@ -165,8 +161,6 @@ export function MobileHome({
   onJoinCommunity: () => void;
   onViewAllCommunity: () => void;
   onViewAllEvents: () => void;
-  activeBoost?: ActiveBoostInfo | null;
-  onExpireBoost?: () => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<string>("cricket");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -233,14 +227,8 @@ export function MobileHome({
         />
       </section>
 
-      {activeBoost ? (
-        <LastMinBoostBanner boost={activeBoost} onExpire={onExpireBoost} />
-      ) : (
-        <>
-          <AdBanner className="" />
-          <HotDeals className="" />
-        </>
-      )}
+      <AdBanner className="" />
+      <LastMinuteDealsSection className="" />
 
       <section>
         <MobileSectionRow

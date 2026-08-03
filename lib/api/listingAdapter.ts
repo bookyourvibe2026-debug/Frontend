@@ -54,7 +54,7 @@ export function apiListingToMock(listing: ApiListing): MockListing {
     slotsList: listing.slotsList,
     dailyRoutine: listing.dailyRoutine,
     dateOverrides: listing.dateOverrides,
-    lastMinBoost: listing.lastMinBoost,
+    lastMinBoosts: listing.lastMinBoosts,
     partialPayment: listing.partialPayment,
     technicalSpecs: listing.technicalSpecs,
   };

@@ -59,8 +59,8 @@ export interface PartialPaymentConfig {
   value: number;
 }
 
-export type { LastMinBoost } from "@/lib/lastMinBoost";
-import type { LastMinBoost } from "@/lib/lastMinBoost";
+export type { LastMinuteBoostRule } from "@/lib/lastMinBoost";
+import type { LastMinuteBoostRule } from "@/lib/lastMinBoost";
 
 /**
  * One bookable unit inside a venue — "Court 1", "Turf A". A listing with N courts
@@ -143,8 +143,8 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
-  /** Last Min Boost rule — see lib/lastMinBoost.ts. Absent until the vendor configures one. */
-  lastMinBoost?: LastMinBoost;
+  /** Last Minute Boost rules — see lib/lastMinBoost.ts. Empty until the vendor configures one. */
+  lastMinBoosts?: LastMinuteBoostRule[];
   /** Mandatory partial payment rule configured by venue owner. */
   partialPayment?: PartialPaymentConfig;
   technicalSpecs?: TechnicalSpec[];
@@ -207,6 +207,13 @@ export interface Booking {
   taxes: number;
   affiliateAmount: number;
   vendorEarning: number;
+  /** Set when a Last Minute Boost rule discounted this booking. */
+  lastMinuteBoost?: {
+    ruleId: string;
+    discountPct: number;
+    originalAmount: number;
+    discountAmount: number;
+  };
   payment: PaymentMethod;
   paymentStatus: PaymentStatus;
   paymentOrderId?: string;

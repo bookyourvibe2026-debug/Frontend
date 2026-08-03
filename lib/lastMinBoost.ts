@@ -1,18 +1,23 @@
 /**
  * Last Min Boost — client mirror of the backend rule.
  *
- * The vendor's rule lives on the listing; the discount is never baked into slot prices.
- * It's derived here on every render so the trigger window actually holds: a 6:00 PM slot
- * with a 30-minute trigger shows full price at 5:29 PM and the deal at 5:30 PM.
+ * A listing carries zero or more rules, each scoped to one Sport + Court + Slot (or every
+ * court hosting that sport, when `courtId` is omitted) — so two courts can run independent
+ * boosts at once. The discount is never baked into slot prices; it's derived here on every
+ * render so the trigger window actually holds: a 6:00 PM slot with a 30-minute trigger
+ * shows full price at 5:29 PM and the deal at 5:30 PM.
  *
  * Must stay in step with backend/src/services/lastMinBoost.service.ts — the backend
  * re-checks all of this at booking time, so drift shows up as a price mismatch.
  */
 
-export interface LastMinBoost {
+export interface LastMinuteBoostRule {
+  id: string;
   enabled: boolean;
   /** Sport label the boost applies to. */
   game: string;
+  /** Specific court this rule targets. Absent = every active court hosting `game`. */
+  courtId?: string;
   /** Slot start times in "HH:mm" the vendor opted into. */
   slotStarts: string[];
   discountPct: number;
@@ -56,28 +61,57 @@ export function isWindowOpen(slotStart: string, triggerMins: number, nowMinutes:
   return nowMinutes >= opensAt && nowMinutes < start;
 }
 
-/** Enabled, slot opted in, and sport matching. No sport named = treat as a match. */
+/**
+ * Whether one rule covers this slot at all — enabled, the slot was opted in, the sport
+ * matches, and (if the rule targets a specific court) the court matches too. A rule with
+ * no sport/court named is a lenient match; a court-specific rule with no court given is
+ * NOT a match, since that would silently apply a single-court discount venue-wide.
+ */
 export function boostCoversSlot(
-  boost: LastMinBoost | undefined | null,
+  rule: LastMinuteBoostRule | undefined | null,
   slotStart: string,
-  sport?: string
+  sport?: string,
+  courtId?: string
 ): boolean {
-  if (!boost?.enabled) return false;
-  if (!boost.slotStarts?.includes(slotStart)) return false;
-  if (boost.game && sport && boost.game !== sport) return false;
+  if (!rule?.enabled) return false;
+  if (!rule.slotStarts?.includes(slotStart)) return false;
+  if (rule.game && sport && rule.game !== sport) return false;
+  if (rule.courtId && rule.courtId !== courtId) return false;
   return true;
+}
+
+/**
+ * The rule currently discounting this slot, or undefined when no deal is running. When
+ * several rules match, the court-specific one wins, then the higher discount.
+ */
+export function findActiveBoostRule(
+  rules: LastMinuteBoostRule[] | undefined | null,
+  slotStart: string,
+  nowMinutes: number,
+  sport?: string,
+  courtId?: string
+): LastMinuteBoostRule | undefined {
+  const matching = (rules ?? []).filter(
+    (rule) => boostCoversSlot(rule, slotStart, sport, courtId) && isWindowOpen(slotStart, rule.triggerMins, nowMinutes)
+  );
+  if (matching.length === 0) return undefined;
+  matching.sort((a, b) => {
+    if (!!a.courtId !== !!b.courtId) return a.courtId ? -1 : 1;
+    return b.discountPct - a.discountPct;
+  });
+  return matching[0];
 }
 
 /** Live discount for a slot, or 0 when no deal is running. Callers must check the slot is unbooked. */
 export function activeBoostPct(
-  boost: LastMinBoost | undefined | null,
+  rules: LastMinuteBoostRule[] | undefined | null,
   slotStart: string,
   nowMinutes: number,
-  sport?: string
+  sport?: string,
+  courtId?: string
 ): number {
-  if (!boostCoversSlot(boost, slotStart, sport)) return 0;
-  if (!isWindowOpen(slotStart, boost!.triggerMins, nowMinutes)) return 0;
-  return clampBoostPct(boost!.discountPct);
+  const rule = findActiveBoostRule(rules, slotStart, nowMinutes, sport, courtId);
+  return rule ? clampBoostPct(rule.discountPct) : 0;
 }
 
 /** Minutes since midnight for a Date, in the viewer's local clock (venues are sold in IST). */

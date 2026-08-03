@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, ChevronDown, Zap } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, ChevronDown, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import { getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
@@ -15,25 +15,27 @@ import {
   BOOST_TRIGGER_OPTIONS,
   boostedPrice,
   clampBoostPct,
-  type LastMinBoost,
+  type LastMinuteBoostRule,
 } from "@/lib/lastMinBoost";
 
 /**
  * Last Min Boost — a two-step auto-discount engine.
  *
- *   Step 1  pick the game, then tick the hourly slots to put on offer
+ *   Step 1  pick the game + court, then tick the hourly slots to put on offer
  *   Step 2  set how deep the discount goes and how early it appears
  *
- * The rule is saved on the listing (not localStorage — the customer side has to read it)
- * and keyed by slot start time, so it stands every day. Crucially the discount is never
- * written into slot prices: it is derived at read time from the trigger window, which is
- * what makes "10 minutes before the slot" actually mean something. See lib/lastMinBoost.ts.
+ * A listing carries an array of these rules, so Cricket on Court 3 and Football on
+ * Court 5 can run independent boosts at once — each shows as its own deal card. Saved
+ * on the listing (not localStorage — the player app has to read it) and keyed by slot
+ * start time, so a rule stands every day. Crucially the discount is never written into
+ * slot prices: it is derived at read time from the trigger window, which is what makes
+ * "10 minutes before the slot" actually mean something. See lib/lastMinBoost.ts.
  */
 
 type ApiBooking = Booking & { listingId?: string; endTime?: string };
 
-const DEFAULT_BOOST: LastMinBoost = {
-  enabled: false,
+const DEFAULT_BOOST: Omit<LastMinuteBoostRule, "id"> = {
+  enabled: true,
   game: "",
   slotStarts: [],
   discountPct: BOOST_MIN_PCT,
@@ -217,9 +219,19 @@ function StepRail({ step }: { step: 1 | 2 }) {
 }
 
 export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
-  // Device Back steps back through the wizard before it leaves the More page.
+  // "list" shows every boost rule on the selected venue; "edit" is the wizard for
+  // creating a new one or editing an existing one.
+  const [mode, setMode] = useState<"list" | "edit">("list");
+  // Device Back steps back through the wizard, then to the list, before it leaves the More page.
   const [step, setStep] = useState<1 | 2>(1);
-  useBackDismiss(true, () => (step === 2 ? setStep(1) : onClose()));
+  useBackDismiss(true, () => {
+    if (mode === "edit") {
+      if (step === 2) setStep(1);
+      else setMode("list");
+    } else {
+      onClose();
+    }
+  });
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
@@ -227,8 +239,11 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTurfId, setSelectedTurfId] = useState("");
 
+  /** Which existing rule is being edited — null while creating a new one. */
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(DEFAULT_BOOST.enabled);
   const [game, setGame] = useState("");
+  const [selectedCourtId, setSelectedCourtId] = useState<string>("all");
   const [slotStarts, setSlotStarts] = useState<string[]>([]);
   const [discountPct, setDiscountPct] = useState(DEFAULT_BOOST.discountPct);
   /** Raw text of the custom field, so a half-typed "1" doesn't snap to 10. */
@@ -246,19 +261,54 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
     return () => clearTimeout(id);
   }, [toast]);
 
-  /** Switch venue and pull in that venue's saved boost rule. */
-  function selectTurf(id: string, from: Listing[]) {
+  /** Switch venue and go back to its list of boost rules. */
+  function selectTurf(id: string) {
     setSelectedTurfId(id);
-    const turf = from.find((l) => l.id === id);
-    const saved = turf?.lastMinBoost;
-    const games = (turf?.categories ?? []).map(categoryLabel);
-    setEnabled(saved?.enabled ?? DEFAULT_BOOST.enabled);
-    setGame(saved?.game || games[0] || "");
-    setSlotStarts(saved?.slotStarts ?? []);
-    setDiscountPct(clampBoostPct(saved?.discountPct ?? DEFAULT_BOOST.discountPct));
+    setMode("list");
+  }
+
+  /** Enter the wizard to create a brand new rule on the selected venue. */
+  function startNewBoost(turf: Listing) {
+    const games = (turf.categories ?? []).map(categoryLabel);
+    setEditingRuleId(null);
+    setEnabled(DEFAULT_BOOST.enabled);
+    setGame(games[0] || "");
+    setSelectedCourtId("all");
+    setSlotStarts([]);
+    setDiscountPct(DEFAULT_BOOST.discountPct);
     setCustomPct("");
-    setTriggerMins(saved?.triggerMins ?? DEFAULT_BOOST.triggerMins);
+    setTriggerMins(DEFAULT_BOOST.triggerMins);
     setStep(1);
+    setMode("edit");
+  }
+
+  /** Enter the wizard pre-filled with an existing rule's settings. */
+  function startEditBoost(rule: LastMinuteBoostRule) {
+    setEditingRuleId(rule.id);
+    setEnabled(rule.enabled);
+    setGame(rule.game);
+    setSelectedCourtId(rule.courtId || "all");
+    setSlotStarts(rule.slotStarts ?? []);
+    setDiscountPct(clampBoostPct(rule.discountPct));
+    setCustomPct("");
+    setTriggerMins(rule.triggerMins);
+    setStep(1);
+    setMode("edit");
+  }
+
+  /** Removes one rule from the venue and saves immediately — no separate confirm step,
+   * matching how every other quick action in this sheet behaves. */
+  async function deleteBoost(turf: Listing, ruleId: string) {
+    const nextRules = (turf.lastMinBoosts ?? []).filter((r) => r.id !== ruleId);
+    setSaving(true);
+    try {
+      const saved = await updateVendorListing(turf.id, mockListingToApiInput({ ...turf, lastMinBoosts: nextRules }));
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
+      setToast({ tone: "success", message: "Boost removed." });
+    } catch (e) {
+      setToast({ tone: "error", message: e instanceof ApiError ? e.describe() : "Couldn't remove this boost." });
+    }
+    setSaving(false);
   }
 
   useEffect(() => {
@@ -266,7 +316,7 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
       .then(([l, b]) => {
         const turfs = l.map(apiListingToMock).filter((x) => x.type === "Turf");
         setListings(turfs);
-        selectTurf(turfs[0]?.id ?? "", turfs);
+        selectTurf(turfs[0]?.id ?? "");
         setBookings(b.items as unknown as ApiBooking[]);
       })
       .catch((e) => setLoadError(e instanceof ApiError ? e.describe() : "Failed to load your venues"))
@@ -281,18 +331,55 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
     [selectedTurf]
   );
 
-  /** Slot starts already taken today, so the vendor can't put a sold slot on offer. */
+  /** Courts that match the selected sport (or all active courts if no sport match) */
+  const courtOptions = useMemo(() => {
+    if (!selectedTurf || !selectedTurf.courts) return [];
+    const activeCourts = selectedTurf.courts.filter((c) => c.active !== false);
+    if (!game) return activeCourts;
+    const targetGame = game.trim().toLowerCase();
+
+    const matching = activeCourts.filter((c) => {
+      if (!c.sports || c.sports.length === 0) return true;
+      return c.sports.some((s) => s.trim().toLowerCase().includes(targetGame) || targetGame.includes(s.trim().toLowerCase()));
+    });
+    return matching.length > 0 ? matching : activeCourts;
+  }, [selectedTurf, game]);
+
+  /** Slot starts already taken today on the selected court (or all courts for this sport). */
   const bookedStarts = useMemo(() => {
     const set = new Set<string>();
+    const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active !== false);
+    const targetCourts = selectedCourtId !== "all"
+      ? activeCourts.filter((c) => c.id === selectedCourtId)
+      : courtOptions;
+
+    const targetCourtIds = targetCourts.map((c) => c.id);
+    const slotBookingsMap = new Map<string, Set<string>>();
+
     for (const b of bookings) {
       if (b.status === "Cancelled") continue;
       if ((b.listingId ?? b.listing) !== selectedTurfId) continue;
       const start = new Date(b.dateTime);
       if (toIso(start) !== todayIso) continue;
-      set.add(`${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`);
+      const key = `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
+
+      const bookedCourts = b.courtIds?.length ? b.courtIds : [b.courtId || activeCourts[0]?.id || ""];
+      const existing = slotBookingsMap.get(key) || new Set<string>();
+      bookedCourts.forEach((id) => existing.add(id));
+      slotBookingsMap.set(key, existing);
+    }
+
+    for (const [key, takenSet] of slotBookingsMap.entries()) {
+      if (selectedCourtId !== "all") {
+        if (takenSet.has(selectedCourtId)) set.add(key);
+      } else {
+        if (targetCourtIds.length > 0 && targetCourtIds.every((id) => takenSet.has(id))) {
+          set.add(key);
+        }
+      }
     }
     return set;
-  }, [bookings, selectedTurfId, todayIso]);
+  }, [bookings, selectedTurfId, todayIso, selectedCourtId, courtOptions, selectedTurf]);
 
   const slots = useMemo(() => hourlySlots(selectedTurf, todayIso), [selectedTurf, todayIso]);
   const availableSlots = useMemo(() => slots.filter((s) => !bookedStarts.has(s.start)), [slots, bookedStarts]);
@@ -347,24 +434,32 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
 
     setSaving(true);
     try {
-      const boost: LastMinBoost = {
+      const boost: LastMinuteBoostRule = {
+        id: editingRuleId ?? `boost-${Date.now()}`,
         enabled,
         game,
+        courtId: selectedCourtId !== "all" ? selectedCourtId : undefined,
         slotStarts: stillAvailable.sort((a, b) => a.localeCompare(b)),
         discountPct: clampBoostPct(discountPct),
         triggerMins,
       };
+      const existing = selectedTurf.lastMinBoosts ?? [];
+      const nextRules = editingRuleId
+        ? existing.map((r) => (r.id === editingRuleId ? boost : r))
+        : [...existing, boost];
+
       const saved = await updateVendorListing(
         selectedTurf.id,
-        mockListingToApiInput({ ...selectedTurf, lastMinBoost: boost })
+        mockListingToApiInput({ ...selectedTurf, lastMinBoosts: nextRules })
       );
       setListings((ls) => ls.map((x) => (x.id === selectedTurf.id ? apiListingToMock(saved) : x)));
       setToast({
         tone: "success",
         message: enabled
           ? `Boost is on — ${boost.slotStarts.length} ${game} slot${boost.slotStarts.length === 1 ? "" : "s"} will drop ${boost.discountPct}%, ${boost.triggerMins} mins before start.`
-          : "Settings saved. Boost is currently off, so no deals are live.",
+          : "Saved. Boost is currently off, so no deal is live for it.",
       });
+      setMode("list");
     } catch (e) {
       setToast({
         tone: "error",
@@ -380,7 +475,14 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
         {/* Header — back arrow steps back through the wizard first */}
         <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3.5">
           <button
-            onClick={() => (step === 2 ? setStep(1) : onClose())}
+            onClick={() => {
+              if (mode === "edit") {
+                if (step === 2) setStep(1);
+                else setMode("list");
+              } else {
+                onClose();
+              }
+            }}
             aria-label="Back"
             className="rounded-full p-1 text-slate-600 transition hover:bg-slate-100"
           >
@@ -400,6 +502,84 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
           <p className="px-5 py-20 text-center text-sm font-semibold text-slate-500">
             No turf listings found — add a turf to use Last Min Boost.
           </p>
+        ) : mode === "list" ? (
+          <div className="flex flex-col gap-5 p-4 sm:p-5">
+            {listings.length > 1 && (
+              <div>
+                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Venue</label>
+                <Dropdown
+                  value={selectedTurfId}
+                  onChange={selectTurf}
+                  options={listings.map((l) => ({ value: l.id, label: l.title }))}
+                />
+              </div>
+            )}
+
+            <button
+              onClick={() => startNewBoost(selectedTurf)}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#dc2626] py-3.5 text-sm font-black text-white shadow-md transition hover:bg-red-700 active:scale-[0.99]"
+            >
+              <Plus size={16} /> Add New Boost
+            </button>
+
+            {(selectedTurf.lastMinBoosts ?? []).length === 0 ? (
+              <div className="rounded-3xl border-2 border-dashed border-slate-200 px-4 py-10 text-center">
+                <Zap size={22} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-sm font-bold text-slate-500">No boosts on this venue yet.</p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">
+                  Add one to auto-discount a Sport + Court + Slot combo close to its start time.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {(selectedTurf.lastMinBoosts ?? []).map((rule) => {
+                  const court = selectedTurf.courts?.find((c) => c.id === rule.courtId);
+                  return (
+                    <div key={rule.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-black text-slate-900">{rule.game || "Any sport"}</p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                                rule.enabled ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              {rule.enabled ? "Active" : "Off"}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                            {court ? court.name : "All courts"} · {rule.slotStarts.length} slot
+                            {rule.slotStarts.length === 1 ? "" : "s"} · {rule.discountPct}% off · {rule.triggerMins}m trigger
+                          </p>
+                          <p className="mt-1 text-[10px] font-medium text-slate-400">
+                            {rule.slotStarts.map((s) => to12h(s)).join(", ")}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-1.5">
+                          <button
+                            onClick={() => startEditBoost(rule)}
+                            aria-label="Edit boost"
+                            className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => deleteBoost(selectedTurf, rule.id)}
+                            disabled={saving}
+                            aria-label="Delete boost"
+                            className="rounded-full p-2 text-rose-500 transition hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex flex-col gap-5 p-4 sm:p-5">
             {/* ── HERO: auto discount engine + enable toggle ── */}
@@ -440,19 +620,6 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
 
             <StepRail step={step} />
 
-            {/* Venue selector — only when the vendor actually runs more than one venue,
-                otherwise the game dropdown below is the first thing they touch. */}
-            {listings.length > 1 && (
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Venue</label>
-                <Dropdown
-                  value={selectedTurfId}
-                  onChange={(id) => selectTurf(id, listings)}
-                  options={listings.map((l) => ({ value: l.id, label: l.title }))}
-                />
-              </div>
-            )}
-
             {step === 1 ? (
               <div key="step-1" className="flex flex-col gap-5 animate-in fade-in slide-in-from-left-3 duration-300">
                 {/* ── GAME ── */}
@@ -465,12 +632,33 @@ export function LastMinBoostSheet({ onClose }: { onClose: () => void }) {
                   ) : (
                     <Dropdown
                       value={game}
-                      onChange={setGame}
+                      onChange={(g) => {
+                        setGame(g);
+                        setSelectedCourtId("all");
+                      }}
                       placeholder="Choose a game"
                       options={gameOptions.map((g) => ({ value: g, label: g }))}
                     />
                   )}
                 </div>
+
+                {/* ── COURT ── */}
+                {courtOptions.length > 0 && (
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Court
+                    </label>
+                    <Dropdown
+                      value={selectedCourtId}
+                      onChange={setSelectedCourtId}
+                      placeholder="Select Court"
+                      options={[
+                        { value: "all", label: `All ${game || ""} Courts` },
+                        ...courtOptions.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                    />
+                  </div>
+                )}
 
                 {/* ── SLOTS ── */}
                 <div>

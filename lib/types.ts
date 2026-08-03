@@ -49,7 +49,7 @@ export interface TechnicalSpec {
   color?: string;
 }
 
-import type { LastMinBoost } from "@/lib/lastMinBoost";
+import type { LastMinuteBoostRule } from "@/lib/lastMinBoost";
 
 /** One bookable unit inside a venue — see `Court` in lib/api/types.ts. */
 export interface Court {
@@ -119,8 +119,8 @@ export interface Listing {
   slotsList?: TurfSlot[];
   dailyRoutine?: boolean;
   dateOverrides?: DateOverride[];
-  /** Last Min Boost rule — see lib/lastMinBoost.ts. */
-  lastMinBoost?: LastMinBoost;
+  /** Last Minute Boost rules — see lib/lastMinBoost.ts. Empty until the vendor configures one. */
+  lastMinBoosts?: LastMinuteBoostRule[];
   /** Mandatory partial payment rule configured by venue owner. */
   partialPayment?: {
     enabled: boolean;

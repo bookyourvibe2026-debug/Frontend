@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type Venue, listingToVenue } from "@/lib/venues";
 import { browseVenues } from "@/lib/api/venues";
-import type { Listing } from "@/lib/api/types";
-import { findActiveBoost, type ActiveBoostInfo } from "@/lib/boostHelpers";
 import { SiteHeader } from "@/components/site-header";
 import { Hero } from "./Hero";
 import { QuickActionsSection } from "./QuickActionsSection";
@@ -15,7 +13,7 @@ import { TrendingVenues } from "./TrendingVenues";
 import { TopPlayersRanking } from "./TopPlayersRanking";
 import { HowItWorks } from "./HowItWorks";
 import { AdBanner } from "./AdBanner";
-import { LastMinuteDeals } from "./HotDeals";
+import { LastMinuteDealsSection } from "./LastMinuteDealsSection";
 import { CommunityMatches } from "./CommunityMatches";
 import { EventsAndOffers } from "./EventsAndOffers";
 import { WhyBookYourVibe } from "./WhyBookYourVibe";
@@ -26,7 +24,6 @@ import { Footer } from "./Footer";
 import { FiltersModal } from "./modals/FiltersModal";
 import { SignupModal } from "./modals/SignupModal";
 import { MobileHome } from "./mobile/MobileHome";
-import { LastMinBoostBanner } from "./mobile/LastMinBoostBanner";
 import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
@@ -41,8 +38,6 @@ export default function HomePage() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [activeBoost, setActiveBoost] = useState<ActiveBoostInfo | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [challengeOpen, setChallengeOpen] = useState(false);
   const [joinInviteOpen, setJoinInviteOpen] = useState(false);
@@ -80,18 +75,12 @@ export default function HomePage() {
   }, [status]);
 
   useEffect(() => {
-    // Fetch 30 listings so we scan a larger pool for active boosts
     browseVenues({ limit: 30, type: "Turf" })
       .then((result) => {
-        setListings(result.items);
         setVenues(result.items.map(listingToVenue));
-        const boost = findActiveBoost(result.items);
-        setActiveBoost(boost);
       })
       .catch(() => {
-        setListings([]);
         setVenues([]);
-        setActiveBoost(null);
       });
   }, []);
 
@@ -185,11 +174,6 @@ export default function HomePage() {
           onJoinCommunity={() => setChallengeOpen(true)}
           onViewAllCommunity={() => router.push("/community")}
           onViewAllEvents={() => router.push("/tournaments")}
-          activeBoost={activeBoost}
-          onExpireBoost={() => {
-            const boost = findActiveBoost(listings);
-            setActiveBoost(boost);
-          }}
         />
       </div>
 
@@ -209,22 +193,8 @@ export default function HomePage() {
           </p>
         )}
 
-        {activeBoost ? (
-          <div className="mx-auto mt-8 max-w-5xl px-4 sm:px-6">
-            <LastMinBoostBanner
-              boost={activeBoost}
-              onExpire={() => {
-                const boost = findActiveBoost(listings);
-                setActiveBoost(boost);
-              }}
-            />
-          </div>
-        ) : (
-          <>
-            <AdBanner />
-            <LastMinuteDeals />
-          </>
-        )}
+        <AdBanner />
+        <LastMinuteDealsSection />
 
         <FindYourGames onSelectSport={handleSelectSport} />
 

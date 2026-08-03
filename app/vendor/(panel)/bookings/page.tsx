@@ -18,6 +18,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
+  Scissors,
   Check,
   CheckSquare,
   Layers,
@@ -1705,6 +1706,17 @@ export default function BookingsPage() {
             {activeSlot.status === "Available" ? (
               <div className="space-y-2">
                 <ActionRow
+                  icon={<BookOpen size={18} className="text-emerald-600" />}
+                  color="emerald"
+                  title="Offline Booking"
+                  sub="Book manually for a walk-in or phone customer"
+                  onClick={() => {
+                    const target = activeSlot;
+                    setActiveSlot(null);
+                    startOfflineBooking(target);
+                  }}
+                />
+                <ActionRow
                   icon={<Ban size={18} className="text-rose-500" />}
                   color="rose"
                   title="Block Slot"
@@ -1717,17 +1729,19 @@ export default function BookingsPage() {
                     }
                   }}
                 />
-                <ActionRow
-                  icon={<BookOpen size={18} className="text-emerald-600" />}
-                  color="emerald"
-                  title="Offline Booking"
-                  sub="Book manually for a walk-in or phone customer"
-                  onClick={() => {
-                    const target = activeSlot;
-                    setActiveSlot(null);
-                    startOfflineBooking(target);
-                  }}
-                />
+                {activeSlot.isClubSlot && (
+                  <ActionRow
+                    icon={<Scissors size={18} className="text-amber-600" />}
+                    color="amber"
+                    title="Unclub / Split Slot"
+                    sub="Split this clubbed slot back into separate 1-hour slots"
+                    onClick={() => {
+                      const target = activeSlot;
+                      setActiveSlot(null);
+                      handleSplitClubSlot(target);
+                    }}
+                  />
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -2059,13 +2073,20 @@ function GroupedSlotsList({ slots, filter, onClose }: { slots: AgendaSlot[]; fil
 function ActionRow({ icon, title, sub, onClick, color }: {
   icon: React.ReactNode; title: string; sub: string; onClick: () => void; color: string;
 }) {
+  const bgIconCls =
+    color === "rose"
+      ? "bg-rose-50 text-rose-500 border border-rose-100"
+      : color === "amber"
+      ? "bg-amber-50 text-amber-600 border border-amber-200"
+      : "bg-emerald-50 text-emerald-600 border border-emerald-100";
+
   return (
     <button onClick={onClick}
-      className="w-full flex items-center gap-4 rounded-xl border border-slate-100 p-4 hover:bg-slate-50 text-left transition">
-      <div className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-${color}-50`}>{icon}</div>
+      className="w-full flex items-center gap-4 rounded-2xl border border-slate-100 p-3.5 hover:bg-slate-50 text-left transition cursor-pointer active:scale-[0.98]">
+      <div className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-xl ${bgIconCls}`}>{icon}</div>
       <div>
-        <p className="text-sm font-bold text-slate-900">{title}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
+        <p className="text-sm font-extrabold text-slate-900">{title}</p>
+        <p className="text-xs font-semibold text-slate-400 mt-0.5">{sub}</p>
       </div>
     </button>
   );

@@ -7,8 +7,8 @@
 /*  Its "Book Now" launches the real booking flow (review -> confirm). */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -50,7 +50,7 @@ import {
 import { browsePublicCoaches } from "@/lib/api/coaches";
 import type { Coach } from "@/lib/api/types";
 import { SiteHeader } from "@/components/site-header";
-import BookingFlow from "@/components/booking-flow";
+import BookingFlow, { type DealContext } from "@/components/booking-flow";
 import { ImageCarousel } from "@/components/ImageCarousel";
 import { getVenueById, getVenueReviews, createVenueReview, type Review } from "@/lib/api/venues";
 import { ApiError } from "@/lib/api/client";
@@ -109,6 +109,24 @@ function EventItineraryFaqs({ itinerary, faqs }: Pick<Listing, "itinerary" | "fa
   );
 }
 
+/** Reads the `?deal=1&date=&sport=&courtId=&slot=` query params a Last Minute Deal card
+ * deep-links with. Isolated in its own component so only this tiny piece needs the
+ * Suspense boundary `useSearchParams` requires, not the whole (already large) page. */
+function DealQueryParamsReader({ onDeal }: { onDeal: (ctx: DealContext) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("deal") !== "1") return;
+    const date = searchParams.get("date");
+    const slot = searchParams.get("slot");
+    const sport = searchParams.get("sport");
+    if (!date || !slot || !sport) return;
+    onDeal({ date, slotStart: slot, sport, courtId: searchParams.get("courtId") ?? undefined });
+    // Runs once per navigation — onDeal is a stable useCallback from the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+  return null;
+}
+
 export default function VenueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -116,6 +134,7 @@ export default function VenueDetailPage() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [selectedSportForBooking, setSelectedSportForBooking] = useState<string>("");
+  const [dealContext, setDealContext] = useState<DealContext | undefined>(undefined);
   // Desktop sport picker (the mobile shell owns its own copy of this state).
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sportModalOpen, setSportModalOpen] = useState(false);
@@ -127,6 +146,13 @@ export default function VenueDetailPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const handleDeal = useCallback((ctx: DealContext) => {
+    setDealContext(ctx);
+    setSelectedSportForBooking(ctx.sport);
+    setSelectedSport(ctx.sport);
+    setBooking(true);
+  }, []);
 
   useEffect(() => {
     getVenueReviews(id)
@@ -542,7 +568,18 @@ export default function VenueDetailPage() {
         />
       )}
 
-      {booking && <BookingFlow listing={venue} onClose={() => setBooking(false)} selectedSport={selectedSportForBooking} />}
+      {booking && (
+        <BookingFlow
+          listing={venue}
+          onClose={() => setBooking(false)}
+          selectedSport={selectedSportForBooking}
+          dealContext={dealContext}
+        />
+      )}
+
+      <Suspense fallback={null}>
+        <DealQueryParamsReader onDeal={handleDeal} />
+      </Suspense>
     </div>
   );
 }

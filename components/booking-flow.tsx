@@ -14,7 +14,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon, Layers } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ChevronLeft, Clock, Download, MapPin, Maximize2, Minimize2, Minus, Share2, ShieldCheck, Users, X, AlertTriangle, Plus, ArrowLeft, ArrowRight, Image as ImageIcon, Layers, Zap } from "lucide-react";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
 import { LoginModal } from "@/components/home/modals/LoginModal";
 import { SignupModal } from "@/components/home/modals/SignupModal";
@@ -293,6 +293,15 @@ function minutesToTime24(totalMinutes: number) {
 
 /* ------------------------------------------------------------------ */
 
+/** Deep-links checkout straight into one boosted Last Minute Deal — see LastMinuteDealCard's
+ * `dealHref` (query params) and venues/[id]/page.tsx (where these get parsed and passed in). */
+export interface DealContext {
+  date: string;
+  slotStart: string;
+  sport: string;
+  courtId?: string;
+}
+
 export default function BookingFlow({
   listing,
   onClose,
@@ -300,6 +309,7 @@ export default function BookingFlow({
   onStateChange,
   payTriggerRef,
   selectedSport,
+  dealContext,
 }: {
   listing: Listing;
   onClose: () => void;
@@ -309,12 +319,14 @@ export default function BookingFlow({
   /** Lets an embedding parent trigger the actual booking submit from its own button. */
   payTriggerRef?: MutableRefObject<(() => void) | null>;
   selectedSport?: string;
+  /** Preselects the exact boosted slot/court a player tapped from a Last Minute Deal card. */
+  dealContext?: DealContext;
 }) {
   const { status, customer } = useCustomerAuth();
   const today = new Date();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
-  const [date, setDate] = useState(() => todayISO());
+  const [date, setDate] = useState(() => dealContext?.date ?? todayISO());
   const [dateSelected, setDateSelected] = useState(true);
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
@@ -367,7 +379,7 @@ export default function BookingFlow({
   const [booking, setBooking] = useState<Booking | null>(null);
   // The game being booked — seeded from whatever the player picked outside,
   // but changeable from the chips inside the flow.
-  const [sport, setSport] = useState(selectedSport ?? "");
+  const [sport, setSport] = useState(dealContext?.sport ?? selectedSport ?? "");
   // Google/OTP signups may have no phone on file — bookings need one, so collect it inline.
   const needsPhone = !customer?.phone;
   const [phone, setPhone] = useState("");
@@ -518,11 +530,6 @@ export default function BookingFlow({
     ];
 
     const boostNow = isToday ? minutesOfDay(new Date(nowTick)) : -1;
-    const boostFor = (startTime24: string, status: string) =>
-      status === "Available" && isToday
-        ? activeBoostPct(listing.lastMinBoost, startTime24, boostNow, sport || undefined)
-        : 0;
-
     const statusFor = (slotStart: number, slotEnd: number) => {
       if (courtsForSport.length === 0) return slotStatusFor(slotStart, slotEnd, unavailableRanges);
       return freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).length > 0
@@ -531,6 +538,13 @@ export default function BookingFlow({
     };
     const freeIdsFor = (slotStart: number, slotEnd: number) =>
       freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).map((c) => c.id);
+    // A boost is scoped to one court; until the player overrides it, the first free
+    // court is what they'd end up with (see effectiveCourtIds below), so that's the
+    // court checked here — matches the backend's own "first selected court" check.
+    const boostFor = (startTime24: string, status: string, slotStart: number, slotEnd: number) =>
+      status === "Available" && isToday
+        ? activeBoostPct(listing.lastMinBoosts, startTime24, boostNow, sport || undefined, freeIdsFor(slotStart, slotEnd)[0])
+        : 0;
 
     const slotDuration = 60; // 1-hour duration per slot
 
@@ -559,7 +573,7 @@ export default function BookingFlow({
           label,
           price,
           status: slotStatus,
-          boostPct: boostFor(startTime24, slotStatus),
+          boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx,
         });
@@ -596,7 +610,7 @@ export default function BookingFlow({
         label: "🏷 Club Booking",
         price: cw.config.price,
         status: slotStatus,
-        boostPct: boostFor(startTime24, slotStatus),
+        boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
         freeCourtIds: freeIdsFor(slotStart, slotEnd),
         originalIndex: idx++,
         isClubSlot: true,
@@ -668,7 +682,7 @@ export default function BookingFlow({
           label,
           price,
           status: slotStatus,
-          boostPct: boostFor(startTime24, slotStatus),
+          boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx++,
         });
@@ -681,6 +695,26 @@ export default function BookingFlow({
     slots.sort((a, b) => time24ToMinutes(a.startTime) - time24ToMinutes(b.startTime));
     return slots.map((s, index) => ({ ...s, originalIndex: index }));
   }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
+
+  // One-time: once the deal's slot shows up as Available in the generated grid, select
+  // it (and its court) automatically so a player tapping a Last Minute Deal card lands
+  // directly on their boosted slot instead of an empty picker.
+  const dealPreselectedRef = useRef(false);
+  useEffect(() => {
+    if (!dealContext || dealPreselectedRef.current) return;
+    const match = generatedSlots.find((s) => s.startTime === dealContext.slotStart);
+    console.log("[dealDebug]", { dealSlot: dealContext.slotStart, allStarts: generatedSlots.map((s) => s.startTime), matchStatus: match?.status, matchIdx: match?.originalIndex });
+    if (!match) return;
+    if (match.status !== "Available") {
+      dealPreselectedRef.current = true; // already booked/expired — stop trying, let the player pick manually
+      return;
+    }
+    dealPreselectedRef.current = true;
+    setSelectedSlotIndices([match.originalIndex]);
+    if (dealContext.courtId && (match.freeCourtIds ?? []).includes(dealContext.courtId)) {
+      setCourtPicks([dealContext.courtId]);
+    }
+  }, [dealContext, generatedSlots]);
 
   const durationMin = useMemo(() => {
     if (selectedSlotIndices.length === 0) return 0;
@@ -698,6 +732,13 @@ export default function BookingFlow({
   }, [generatedSlots, activeDaypart]);
 
   useEffect(() => {
+    // A pending Last Minute Deal preselection (below) owns the very first selection —
+    // this effect and that one both react to the same bookedRanges/generatedSlots
+    // change, and since setState doesn't apply until the next render, letting both run
+    // here would have this effect's "first available slot" fallback clobber the deal's
+    // chosen slot in the same commit. dealPreselectedRef flips synchronously the moment
+    // the other effect claims it, so checking it here (not as a dependency) is enough.
+    if (dealContext && !dealPreselectedRef.current) return;
     if (listing.type === "Turf" && date) {
       const validIndices = selectedSlotIndices.filter(
         (idx) => generatedSlots[idx] && generatedSlots[idx].status === "Available"
@@ -763,6 +804,26 @@ export default function BookingFlow({
     }
     return listing.price + addOnsTotal;
   }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport]);
+
+  /** Whether the selected slot(s) are currently Last Minute Boost-discounted, and by how
+   * much — so checkout can show "original price / discounted price / you saved X" instead
+   * of silently charging the lower number. */
+  const dealSavings = useMemo(() => {
+    if (listing.type !== "Turf" || selectedSlotIndices.length === 0) return null;
+    const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
+    let original = 0;
+    let discounted = 0;
+    let boosted = false;
+    for (const idx of selectedSlotIndices) {
+      const slot = generatedSlots[idx];
+      if (!slot) continue;
+      original += slot.price * courtCount;
+      discounted += finalSlotPrice(slot) * courtCount;
+      if (slot.boostPct > 0) boosted = true;
+    }
+    if (!boosted || original <= discounted) return null;
+    return { originalPrice: original, discountedPrice: discounted, savings: original - discounted };
+  }, [listing.type, generatedSlots, selectedSlotIndices, selectedCourts, courtsForSport]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
   const canPay =
@@ -943,6 +1004,7 @@ export default function BookingFlow({
           selectedSlotIndices={selectedSlotIndices}
           onToggleSlotSelection={toggleSlotSelection}
           activePrice={activePrice}
+          dealSavings={dealSavings}
           payNowAmount={payNowAmount}
           payAtVenueAmount={payAtVenueAmount}
           partialConfig={partialConfig}
@@ -1147,6 +1209,7 @@ function ReviewStep(props: {
   selectedSlotIndices: number[];
   onToggleSlotSelection: (index: number) => void;
   activePrice: number;
+  dealSavings: { originalPrice: number; discountedPrice: number; savings: number } | null;
   payNowAmount: number;
   payAtVenueAmount: number;
   partialConfig: { enabled: boolean; type: "percentage" | "fixed"; value: number };
@@ -1214,6 +1277,7 @@ function ReviewStep(props: {
     selectedCourtIds,
     onToggleCourt,
     activePrice,
+    dealSavings,
     payNowAmount,
     payAtVenueAmount,
     partialConfig,
@@ -2239,6 +2303,30 @@ function ReviewStep(props: {
                 </div>
               )}
 
+              {dealSavings && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50/80 p-3 text-xs">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-orange-600">
+                    <Zap className="h-3.5 w-3.5 fill-orange-500 text-orange-500" /> Last Minute Deal Applied
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <span className="text-slate-500">Original Price</span>
+                    <span className="font-bold text-slate-400 line-through">
+                      ₹{dealSavings.originalPrice.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-slate-500">Discounted Price</span>
+                    <span className="font-bold text-orange-700">
+                      ₹{dealSavings.discountedPrice.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-slate-500">You Save</span>
+                    <span className="font-black text-emerald-600">₹{dealSavings.savings.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Breakdown Box */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
@@ -2423,6 +2511,25 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
             label={booking.courtNames && booking.courtNames.length > 1 ? "Courts" : "Court"}
             value={booking.courtNames?.length ? booking.courtNames.join(", ") : booking.courtName}
           />
+        )}
+        {booking.lastMinuteBoost && (
+          <div className="mt-2 rounded-xl border border-orange-200 bg-orange-50/80 p-2.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-orange-600">
+              <Zap className="h-3.5 w-3.5 fill-orange-500 text-orange-500" /> Last Minute Deal
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">Original Price</span>
+              <span className="font-bold text-slate-400 line-through">
+                ₹{booking.lastMinuteBoost.originalAmount.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="mt-0.5 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">You Saved</span>
+              <span className="font-black text-emerald-600">
+                ₹{booking.lastMinuteBoost.discountAmount.toLocaleString("en-IN")} ({booking.lastMinuteBoost.discountPct}%)
+              </span>
+            </div>
+          </div>
         )}
         {isGenuinePartial ? (
           <>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function BoostCountdown({ 
   slotStart, 
@@ -7,22 +7,28 @@ export function BoostCountdown({
   slotStart: string; 
   onExpire?: () => void;
 }) {
-  const [timeLeft, setTimeLeft] = useState<{ hrs: string; min: string; sec: string } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<{ hrs: string; min: string; sec: string }>({ hrs: "00", min: "00", sec: "00" });
+  const onExpireRef = useRef(onExpire);
+
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
   useEffect(() => {
     function calculateTime() {
       const now = new Date();
-      const [h, m] = slotStart.split(":").map(Number);
+      const [h = 0, m = 0] = (slotStart || "01:00").split(":").map(Number);
       
       const target = new Date();
       target.setHours(h, m, 0, 0);
 
-      const diffMs = target.getTime() - now.getTime();
-      if (diffMs <= 0) {
-        return null; // Expired
+      // If target time has already passed today, set target to tomorrow
+      if (target.getTime() <= now.getTime()) {
+        target.setDate(target.getDate() + 1);
       }
 
-      const totalSecs = Math.floor(diffMs / 1000);
+      const diffMs = target.getTime() - now.getTime();
+      const totalSecs = Math.max(0, Math.floor(diffMs / 1000));
       const hrs = Math.floor(totalSecs / 3600);
       const mins = Math.floor((totalSecs % 3600) / 60);
       const secs = totalSecs % 60;
@@ -34,27 +40,14 @@ export function BoostCountdown({
       };
     }
 
-    const initial = calculateTime();
-    if (!initial) {
-      if (onExpire) onExpire();
-      return;
-    }
-
-    setTimeLeft(initial);
+    setTimeLeft(calculateTime());
 
     const interval = setInterval(() => {
-      const remaining = calculateTime();
-      if (!remaining) {
-        clearInterval(interval);
-        setTimeLeft({ hrs: "00", min: "00", sec: "00" });
-        if (onExpire) onExpire();
-      } else {
-        setTimeLeft(remaining);
-      }
+      setTimeLeft(calculateTime());
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [slotStart, onExpire]);
+  }, [slotStart]);
 
   if (!timeLeft) {
     return (
