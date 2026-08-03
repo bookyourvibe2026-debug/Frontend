@@ -78,7 +78,7 @@ function AdminLoginInner() {
             </div>
             <div>
               <p className="text-sm font-extrabold tracking-tight text-slate-900">
-                BOOK <span className="text-orange-600">YOUR VIBE</span>
+                BOOK YOUR <span className="text-orange-600">VIBE</span>
               </p>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Admin Studio</p>
             </div>
