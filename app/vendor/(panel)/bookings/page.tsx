@@ -17,6 +17,7 @@ import {
   Pause,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   Check,
   CheckSquare,
   Layers,
@@ -1184,10 +1185,6 @@ export default function BookingsPage() {
     : false;
 
   function handleTimelineSlotClick(slot: AgendaSlot) {
-    if (slot.status === "Available") {
-      startOfflineBooking(slot);
-      return;
-    }
     setActiveSlot(slot);
   }
 
@@ -1614,58 +1611,74 @@ export default function BookingsPage() {
         />
       )}
 
-      {/* ── LONG-PRESS QUICK ACTIONS (empty slot → book offline / block fast) ── */}
+      {/* ── ACTION SELECTION BOTTOM SHEET (FOR ALL AVAILABLE SLOTS) ── */}
       {quickActionsOpen && activeSlot && !offlineModal && !blockReasonOpen && !pendingConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}>
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom-4 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-sm font-black text-slate-900">Quick actions</h3>
-                <p className="text-[11px] font-semibold text-slate-400">{to12h(activeSlot.startTime)} · {to12h(activeSlot.endTime)}</p>
+                <h3 className="text-base font-black text-slate-900">Select Action</h3>
+                <p className="text-[11px] font-bold text-emerald-700 font-mono mt-0.5">
+                  {to12h(activeSlot.startTime)} – {to12h(activeSlot.endTime)} · ₹{activeSlot.price}
+                </p>
               </div>
-              <button onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
               <button
-                onClick={() => { setQuickActionsOpen(false); startOfflineBooking(activeSlot); }}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-emerald-700 transition active:scale-95"
+                type="button"
+                onClick={() => { setQuickActionsOpen(false); setActiveSlot(null); }}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition cursor-pointer"
               >
-                <BookOpen size={20} />
-                <span className="text-[11px] font-black">Offline Booking</span>
-              </button>
-              <button
-                onClick={() => { setQuickActionsOpen(false); setBlockReasonOpen(true); }}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 py-4 text-rose-600 transition active:scale-95"
-              >
-                <Ban size={20} />
-                <span className="text-[11px] font-black">Block Slot</span>
+                <X size={16} />
               </button>
             </div>
-            {(() => {
-              const nextSlot = activeSlot ? resolvedSlots.find(s => s.startTime === activeSlot.endTime) : null;
-              const canBookTwo = nextSlot && nextSlot.status === "Available" && activeSlot?.status === "Available";
-              if (!canBookTwo) return null;
-              return (
-                <button
-                  onClick={() => {
-                    setQuickActionsOpen(false);
-                    if (activeSlot && nextSlot) {
-                      void startOfflineBookingTwoSlots(activeSlot, nextSlot);
-                    }
-                  }}
-                  className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-50 py-3 text-emerald-700 hover:bg-emerald-100 transition active:scale-95 shadow-sm"
-                >
-                  <BookOpen size={16} className="text-emerald-600 shrink-0" />
-                  <span className="text-[11px] font-black">Offline Book 2 Slots Together ({to12h(activeSlot.startTime)} - {to12h(nextSlot.endTime)})</span>
-                </button>
-              );
-            })()}
-            <button
-              onClick={() => setQuickActionsOpen(false)}
-              className="mt-2.5 w-full rounded-xl py-2.5 text-[11px] font-black text-slate-500 hover:bg-slate-50"
-            >
-              More options
-            </button>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickActionsOpen(false);
+                  startOfflineBooking(activeSlot);
+                }}
+                className="flex w-full items-center gap-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-left transition hover:bg-emerald-100/70 cursor-pointer active:scale-[0.98] shadow-2xs"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                  <BookOpen size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-slate-900">Create Offline Booking</p>
+                  <p className="text-[10px] font-medium text-slate-500 mt-0.5">Walk-in or phone customer booking</p>
+                </div>
+                <ChevronRight size={18} className="text-emerald-700" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickActionsOpen(false);
+                  if (activeSlot.isClubSlot) {
+                    handleBlockClubSlot(activeSlot);
+                  } else {
+                    setBlockReasonOpen(true);
+                  }
+                }}
+                className="flex w-full items-center gap-3.5 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-left transition hover:bg-rose-100/70 cursor-pointer active:scale-[0.98] shadow-2xs"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm">
+                  <Ban size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-slate-900">Block Slot</p>
+                  <p className="text-[10px] font-medium text-slate-500 mt-0.5">Block slot for maintenance or private events</p>
+                </div>
+                <ChevronRight size={18} className="text-rose-700" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1691,8 +1704,30 @@ export default function BookingsPage() {
 
             {activeSlot.status === "Available" ? (
               <div className="space-y-2">
-                <ActionRow icon={<Ban size={18} className="text-rose-500" />} color="rose" title="Block Slot" sub="Mark as blocked for maintenance or other reasons" onClick={() => setBlockReasonOpen(true)} />
-                <ActionRow icon={<BookOpen size={18} className="text-emerald-600" />} color="emerald" title="Offline Booking" sub="Book manually for a walk-in or phone customer" onClick={() => startOfflineBooking(activeSlot)} />
+                <ActionRow
+                  icon={<Ban size={18} className="text-rose-500" />}
+                  color="rose"
+                  title="Block Slot"
+                  sub="Mark as blocked for maintenance or other reasons"
+                  onClick={() => {
+                    if (activeSlot.isClubSlot) {
+                      handleBlockClubSlot(activeSlot);
+                    } else {
+                      setBlockReasonOpen(true);
+                    }
+                  }}
+                />
+                <ActionRow
+                  icon={<BookOpen size={18} className="text-emerald-600" />}
+                  color="emerald"
+                  title="Offline Booking"
+                  sub="Book manually for a walk-in or phone customer"
+                  onClick={() => {
+                    const target = activeSlot;
+                    setActiveSlot(null);
+                    startOfflineBooking(target);
+                  }}
+                />
               </div>
             ) : (
               <div className="space-y-3">
