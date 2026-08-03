@@ -52,7 +52,7 @@ export function LastMinuteDealsSection({ className = "mx-auto mt-8 max-w-7xl px-
             </span>
             <div className="mt-1">
               <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-none">
-                Up to 30% OFF
+                Up to 30% OFF 
               </h2>
               <p className="mt-1.5 text-[11px] font-semibold text-orange-100/90 leading-none">
                 On Last Minute Bookings
