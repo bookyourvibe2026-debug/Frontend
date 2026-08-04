@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Flame } from "lucide-react";
 import { SectionHeading } from "./ui";
 import { useLastMinuteDeals } from "@/lib/hooks/useLastMinuteDeals";
-import { BOOST_MAX_PCT } from "@/lib/lastMinBoost";
 
 /** Player-facing Last Minute Deals — a single aggregate promo card teasing the platform's
  * max possible discount (not whatever today's live deals happen to cap out at, so the

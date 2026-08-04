@@ -769,11 +769,15 @@ export default function BookingFlow({
     return base.filter((id) => freeCourts.some((c) => c.id === id));
   }, [courtPicks, freeCourts]);
 
-  const toggleCourt = (id: string) =>
+  const toggleCourt = (id: string) => {
+    // A boosted booking is locked to the exact court the vendor discounted — the player
+    // can't swap it out for another court mid-booking.
+    if (dealContext) return;
     setCourtPicks((prev) => {
       const base = prev ?? (freeCourts[0] ? [freeCourts[0].id] : []);
       return base.includes(id) ? base.filter((c) => c !== id) : [...base, id];
     });
+  };
 
   const selectedCourts = useMemo(
     () => courtsForSport.filter((c) => effectiveCourtIds.includes(c.id)),
@@ -1028,6 +1032,7 @@ export default function BookingFlow({
           selectedCourts={selectedCourts}
           selectedCourtIds={effectiveCourtIds}
           onToggleCourt={toggleCourt}
+          lockedCourtId={dealContext?.courtId}
         />
       )}
 
@@ -1231,6 +1236,8 @@ function ReviewStep(props: {
   /** Courts the player has taken for the selected slots — several are allowed. */
   selectedCourtIds: string[];
   onToggleCourt: (id: string) => void;
+  /** Set when booking through a Last Minute Deal deep link — only this court is shown/selectable. */
+  lockedCourtId?: string;
   needsPhone: boolean;
   phone: string;
   setPhone: (v: string) => void;
@@ -1276,6 +1283,7 @@ function ReviewStep(props: {
     selectedCourts,
     selectedCourtIds,
     onToggleCourt,
+    lockedCourtId,
     activePrice,
     dealSavings,
     payNowAmount,
@@ -1394,11 +1402,13 @@ function ReviewStep(props: {
     el.scrollBy({ left: direction * Math.max(220, el.clientWidth * 0.85), behavior: "smooth" });
   }
 
-  /** Same rule for courts: free ones first, already-booked ones greyed out at the end. */
+  /** Same rule for courts: free ones first, already-booked ones greyed out at the end.
+   * A boosted booking only ever shows the one court the vendor discounted. */
   const orderedCourts = useMemo(() => {
     const free = new Set(freeCourts.map((c) => c.id));
-    return [...courtsForSport].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
-  }, [courtsForSport, freeCourts]);
+    const base = lockedCourtId ? courtsForSport.filter((c) => c.id === lockedCourtId) : courtsForSport;
+    return [...base].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
+  }, [courtsForSport, freeCourts, lockedCourtId]);
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
@@ -1971,7 +1981,13 @@ function ReviewStep(props: {
                         <div className="mt-4">
                           <div className="flex items-baseline justify-between">
                             <p className="text-base font-black text-slate-900">
-                              {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
+                              {lockedCourtId ? (
+                                "Last Minute Deal court"
+                              ) : (
+                                <>
+                                  {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
+                                </>
+                              )}
                             </p>
                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                               {selectedCourtIds.length} selected
