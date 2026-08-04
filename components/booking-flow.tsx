@@ -729,17 +729,23 @@ export default function BookingFlow({
   useEffect(() => {
     if (!dealContext || dealPreselectedRef.current) return;
     const match = generatedSlots.find((s) => s.startTime === dealContext.slotStart);
-    console.log("[dealDebug]", { dealSlot: dealContext.slotStart, allStarts: generatedSlots.map((s) => s.startTime), matchStatus: match?.status, matchIdx: match?.originalIndex });
     if (!match) return;
     if (match.status !== "Available") {
       dealPreselectedRef.current = true; // already booked/expired — stop trying, let the player pick manually
       return;
     }
     dealPreselectedRef.current = true;
+    setActiveDaypart("All");
     setSelectedSlotIndices([match.originalIndex]);
     if (dealContext.courtId && (match.freeCourtIds ?? []).includes(dealContext.courtId)) {
       setCourtPicks([dealContext.courtId]);
     }
+    setTimeout(() => {
+      const el = document.getElementById(`slot-button-${dealContext.slotStart}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+    }, 150);
   }, [dealContext, generatedSlots]);
 
   const durationMin = useMemo(() => {
@@ -796,9 +802,6 @@ export default function BookingFlow({
   }, [courtPicks, freeCourts]);
 
   const toggleCourt = (id: string) => {
-    // A boosted booking is locked to the exact court the vendor discounted — the player
-    // can't swap it out for another court mid-booking.
-    if (dealContext) return;
     setCourtPicks((prev) => {
       const base = prev ?? (freeCourts[0] ? [freeCourts[0].id] : []);
       return base.includes(id) ? base.filter((c) => c !== id) : [...base, id];
@@ -1443,8 +1446,13 @@ function ReviewStep(props: {
    * A boosted booking only ever shows the one court the vendor discounted. */
   const orderedCourts = useMemo(() => {
     const free = new Set(freeCourts.map((c) => c.id));
-    const base = lockedCourtId ? courtsForSport.filter((c) => c.id === lockedCourtId) : courtsForSport;
-    return [...base].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
+    return [...courtsForSport].sort((a, b) => {
+      if (lockedCourtId) {
+        if (a.id === lockedCourtId) return -1;
+        if (b.id === lockedCourtId) return 1;
+      }
+      return Number(free.has(b.id)) - Number(free.has(a.id));
+    });
   }, [courtsForSport, freeCourts, lockedCourtId]);
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
@@ -1903,6 +1911,7 @@ function ReviewStep(props: {
                                 return (
                                   <button
                                     key={slot.originalIndex}
+                                    id={`slot-button-${slot.startTime}`}
                                     type="button"
                                     disabled={!available}
                                     onClick={() => {
@@ -1953,6 +1962,7 @@ function ReviewStep(props: {
                               return (
                                 <button
                                   key={slot.originalIndex}
+                                  id={`slot-button-${slot.startTime}`}
                                   type="button"
                                   disabled={!available}
                                   onClick={() => {
@@ -2018,13 +2028,7 @@ function ReviewStep(props: {
                         <div className="mt-4">
                           <div className="flex items-baseline justify-between">
                             <p className="text-base font-black text-slate-900">
-                              {lockedCourtId ? (
-                                "Last Minute Deal court"
-                              ) : (
-                                <>
-                                  {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
-                                </>
-                              )}
+                              {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
                             </p>
                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                               {selectedCourtIds.length} selected
@@ -2041,6 +2045,9 @@ function ReviewStep(props: {
                                 const slot = generatedSlots[idx];
                                 return sum + (slot ? courtSlotPrice(slot, court.id) : 0);
                               }, 0);
+                              const courtBoostPct = selectedSlotIndices.length > 0
+                                ? Math.max(0, ...selectedSlotIndices.map((idx) => generatedSlots[idx]?.courtBoostPct?.[court.id] || 0))
+                                : 0;
                               const meta = [court.surface, ...(court.sports ?? [])].filter(Boolean).join(" | ");
                               const photo = court.image || listing.coverImage || listing.images?.[0]?.url;
 
@@ -2079,12 +2086,22 @@ function ReviewStep(props: {
                                         {meta}
                                       </span>
                                     )}
-                                    <span
-                                      className={`mt-1 block text-[13px] font-black ${isFree ? "text-slate-900" : "text-slate-400"
-                                        }`}
-                                    >
-                                      {isFree ? `₹${totalCourtPrice.toLocaleString("en-IN")}` : "Booked"}
-                                    </span>
+                                    {isFree ? (
+                                      <span className="mt-1 flex items-center gap-1.5">
+                                        <span className="text-[13px] font-black text-slate-900">
+                                          ₹{totalCourtPrice.toLocaleString("en-IN")}
+                                        </span>
+                                        {courtBoostPct > 0 && (
+                                          <span className="rounded-md border border-red-200 bg-red-50 px-1.5 py-0.2 text-[9.5px] font-black uppercase text-red-600">
+                                            ⚡ {courtBoostPct}% OFF
+                                          </span>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="mt-1 block text-[13px] font-black text-slate-400">
+                                        Booked
+                                      </span>
+                                    )}
                                   </span>
 
                                   <span
