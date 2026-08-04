@@ -203,16 +203,22 @@ function SportChips({
   sport,
   onSelect,
   className = "",
+  lockedSport,
 }: {
   listing: Listing;
   sport?: string;
   onSelect: (s: string) => void;
   className?: string;
+  /** Booking through a Last Minute Deal — only this one sport is shown, nothing to switch to. */
+  lockedSport?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const categories = useMemo(() => {
     const raw = listing.categories ?? [];
+    if (lockedSport) {
+      return raw.filter((catId) => categoryLabel(catId).toLowerCase() === lockedSport.toLowerCase());
+    }
     if (!sport || raw.length <= 1) return raw;
 
     const activeCatId = raw.find((catId) => categoryLabel(catId).toLowerCase() === sport.toLowerCase());
@@ -220,7 +226,7 @@ function SportChips({
 
     const rest = raw.filter((catId) => catId !== activeCatId);
     return [activeCatId, ...rest];
-  }, [listing.categories, sport]);
+  }, [listing.categories, sport, lockedSport]);
 
   const handleSelect = (name: string) => {
     onSelect(name);
@@ -345,6 +351,8 @@ export default function BookingFlow({
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
 
   function toggleSlotSelection(index: number) {
+    // A Last Minute Deal booking is locked to the exact slot the vendor boosted.
+    if (dealContext) return;
     setCourtPicks(null);
     const targetSlot = generatedSlots[index];
     if (!targetSlot || targetSlot.status !== "Available") return;
@@ -1009,6 +1017,8 @@ export default function BookingFlow({
           listing={listing}
           date={date}
           setDate={(v) => {
+            // A Last Minute Deal booking is locked to the exact date it was offered on.
+            if (dealContext) return;
             // Another day has its own free courts, so the pick resets with the date.
             setCourtPicks(null);
             setDate(v);
@@ -1061,6 +1071,9 @@ export default function BookingFlow({
           setVisibleYear={setVisibleYear}
           selectedSport={sport}
           onSelectSport={(s) => {
+            // A Last Minute Deal booking is locked end-to-end — sport, court, and slot
+            // are all fixed to exactly what the vendor boosted.
+            if (dealContext) return;
             // Each game has its own courts — a badminton pick can't carry into cricket.
             setCourtPicks(null);
             setSport(s);
@@ -1072,7 +1085,9 @@ export default function BookingFlow({
           selectedCourts={selectedCourts}
           selectedCourtIds={effectiveCourtIds}
           onToggleCourt={toggleCourt}
+          lockedForDeal={!!dealContext}
           lockedCourtId={dealContext?.courtId}
+          lockedSlotStart={dealContext?.slotStart}
         />
       )}
 
@@ -1278,6 +1293,10 @@ function ReviewStep(props: {
   onToggleCourt: (id: string) => void;
   /** Set when booking through a Last Minute Deal deep link — only this court is shown/selectable. */
   lockedCourtId?: string;
+  /** Booking through a Last Minute Deal — sport/court/slot/date are all fixed, nothing switchable. */
+  lockedForDeal: boolean;
+  /** The one slot start ("HH:mm") shown when lockedForDeal is set. */
+  lockedSlotStart?: string;
   needsPhone: boolean;
   phone: string;
   setPhone: (v: string) => void;
@@ -1324,6 +1343,8 @@ function ReviewStep(props: {
     selectedCourtIds,
     onToggleCourt,
     lockedCourtId,
+    lockedForDeal,
+    lockedSlotStart,
     activePrice,
     dealSavings,
     payNowAmount,
@@ -1418,8 +1439,11 @@ function ReviewStep(props: {
    */
   const orderedSlots = useMemo(() => {
     const rank = (s: { status: string }) => (s.status === "Available" ? 0 : s.status === "Past" ? 2 : 1);
-    return [...filteredGeneratedSlots].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
-  }, [filteredGeneratedSlots]);
+    const base = lockedSlotStart
+      ? filteredGeneratedSlots.filter((s) => s.startTime === lockedSlotStart)
+      : filteredGeneratedSlots;
+    return [...base].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
+  }, [filteredGeneratedSlots, lockedSlotStart]);
 
   /* The slot strip is a 2-row carousel rather than a full grid — a venue open 06:00–24:00
      otherwise renders 18 cards and buries the courts and the price under a wall of slots.
@@ -1555,7 +1579,7 @@ function ReviewStep(props: {
           </div>
           {/* Game selector in the header — the player picks the sport they're booking. */}
           {mobileStep === "slots" && (
-            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" />
+            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" lockedSport={lockedForDeal ? selectedSport : undefined} />
           )}
         </div>
       )}
@@ -1624,7 +1648,7 @@ function ReviewStep(props: {
               </p>
               {/* Mobile shows the game chips in the page header; desktop/embedded show them here. */}
               <div className={embedded ? "mt-2" : "mt-2 hidden lg:block"}>
-                <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} />
+                <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} lockedSport={lockedForDeal ? selectedSport : undefined} />
               </div>
 
               {/* Month header — continuous month navigation & dynamic scroll tracking */}
