@@ -25,6 +25,7 @@ import { categoryLabel, matchesCourtSport } from "@/lib/taxonomy";
 // `nowMinutes` is aliased: the slot generator already has a local of that name.
 import { activeBoostPct, boostedPrice, nowMinutes as minutesOfDay } from "@/lib/lastMinBoost";
 import { downloadBookingTicket } from "@/lib/ticket";
+import { BookingQrCode } from "@/components/BookingQrCode";
 import { trackEvent } from "@/lib/analytics";
 import type { AddOn, Booking, Court, Listing, PaymentMethod } from "@/lib/api/types";
 
@@ -730,18 +731,19 @@ export default function BookingFlow({
     return slots.map((s, index) => ({ ...s, originalIndex: index }));
   }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
 
-  // One-time: once the deal's slot shows up as Available in the generated grid, select
-  // it (and its court) automatically so a player tapping a Last Minute Deal card lands
-  // directly on their boosted slot instead of an empty picker.
+  // Once the deal's slot shows up as Available in the generated grid, select it (and its
+  // court) automatically so a player tapping a Last Minute Deal card lands directly on
+  // their boosted slot instead of an empty picker. Deliberately keeps retrying on every
+  // generatedSlots change rather than giving up after one failed check — the very first
+  // render(s) can transiently show a slot as unavailable before the async availability
+  // fetch (bookedRanges) has actually resolved, and giving up there permanently would
+  // strand the player on a default slot/court instead of the boosted one. Only a genuine
+  // user pick (toggleSlotSelection/toggleCourt) should stop this from trying again.
   const dealPreselectedRef = useRef(false);
   useEffect(() => {
     if (!dealContext || dealPreselectedRef.current) return;
     const match = generatedSlots.find((s) => s.startTime === dealContext.slotStart);
-    if (!match) return;
-    if (match.status !== "Available") {
-      dealPreselectedRef.current = true; // already booked/expired — stop trying, let the player pick manually
-      return;
-    }
+    if (!match || match.status !== "Available") return;
     dealPreselectedRef.current = true;
     setActiveDaypart("All");
     setSelectedSlotIndices([match.originalIndex]);
@@ -810,6 +812,9 @@ export default function BookingFlow({
   }, [courtPicks, freeCourts]);
 
   const toggleCourt = (id: string) => {
+    // A boosted booking is locked to the exact court the vendor discounted — the player
+    // can't swap it out for another court mid-booking.
+    if (dealContext) return;
     setCourtPicks((prev) => {
       const base = prev ?? (freeCourts[0] ? [freeCourts[0].id] : []);
       return base.includes(id) ? base.filter((c) => c !== id) : [...base, id];
@@ -1467,16 +1472,12 @@ function ReviewStep(props: {
   }
 
   /** Same rule for courts: free ones first, already-booked ones greyed out at the end.
-   * A boosted booking only ever shows the one court the vendor discounted. */
+   * A boosted booking only ever shows the one court the vendor discounted — the player
+   * has no way to pick a different court while booking through a Last Minute Deal. */
   const orderedCourts = useMemo(() => {
     const free = new Set(freeCourts.map((c) => c.id));
-    return [...courtsForSport].sort((a, b) => {
-      if (lockedCourtId) {
-        if (a.id === lockedCourtId) return -1;
-        if (b.id === lockedCourtId) return 1;
-      }
-      return Number(free.has(b.id)) - Number(free.has(a.id));
-    });
+    const base = lockedCourtId ? courtsForSport.filter((c) => c.id === lockedCourtId) : courtsForSport;
+    return [...base].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
   }, [courtsForSport, freeCourts, lockedCourtId]);
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
@@ -2052,7 +2053,13 @@ function ReviewStep(props: {
                         <div className="mt-4">
                           <div className="flex items-baseline justify-between">
                             <p className="text-base font-black text-slate-900">
-                              {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
+                              {lockedCourtId ? (
+                                "Last Minute Deal court"
+                              ) : (
+                                <>
+                                  {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
+                                </>
+                              )}
                             </p>
                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                               {selectedCourtIds.length} selected
@@ -2667,6 +2674,8 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
           Show Order ID at venue — owner scans it to check you in as <span className="font-bold">{booking.orderId}</span>.
         </span>
       </div>
+
+      <BookingQrCode booking={booking} />
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button

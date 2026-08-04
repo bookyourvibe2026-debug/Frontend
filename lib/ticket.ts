@@ -1,6 +1,22 @@
 import QRCode from "qrcode";
 import type { Booking, FoodOrder } from "./api/types";
 
+/** The exact payload encoded on a booking's QR — used by both the downloadable ticket
+ * and the in-app confirmation screen, so either one scans to the same check-in (see
+ * parseTicketQr in components/vendor/bookings/QrScannerModal.tsx, which reads this shape). */
+export function bookingQrPayload(booking: Pick<Booking, "orderId" | "listingId">): string {
+  return JSON.stringify({ orderId: booking.orderId, listingId: booking.listingId });
+}
+
+/** Renders a booking's QR as a data URL image, for inline display (not just the PNG ticket). */
+export function bookingQrDataUrl(booking: Pick<Booking, "orderId" | "listingId">, size = 168): Promise<string> {
+  return QRCode.toDataURL(bookingQrPayload(booking), {
+    margin: 0,
+    width: size,
+    color: { dark: "#0f172a", light: "#ffffffff" },
+  });
+}
+
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   return {
@@ -111,9 +127,10 @@ export async function downloadBookingTicket(booking: Booking) {
   ctx.font = "bold 18px monospace";
   ctx.fillText(booking.orderId, stubX + 30, 64);
 
-  // real, scannable QR code encoding the order id — venues can scan this to check in the booking
-  const qrPayload = JSON.stringify({ orderId: booking.orderId, listingId: booking.listingId });
-  const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+  // Real, scannable QR encoding the order id — venues scan this to check the booking in.
+  // Same payload as the confirmation screen's inline QR (see bookingQrPayload above), so
+  // either one works interchangeably at the door.
+  const qrDataUrl = await QRCode.toDataURL(bookingQrPayload(booking), {
     margin: 0,
     width: 168,
     color: { dark: "#0f172a", light: "#00000000" },
