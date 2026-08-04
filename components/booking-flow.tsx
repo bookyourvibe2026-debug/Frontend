@@ -84,13 +84,20 @@ function freeCourtsFor(
 
 /**
  * What one hour costs — the price the vendor set on that time slot, straight from the
- * listing API. It is the only rate in the product: every court in a slot costs the same,
- * so the slot card and the court list can never disagree. Booking two courts costs the
- * slot price twice. Last Min Boost is the only thing applied on top, matching the
- * backend's order so the quote and the charge agree — see booking.service.ts.
+ * listing API. Every court in a slot costs the same base rate; Last Min Boost is the only
+ * thing applied on top, and it's scoped to one exact court (see courtBoostPct on the
+ * slot) — courtSlotPrice below is what actually prices a specific court's button, so a
+ * boost on Court 4 never bleeds into Court 6's price. finalSlotPrice is the slot-level
+ * fallback (best available discount across free courts) for contexts with no specific
+ * court in hand yet.
  */
 function finalSlotPrice(slot: { price: number; boostPct?: number }): number {
   return slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price;
+}
+
+function courtSlotPrice(slot: { price: number; courtBoostPct?: Record<string, number> }, courtId: string | undefined): number {
+  const pct = (courtId && slot.courtBoostPct?.[courtId]) || 0;
+  return pct > 0 ? boostedPrice(slot.price, pct) : slot.price;
 }
 
 /* Start times a venue can be booked from. */
@@ -538,13 +545,29 @@ export default function BookingFlow({
     };
     const freeIdsFor = (slotStart: number, slotEnd: number) =>
       freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).map((c) => c.id);
-    // A boost is scoped to one court; until the player overrides it, the first free
-    // court is what they'd end up with (see effectiveCourtIds below), so that's the
-    // court checked here — matches the backend's own "first selected court" check.
-    const boostFor = (startTime24: string, status: string, slotStart: number, slotEnd: number) =>
+
+    // A boost is scoped to one exact court — this is the per-court source of truth the
+    // court picker prices off of, so Court 6 never inherits Court 4's discount just
+    // because they're both free for the same slot.
+    const boostPctForCourt = (startTime24: string, status: string, courtId: string | undefined) =>
       status === "Available" && isToday
-        ? activeBoostPct(listing.lastMinBoosts, startTime24, boostNow, sport || undefined, freeIdsFor(slotStart, slotEnd)[0])
+        ? activeBoostPct(listing.lastMinBoosts, startTime24, boostNow, sport || undefined, courtId)
         : 0;
+    const courtBoostPctFor = (startTime24: string, status: string, slotStart: number, slotEnd: number) => {
+      const map: Record<string, number> = {};
+      for (const id of freeIdsFor(slotStart, slotEnd)) {
+        map[id] = boostPctForCourt(startTime24, status, id);
+      }
+      return map;
+    };
+    // Slot-card-level badge only — "does *some* court on this slot have a deal right
+    // now", shown before a court is picked. The map above is what actually prices
+    // each individual court button.
+    const boostFor = (startTime24: string, status: string, slotStart: number, slotEnd: number) => {
+      const ids = freeIdsFor(slotStart, slotEnd);
+      if (ids.length === 0) return boostPctForCourt(startTime24, status, undefined);
+      return Math.max(...ids.map((id) => boostPctForCourt(startTime24, status, id)));
+    };
 
     const slotDuration = 60; // 1-hour duration per slot
 
@@ -574,6 +597,7 @@ export default function BookingFlow({
           price,
           status: slotStatus,
           boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
+          courtBoostPct: courtBoostPctFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx,
         });
@@ -611,6 +635,7 @@ export default function BookingFlow({
         price: cw.config.price,
         status: slotStatus,
         boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
+        courtBoostPct: courtBoostPctFor(startTime24, slotStatus, slotStart, slotEnd),
         freeCourtIds: freeIdsFor(slotStart, slotEnd),
         originalIndex: idx++,
         isClubSlot: true,
@@ -683,6 +708,7 @@ export default function BookingFlow({
           price,
           status: slotStatus,
           boostPct: boostFor(startTime24, slotStatus, slotStart, slotEnd),
+          courtBoostPct: courtBoostPctFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx++,
         });
@@ -794,11 +820,19 @@ export default function BookingFlow({
       // it win here would silently charge the flat tier price instead of the real total.
       if (selectedSlotIndices.length === 0) return addOnsTotal;
       // Every court booked pays the slot price, so 2 courts for an hour costs it twice.
-      // A venue without courts is a single unit and pays it once.
+      // A venue without courts is a single unit and pays it once. The boost — scoped to
+      // one exact court — is checked against whichever court would actually be booked
+      // (the first selected one), then applied to the combined total, matching exactly
+      // how the backend prices it (see booking.service.ts: sum courts first, discount
+      // the sum by the first selected court's eligibility, not per-court).
       const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
+      const primaryCourtId = effectiveCourtIds[0];
       const slotsTotal = selectedSlotIndices.reduce((sum, idx) => {
         const slot = generatedSlots[idx];
-        return sum + (slot ? finalSlotPrice(slot) * courtCount : 0);
+        if (!slot) return sum;
+        const rawTotal = slot.price * courtCount;
+        const pct = (primaryCourtId && slot.courtBoostPct?.[primaryCourtId]) || 0;
+        return sum + (pct > 0 ? boostedPrice(rawTotal, pct) : rawTotal);
       }, 0);
       return slotsTotal + addOnsTotal;
     }
@@ -807,27 +841,30 @@ export default function BookingFlow({
       return selectedTier.amount + addOnsTotal;
     }
     return listing.price + addOnsTotal;
-  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport]);
+  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport, effectiveCourtIds]);
 
   /** Whether the selected slot(s) are currently Last Minute Boost-discounted, and by how
    * much — so checkout can show "original price / discounted price / you saved X" instead
-   * of silently charging the lower number. */
+   * of silently charging the lower number. Mirrors activePrice's court-specific logic. */
   const dealSavings = useMemo(() => {
     if (listing.type !== "Turf" || selectedSlotIndices.length === 0) return null;
     const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
+    const primaryCourtId = effectiveCourtIds[0];
     let original = 0;
     let discounted = 0;
     let boosted = false;
     for (const idx of selectedSlotIndices) {
       const slot = generatedSlots[idx];
       if (!slot) continue;
-      original += slot.price * courtCount;
-      discounted += finalSlotPrice(slot) * courtCount;
-      if (slot.boostPct > 0) boosted = true;
+      const rawTotal = slot.price * courtCount;
+      const pct = (primaryCourtId && slot.courtBoostPct?.[primaryCourtId]) || 0;
+      original += rawTotal;
+      discounted += pct > 0 ? boostedPrice(rawTotal, pct) : rawTotal;
+      if (pct > 0) boosted = true;
     }
     if (!boosted || original <= discounted) return null;
     return { originalPrice: original, discountedPrice: discounted, savings: original - discounted };
-  }, [listing.type, generatedSlots, selectedSlotIndices, selectedCourts, courtsForSport]);
+  }, [listing.type, generatedSlots, selectedSlotIndices, selectedCourts, courtsForSport, effectiveCourtIds]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
   const canPay =
@@ -1998,11 +2035,11 @@ function ReviewStep(props: {
                             {orderedCourts.map((court) => {
                               const isFree = freeCourts.some((c) => c.id === court.id);
                               const active = isFree && selectedCourtIds.includes(court.id);
-                              // Every court costs the slot price, so this is the same figure
-                              // shown on the slot card above (times the hours picked).
+                              // Priced per this exact court — a boost on Court 4 must not
+                              // show up on Court 6's button just because they share a slot.
                               const totalCourtPrice = selectedSlotIndices.reduce((sum, idx) => {
                                 const slot = generatedSlots[idx];
-                                return sum + (slot ? finalSlotPrice(slot) : 0);
+                                return sum + (slot ? courtSlotPrice(slot, court.id) : 0);
                               }, 0);
                               const meta = [court.surface, ...(court.sports ?? [])].filter(Boolean).join(" | ");
                               const photo = court.image || listing.coverImage || listing.images?.[0]?.url;
