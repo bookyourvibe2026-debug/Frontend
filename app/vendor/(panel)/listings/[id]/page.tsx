@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,18 +10,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
+import { PackageStudio } from "@/components/vendor/PackageStudio";
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { ClockSlotsWidget } from "@/components/vendor/ClockSlotsWidget";
-
-// Only rendered once the vendor opens the edit studio modal — code-split out of this
-// listing detail page's initial bundle.
-const PackageStudio = dynamic(
-  () => import("@/components/vendor/PackageStudio").then((m) => m.PackageStudio),
-  { ssr: false }
-);
-const EventStudio = dynamic(
-  () => import("@/components/vendor/EventStudio").then((m) => m.EventStudio),
-  { ssr: false }
-);
 import { uploadVendorImage } from "@/lib/api/uploads";
 import { Listing } from "@/lib/types";
 import {
