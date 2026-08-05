@@ -784,7 +784,7 @@ function LocationStep({ draft, update, updateMany }: StepProps) {
   const currentSubCat = draft.categories[0] === "Events" ? (draft.subCategories[0] || "") : (draft.categories[0] || "");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div>
         <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase font-sans">Basic Info</p>
         <p className="text-xs text-ink-faint">Name, location &amp; category details for this event.</p>
@@ -1076,13 +1076,13 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
           <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase font-sans">Booking setup</p>
           <p className="text-xs text-ink-faint">Configure timing schedule and tickets count for customers RSVP.</p>
         </div>
-        <div className="rounded-full bg-vibe-violet/10 px-3 py-1 text-xs font-bold text-vibe-violet flex items-center gap-1">
+        <div className="rounded-full border border-vibe-violet/10 bg-vibe-violet/10 px-3 py-1.5 text-xs font-bold text-vibe-violet flex items-center gap-1.5">
           <Calendar size={13} /> Events • fixed dates and times
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
+      <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 sm:p-5">
+        <div className="rounded-xl bg-white p-3 shadow-sm">
           <FieldLabel>Assigned Vendor *</FieldLabel>
           <input
             type="text"
@@ -1091,7 +1091,7 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
             disabled
           />
         </div>
-        <div>
+        <div className="rounded-xl bg-white p-3 shadow-sm">
           <FieldLabel>Time Zone</FieldLabel>
           <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
             <option>India - Kolkata (Sat 20:42 • UTC +5:30)</option>
@@ -1101,13 +1101,16 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
         </div>
       </div>
 
-      <div className="rounded-xl border border-surface-border p-4 bg-cream-200/20">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Event Schedules / Batches</p>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Event Schedules / Batches</p>
+            <p className="mt-1 text-xs text-ink-faint">Set the fixed dates, start times, and available tickets.</p>
+          </div>
           <button
             type="button"
             onClick={addRow}
-            className="inline-flex items-center gap-1 rounded-lg bg-vibe-violet px-3 py-1.5 text-xs font-semibold text-white hover:bg-vibe-violet/90"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-vibe-violet px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-vibe-violetSoft hover:shadow-md"
           >
             <Plus size={12} /> Add event
           </button>
@@ -1123,7 +1126,7 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
           </div>
 
           {rows.map((row, idx) => (
-            <div key={row.id} className="grid grid-cols-1 sm:grid-cols-[1.5fr_1.2fr_1fr_2fr_auto] gap-3 items-center border-b sm:border-0 border-surface-border pb-3 sm:pb-0">
+            <div key={row.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-[1.5fr_1.2fr_1fr_2fr_auto] sm:items-center">
               <div>
                 <span className="sm:hidden block text-[10px] font-bold text-slate-500 mb-1">Date</span>
                 <input
@@ -1164,7 +1167,7 @@ function BookingStep({ draft, updateMany, vendorProfile }: StepProps & { vendorP
                   type="button"
                   onClick={() => removeRow(idx)}
                   disabled={rows.length === 1}
-                  className="rounded-lg p-2 text-ink-faint hover:text-vibe-coral disabled:opacity-30"
+                  className="rounded-lg p-2 text-ink-faint transition hover:bg-rose-50 hover:text-vibe-coral disabled:opacity-30"
                 >
                   <Trash2 size={16} />
                 </button>
