@@ -1,26 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { AcademyDraft } from "@/components/vendor/PackageStudio";
+import { PackageStudio, type AcademyDraft } from "@/components/vendor/PackageStudio";
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { Listing as MockListing, ListingType } from "@/lib/types";
 import { addAcademyToListing, createVendorListing } from "@/lib/api/vendor";
 import { mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Toast } from "@/components/admin/Toast";
-
-// Only one of these two studios is ever shown, decided by the `kind` query param below —
-// dynamic-loading both means a visit to ?kind=turf never fetches EventStudio's bundle
-// and vice versa.
-const PackageStudio = dynamic(
-  () => import("@/components/vendor/PackageStudio").then((m) => m.PackageStudio),
-  { ssr: false }
-);
-const EventStudio = dynamic(
-  () => import("@/components/vendor/EventStudio").then((m) => m.EventStudio),
-  { ssr: false }
-);
 
 function NewListingStudio() {
   const router = useRouter();

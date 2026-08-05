@@ -1,18 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye, Trash2 } from "lucide-react";
 import { PageHero } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
-
-// Only rendered once the vendor taps "create" — this page normally shows a listings
-// table, so most visits never need the studio's bundle at all.
-const EventStudio = dynamic(
-  () => import("@/components/vendor/EventStudio").then((m) => m.EventStudio),
-  { ssr: false }
-);
+import { EventStudio } from "@/components/vendor/EventStudio";
 import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
 import { mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
