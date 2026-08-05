@@ -90,11 +90,11 @@ type StepProps = {
 };
 
 const inputClass =
-  "w-full rounded-lg border border-surface-border bg-cream-200/40 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint";
+  "h-11 w-full rounded-xl border border-slate-200/90 bg-white px-3.5 text-sm font-medium text-ink shadow-sm outline-none transition duration-200 placeholder:font-normal placeholder:text-slate-400 hover:border-vibe-violet/40 focus:border-vibe-violet focus:ring-4 focus:ring-vibe-violet/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="mb-1.5 block text-[11px] font-semibold tracking-wider text-ink-faint uppercase">
+    <label className="mb-2 block text-[11px] font-bold tracking-[0.12em] text-slate-500 uppercase">
       {children}
     </label>
   );
@@ -110,14 +110,14 @@ function ToggleGroup<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-lg border border-surface-border text-xs font-semibold">
+    <div className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-bold shadow-sm">
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`px-3 py-1.5 ${
-            value === opt.value ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-cream-300"
+          className={`rounded-lg px-3 py-1.5 transition ${
+            value === opt.value ? "bg-vibe-violet text-white shadow-sm" : "text-ink-soft hover:bg-white hover:text-vibe-violet"
           }`}
         >
           {opt.label}
@@ -167,7 +167,7 @@ function TagField({
           placeholder={placeholder}
           className={inputClass}
         />
-        <button type="button" onClick={add} className="shrink-0 rounded-lg bg-vibe-violet px-4 text-xs font-semibold text-white">
+        <button type="button" onClick={add} className="shrink-0 rounded-xl bg-vibe-violet px-4 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-vibe-violetSoft hover:shadow-md focus:outline-none focus:ring-4 focus:ring-vibe-violet/20">
           Add
         </button>
       </div>
@@ -288,11 +288,11 @@ function PhotoBox({
   outputNote: string;
 }) {
   return (
-    <div className="rounded-xl border border-surface-border p-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-vibe-violet/30 hover:shadow-md">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{label}</p>
-          <span className="rounded bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-white">{tag}</span>
+          <span className="rounded-full bg-vibe-violet/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-vibe-violet">{tag}</span>
         </div>
         {onRemove && (
           <button type="button" onClick={onRemove} className="text-ink-faint hover:text-vibe-coral">
@@ -316,12 +316,12 @@ function PhotoBox({
       />
 
       {uploading ? (
-        <div className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border bg-cream-200/50">
+        <div className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-vibe-violet/30 bg-vibe-violet/5">
           <Loader2 size={20} className="animate-spin text-vibe-violet" />
           <span className="text-xs font-semibold text-ink-faint">Uploading...</span>
         </div>
       ) : image ? (
-        <div className="relative h-56 overflow-hidden rounded-lg bg-cream-300">
+        <div className="relative h-56 overflow-hidden rounded-xl bg-cream-300 shadow-inner">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image.url} alt={label} className="h-full w-full object-cover"
             loading="lazy"
@@ -338,9 +338,9 @@ function PhotoBox({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border bg-cream-200/50 transition-colors hover:bg-cream-200"
+          className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 transition hover:border-vibe-violet/50 hover:bg-vibe-violet/5 focus:outline-none focus:ring-4 focus:ring-vibe-violet/10"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-surface-border bg-white text-vibe-violet">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-vibe-violet shadow-sm ring-1 ring-vibe-violet/15">
             <Upload size={16} />
           </span>
           <span className="text-sm font-semibold text-ink">Upload {label.toLowerCase()}</span>
@@ -348,7 +348,7 @@ function PhotoBox({
         </button>
       )}
 
-      <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-vibe-amber">{outputNote}</p>
+      <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] font-medium text-vibe-amber">{outputNote}</p>
       {!image && !uploading && <p className="mt-2 text-xs text-ink-faint">No {label.toLowerCase()} selected yet</p>}
     </div>
   );
@@ -1690,58 +1690,58 @@ export function EventStudio({
   const stepProps: StepProps = { draft, update, updateMany };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-cream-200">
-      <div className="sticky top-0 z-10 flex items-center justify-between bg-gradient-to-r from-vibe-indigo via-vibe-violet to-vibe-violetSoft px-4 py-4 text-white shadow-pop sm:px-8">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[radial-gradient(circle_at_top,_#f5f3ff_0%,_#fafaf9_38%,_#f8fafc_100%)]">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-gradient-to-r from-[#20124d] via-vibe-indigo to-vibe-violetSoft px-5 py-5 text-white shadow-[0_8px_30px_rgba(55,25,130,0.22)] sm:px-8">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
             {mode === "edit" ? "Edit Event" : "New Event"}
           </p>
-          <h2 className="font-display text-lg font-semibold sm:text-xl">
+          <h2 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
             Event Studio
           </h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm font-semibold hover:bg-white/20"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold backdrop-blur-sm transition hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/25"
         >
           <X size={15} /> Close
         </button>
       </div>
 
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
-        <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">
+        <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {STEPS.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => goTo(s.id)}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
-                step === s.id ? "border-vibe-violet bg-vibe-violet/5" : "border-surface-border bg-white hover:bg-cream-300"
+              className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left shadow-sm transition duration-200 focus:outline-none focus:ring-4 focus:ring-vibe-violet/10 ${
+                step === s.id ? "border-vibe-violet bg-white shadow-[0_8px_22px_rgba(91,33,182,0.12)]" : "border-slate-200 bg-white/80 hover:-translate-y-0.5 hover:border-vibe-violet/30 hover:bg-white hover:shadow-md"
               }`}
             >
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
-                  step === s.id ? "bg-vibe-violet text-white" : maxStep > s.id ? "bg-vibe-limeDark text-white" : "bg-cream-300 text-ink-faint"
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm ${
+                  step === s.id ? "bg-vibe-violet text-white" : maxStep > s.id ? "bg-vibe-limeDark text-white" : "bg-slate-100 text-ink-faint"
                 }`}
               >
                 {maxStep > s.id ? <Check size={12} /> : s.id}
               </span>
               <span>
-                <p className="text-xs font-semibold leading-none text-ink">{s.label}</p>
-                <p className="mt-0.5 text-[10px] text-ink-faint">{s.hint}</p>
+                <p className="text-xs font-bold leading-none text-ink">{s.label}</p>
+                <p className="mt-1 text-[10px] font-medium text-ink-faint">{s.hint}</p>
               </span>
             </button>
           ))}
         </div>
 
         {formError && (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-vibe-coral">
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-vibe-coral shadow-sm">
             {formError}
           </div>
         )}
 
-        <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel sm:p-6">
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-[0_16px_45px_rgba(31,41,55,0.08)] sm:p-7 lg:p-8">
           {step === 1 && <EventPhotosStep draft={draft} update={update} updateMany={updateMany} audience={audience} />}
           {step === 2 && <LocationStep draft={draft} update={update} updateMany={updateMany} />}
           {step === 3 && <BookingStep draft={draft} update={update} updateMany={updateMany} vendorProfile={resolvedVendor} />}
@@ -1750,25 +1750,25 @@ export function EventStudio({
         </div>
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between border-t border-surface-border bg-white px-4 py-4 sm:px-8">
-        <p className="text-xs text-ink-faint">Step {step} of 5</p>
+      <div className="sticky bottom-0 flex items-center justify-between gap-4 border-t border-slate-200/80 bg-white/95 px-4 py-4 shadow-[0_-8px_28px_rgba(15,23,42,0.06)] backdrop-blur sm:px-8">
+        <p className="hidden text-xs font-semibold text-ink-faint sm:block">Step {step} of 5</p>
         <div className="flex gap-3">
           {step > 1 && (
             <button
               type="button"
               onClick={() => setStep((s) => s - 1)}
-              className="rounded-lg border border-surface-border px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-cream-300"
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-ink-soft transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-vibe-violet/10"
             >
               Back
             </button>
           )}
-          <button type="button" onClick={onClose} className="rounded-lg border border-surface-border px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-cream-300">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-ink-soft transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-vibe-violet/10">
             Cancel
           </button>
           <button
             type="button"
             onClick={handlePrimary}
-            className="rounded-lg bg-vibe-violet px-5 py-2 text-sm font-semibold text-white hover:bg-vibe-violetSoft"
+            className="rounded-xl bg-vibe-violet px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-vibe-violet/25 transition hover:-translate-y-0.5 hover:bg-vibe-violetSoft hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-vibe-violet/25"
           >
             {step < 5
               ? "Save & Next"
