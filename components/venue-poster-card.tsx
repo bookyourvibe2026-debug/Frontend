@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Store } from "lucide-react";
 
@@ -8,7 +10,7 @@ import { MapPin, Store } from "lucide-react";
  * 4:5 portrait ratio specifically for this (see PackageStudio's poster upload), so
  * this is the one place that ratio should actually get honoured on screen.
  */
-export function VenuePosterCard({
+export const VenuePosterCard = memo(function VenuePosterCard({
   href,
   image,
   title,
@@ -31,11 +33,12 @@ export function VenuePosterCard({
       className="group relative block aspect-[4/5] w-full overflow-hidden rounded-2xl bg-slate-900 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
     >
       {image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={image}
           alt={title}
-          className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          className="object-cover transition duration-300 group-hover:scale-105"
         />
       ) : (
         <span className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 text-slate-500">
@@ -65,4 +68,4 @@ export function VenuePosterCard({
       </div>
     </Link>
   );
-}
+});

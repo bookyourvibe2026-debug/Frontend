@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { vendorLogout as apiVendorLogout, type VendorProfile } from "@/lib/api/auth";
 
 interface VendorAuthContextValue {
@@ -26,7 +26,9 @@ export function VendorAuthProvider({
     onLoggedOut();
   }, [onLoggedOut]);
 
-  return <VendorAuthContext.Provider value={{ vendor: current, logout }}>{children}</VendorAuthContext.Provider>;
+  const value = useMemo(() => ({ vendor: current, logout }), [current, logout]);
+
+  return <VendorAuthContext.Provider value={value}>{children}</VendorAuthContext.Provider>;
 }
 
 export function useVendorAuth() {

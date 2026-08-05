@@ -94,7 +94,10 @@ export default function CoachDetailPage() {
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-slate-100">
                   {coach.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
+                    <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-lg font-bold text-slate-500">
                       {coach.name.charAt(0).toUpperCase()}
@@ -137,7 +140,10 @@ export default function CoachDetailPage() {
                       className="aspect-square overflow-hidden rounded-xl border border-slate-100 transition hover:opacity-90"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="Coach gallery" className="h-full w-full object-cover" />
+                      <img src={url} alt="Coach gallery" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                     </button>
                   ))}
                 </div>
@@ -276,7 +282,10 @@ export default function CoachDetailPage() {
             <X className="h-5 w-5" />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="Coach gallery" className="max-h-[85vh] max-w-full rounded-2xl object-contain" />
+          <img src={lightbox} alt="Coach gallery" className="max-h-[85vh] max-w-full rounded-2xl object-contain"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       )}
     </div>

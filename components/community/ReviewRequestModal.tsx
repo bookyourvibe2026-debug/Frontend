@@ -90,7 +90,10 @@ export function ReviewRequestModal({
             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-100 font-extrabold text-brand-700 text-sm shadow-xs">
               {playerAvatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={playerAvatar} alt={playerName} className="h-full w-full object-cover" />
+                <img src={playerAvatar} alt={playerName} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               ) : (
                 getInitials(playerName || "Player")
               )}

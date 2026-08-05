@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { adminLogout as apiAdminLogout, type AdminProfile } from "@/lib/api/auth";
 
 interface AdminAuthContextValue {
@@ -26,7 +26,9 @@ export function AdminAuthProvider({
     onLoggedOut();
   }, [onLoggedOut]);
 
-  return <AdminAuthContext.Provider value={{ admin: current, logout }}>{children}</AdminAuthContext.Provider>;
+  const value = useMemo(() => ({ admin: current, logout }), [current, logout]);
+
+  return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;
 }
 
 export function useAdminAuth() {

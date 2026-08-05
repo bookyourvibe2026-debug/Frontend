@@ -204,22 +204,16 @@ function SportChips({
   sport,
   onSelect,
   className = "",
-  lockedSport,
 }: {
   listing: Listing;
   sport?: string;
   onSelect: (s: string) => void;
   className?: string;
-  /** Booking through a Last Minute Deal — only this one sport is shown, nothing to switch to. */
-  lockedSport?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const categories = useMemo(() => {
     const raw = listing.categories ?? [];
-    if (lockedSport) {
-      return raw.filter((catId) => categoryLabel(catId).toLowerCase() === lockedSport.toLowerCase());
-    }
     if (!sport || raw.length <= 1) return raw;
 
     const activeCatId = raw.find((catId) => categoryLabel(catId).toLowerCase() === sport.toLowerCase());
@@ -227,7 +221,7 @@ function SportChips({
 
     const rest = raw.filter((catId) => catId !== activeCatId);
     return [activeCatId, ...rest];
-  }, [listing.categories, sport, lockedSport]);
+  }, [listing.categories, sport]);
 
   const handleSelect = (name: string) => {
     onSelect(name);
@@ -352,8 +346,6 @@ export default function BookingFlow({
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
 
   function toggleSlotSelection(index: number) {
-    // A Last Minute Deal booking is locked to the exact slot the vendor boosted.
-    if (dealContext) return;
     setCourtPicks(null);
     const targetSlot = generatedSlots[index];
     if (!targetSlot || targetSlot.status !== "Available") return;
@@ -740,23 +732,6 @@ export default function BookingFlow({
   // strand the player on a default slot/court instead of the boosted one. Only a genuine
   // user pick (toggleSlotSelection/toggleCourt) should stop this from trying again.
   const dealPreselectedRef = useRef(false);
-  useEffect(() => {
-    if (!dealContext || dealPreselectedRef.current) return;
-    const match = generatedSlots.find((s) => s.startTime === dealContext.slotStart);
-    if (!match || match.status !== "Available") return;
-    dealPreselectedRef.current = true;
-    setActiveDaypart("All");
-    setSelectedSlotIndices([match.originalIndex]);
-    if (dealContext.courtId && (match.freeCourtIds ?? []).includes(dealContext.courtId)) {
-      setCourtPicks([dealContext.courtId]);
-    }
-    setTimeout(() => {
-      const el = document.getElementById(`slot-button-${dealContext.slotStart}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      }
-    }, 150);
-  }, [dealContext, generatedSlots]);
 
   const durationMin = useMemo(() => {
     if (selectedSlotIndices.length === 0) return 0;
@@ -774,26 +749,53 @@ export default function BookingFlow({
   }, [generatedSlots, activeDaypart]);
 
   useEffect(() => {
-    // A pending Last Minute Deal preselection (below) owns the very first selection —
-    // this effect and that one both react to the same bookedRanges/generatedSlots
-    // change, and since setState doesn't apply until the next render, letting both run
-    // here would have this effect's "first available slot" fallback clobber the deal's
-    // chosen slot in the same commit. dealPreselectedRef flips synchronously the moment
-    // the other effect claims it, so checking it here (not as a dependency) is enough.
-    if (dealContext && !dealPreselectedRef.current) return;
-    if (listing.type === "Turf" && date) {
-      const validIndices = selectedSlotIndices.filter(
-        (idx) => generatedSlots[idx] && generatedSlots[idx].status === "Available"
-      );
-      if (validIndices.length > 0) {
-        setSelectedSlotIndices(validIndices);
-      } else {
-        const firstAvail = generatedSlots.find((s) => s.status === "Available");
-        setSelectedSlotIndices(firstAvail ? [firstAvail.originalIndex] : []);
+    // A Last Minute Deal owns the very first slot selection once its boosted slot shows
+    // up as Available. This and the generic "keep/pick a slot" fallback below both react
+    // to the same bookedRanges/generatedSlots change, so they're merged into one effect —
+    // running them as two separate effects let the fallback read selectedSlotIndices from
+    // before the deal branch's setState had applied, so it clobbered the deal's chosen
+    // slot with some unrelated "first available" slot in the very same commit (most visibly
+    // under React Strict Mode's dev-only double-invoke, where this effect body runs twice
+    // back-to-back with no render in between: the ref guard correctly skips re-claiming the
+    // deal on the second pass, but a plain state read there would still see the pre-effect
+    // closure, not the first pass's just-queued selection).
+    if (dealContext && !dealPreselectedRef.current) {
+      const match = generatedSlots.find((s) => s.startTime === dealContext.slotStart);
+      if (match && match.status === "Available") {
+        dealPreselectedRef.current = true;
+        setActiveDaypart("All");
+        setSelectedSlotIndices([match.originalIndex]);
+        if (dealContext.courtId && (match.freeCourtIds ?? []).includes(dealContext.courtId)) {
+          setCourtPicks([dealContext.courtId]);
+        }
+        setTimeout(() => {
+          const el = document.getElementById(`slot-button-${dealContext.slotStart}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+          }
+        }, 150);
       }
+      // Either just claimed the deal slot, or it's not resolvable yet (still waiting on
+      // bookedRanges) — don't fall through to the generic fallback below, which would
+      // otherwise silently swap the player onto some other slot instead of retrying the
+      // deal slot on the next generatedSlots update.
+      return;
+    }
+    if (listing.type === "Turf" && date) {
+      // Functional form so this always resolves against the latest *queued* selection —
+      // not a possibly-stale closure — even when this effect body runs twice with no
+      // render in between (see comment above).
+      setSelectedSlotIndices((prevIndices) => {
+        const validIndices = prevIndices.filter(
+          (idx) => generatedSlots[idx] && generatedSlots[idx].status === "Available"
+        );
+        if (validIndices.length > 0) return validIndices;
+        const firstAvail = generatedSlots.find((s) => s.status === "Available");
+        return firstAvail ? [firstAvail.originalIndex] : [];
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, listing.type, bookedRanges]);
+  }, [dealContext, generatedSlots, date, listing.type, bookedRanges]);
 
   // Courts actually bookable for all selected slots.
   const freeCourts = useMemo(() => {
@@ -812,9 +814,6 @@ export default function BookingFlow({
   }, [courtPicks, freeCourts]);
 
   const toggleCourt = (id: string) => {
-    // A boosted booking is locked to the exact court the vendor discounted — the player
-    // can't swap it out for another court mid-booking.
-    if (dealContext) return;
     setCourtPicks((prev) => {
       const base = prev ?? (freeCourts[0] ? [freeCourts[0].id] : []);
       return base.includes(id) ? base.filter((c) => c !== id) : [...base, id];
@@ -1022,8 +1021,6 @@ export default function BookingFlow({
           listing={listing}
           date={date}
           setDate={(v) => {
-            // A Last Minute Deal booking is locked to the exact date it was offered on.
-            if (dealContext) return;
             // Another day has its own free courts, so the pick resets with the date.
             setCourtPicks(null);
             setDate(v);
@@ -1076,9 +1073,6 @@ export default function BookingFlow({
           setVisibleYear={setVisibleYear}
           selectedSport={sport}
           onSelectSport={(s) => {
-            // A Last Minute Deal booking is locked end-to-end — sport, court, and slot
-            // are all fixed to exactly what the vendor boosted.
-            if (dealContext) return;
             // Each game has its own courts — a badminton pick can't carry into cricket.
             setCourtPicks(null);
             setSport(s);
@@ -1090,9 +1084,6 @@ export default function BookingFlow({
           selectedCourts={selectedCourts}
           selectedCourtIds={effectiveCourtIds}
           onToggleCourt={toggleCourt}
-          lockedForDeal={!!dealContext}
-          lockedCourtId={dealContext?.courtId}
-          lockedSlotStart={dealContext?.slotStart}
         />
       )}
 
@@ -1296,12 +1287,6 @@ function ReviewStep(props: {
   /** Courts the player has taken for the selected slots — several are allowed. */
   selectedCourtIds: string[];
   onToggleCourt: (id: string) => void;
-  /** Set when booking through a Last Minute Deal deep link — only this court is shown/selectable. */
-  lockedCourtId?: string;
-  /** Booking through a Last Minute Deal — sport/court/slot/date are all fixed, nothing switchable. */
-  lockedForDeal: boolean;
-  /** The one slot start ("HH:mm") shown when lockedForDeal is set. */
-  lockedSlotStart?: string;
   needsPhone: boolean;
   phone: string;
   setPhone: (v: string) => void;
@@ -1347,9 +1332,6 @@ function ReviewStep(props: {
     selectedCourts,
     selectedCourtIds,
     onToggleCourt,
-    lockedCourtId,
-    lockedForDeal,
-    lockedSlotStart,
     activePrice,
     dealSavings,
     payNowAmount,
@@ -1444,11 +1426,8 @@ function ReviewStep(props: {
    */
   const orderedSlots = useMemo(() => {
     const rank = (s: { status: string }) => (s.status === "Available" ? 0 : s.status === "Past" ? 2 : 1);
-    const base = lockedSlotStart
-      ? filteredGeneratedSlots.filter((s) => s.startTime === lockedSlotStart)
-      : filteredGeneratedSlots;
-    return [...base].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
-  }, [filteredGeneratedSlots, lockedSlotStart]);
+    return [...filteredGeneratedSlots].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
+  }, [filteredGeneratedSlots]);
 
   /* The slot strip is a 2-row carousel rather than a full grid — a venue open 06:00–24:00
      otherwise renders 18 cards and buries the courts and the price under a wall of slots.
@@ -1471,14 +1450,28 @@ function ReviewStep(props: {
     el.scrollBy({ left: direction * Math.max(220, el.clientWidth * 0.85), behavior: "smooth" });
   }
 
-  /** Same rule for courts: free ones first, already-booked ones greyed out at the end.
-   * A boosted booking only ever shows the one court the vendor discounted — the player
-   * has no way to pick a different court while booking through a Last Minute Deal. */
+  /** Same rule for courts: free ones first, already-booked ones greyed out at the end. */
   const orderedCourts = useMemo(() => {
     const free = new Set(freeCourts.map((c) => c.id));
-    const base = lockedCourtId ? courtsForSport.filter((c) => c.id === lockedCourtId) : courtsForSport;
-    return [...base].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
-  }, [courtsForSport, freeCourts, lockedCourtId]);
+    return [...courtsForSport].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
+  }, [courtsForSport, freeCourts]);
+
+  /** Per-court price + boost % for the currently selected slots, computed once instead
+   * of re-running the reduce/map for every court on every render of the court list. */
+  const courtPricingById = useMemo(() => {
+    const map = new Map<string, { totalPrice: number; boostPct: number }>();
+    for (const court of orderedCourts) {
+      const totalPrice = selectedSlotIndices.reduce((sum, idx) => {
+        const slot = generatedSlots[idx];
+        return sum + (slot ? courtSlotPrice(slot, court.id) : 0);
+      }, 0);
+      const boostPct = selectedSlotIndices.length > 0
+        ? Math.max(0, ...selectedSlotIndices.map((idx) => generatedSlots[idx]?.courtBoostPct?.[court.id] || 0))
+        : 0;
+      map.set(court.id, { totalPrice, boostPct });
+    }
+    return map;
+  }, [orderedCourts, selectedSlotIndices, generatedSlots]);
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
@@ -1580,7 +1573,7 @@ function ReviewStep(props: {
           </div>
           {/* Game selector in the header — the player picks the sport they're booking. */}
           {mobileStep === "slots" && (
-            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" lockedSport={lockedForDeal ? selectedSport : undefined} />
+            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" />
           )}
         </div>
       )}
@@ -1649,7 +1642,7 @@ function ReviewStep(props: {
               </p>
               {/* Mobile shows the game chips in the page header; desktop/embedded show them here. */}
               <div className={embedded ? "mt-2" : "mt-2 hidden lg:block"}>
-                <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} lockedSport={lockedForDeal ? selectedSport : undefined} />
+                <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} />
               </div>
 
               {/* Month header — continuous month navigation & dynamic scroll tracking */}
@@ -2053,13 +2046,7 @@ function ReviewStep(props: {
                         <div className="mt-4">
                           <div className="flex items-baseline justify-between">
                             <p className="text-base font-black text-slate-900">
-                              {lockedCourtId ? (
-                                "Last Minute Deal court"
-                              ) : (
-                                <>
-                                  {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
-                                </>
-                              )}
+                              {freeCourts.length} {freeCourts.length === 1 ? "court" : "courts"} available
                             </p>
                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                               {selectedCourtIds.length} selected
@@ -2072,13 +2059,8 @@ function ReviewStep(props: {
                               const active = isFree && selectedCourtIds.includes(court.id);
                               // Priced per this exact court — a boost on Court 4 must not
                               // show up on Court 6's button just because they share a slot.
-                              const totalCourtPrice = selectedSlotIndices.reduce((sum, idx) => {
-                                const slot = generatedSlots[idx];
-                                return sum + (slot ? courtSlotPrice(slot, court.id) : 0);
-                              }, 0);
-                              const courtBoostPct = selectedSlotIndices.length > 0
-                                ? Math.max(0, ...selectedSlotIndices.map((idx) => generatedSlots[idx]?.courtBoostPct?.[court.id] || 0))
-                                : 0;
+                              const { totalPrice: totalCourtPrice, boostPct: courtBoostPct } =
+                                courtPricingById.get(court.id) ?? { totalPrice: 0, boostPct: 0 };
                               const meta = [court.surface, ...(court.sports ?? [])].filter(Boolean).join(" | ");
                               const photo = court.image || listing.coverImage || listing.images?.[0]?.url;
 
@@ -2100,7 +2082,10 @@ function ReviewStep(props: {
                                 >
                                   <span className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                                     {photo ? (
-                                      <img src={photo} alt={court.name} className="h-full w-full object-cover" />
+                                      <img src={photo} alt={court.name} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                                     ) : (
                                       <span className="flex h-full w-full items-center justify-center text-slate-300">
                                         <ImageIcon className="h-5 w-5" />
@@ -2306,7 +2291,9 @@ function ReviewStep(props: {
                                   src={addOn.image.url}
                                   alt={addOn.label}
                                   className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                                />
+            loading="lazy"
+            decoding="async"
+          />
                               ) : (
                                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
                                   <ImageIcon className="h-5 w-5" />

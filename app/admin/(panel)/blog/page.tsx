@@ -198,7 +198,10 @@ export default function AdminBlogPage() {
             >
               {thumbnail ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumbnail} alt="thumbnail" className="h-full w-full object-cover" />
+                <img src={thumbnail} alt="thumbnail" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               ) : (
                 <>
                   <ImagePlus size={20} className="text-ink-faint" />
@@ -232,7 +235,10 @@ export default function AdminBlogPage() {
               <div className="relative h-36 bg-cream-300">
                 {post.thumbnail && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
+                  <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 )}
                 <div className="absolute right-2 top-2 flex gap-1.5">
                   <button onClick={() => handleEdit(post)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-vibe-violet shadow">

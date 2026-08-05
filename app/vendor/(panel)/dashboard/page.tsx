@@ -283,7 +283,10 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl p-1 overflow-hidden shrink-0 shadow-sm">
-              <img src="/apple-icon.png" alt="Logo" className="w-full h-full object-contain" />
+              <img src="/apple-icon.png" alt="Logo" className="w-full h-full object-contain"
+            loading="lazy"
+            decoding="async"
+          />
             </div>
             <div>
               <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-300 flex items-center gap-1.5 mb-0.5">

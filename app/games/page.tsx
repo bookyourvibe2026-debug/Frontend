@@ -97,7 +97,10 @@ export default function GamesPage() {
                   <Link href={`/venues/${venue.slug || venue._id}`} className="relative flex h-36 flex-col justify-end overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
                     {venue.coverImage && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80" />
+                      <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80"
+            loading="lazy"
+            decoding="async"
+          />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                     <div className="relative z-10">
@@ -235,7 +238,10 @@ export default function GamesPage() {
                 <div className="relative flex h-40 flex-col justify-end overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
                   {venue.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80" />
+                    <img src={venue.coverImage} alt={venue.title} className="absolute inset-0 h-full w-full object-cover opacity-80"
+            loading="lazy"
+            decoding="async"
+          />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="relative z-10">

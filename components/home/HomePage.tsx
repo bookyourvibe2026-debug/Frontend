@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { type Venue, listingToVenue } from "@/lib/venues";
 import { browseVenues } from "@/lib/api/venues";
@@ -26,9 +27,15 @@ import { SignupModal } from "./modals/SignupModal";
 import { MobileHome } from "./mobile/MobileHome";
 import { useVenueFilters } from "./useVenueFilters";
 import { useCustomerAuth } from "@/components/providers/CustomerAuthProvider";
-import { ChallengeFlow } from "@/components/challenges/ChallengeFlow";
 
 import { OnboardingFlow } from "./OnboardingFlow";
+
+// Only rendered once the player opens the challenge sheet, and pulls in
+// jsPDF/html-to-image — code-split out of the initial home page bundle.
+const ChallengeFlow = dynamic(
+  () => import("@/components/challenges/ChallengeFlow").then((m) => m.ChallengeFlow),
+  { ssr: false }
+);
 
 export default function HomePage() {
   const router = useRouter();

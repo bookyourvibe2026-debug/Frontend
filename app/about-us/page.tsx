@@ -1,5 +1,3 @@
-"use client";
-
 import { SiteHeader } from "@/components/site-header";
 import { Footer } from "@/components/home/Footer";
 import { Users, Shield, Award, Heart } from "lucide-react";

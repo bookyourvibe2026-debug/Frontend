@@ -53,7 +53,10 @@ export default function CoachesPage() {
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-b from-slate-50 to-slate-100">
                     {coach.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
+                      <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center text-base font-bold text-slate-500">
                         {coach.name.charAt(0).toUpperCase()}
@@ -103,7 +106,10 @@ export default function CoachesPage() {
                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-slate-100">
                   {coach.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover" />
+                    <img src={coach.photoUrl} alt={coach.name} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-base font-bold text-slate-500">
                       {coach.name.charAt(0).toUpperCase()}

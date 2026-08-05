@@ -371,7 +371,10 @@ function PhotoBox({
         </div>
       ) : image ? (
         <div className="relative h-56 overflow-hidden rounded-lg bg-cream-300">
-          <img src={image.url} alt={label} className="h-full w-full object-cover" />
+          <img src={image.url} alt={label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/60 px-3 py-2 text-xs font-semibold text-white">
             <span>{label} ready</span>
             <button onClick={() => inputRef.current?.click()} className="underline">
@@ -589,7 +592,10 @@ function PackageStep({
           <div className="flex flex-wrap gap-3">
             {draft.images.map((img, i) => (
               <div key={img.id} className="group relative h-28 w-24 overflow-hidden rounded-lg border border-surface-border">
-                {img.url && <img src={img.url} alt={img.label} className="h-full w-full object-cover" />}
+                {img.url && <img src={img.url} alt={img.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />}
                 {i === 0 && (
                   <span className="absolute left-1 top-1 rounded bg-vibe-violet px-1.5 py-0.5 text-[9px] font-semibold text-white">
                     Poster
@@ -661,7 +667,9 @@ function CategoryPhoto({ cat }: { cat: SportCategory }) {
         alt={cat.label}
         onError={() => setErrored(true)}
         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-      />
+            loading="lazy"
+            decoding="async"
+          />
     );
   }
   // Last resort (offline / photo missing): a distinct gradient per sport, so two
@@ -930,7 +938,10 @@ function CourtRow({
           />
           {court.image ? (
             <span className="relative h-14 w-20 overflow-hidden rounded-lg border border-vibe-violet">
-              <img src={court.image} alt={court.name} className="h-full w-full object-cover" />
+              <img src={court.image} alt={court.name} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               <button
                 type="button"
                 onClick={() => onPatch({ image: "" })}
@@ -954,7 +965,10 @@ function CourtRow({
                 className="h-14 w-20 overflow-hidden rounded-lg border border-surface-border opacity-80 transition hover:opacity-100"
                 title={`Use ${img.label}`}
               >
-                <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
+                <img src={img.url} alt={img.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               </button>
             ))}
 
@@ -1171,7 +1185,10 @@ function CustomSportModal({
 
             {iconUrl ? (
               <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl border border-surface-border bg-cream-200/50 p-2">
-                <img src={iconUrl} alt="Sport Preview" className="h-full w-full object-contain" />
+                <img src={iconUrl} alt="Sport Preview" className="h-full w-full object-contain"
+            loading="lazy"
+            decoding="async"
+          />
                 <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition hover:opacity-100">
                   <button
                     type="button"
@@ -2874,7 +2891,10 @@ function AddOnRow({
         {uploading ? (
           <Loader2 size={20} className="animate-spin" />
         ) : addOn.image ? (
-          <img src={addOn.image.url} alt={addOn.label || "Add-on"} className="h-full w-full object-cover" />
+          <img src={addOn.image.url} alt={addOn.label || "Add-on"} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <Upload size={20} />
         )}

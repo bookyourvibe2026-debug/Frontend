@@ -98,7 +98,10 @@ export default function EventListingsPage() {
               <div className="h-32 w-full bg-cream-300 relative">
                 {l.coverImage || l.images?.[0]?.url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={l.coverImage || l.images[0].url} alt={l.title} className="h-full w-full object-cover" />
+                  <img src={l.coverImage || l.images[0].url} alt={l.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-ink-faint">
                     <Ticket size={28} />

@@ -51,7 +51,10 @@ export default function BlogsPage() {
                   <div className="h-36 w-full bg-slate-100">
                     {post.thumbnail && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
+                      <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                     )}
                   </div>
                   <div className="p-4">
@@ -101,7 +104,9 @@ export default function BlogsPage() {
                     src={post.thumbnail}
                     alt={post.title}
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
+            loading="lazy"
+            decoding="async"
+          />
                 )}
               </div>
               <div className="p-5">

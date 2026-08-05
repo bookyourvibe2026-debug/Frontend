@@ -319,7 +319,10 @@ export default function VendorFoodProfilePage() {
                   <Link href={`/vendor/food/profile/${outlet._id}`} className="group flex min-w-0 flex-1 items-center gap-3">
                     {outlet.logo || outlet.banner ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={outlet.logo || outlet.banner} alt={outlet.name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                      <img src={outlet.logo || outlet.banner} alt={outlet.name} className="h-12 w-12 shrink-0 rounded-xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                     ) : (
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-vibe-violet/10 text-vibe-violet">
                         <Store size={18} />

@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 
 export default function TermsConditionsPage() {
@@ -12,6 +10,8 @@ export default function TermsConditionsPage() {
             src="/logo.jpg"
             alt="Book Your Vibes Logo"
             className="h-9 w-9 rounded-lg border border-[#e4ded0] object-contain p-0.5 bg-white shrink-0"
+            loading="lazy"
+            decoding="async"
           />
           Book Your Vibes
         </Link>

@@ -208,7 +208,9 @@ export default function FoodOutletPage() {
                   src={outlet.poster || outlet.banner}
                   alt={`${outlet.name} poster`}
                   className="h-48 w-full object-cover sm:h-64"
-                />
+            loading="lazy"
+            decoding="async"
+          />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <span
                   className={`absolute right-4 top-4 rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide ${
@@ -223,7 +225,10 @@ export default function FoodOutletPage() {
             <div className="flex items-center gap-4">
               {outlet.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={outlet.logo} alt={outlet.name} className="h-16 w-16 shrink-0 rounded-2xl object-cover" />
+                <img src={outlet.logo} alt={outlet.name} className="h-16 w-16 shrink-0 rounded-2xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               ) : (
                 <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
                   <UtensilsCrossed className="h-7 w-7" />
@@ -288,7 +293,10 @@ export default function FoodOutletPage() {
                     className="h-24 w-32 shrink-0 overflow-hidden rounded-xl transition hover:opacity-90"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="Gallery" className="h-full w-full object-cover" />
+                    <img src={url} alt="Gallery" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                   </button>
                 ))}
               </div>
@@ -342,7 +350,10 @@ export default function FoodOutletPage() {
                           <div className="relative w-28 shrink-0">
                             {item.photo ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={item.photo} alt={item.name} className="h-24 w-28 rounded-xl object-cover" />
+                              <img src={item.photo} alt={item.name} className="h-24 w-28 rounded-xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                             ) : (
                               <div className="flex h-24 w-28 items-center justify-center rounded-xl bg-slate-50 text-slate-300">
                                 <UtensilsCrossed className="h-6 w-6" />
@@ -444,7 +455,10 @@ export default function FoodOutletPage() {
       {lightbox && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="Gallery" className="max-h-[85vh] max-w-full rounded-2xl object-contain" />
+          <img src={lightbox} alt="Gallery" className="max-h-[85vh] max-w-full rounded-2xl object-contain"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       )}
 

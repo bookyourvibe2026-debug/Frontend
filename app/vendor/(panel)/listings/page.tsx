@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Copy, Eye, Plus, Search, Share2, Trash2 } from "lucide-react";
 import { PageHero, Badge } from "@/components/vendor/ui";
@@ -40,27 +40,39 @@ export default function ListingsPage() {
     refresh();
   }, [refresh]);
 
-  async function handleClone(listing: Listing) {
-    try {
-      const input = mockListingToApiInput({ ...listing, title: `${listing.title} (Copy)`, status: "Inactive" });
-      const clone = await createVendorListing(input);
-      refresh();
-      setToast(`Cloned "${listing.title}" as "${clone.title}"`);
-    } catch (err) {
-      setToast(err instanceof ApiError ? err.describe() : "Failed to clone listing");
-    }
-  }
+  const handleClone = useCallback(
+    async (listing: Listing) => {
+      try {
+        const input = mockListingToApiInput({ ...listing, title: `${listing.title} (Copy)`, status: "Inactive" });
+        const clone = await createVendorListing(input);
+        refresh();
+        setToast(`Cloned "${listing.title}" as "${clone.title}"`);
+      } catch (err) {
+        setToast(err instanceof ApiError ? err.describe() : "Failed to clone listing");
+      }
+    },
+    [refresh]
+  );
 
-  async function handleDelete(listing: Listing) {
-    if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
-    try {
-      await deleteVendorListing(listing.id);
-      refresh();
-      setToast(`Deleted "${listing.title}"`);
-    } catch (err) {
-      setToast(err instanceof ApiError ? err.describe() : "Failed to delete listing");
-    }
-  }
+  const handleDelete = useCallback(
+    async (listing: Listing) => {
+      if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
+      try {
+        await deleteVendorListing(listing.id);
+        refresh();
+        setToast(`Deleted "${listing.title}"`);
+      } catch (err) {
+        setToast(err instanceof ApiError ? err.describe() : "Failed to delete listing");
+      }
+    },
+    [refresh]
+  );
+
+  const handleShare = useCallback((listing: Listing) => {
+    const shareUrl = `${window.location.origin}/venues/${listing.slug || listing.id}`;
+    navigator.clipboard.writeText(shareUrl);
+    setToast("Listing link copied to clipboard!");
+  }, []);
 
   const filtered = useMemo(() => {
     return allListings.filter((l) => {
@@ -137,13 +149,9 @@ export default function ListingsPage() {
           <ListingCard
             key={listing.id}
             listing={listing}
-            onClone={() => handleClone(listing)}
-            onDelete={() => handleDelete(listing)}
-            onShare={() => {
-              const shareUrl = `${window.location.origin}/venues/${listing.slug || listing.id}`;
-              navigator.clipboard.writeText(shareUrl);
-              setToast("Listing link copied to clipboard!");
-            }}
+            onClone={handleClone}
+            onDelete={handleDelete}
+            onShare={handleShare}
           />
         ))}
         {loading && (
@@ -185,16 +193,16 @@ function SummaryCard({
   );
 }
 
-function ListingCard({
+const ListingCard = memo(function ListingCard({
   listing,
   onClone,
   onDelete,
   onShare,
 }: {
   listing: Listing;
-  onClone: () => void;
-  onDelete: () => void;
-  onShare: () => void;
+  onClone: (listing: Listing) => void;
+  onDelete: (listing: Listing) => void;
+  onShare: (listing: Listing) => void;
 }) {
   return (
     <div className="rounded-xl2 border border-surface-border bg-white overflow-hidden shadow-panel flex flex-col">
@@ -207,7 +215,7 @@ function ListingCard({
         </div>
         <button
           type="button"
-          onClick={onShare}
+          onClick={() => onShare(listing)}
           className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/40"
           title="Share Link"
         >
@@ -236,14 +244,14 @@ function ListingCard({
             <Eye size={14} /> View
           </Link>
           <button
-            onClick={onClone}
+            onClick={() => onClone(listing)}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-surface-border text-ink-soft text-xs font-semibold py-2 hover:bg-cream-300 transition-colors"
           >
             <Copy size={14} /> Clone
           </button>
         </div>
         <button
-          onClick={onDelete}
+          onClick={() => onDelete(listing)}
           className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 text-vibe-coral text-xs font-semibold py-2 hover:bg-rose-50 transition-colors"
         >
           <Trash2 size={14} /> Delete
@@ -251,4 +259,4 @@ function ListingCard({
       </div>
     </div>
   );
-}
+});

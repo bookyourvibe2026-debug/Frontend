@@ -139,7 +139,10 @@ export default function AdminBannersPage() {
           >
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="banner" className="h-full w-full object-cover" />
+              <img src={imageUrl} alt="banner" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
             ) : (
               <>
                 <ImagePlus size={20} className="text-ink-faint" />
@@ -204,7 +207,10 @@ export default function AdminBannersPage() {
             <div key={banner._id} className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
               <div className="relative h-32 bg-cream-300">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={banner.imageUrl} alt={banner.title ?? "Banner"} className="h-full w-full object-cover" />
+                <img src={banner.imageUrl} alt={banner.title ?? "Banner"} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 <div className="absolute right-2 top-2 flex gap-1.5">
                   <button onClick={() => handleEdit(banner)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-vibe-violet shadow">
                     <Pencil size={13} />

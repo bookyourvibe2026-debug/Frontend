@@ -323,7 +323,10 @@ function PhotoBox({
       ) : image ? (
         <div className="relative h-56 overflow-hidden rounded-lg bg-cream-300">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.url} alt={label} className="h-full w-full object-cover" />
+          <img src={image.url} alt={label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/60 px-3 py-2 text-xs font-semibold text-white">
             <span>{label} ready</span>
             <button type="button" onClick={() => inputRef.current?.click()} className="underline">
@@ -520,7 +523,10 @@ function EventPhotosStep({ draft, update, audience }: StepProps & { audience: Au
               const realIdx = sliceIdx + 2;
               return (
                 <div key={img.id} className="group relative h-28 w-24 overflow-hidden rounded-lg border border-surface-border">
-                  {img.url && <img src={img.url} alt={img.label} className="h-full w-full object-cover" />}
+                  {img.url && <img src={img.url} alt={img.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />}
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                     <button type="button" onClick={() => removeAt(realIdx)} className="text-[10px] font-semibold text-white underline">
                       Remove

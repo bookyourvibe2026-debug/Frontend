@@ -156,7 +156,10 @@ export default function CoachScheduleManagerPage() {
               >
                 {c.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.photoUrl} alt={c.name} className="h-6 w-6 rounded-full object-cover" />
+                  <img src={c.photoUrl} alt={c.name} className="h-6 w-6 rounded-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#5c3a21]/15 text-[#5c3a21]"><UserRoundCog size={13} /></span>
                 )}

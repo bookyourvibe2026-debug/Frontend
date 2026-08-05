@@ -298,7 +298,10 @@ function MenuPageContent() {
               >
                 {draft.photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={draft.photo} alt="Dish" className="h-full w-full object-cover" />
+                  <img src={draft.photo} alt="Dish" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   <span className="flex h-full w-full flex-col items-center justify-center gap-1">
                     {photoUploading ? <LoaderCircle size={20} className="animate-spin" /> : <Camera size={20} />}
@@ -465,7 +468,10 @@ function MenuPageContent() {
                           <div key={item._id} className="flex flex-wrap items-center gap-3 p-3">
                             {item.photo ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={item.photo} alt={item.name} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                              <img src={item.photo} alt={item.name} className="h-14 w-14 shrink-0 rounded-lg object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                             ) : (
                               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-cream-200 text-ink-faint">
                                 <ImageIcon size={18} />

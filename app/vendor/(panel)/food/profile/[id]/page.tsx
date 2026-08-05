@@ -62,7 +62,10 @@ export default function VendorOutletDetailPage() {
       <div className="flex items-center gap-4 rounded-xl2 border border-surface-border bg-surface-card p-5 shadow-panel">
         {outlet.logo || outlet.banner ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={outlet.logo || outlet.banner} alt={outlet.name} className="h-16 w-16 rounded-xl object-cover" />
+          <img src={outlet.logo || outlet.banner} alt={outlet.name} className="h-16 w-16 rounded-xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-vibe-violet/10 text-vibe-violet">
             <Store size={24} />

@@ -115,7 +115,9 @@ export function SiteHeader() {
                     alt={userName}
                     className="h-full w-full object-cover"
                     onError={() => setImgError(true)}
-                  />
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   getInitials()
                 )}

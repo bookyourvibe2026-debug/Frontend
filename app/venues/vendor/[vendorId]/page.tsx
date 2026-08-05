@@ -60,13 +60,18 @@ export default function VendorProfilePage() {
                 src={vendor.banner}
                 alt={`${vendor.businessName} banner`}
                 className="mb-6 h-48 w-full rounded-2xl object-cover sm:h-64"
-              />
+            loading="lazy"
+            decoding="async"
+          />
             )}
 
             <div className="flex items-center gap-4">
               {vendor.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={vendor.logo} alt={vendor.businessName} className="h-16 w-16 shrink-0 rounded-2xl object-cover" />
+                <img src={vendor.logo} alt={vendor.businessName} className="h-16 w-16 shrink-0 rounded-2xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               ) : (
                 <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500">
                   <Store className="h-7 w-7" />

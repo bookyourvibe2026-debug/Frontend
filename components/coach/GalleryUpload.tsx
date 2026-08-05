@@ -47,7 +47,10 @@ export function GalleryUpload({
         {value.map((url) => (
           <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border border-surface-border">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt="Gallery" className="h-full w-full object-cover" />
+            <img src={url} alt="Gallery" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
             <button
               type="button"
               onClick={() => remove(url)}

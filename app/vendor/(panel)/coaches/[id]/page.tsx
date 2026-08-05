@@ -104,7 +104,10 @@ export default function VendorCoachDetailPage() {
       <div className="flex items-center gap-4 rounded-xl2 border border-surface-border bg-surface-card p-5 shadow-panel">
         {coach.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={coach.photoUrl} alt={coach.name} className="h-16 w-16 rounded-full object-cover" />
+          <img src={coach.photoUrl} alt={coach.name} className="h-16 w-16 rounded-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#5c3a21]/10 text-[#5c3a21]">
             <UserRoundCog size={24} />

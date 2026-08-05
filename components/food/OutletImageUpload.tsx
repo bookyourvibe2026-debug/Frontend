@@ -43,7 +43,10 @@ export function OutletImageUpload({
       {value ? (
         <div className={`group relative w-full overflow-hidden rounded-xl border border-surface-border ${aspect}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt={label} className="h-full w-full object-cover" />
+          <img src={value} alt={label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition group-hover:opacity-100">
             <button
               type="button"

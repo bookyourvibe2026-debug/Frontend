@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   customerGoogleAuth,
   customerLogin,
@@ -104,13 +104,12 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     return profile;
   }, []);
 
-  return (
-    <CustomerAuthContext.Provider
-      value={{ customer, status, login, loginWithGoogle, loginWithEmailOtp, register, logout, updateProfile }}
-    >
-      {children}
-    </CustomerAuthContext.Provider>
+  const value = useMemo(
+    () => ({ customer, status, login, loginWithGoogle, loginWithEmailOtp, register, logout, updateProfile }),
+    [customer, status, login, loginWithGoogle, loginWithEmailOtp, register, logout, updateProfile]
   );
+
+  return <CustomerAuthContext.Provider value={value}>{children}</CustomerAuthContext.Provider>;
 }
 
 export function useCustomerAuth() {

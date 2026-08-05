@@ -1,19 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Bell, Check, CheckCheck, Clock, ShieldCheck, UserCheck, UserX, X } from "lucide-react";
 import { getCustomerNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api/notifications";
 import type { CustomerNotification } from "@/lib/api/types";
+
+/**
+ * The bell is mounted twice per page (desktop header + mobile header, both always
+ * in the DOM, only CSS-hidden). This module-level singleton keeps exactly one 8s
+ * poll running regardless of how many instances are mounted, and broadcasts the
+ * result to every subscriber via useSyncExternalStore.
+ */
+interface NotifState {
+  notifications: CustomerNotification[];
+  loading: boolean;
+}
+
+let sharedState: NotifState = { notifications: [], loading: false };
+let currentPhone = "";
+let hasFetchedOnce = false;
+let intervalId: ReturnType<typeof setInterval> | null = null;
+const subscribers = new Set<() => void>();
+
+function emit() {
+  subscribers.forEach((fn) => fn());
+}
+
+function setSharedState(next: Partial<NotifState>) {
+  sharedState = { ...sharedState, ...next };
+  emit();
+}
+
+async function fetchShared() {
+  try {
+    setSharedState({ loading: true });
+    const data = await getCustomerNotifications(currentPhone || undefined);
+    setSharedState({ notifications: data, loading: false });
+  } catch (_) {
+    // Quietly ignore background network/offline errors
+    setSharedState({ loading: false });
+  }
+}
+
+function ensurePolling(phone: string) {
+  if (!hasFetchedOnce || phone !== currentPhone) {
+    hasFetchedOnce = true;
+    currentPhone = phone;
+    fetchShared();
+  }
+  if (!intervalId) {
+    intervalId = setInterval(fetchShared, 8_000); // Fast 8s real-time polling
+  }
+}
+
+function subscribe(cb: () => void) {
+  subscribers.add(cb);
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0 && intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+}
+
+function getSnapshot() {
+  return sharedState;
+}
 
 export function CustomerNotificationBell({
   onSelectNotification,
 }: {
   onSelectNotification?: (notif: CustomerNotification) => void;
 }) {
-  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [playerPhone, setPlayerPhone] = useState<string>("");
+  const { notifications, loading } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useEffect(() => {
     try {
@@ -22,22 +84,8 @@ export function CustomerNotificationBell({
     } catch (_) {}
   }, []);
 
-  const fetchNotifs = async () => {
-    try {
-      setLoading(true);
-      const data = await getCustomerNotifications(playerPhone || undefined);
-      setNotifications(data);
-    } catch (_) {
-      // Quietly ignore background network/offline errors
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 8_000); // Fast 8s real-time polling
-    return () => clearInterval(interval);
+    ensurePolling(playerPhone);
   }, [playerPhone]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -46,7 +94,9 @@ export function CustomerNotificationBell({
     if (!notif.read) {
       try {
         await markNotificationRead(notif._id, playerPhone || undefined);
-        setNotifications((prev) => prev.map((n) => (n._id === notif._id ? { ...n, read: true } : n)));
+        setSharedState({
+          notifications: sharedState.notifications.map((n) => (n._id === notif._id ? { ...n, read: true } : n)),
+        });
       } catch (_) {}
     }
     setOpen(false);
@@ -58,7 +108,7 @@ export function CustomerNotificationBell({
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead(playerPhone || undefined);
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setSharedState({ notifications: sharedState.notifications.map((n) => ({ ...n, read: true })) });
     } catch (_) {}
   };
 
@@ -77,7 +127,7 @@ export function CustomerNotificationBell({
         aria-label="Notifications"
         onClick={() => {
           setOpen((v) => !v);
-          if (!open) fetchNotifs();
+          if (!open) fetchShared();
         }}
         className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-brand-300 active:scale-95"
       >

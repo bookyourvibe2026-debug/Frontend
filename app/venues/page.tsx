@@ -138,6 +138,8 @@ function VenuesPageInner() {
     return result;
   }, [venues, vendorProfiles]);
 
+  const cardElements = cards.map((card) => <VenuePosterCard key={card.id} {...card} />);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#eef2ff_45%,_#ffffff_82%)]">
       <div className="hidden sm:block">
@@ -169,9 +171,7 @@ function VenuesPageInner() {
           />
 
           <div className="grid grid-cols-2 gap-3">
-            {cards.map((card) => (
-              <VenuePosterCard key={card.id} {...card} />
-            ))}
+            {cardElements}
             {!loading && cards.length === 0 && (
               <p className="col-span-2 rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
                 No venues available yet. Check back soon.
@@ -204,9 +204,7 @@ function VenuesPageInner() {
         </section>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {cards.map((card) => (
-            <VenuePosterCard key={card.id} {...card} />
-          ))}
+          {cardElements}
           {!loading && cards.length === 0 && (
             <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
               No venues available yet. Check back soon.

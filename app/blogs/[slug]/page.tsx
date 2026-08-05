@@ -88,7 +88,10 @@ export default function BlogDetailPage() {
           <div className="h-56 w-full overflow-hidden rounded-3xl border border-slate-100 bg-slate-100 sm:h-96">
             {post.thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
+              <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
             )}
           </div>
 
@@ -118,7 +121,10 @@ export default function BlogDetailPage() {
                   <div className="h-28 w-full overflow-hidden bg-slate-100">
                     {p.thumbnail && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.thumbnail} alt={p.title} className="h-full w-full object-cover" />
+                      <img src={p.thumbnail} alt={p.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                     )}
                   </div>
                   <div className="p-3">

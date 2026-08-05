@@ -329,7 +329,10 @@ export default function VendorCoachesPage() {
               <Link href={`/vendor/coaches/${coach._id}`} className="flex min-w-0 flex-1 items-center gap-3 group">
                 {coach.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coach.photoUrl} alt={coach.name} className="h-12 w-12 shrink-0 rounded-full object-cover" />
+                  <img src={coach.photoUrl} alt={coach.name} className="h-12 w-12 shrink-0 rounded-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#5c3a21]/10 text-[#5c3a21]">
                     <UserRoundCog size={18} />

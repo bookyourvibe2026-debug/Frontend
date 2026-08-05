@@ -109,7 +109,10 @@ export default function AdminListingDetailPage() {
       <aside className="w-full shrink-0 lg:w-72">
         <div className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
           <div className="relative h-28">
-            {cover && <img src={cover} alt={listing.title} className="h-full w-full object-cover" />}
+            {cover && <img src={cover} alt={listing.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
             <div className="absolute left-2 top-2">
               <Badge tone={listing.status === "Active" ? "success" : "neutral"}>{listing.status}</Badge>
@@ -177,7 +180,10 @@ export default function AdminListingDetailPage() {
           <>
             <div className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
               <div className="relative h-64 sm:h-80">
-                {active && <img src={active.url} alt={listing.title} className="h-full w-full object-cover" />}
+                {active && <img src={active.url} alt={listing.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute left-4 top-4 flex gap-2">
                   <Badge tone={listing.status === "Active" ? "success" : "neutral"}>{listing.status}</Badge>
@@ -201,7 +207,10 @@ export default function AdminListingDetailPage() {
                         i === activeImage ? "border-vibe-violet" : "border-transparent"
                       }`}
                     >
-                      <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
+                      <img src={img.url} alt={img.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                       <span className="absolute inset-x-0 bottom-0 bg-black/50 py-0.5 text-center text-[9px] font-semibold text-white">
                         {img.label}
                       </span>

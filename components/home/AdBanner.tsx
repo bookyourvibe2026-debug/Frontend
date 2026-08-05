@@ -103,7 +103,7 @@ export function AdBanner({
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseLeaveTrack}
         >
-          {banners.map((banner) => {
+          {banners.map((banner, index) => {
             const content = (
               <>
                 {/* The artwork is ~2:1 but this slot is far wider, so it can never fill
@@ -123,7 +123,7 @@ export function AdBanner({
                   src={banner.imageUrl}
                   fill
                   sizes="(max-width: 640px) 100vw, 1280px"
-                  priority
+                  priority={index === 0}
                   alt={banner.title ?? "Promotional banner"}
                   className="relative object-contain pointer-events-none"
                   draggable={false}

@@ -46,7 +46,10 @@ export function CoachPhotoUpload({
       >
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="Coach" className="h-full w-full rounded-full object-cover" />
+          <img src={value} alt="Coach" className="h-full w-full rounded-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="flex h-full w-full items-center justify-center rounded-full bg-[#5c3a21]/10 text-[#5c3a21]">
             <UserRoundCog size={size * 0.38} />

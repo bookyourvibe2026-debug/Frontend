@@ -147,7 +147,10 @@ function StudioSidebar({
     <aside className="w-full shrink-0 lg:w-72">
       <div className="overflow-hidden rounded-xl2 border border-surface-border bg-white shadow-panel">
         <div className="relative h-28">
-          {cover && <img src={cover} alt={listing.title} className="h-full w-full object-cover" />}
+          {cover && <img src={cover} alt={listing.title} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
           <div className="absolute left-2 top-2">
             <Badge tone={listing.status === "Active" ? "success" : "neutral"}>{listing.status}</Badge>
@@ -333,7 +336,10 @@ function ImageGallery({
     <div className="rounded-xl2 border border-surface-border bg-white p-4 shadow-panel">
       <div className="relative h-64 overflow-hidden rounded-xl bg-cream-300 sm:h-80">
         {activeImage ? (
-          <img src={activeImage.url} alt={activeImage.label} className="h-full w-full object-cover" />
+          <img src={activeImage.url} alt={activeImage.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center text-ink-faint">
             <Camera size={28} />
@@ -372,7 +378,10 @@ function ImageGallery({
                 i === active ? "border-vibe-violet" : "border-transparent"
               }`}
             >
-              <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
+              <img src={img.url} alt={img.label} className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
               <span className="absolute inset-x-0 bottom-0 bg-black/50 py-0.5 text-center text-[9px] font-semibold text-white">
                 {img.label}
               </span>

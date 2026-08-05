@@ -164,7 +164,10 @@ export default function ProfilePage() {
                 <div className="h-16 w-16 overflow-hidden rounded-xl bg-cream-300 flex items-center justify-center text-ink-faint">
                   {vendor.logo ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={vendor.logo} alt="Business logo" className="h-full w-full object-cover" />
+                    <img src={vendor.logo} alt="Business logo" className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
                   ) : (
                     <Upload size={18} />
                   )}

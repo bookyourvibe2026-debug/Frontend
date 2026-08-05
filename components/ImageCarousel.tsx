@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /** Swipeable, auto-advancing image carousel. Scrolling is native (CSS scroll-snap) so
@@ -63,9 +64,16 @@ export function ImageCarousel({
         className="flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {images.map((src, i) => (
-          <div key={i} className="h-full w-full flex-none snap-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={`${alt} ${i + 1}`} className="block h-full w-full object-cover" draggable={false} />
+          <div key={i} className="relative h-full w-full flex-none snap-center">
+            <Image
+              src={src}
+              alt={`${alt} ${i + 1}`}
+              fill
+              draggable={false}
+              sizes="100vw"
+              priority={i === 0}
+              className="object-cover"
+            />
           </div>
         ))}
       </div>

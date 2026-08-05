@@ -29,7 +29,7 @@ export function FindYourGames({
         </div>
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4 xl:grid-cols-7">
-          {SPORTS_CATALOG.map((s) => (
+          {SPORTS_CATALOG.map((s, index) => (
             <button
               key={s.id}
               onClick={() => onSelectSport(s)}
@@ -45,7 +45,7 @@ export function FindYourGames({
                   width={64}
                   height={64}
                   unoptimized
-                  priority
+                  priority={index === 0}
                   className="relative z-10 h-14 w-14 object-contain transition duration-300 group-hover:scale-105 sm:h-16 sm:w-16"
                 />
                 {s.isNew && (

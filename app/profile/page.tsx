@@ -385,7 +385,9 @@ export default function ProfilePage() {
                     alt={customer.name}
                     className="h-full w-full object-cover"
                     onError={() => setImgError(true)}
-                  />
+            loading="lazy"
+            decoding="async"
+          />
                 ) : (
                   getInitials()
                 )}

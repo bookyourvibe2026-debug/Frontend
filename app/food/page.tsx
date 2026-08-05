@@ -163,6 +163,8 @@ function OutletCard({ outlet }: { outlet: FoodOutlet }) {
             src={outlet.banner || outlet.poster}
             alt={outlet.name}
             className="h-40 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex h-40 w-full items-center justify-center bg-brand-50 text-brand-300">
@@ -185,7 +187,10 @@ function OutletCard({ outlet }: { outlet: FoodOutlet }) {
       <div className="flex items-center gap-3 p-4">
         {outlet.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={outlet.logo} alt={outlet.name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+          <img src={outlet.logo} alt={outlet.name} className="h-12 w-12 shrink-0 rounded-xl object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
             <UtensilsCrossed className="h-5 w-5" />

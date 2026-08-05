@@ -1329,7 +1329,10 @@ function Poster({ challenge }: { challenge: Challenge }) {
       <div className="relative flex flex-col items-center">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-white p-0.5">
-            <img src="/logo.jpg" alt="" className="h-full w-full object-contain" />
+            <img src="/logo.jpg" alt="" className="h-full w-full object-contain"
+            loading="lazy"
+            decoding="async"
+          />
           </div>
           <p className="text-xs font-black tracking-tight text-white uppercase">
             BOOK <span className="text-orange-500">YOUR VIBE</span>
@@ -1407,7 +1410,10 @@ function Poster({ challenge }: { challenge: Challenge }) {
             style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}
           >
             {sportMeta && "image" in sportMeta ? (
-              <img src={sportMeta.image} alt="" className="h-4 w-4 object-contain filter invert brightness-200" />
+              <img src={sportMeta.image} alt="" className="h-4 w-4 object-contain filter invert brightness-200"
+            loading="lazy"
+            decoding="async"
+          />
             ) : (
               <span className="text-sm">{sportMeta?.emoji ?? "🏆"}</span>
             )}
@@ -1499,7 +1505,10 @@ function Poster({ challenge }: { challenge: Challenge }) {
         <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrDataUrl} alt="" className="h-full w-full object-contain" />
+            <img src={qrDataUrl} alt="" className="h-full w-full object-contain"
+            loading="lazy"
+            decoding="async"
+          />
           ) : (
             <div className="h-full w-full animate-pulse rounded bg-slate-200" />
           )}
