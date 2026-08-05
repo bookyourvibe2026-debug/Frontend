@@ -32,6 +32,7 @@ export interface TimelineSlot {
   clubId?: string;
   slotIds?: string[];
   durationMinutes?: number;
+  courtsInfo?: { id: string; name: string; isBooked: boolean }[];
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -389,14 +390,25 @@ export function BookingsTimeline({
                     </p>
                   </div>
                 ) : isFree ? (
-                  <div className="flex items-center justify-between gap-2 w-full pr-1">
-                    <div>
-                      <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Available</p>
-                      <p className="mt-0.5 text-[10px] font-medium text-slate-400">Tap to add booking</p>
+                  <div className="flex flex-col w-full pr-1 gap-1.5">
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <div>
+                        <p className={`text-[11px] font-black uppercase tracking-wide ${s.title}`}>Available</p>
+                        <p className="mt-0.5 text-[10px] font-medium text-slate-400">Tap to add booking</p>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                        ₹{(slot.price && slot.price > 0 ? slot.price : 1000).toLocaleString("en-IN")}
+                      </span>
                     </div>
-                    <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
-                      ₹{(slot.price && slot.price > 0 ? slot.price : 1000).toLocaleString("en-IN")}
-                    </span>
+                    {slot.courtsInfo && slot.courtsInfo.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {slot.courtsInfo.map(court => (
+                          <span key={court.id} className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${court.isBooked ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                            {court.name} {court.isBooked ? '(Booked)' : '(Free)'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : isBlocked ? (
                   <>

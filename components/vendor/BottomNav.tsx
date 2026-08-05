@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { NAV_ITEMS_BY_VERTICAL, MOBILE_NAV_ORDER } from "./Sidebar";
 import { MPIN_SESSION_KEY } from "./MpinGate";
+import { getVendorBookings, listVendorCoachSubscriptions } from "@/lib/api/vendor";
+import { getReadNotificationIds } from "@/lib/vendorNotifications";
 import type { VendorVertical } from "@/lib/api/types";
 
 const MAX_PRIMARY_ITEMS = 4;
@@ -33,6 +35,44 @@ export default function BottomNav({
 }) {
   const pathname = usePathname();
   const [activeVertical, setActiveVertical] = useState<VendorVertical>(verticals[0] ?? "turf");
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  // Poll whichever vertical's bookings/enrolments feed the Notifications tab, so the bottom
+  // nav can show an unread count the moment something new comes in. "Unread" means not yet
+  // individually opened/acknowledged (or swept by "mark all read") on the Notifications
+  // page itself — landing on this tab does NOT clear it on its own.
+  useEffect(() => {
+    if (activeVertical !== "turf" && activeVertical !== "coaches") {
+      setUnreadNotifCount(0);
+      return;
+    }
+    let cancelled = false;
+    function poll() {
+      const readIds = getReadNotificationIds();
+      // Turf bookings come back sorted by slot date, not creation date — a venue with
+      // 20+ bookings for later dates could bury a booking that was just made for an
+      // earlier slot, so this fetches the same 500-row window the Notifications page
+      // itself uses instead of a small page that can silently miss it. Coach
+      // subscriptions are already sorted newest-created-first, so a small page is safe.
+      const request =
+        activeVertical === "turf"
+          ? getVendorBookings({ limit: 500 }).then((res) => res.items.map((b) => ({ orderId: b.orderId, status: b.status })))
+          : listVendorCoachSubscriptions({ limit: 100 }).then((res) => res.items.map((s) => ({ orderId: s.orderId, status: s.status })));
+      request
+        .then((rows) => {
+          if (cancelled) return;
+          const unread = rows.filter((r) => r.status !== "Cancelled" && !readIds.has(r.orderId)).length;
+          setUnreadNotifCount(unread);
+        })
+        .catch(() => {});
+    }
+    poll();
+    const id = setInterval(poll, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [activeVertical]);
 
   useEffect(() => {
     const matched = verticals.find((v) =>
@@ -74,6 +114,7 @@ export default function BottomNav({
       {primaryItems.map(({ href, label, icon: Icon }) => {
         const active = href === bestHref && !isMoreActive;
         const isDashboard = href.endsWith("/dashboard");
+        const isNotifications = href.endsWith("/notifications");
 
         if (isDashboard) {
           return (
@@ -82,7 +123,7 @@ export default function BottomNav({
               href={href}
               className="flex flex-1 flex-col items-center justify-end text-center gap-1 pb-1.5 text-[11px] font-medium text-ink-faint"
             >
-              <span 
+              <span
                 className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-colors ${
                   active ? "bg-vibe-violet" : "bg-vibe-navy"
                 }`}
@@ -103,7 +144,14 @@ export default function BottomNav({
               active ? "text-vibe-violet" : "text-ink-faint"
             }`}
           >
-            <Icon size={20} strokeWidth={2} />
+            <span className="relative">
+              <Icon size={20} strokeWidth={2} />
+              {isNotifications && unreadNotifCount > 0 && (
+                <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-vibe-coral px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
+                  {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                </span>
+              )}
+            </span>
             {SHORT_LABELS[label] ?? label}
           </Link>
         );

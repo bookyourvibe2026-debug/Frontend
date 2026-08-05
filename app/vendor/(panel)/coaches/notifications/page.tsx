@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck, Phone, SlidersHorizontal, UserRoundCog } from "lucide-react";
 import { listVendorCoachSubscriptions } from "@/lib/api/vendor";
 import { ApiError } from "@/lib/api/client";
+import { getReadNotificationIds, saveReadNotificationIds } from "@/lib/vendorNotifications";
 import type { CoachSubscription } from "@/lib/api/types";
 
 type Tab = "All" | "New" | "Paid" | "Pending" | "Cancelled";
@@ -27,6 +28,10 @@ export default function CoachNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("All");
   const [read, setRead] = useState<Set<string>>(new Set());
+  function markRead(next: Set<string>) {
+    setRead(next);
+    saveReadNotificationIds(next);
+  }
 
   useEffect(() => {
     listVendorCoachSubscriptions({ limit: 100 })
@@ -35,6 +40,7 @@ export default function CoachNotificationsPage() {
         if (!(err instanceof ApiError)) throw err;
       })
       .finally(() => setLoading(false));
+    setRead(getReadNotificationIds());
   }, []);
 
   const counts = useMemo(
@@ -75,7 +81,7 @@ export default function CoachNotificationsPage() {
           <p className="text-[10px] font-medium text-ink-faint">New enrolments &amp; payment activity</p>
         </div>
         <button
-          onClick={() => setRead(new Set(subs.map((s) => s.orderId)))}
+          onClick={() => markRead(new Set([...read, ...subs.map((s) => s.orderId)]))}
           className="flex flex-col items-center gap-0.5 text-ink-faint transition hover:text-ink"
           aria-label="Mark all read"
         >
@@ -128,7 +134,7 @@ export default function CoachNotificationsPage() {
             return (
               <div
                 key={s.orderId}
-                onClick={() => setRead((prev) => new Set(prev).add(s.orderId))}
+                onClick={() => markRead(new Set(read).add(s.orderId))}
                 className={`flex items-start gap-3 rounded-2xl border bg-white p-4 shadow-panel transition ${
                   unread ? "border-[#5c3a21]/30" : "border-surface-border"
                 }`}

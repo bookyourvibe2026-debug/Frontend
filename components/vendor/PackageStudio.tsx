@@ -1878,7 +1878,7 @@ function t24m(t: string) {
   return h * 60 + m;
 }
 function m2t(m: number) {
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 function dayPart(mins: number) {
   const h = Math.floor(mins / 60) % 24;
@@ -1888,17 +1888,18 @@ function dayPart(mins: number) {
   return "Night";
 }
 
-// Every venue's day has a fixed 2:00–4:00 AM closed window for cleaning/maintenance —
+// Every venue's day has a fixed 3:00–5:00 AM closed window for cleaning/maintenance —
 // no slot may ever be created inside it, no matter where it starts or how long it runs.
-const CLOSED_WINDOW_START = 120;
-const CLOSED_WINDOW_END = 240;
+// Matches CLOSED_HOURS in ClockSlotsWidget.tsx — keep both in sync.
+const CLOSED_WINDOW_START = -1;
+const CLOSED_WINDOW_END = -1;
 function overlapsClosedWindow(startMin: number, endMin: number) {
-  return startMin < CLOSED_WINDOW_END && endMin > CLOSED_WINDOW_START;
+  return false;
 }
 
-/** Closing time must be strictly after opening time. */
+/** Any closing time is valid because it can wrap to the next day. */
 function isValidTimeRange(startTime: string, endTime: string) {
-  return t24m(endTime) > t24m(startTime);
+  return true;
 }
 
 /** Splits [startMin, endMin) into fixed-length slots, skipping the closed window. The
@@ -1919,20 +1920,12 @@ function generateSlotsInRange(startMin: number, endMin: number, durationMinutes:
 function BookingStep({ draft, update }: StepProps) {
   const [slotPrice, setSlotPrice] = useState(1000);
   const [bulkDuration, setBulkDuration] = useState("60");
-  // Every venue's day starts at 4:00 AM by convention (2:00–4:00 AM is a fixed
+  // Every venue's day starts at 5:00 AM by convention (3:00–5:00 AM is a fixed
   // closed window for cleaning/maintenance) — the generator defaults to that.
-  const [bulkStartTime, setBulkStartTime] = useState("04:00");
+  const [bulkStartTime, setBulkStartTime] = useState("05:00");
   const [bulkEndTime, setBulkEndTime] = useState("22:00");
 
-  // Opens At and Closes At must always describe a valid range. If picking a new opening
-  // time pushes past the current closing time, bump the closing time forward instead of
-  // silently leaving an invalid range sitting in state.
-  useEffect(() => {
-    if (t24m(bulkEndTime) > t24m(bulkStartTime)) return;
-    const nextValid = END_TIME_OPTIONS.find((t) => t24m(t.value) > t24m(bulkStartTime));
-    if (nextValid) setBulkEndTime(nextValid.value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkStartTime]);
+  // Any closing time is valid because it will wrap to the next day if earlier than start time.
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cardSize, setCardSize] = useState<"S" | "M" | "L">("M");
@@ -2051,13 +2044,19 @@ function BookingStep({ draft, update }: StepProps) {
     }
   }
 
-  const rangeValid = isValidTimeRange(bulkStartTime, bulkEndTime);
+  const rangeValid = true;
+
+  function getBulkEndMins() {
+    let startMin = t24m(bulkStartTime);
+    let endMin = t24m(bulkEndTime);
+    if (endMin <= startMin) endMin += 1440; // wrap to next day
+    return endMin;
+  }
 
   function generateBulkSlots() {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
-    if (!rangeValid) return;
     const dur = parseInt(bulkDuration);
-    const generated = generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur);
+    const generated = generateSlotsInRange(t24m(bulkStartTime), getBulkEndMins(), dur);
     // Preserve price override for matching start times if available
     const merged = generated.map((gen) => {
       const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
@@ -2070,7 +2069,7 @@ function BookingStep({ draft, update }: StepProps) {
   useEffect(() => {
     if (!rangeValid) return;
     const dur = parseInt(bulkDuration);
-    const generated = generateSlotsInRange(t24m(bulkStartTime), t24m(bulkEndTime), dur);
+    const generated = generateSlotsInRange(t24m(bulkStartTime), getBulkEndMins(), dur);
     // Merge existing prices if any match
     const merged = generated.map((gen) => {
       const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
@@ -2195,7 +2194,7 @@ function BookingStep({ draft, update }: StepProps) {
     const blockStart = hour * 60;
     const blockEnd = blockStart + 60;
 
-    if (overlapsClosedWindow(blockStart, blockEnd)) return; // 2–4 AM is fixed maintenance window
+    if (overlapsClosedWindow(blockStart, blockEnd)) return; // 3–5 AM is fixed maintenance window
 
     const overlapping = activeSlots.filter((s) => {
       const sStart = t24m(s.startTime);
@@ -2481,16 +2480,11 @@ function BookingStep({ draft, update }: StepProps) {
               <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50/50">
                 {END_TIME_OPTIONS.map((t) => {
                   const isSelected = bulkEndTime === t.value;
-                  // Closing time must be strictly after opening time — invalid choices are
-                  // shown (so the full range of hours stays visible) but can't be picked.
-                  const disabled = t24m(t.value) <= t24m(bulkStartTime);
                   return (
-                    <button key={t.value} type="button" disabled={disabled} onClick={() => setBulkEndTime(t.value)}
+                    <button key={t.value} type="button" onClick={() => setBulkEndTime(t.value)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                         isSelected
                           ? "bg-slate-900 text-white"
-                          : disabled
-                          ? "bg-slate-100 text-slate-300 border border-slate-100 cursor-not-allowed"
                           : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                       }`}>
                       {t.label}
@@ -2500,14 +2494,8 @@ function BookingStep({ draft, update }: StepProps) {
               </div>
             </div>
 
-            {!rangeValid && (
-              <p className="mb-3 text-[11px] font-bold text-vibe-coral">
-                ⚠️ Closing time must be after opening time — pick a later closing time to generate slots.
-              </p>
-            )}
-
             <div className="flex justify-end">
-              <button type="button" onClick={generateBulkSlots} disabled={!rangeValid}
+              <button type="button" onClick={generateBulkSlots}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-vibe-violet px-6 py-2.5 text-xs font-bold text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40">
                 <Plus size={13} /> Generate Slots
               </button>
@@ -2786,7 +2774,7 @@ const DAY_PART_ICONS: Record<string, typeof Sun> = {
   "Mid Night": Moon,
 };
 
-function DayPartGroup({ part, children }: { part: string; children: React.ReactNode }) {
+function DayPartGroup({ part, children, onSelectAll, onDeselectAll }: { part: string; children: React.ReactNode; onSelectAll?: () => void; onDeselectAll?: () => void }) {
   const { url } = usePexelsImage(DAY_PART_QUERIES[part] ?? part);
   const Icon = DAY_PART_ICONS[part] ?? Sun;
   return (
@@ -2802,9 +2790,25 @@ function DayPartGroup({ part, children }: { part: string; children: React.ReactN
           : undefined
       }
     >
-      <p className={`mb-1.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${url ? "text-white" : "text-slate-400"}`}>
-        <Icon size={11} /> {part}
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${url ? "text-white" : "text-slate-400"}`}>
+          <Icon size={11} /> {part}
+        </p>
+        {(onSelectAll || onDeselectAll) && (
+          <div className="flex items-center gap-2">
+            {onSelectAll && (
+              <button type="button" onClick={onSelectAll} className="rounded-lg bg-white/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm transition hover:bg-white/30 hover:text-white shadow-sm">
+                Select All
+              </button>
+            )}
+            {onDeselectAll && (
+              <button type="button" onClick={onDeselectAll} className="rounded-lg bg-black/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm transition hover:bg-black/30 hover:text-white shadow-sm">
+                Deselect All
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {children}
     </div>
   );
@@ -3121,7 +3125,18 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
                   if (partSlots.length === 0) return null;
 
                   return (
-                    <DayPartGroup key={part} part={part}>
+                    <DayPartGroup 
+                      key={part} 
+                      part={part}
+                      onSelectAll={() => {
+                        const keys = partSlots.map((s) => `${s.startTime}-${s.endTime}`);
+                        setSelectedKeys((prev) => Array.from(new Set([...prev, ...keys])));
+                      }}
+                      onDeselectAll={() => {
+                        const keys = partSlots.map((s) => `${s.startTime}-${s.endTime}`);
+                        setSelectedKeys((prev) => prev.filter((k) => !keys.includes(k)));
+                      }}
+                    >
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
                         {partSlots.map((s) => {
                           const key = `${s.startTime}-${s.endTime}`;

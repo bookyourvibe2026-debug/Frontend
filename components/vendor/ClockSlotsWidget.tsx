@@ -4,10 +4,39 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, X, Sun, Moon, Lock } from "lucide-react";
 import { useBackDismiss } from "@/lib/useBackDismiss";
 
-/** Every venue's day runs 4:00 AM → 2:00 AM the next day, with a fixed 2:00–4:00 AM
- * gap for cleaning/maintenance — no slot can ever be created inside it. Hour 2 and
- * hour 3 (the two wedges covering that window) are permanently closed on the dial. */
-const CLOSED_HOURS = new Set([2, 3]);
+/** Every half is a pure, fixed 12-hour analog face (12 positions, 30° each) — the
+ * split point is 3 AM / 3 PM rather than midnight/noon, which is what makes Morning/
+ * Noon actually run 5 AM–3 PM and Evening/Night 3 PM–3 AM as requested. That means
+ * "12" does not sit at the very top of either face — the hour at the top position is
+ * honestly labelled whatever it really is (3, for both halves) — but every hour a
+ * vendor asked for (through 3 PM on Morning/Noon) is a normal, fillable slice. The
+ * fixed 3:00–5:00 AM cleaning/maintenance gap falls as the first two slices of
+ * Morning/Noon; Evening/Night's 12 hours never reach it. Must match
+ * CLOSED_WINDOW_START/END in PackageStudio.tsx, the real source of truth for what
+ * slots actually get generated. */
+const CLOSED_HOURS = new Set<number>();
+
+type Half = "MorningNoon" | "EveningNight";
+
+const HALF_START: Record<Half, number> = { MorningNoon: 3, EveningNight: 15 };
+
+/** The 12 real hours on each half's dial face, in clockwise order. */
+const HALF_FACE_HOURS: Record<Half, number[]> = {
+  MorningNoon: Array.from({ length: 12 }, (_, i) => (HALF_START.MorningNoon + i) % 24),
+  EveningNight: Array.from({ length: 12 }, (_, i) => (HALF_START.EveningNight + i) % 24),
+};
+
+/** Same as HALF_FACE_HOURS minus the permanently-closed 3–5 AM pair — only ever
+ * trims Morning/Noon since Evening/Night's hours never include them. */
+const HALF_BOOKABLE_HOURS: Record<Half, number[]> = {
+  MorningNoon: HALF_FACE_HOURS.MorningNoon.filter((h) => !CLOSED_HOURS.has(h)),
+  EveningNight: HALF_FACE_HOURS.EveningNight,
+};
+
+const HALF_LABEL: Record<Half, string> = {
+  MorningNoon: "Morning/Noon",
+  EveningNight: "Evening/Night",
+};
 
 export interface ClockSlotItem {
   startTime: string; // "HH:MM"
@@ -163,7 +192,9 @@ export function ClockSlotsWidget({
 }) {
   const [hoveredSlot, setHoveredSlot] = useState<ClockSlotItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [half, setHalf] = useState<"AM" | "PM">(() => (new Date().getHours() < 12 ? "AM" : "PM"));
+  const [half, setHalf] = useState<Half>(() =>
+    HALF_BOOKABLE_HOURS.MorningNoon.includes(new Date().getHours()) ? "MorningNoon" : "EveningNight"
+  );
   const [isFullscreen, setIsFullscreen] = useState(autoFullscreen);
 
   const exitFullscreen = useCallback(() => {
@@ -226,17 +257,16 @@ export function ClockSlotsWidget({
   const center = size / 2;
   const outerRadius = size / 2 - 24;
   const innerRadius = outerRadius * 0.3;
-  const halfStart = half === "AM" ? 0 : 12;
-  const halfEnd = halfStart + 12;
 
-  // Real 24h hour → position on the 12-position face (0 = top/"12", clockwise 1..11).
-  function toFaceAngle(realHour: number) {
-    return (realHour - halfStart) * 30;
-  }
-  // Position on the 12-position face (0-11, 0 = top/"12") → real 24h hour for the active half.
+  // The active half's hours, in clockwise dial order — 10 wedges for Morning/Noon,
+  // 14 for Evening/Night (its 12 bookable hours plus the closed 3–5 AM tail). Each
+  // half always fills the full 360°, so wedge width differs between the two faces.
+  const faceHours = HALF_FACE_HOURS[half];
+  const wedgeDeg = 360 / faceHours.length;
+
+  // Position on the dial face (0 = top/"12", clockwise) → real 24h hour for the active half.
   function toRealHour(positionHour: number) {
-    const h = positionHour % 12;
-    return halfStart + h;
+    return faceHours[((positionHour % faceHours.length) + faceHours.length) % faceHours.length];
   }
 
   // The fullscreen overlay sits above the page's modals, so any selection made
@@ -258,38 +288,35 @@ export function ClockSlotsWidget({
     let angleDeg = (angleRad * 180) / Math.PI + 90;
     if (angleDeg < 0) angleDeg += 360;
 
-    const positionHour = Math.floor(angleDeg / 30) % 12;
+    const positionHour = Math.floor(angleDeg / wedgeDeg) % faceHours.length;
     const realHour = toRealHour(positionHour);
-    if (CLOSED_HOURS.has(realHour)) return; // 2–4 AM is a fixed closed window — nothing to select
+    if (CLOSED_HOURS.has(realHour)) return; // 3–5 AM is a fixed closed window — nothing to select
     selectHour(realHour);
   };
 
   const clockTicks = useMemo(() => {
     const ticks = [];
-    for (let i = 0; i < 12; i++) {
-      const angle = i * 30;
+    for (let i = 0; i < faceHours.length; i++) {
+      const realHour = faceHours[i]!;
+      const angle = i * wedgeDeg + 90;
       const posOuter = polarToCartesian(center, center, outerRadius + 14, angle);
-      const label = i === 0 ? 12 : i;
+      const label = realHour % 12 === 0 ? 12 : realHour % 12;
       ticks.push({ position: i, label, posOuter, angle });
     }
     return ticks;
-  }, [center, outerRadius]);
+  }, [center, outerRadius, faceHours, wedgeDeg]);
 
-  /** Only the slots that fall inside the currently shown 12-hour half. */
+  /** Only the slots that fall inside the currently shown half's bookable hours. */
   const activeSlotsList = useMemo(() => {
-    const from = half === "AM" ? 0 : 12;
-    const to = from + 12;
-    return slots.filter((s) => {
-      const start = timeStringToHours(s.startTime);
-      return start >= from && start < to;
-    });
+    const bookable = new Set(HALF_BOOKABLE_HOURS[half]);
+    return slots.filter((s) => bookable.has(Math.floor(timeStringToHours(s.startTime))));
   }, [slots, half]);
 
   const segments = useMemo(() => {
     const result: { slot: ClockSlotItem; pathData: string; color: string; index: number }[] = [];
 
-    for (let h = 0; h < 12; h++) {
-      const realHour = half === "AM" ? h : h + 12;
+    for (let i = 0; i < faceHours.length; i++) {
+      const realHour = faceHours[i]!;
       if (CLOSED_HOURS.has(realHour)) continue; // rendered separately, never as a real slot
 
       // Find a slot that overlaps with [realHour, realHour + 1]
@@ -300,8 +327,8 @@ export function ClockSlotsWidget({
         return realHour >= start && realHour < end;
       });
 
-      const startAngle = h * 30;
-      const endAngle = (h + 1) * 30;
+      const startAngle = i * wedgeDeg + 90;
+      const endAngle = (i + 1) * wedgeDeg + 90;
       const color = matchingSlot ? statusColor(matchingSlot.status) : "transparent";
 
       if (matchingSlot) {
@@ -309,36 +336,37 @@ export function ClockSlotsWidget({
           slot: matchingSlot,
           pathData: describePieSegment(center, center, innerRadius, outerRadius, startAngle, endAngle),
           color,
-          index: h,
+          index: i,
         });
       }
     }
     return result;
-  }, [activeSlotsList, center, innerRadius, outerRadius, half]);
+  }, [activeSlotsList, center, innerRadius, outerRadius, faceHours, wedgeDeg]);
 
-  /** The fixed 2–4 AM closed wedges for whichever half is showing — hatched, inert,
-   * always in the same place so a vendor learns to read it at a glance. */
+  /** The fixed 3–5 AM closed wedges for whichever half is showing (only ever present on
+   * the Evening/Night face) — hatched, inert, always in the same place so a vendor
+   * learns to read it at a glance. */
   const closedSegments = useMemo(() => {
     const result: { pathData: string; index: number; labelPos: { x: number; y: number } }[] = [];
-    for (let h = 0; h < 12; h++) {
-      const realHour = half === "AM" ? h : h + 12;
+    for (let i = 0; i < faceHours.length; i++) {
+      const realHour = faceHours[i]!;
       if (!CLOSED_HOURS.has(realHour)) continue;
-      const startAngle = h * 30;
-      const endAngle = (h + 1) * 30;
-      const labelPos = polarToCartesian(center, center, (innerRadius + outerRadius) / 2, startAngle + 15);
+      const startAngle = i * wedgeDeg + 90;
+      const endAngle = (i + 1) * wedgeDeg + 90;
+      const labelPos = polarToCartesian(center, center, (innerRadius + outerRadius) / 2, startAngle + wedgeDeg / 2);
       result.push({
         pathData: describePieSegment(center, center, innerRadius, outerRadius, startAngle, endAngle),
-        index: h,
+        index: i,
         labelPos,
       });
     }
     return result;
-  }, [center, innerRadius, outerRadius, half]);
+  }, [center, innerRadius, outerRadius, faceHours, wedgeDeg]);
 
-  // Stats and the "Slot timings" summary below cover the whole day, not just the AM/PM
-  // half currently shown on the dial face — otherwise they'd silently disagree with the
+  // Stats and the "Slot timings" summary below cover the whole day, not just the half
+  // currently shown on the dial face — otherwise they'd silently disagree with the
   // slot count shown on the board (which is always the full day), and switching the
-  // AM/PM toggle would make totals appear to change even though no slot changed.
+  // half toggle would make totals appear to change even though no slot changed.
   const stats = useMemo(() => {
     const hrsByTone: Record<SummaryBucket, number> = { available: 0, taken: 0, blocked: 0 };
     for (const s of slots) {
@@ -379,12 +407,12 @@ export function ClockSlotsWidget({
   const minuteHandAngle = now.getMinutes() * 6;
 
   // Two readable themes so a glance at the dial says "morning" or "night" without
-  // reading the toggle label — warm sunrise tones for AM, deep sky for PM, with
-  // every line/number/hand recoloured for contrast against whichever background.
-  const isNight = half === "PM";
+  // reading the toggle label — warm sunrise tones for Morning/Noon, deep sky for
+  // Evening/Night, with every line/number/hand recoloured for contrast.
+  const isNight = half === "EveningNight";
   const dialTheme = isNight
-    ? { tickFill: "#e2e8f0", ringStroke: "#475569", hourHand: "#f8fafc", minuteHand: "#cbd5e1", hub: "#f8fafc", hubStroke: "#64748b" }
-    : { tickFill: "#334155", ringStroke: "#e2e8f0", hourHand: "#0f172a", minuteHand: "#334155", hub: "#0f172a", hubStroke: "#e2e8f0" };
+    ? { tickFill: "#0f172a", ringStroke: "#475569", hourHand: "#f8fafc", minuteHand: "#cbd5e1", hub: "#f8fafc", hubStroke: "#64748b" }
+    : { tickFill: "#0f172a", ringStroke: "#e2e8f0", hourHand: "#0f172a", minuteHand: "#334155", hub: "#0f172a", hubStroke: "#e2e8f0" };
 
   const body = (
     <>
@@ -403,25 +431,25 @@ export function ClockSlotsWidget({
         </button>
       </div>
 
-      {/* AM / PM toggle — sun/moon + colour so the active half reads at a glance */}
+      {/* Morning/Noon vs Evening/Night toggle — sun/moon + colour so the active half reads at a glance */}
       <div className="mb-1.5 inline-flex overflow-hidden rounded-full border border-surface-border text-[11px] font-bold">
         <button
           type="button"
-          onClick={() => setHalf("AM")}
-          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "AM" ? "bg-amber-500 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
+          onClick={() => setHalf("MorningNoon")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "MorningNoon" ? "bg-amber-500 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
         >
-          <Sun size={13} /> AM (Morning)
+          <Sun size={13} /> {HALF_LABEL.MorningNoon}
         </button>
         <button
           type="button"
-          onClick={() => setHalf("PM")}
-          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "PM" ? "bg-indigo-900 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
+          onClick={() => setHalf("EveningNight")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 transition ${half === "EveningNight" ? "bg-indigo-900 text-white" : "bg-white text-ink-soft hover:bg-cream-300"}`}
         >
-          <Moon size={13} /> PM (Night)
+          <Moon size={13} /> {HALF_LABEL.EveningNight}
         </button>
       </div>
-      <p className="mb-3 flex items-center gap-1 text-[9.5px] font-semibold text-ink-faint">
-        <Lock size={9} /> Closed 2:00–4:00 AM daily · open 4:00 AM – 2:00 AM otherwise
+      <p className="mb-3 flex items-center justify-center gap-1 text-[9.5px] font-semibold text-ink-faint">
+        Morning/Noon 3:00 AM–3:00 PM · Evening/Night 3:00 PM–3:00 AM
       </p>
 
       <div className="relative">
@@ -454,7 +482,7 @@ export function ClockSlotsWidget({
             </pattern>
           </defs>
 
-          {/* Outer Dial Face — warm sunrise gradient for AM, deep sky for PM */}
+          {/* Outer Dial Face — warm sunrise gradient for Morning/Noon, deep sky for Evening/Night */}
           <circle cx={center} cy={center} r={outerRadius} fill={isNight ? "url(#dialNight)" : "url(#dialDay)"} stroke="#f1f5f9" strokeWidth="2" />
 
           {/* Subtle Watermark BYV Logo in the remaining area */}
@@ -469,7 +497,7 @@ export function ClockSlotsWidget({
             clipPath="url(#dial-clip)"
           />
 
-          {/* Fixed 2–4 AM closed wedges — hatched, inert, same spot every time */}
+          {/* Fixed 3–5 AM closed wedges — hatched, inert, same spot every time */}
           {closedSegments.map((seg) => (
             <g key={`closed-${seg.index}`} className="pointer-events-none">
               <path d={seg.pathData} fill="url(#closedHatch)" stroke={isNight ? "#0f172a" : "#ffffff"} strokeWidth="2" />

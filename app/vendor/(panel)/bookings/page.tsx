@@ -257,6 +257,7 @@ export default function BookingsPage() {
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [selectedTurfId, setSelectedTurfId] = useState("");
   // "All Slots" filter — status / time of day / source / quick filters.
+  const [selectedGameFilter, setSelectedGameFilter] = useState("All");
   const [filters, setFilters] = useState<SlotFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
@@ -305,6 +306,7 @@ export default function BookingsPage() {
   const [offlineName, setOfflineName] = useState("");
   const [offlinePhone, setOfflinePhone] = useState("");
   const [offlineSport, setOfflineSport] = useState("");
+  const [offlineCourtId, setOfflineCourtId] = useState("");
   const [offlineAmount, setOfflineAmount] = useState("");
   const [offlineSubmitting, setOfflineSubmitting] = useState(false);
   // How many consecutive slots the single-slot offline booking actually spans —
@@ -347,6 +349,15 @@ export default function BookingsPage() {
     [listings, selectedTurfId]
   );
   const turfListings = useMemo(() => listings.filter((l) => l.type === "Turf"), [listings]);
+
+  // Default the Game Filters strip to this turf's first game rather than "All",
+  // so the agenda opens already scoped to a sport. Re-fires only when the turf
+  // itself changes, so it won't stomp on a filter the vendor picked manually.
+  useEffect(() => {
+    if (selectedTurf?.categories && selectedTurf.categories.length > 0) {
+      setSelectedGameFilter(selectedTurf.categories[0]);
+    }
+  }, [selectedTurf?.id]);
 
   /**
    * The venue's regular opening minute, taken from the listing's default slot list
@@ -422,16 +433,27 @@ export default function BookingsPage() {
       });
 
       const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
+      const gameCourts = activeCourts.filter(c => 
+         selectedGameFilter === "All" || !c.sports || c.sports.length === 0 || c.sports.some(s => s.toLowerCase() === selectedGameFilter.toLowerCase())
+      );
+
       const takenCourtIds = new Set(
         activeCourts.length > 0
           ? matches.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
           : []
       );
-      const courtsTotal = activeCourts.length;
-      const courtsFree = courtsTotal > 0 ? courtsTotal - takenCourtIds.size : 0;
+      
+      const courtsTotal = activeCourts.length > 0 ? gameCourts.length : 0;
+      const courtsFree = courtsTotal > 0 ? gameCourts.filter(c => !takenCourtIds.has(c.id)).length : 0;
 
-      const match = matches[0];
-      const isFullyBooked = courtsTotal > 0 ? courtsFree === 0 : matches.length > 0;
+      const relevantMatches = matches.filter(m => {
+          if (activeCourts.length === 0) return true;
+          const mCourts = m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id];
+          return mCourts.some(id => gameCourts.some(gc => gc.id === id));
+      });
+      const match = relevantMatches[0] || matches[0];
+
+      const isFullyBooked = activeCourts.length > 0 ? (courtsTotal > 0 && courtsFree === 0) : matches.length > 0;
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
       let customerName: string | undefined;
@@ -450,9 +472,10 @@ export default function BookingsPage() {
         else status = isWalkIn ? "Offline Booked" : "Booked";
       }
 
-      const displayLabel = courtsTotal > 0 && courtsFree > 0 && takenCourtIds.size > 0
-        ? `${slot.label || slotLabel(slot.startTime)} • ${courtsFree}/${courtsTotal} Courts Free`
-        : slot.label;
+      let displayLabel = slot.label || slotLabel(slot.startTime);
+      if (courtsTotal > 0 && (selectedGameFilter !== "All" || takenCourtIds.size > 0)) {
+         displayLabel += ` • ${courtsFree}/${courtsTotal} Free`;
+      }
 
       return {
         startTime: slot.startTime,
@@ -471,6 +494,11 @@ export default function BookingsPage() {
         courtsFree,
         courtsTotal,
         bookedCourtIds: Array.from(takenCourtIds),
+        courtsInfo: activeCourts.length > 0 ? gameCourts.map(c => ({
+          id: c.id,
+          name: c.name,
+          isBooked: takenCourtIds.has(c.id)
+        })) : undefined,
         isClubSlot: Boolean(slot.isClubSlot || (t24m(slot.endTime) - t24m(slot.startTime) > 60)),
         clubId: slot.clubId,
         slotIds: slot.slotIds,
@@ -500,7 +528,7 @@ export default function BookingsPage() {
       merged.push({ ...current });
     }
     return merged;
-  }, [selectedTurf, selectedDate, bookings, selectedTurfId, dayStartMins]);
+  }, [selectedTurf, selectedDate, bookings, selectedTurfId, dayStartMins, selectedGameFilter]);
 
   /* ── "All Slots" filter: status + time of day + source + quick ── */
   const visibleSlots = useMemo(() => {
@@ -521,7 +549,7 @@ export default function BookingsPage() {
         return s;
       })
       .filter((s) => {
-        if (isToday && s.status !== "Empty" && dayOrderKey(s.endTime, dayStartMins) <= nowOrder) return false;
+        if (s.status === "Empty") return false;
 
         const hour = Number(s.startTime.split(":")[0]);
         if (!hourMatchesTimeOfDay(hour, filters.timeOfDay)) return false;
@@ -928,6 +956,7 @@ export default function BookingsPage() {
             customerName: offlineName,
             phone: offlinePhone,
             sport: offlineSport || undefined,
+            courtId: offlineCourtId || undefined,
             dateTime: dt.toISOString(),
             endTime: slot.endTime || undefined,
             totalAmount: slot.price,
@@ -950,6 +979,7 @@ export default function BookingsPage() {
           customerName: offlineName,
           phone: offlinePhone,
           sport: offlineSport || undefined,
+          courtId: offlineCourtId || undefined,
           dateTime: dt.toISOString(),
           endTime: spanEnd || undefined,
           totalAmount: spanTotal, // API requirement
@@ -1350,6 +1380,27 @@ export default function BookingsPage() {
           onPrevWeek={() => setWeekStart((d) => { const n = new Date(d); n.setDate(d.getDate() - 7); return n; })}
           onNextWeek={() => setWeekStart((d) => { const n = new Date(d); n.setDate(d.getDate() + 7); return n; })}
         />
+
+        {/* Game Filters */}
+        {selectedTurf && selectedTurf.categories && selectedTurf.categories.length > 0 && (
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setSelectedGameFilter("All")}
+              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold transition ${selectedGameFilter === "All" ? "bg-vibe-navy text-white shadow-sm" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"}`}
+            >
+              All Games
+            </button>
+            {selectedTurf.categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedGameFilter(cat)}
+                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold transition flex items-center gap-1.5 ${selectedGameFilter === cat ? "bg-vibe-navy text-white shadow-sm" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"}`}
+              >
+                <span>{getVendorSportEmoji(cat)}</span> {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* View toggle + "All Slots" filter */}
         <div className="mt-3 flex items-center gap-2">
@@ -1937,11 +1988,14 @@ export default function BookingsPage() {
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet" />
               </div>
               <div>
-                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Sport / Court</label>
+                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-1">Sport / Game</label>
                 <VendorSportDropdown
                   sports={selectedTurf?.categories ?? ["Sports"]}
                   selectedSport={offlineSport}
-                  onSelect={(s) => setOfflineSport(s)}
+                  onSelect={(s) => {
+                    setOfflineSport(s);
+                    setOfflineCourtId("");
+                  }}
                 />
               </div>
               {offlineMode !== "multiple" && (
@@ -1954,11 +2008,55 @@ export default function BookingsPage() {
                   </div>
                 </div>
               )}
-              <button onClick={confirmOfflineBooking} disabled={offlineSubmitting}
+              <button onClick={confirmOfflineBooking} disabled={offlineSubmitting || (selectedTurf?.courts && selectedTurf.courts.length > 0 && !offlineCourtId)}
                 className="w-full rounded-xl bg-emerald-600 text-white py-2.5 text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-60 h-[42px]">
                 {offlineSubmitting ? "Booking…" : "Confirm"}
               </button>
             </div>
+
+            {/* Courts Selection */}
+            {selectedTurf && selectedTurf.courts && selectedTurf.courts.length > 0 && (
+              <div className="mt-5 pt-5 border-t border-slate-100">
+                <label className="text-[11px] font-bold uppercase text-slate-500 block mb-2">Select Court</label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTurf.courts
+                    .filter(c => c.active && (!c.sports || c.sports.length === 0 || c.sports.some(s => s.toLowerCase() === offlineSport.toLowerCase())))
+                    .map(court => {
+                      const isBooked = activeSlot.bookedCourtIds?.includes(court.id);
+                      return (
+                        <button
+                          key={court.id}
+                          type="button"
+                          disabled={isBooked}
+                          onClick={() => setOfflineCourtId(court.id)}
+                          className={`flex flex-col items-start p-2.5 rounded-xl border transition min-w-[120px] ${
+                            isBooked 
+                              ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed" 
+                              : offlineCourtId === court.id
+                                ? "bg-emerald-50 border-emerald-500 shadow-sm"
+                                : "bg-white border-slate-200 hover:border-emerald-300"
+                          }`}
+                        >
+                          <div className="flex justify-between w-full items-center mb-1 gap-2">
+                            <span className={`text-[13px] font-black truncate ${isBooked ? "text-slate-500" : offlineCourtId === court.id ? "text-emerald-700" : "text-slate-700"}`}>
+                              {court.name}
+                            </span>
+                            {isBooked && (
+                              <span className="text-[9px] uppercase font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-sm">Booked</span>
+                            )}
+                          </div>
+                          <span className={`text-[10px] font-medium ${isBooked ? "text-slate-400" : offlineCourtId === court.id ? "text-emerald-600" : "text-slate-500"}`}>
+                            {court.surface || "Standard Court"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+                {selectedTurf.courts.filter(c => c.active && (!c.sports || c.sports.length === 0 || c.sports.some(s => s.toLowerCase() === offlineSport.toLowerCase()))).length === 0 && (
+                  <p className="text-[11px] text-slate-400">No courts available for {offlineSport}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

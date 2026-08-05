@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getVendorBookings, getVendorListings, listSubscriptions, updateVendorBookingStatus } from "@/lib/api/vendor";
 import { apiListingToMock } from "@/lib/api/listingAdapter";
+import { getReadNotificationIds, saveReadNotificationIds } from "@/lib/vendorNotifications";
 import { Booking, Listing } from "@/lib/types";
 import {
   Bell,
@@ -135,6 +136,13 @@ export default function NotificationsPage() {
   }
   const [expanded, setExpanded] = useState<string | null>(null);
   const [read, setRead] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setRead(getReadNotificationIds());
+  }, []);
+  function markRead(next: Set<string>) {
+    setRead(next);
+    saveReadNotificationIds(next);
+  }
   /** Order id of the booking whose full detail sheet is open. */
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
@@ -244,7 +252,11 @@ export default function NotificationsPage() {
           isMember: b.phone ? memberPhones.has(b.phone) : false,
         };
       })
-      .sort((a, z) => a.start.getTime() - z.start.getTime());
+      // Newest booking first — this is a notification feed of vendor activity, not a
+      // same-day agenda, so it orders by when the booking was made rather than by
+      // the slot's start time. Falls back to slot start for the rare booking with no
+      // createdAt (pre-migration records).
+      .sort((a, z) => new Date(z.booking.createdAt ?? z.start).getTime() - new Date(a.booking.createdAt ?? a.start).getTime());
   }, [bookings, now, playCounts, memberPhones]);
 
   const counts = useMemo(
@@ -323,7 +335,7 @@ export default function NotificationsPage() {
             <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
           )}
         </div>
-        <HeaderAction icon={CheckCheck} label="Mark all read" onClick={() => setRead(new Set(rows.map((r) => r.key)))} />
+        <HeaderAction icon={CheckCheck} label="Mark all read" onClick={() => markRead(new Set([...read, ...rows.map((r) => r.key)]))} />
         <HeaderAction
           icon={Trash2}
           label="Clear all"
@@ -400,7 +412,7 @@ export default function NotificationsPage() {
             onRemove={() => handleRemoveNotification(r.key)}
             onToggle={() => {
               setExpanded(expanded === r.key ? null : r.key);
-              setRead((prev) => new Set(prev).add(r.key));
+              markRead(new Set(read).add(r.key));
             }}
           >
             <div className="space-y-3">

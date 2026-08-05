@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, CalendarDays, ChevronDown, Sofa, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
+import { CalendarRange, CalendarDays, ChevronDown, Sofa, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X, Sun, Moon } from "lucide-react";
 import { SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -35,6 +35,22 @@ function datesInScope(scope: BulkScope, year: number, month: number): Date[] {
     for (let d = 1; d <= daysInMonth; d++) dates.push(new Date(year, m, d));
   }
   return dates;
+}
+
+/** Matches the Morning/Noon (5 AM–3 PM) vs Evening/Night (3 PM–3 AM) split on the Vibe
+ * Cycle clock — the 3–5 AM maintenance window never has slots in it, so it never
+ * actually matches either block. */
+type TimeBlock = "morningNoon" | "eveningNight";
+const TIME_BLOCK_LABEL: Record<TimeBlock, string> = {
+  morningNoon: "Morning/Noon",
+  eveningNight: "Evening/Night",
+};
+function matchesTimeBlock(startTime: string, block: TimeBlock): boolean {
+  const h = Number(startTime.split(":")[0]) || 0;
+  return block === "morningNoon" ? h >= 5 && h < 15 : h >= 15 || h < 3;
+}
+function formatDelta(amount: number): string {
+  return `${amount >= 0 ? "+" : "-"}₹${Math.abs(amount)}`;
 }
 
 /**
@@ -122,6 +138,14 @@ export default function PriceSettingPage() {
   // Bulk/peak pricing changes only ever touch the month or year currently on screen —
   // never a silent 6-months-from-today window a vendor can't see or reason about.
   const [bulkScope, setBulkScope] = useState<BulkScope>("month");
+
+  // Time-of-day pricing — e.g. "charge ₹100 more for every Evening/Night slot" — shares
+  // the same month/year scope toggle as the day-type bulk pricing above.
+  const [blockTarget, setBlockTarget] = useState<TimeBlock | null>(null);
+  const [blockMode, setBlockMode] = useState<"adjust" | "exact">("adjust");
+  const [blockAmountInput, setBlockAmountInput] = useState("100");
+  const blockAmount = Number(blockAmountInput) || 0;
+  const [applyingBlock, setApplyingBlock] = useState(false);
 
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [holidayPopover, setHolidayPopover] = useState<string | null>(null);
@@ -366,6 +390,71 @@ export default function PriceSettingPage() {
     setApplyingBulk(false);
   }
 
+  /** Writes a dateOverride for one date, changing only the slots inside the chosen time
+   * block (Morning/Noon or Evening/Night) — every other slot on that date keeps its
+   * existing price untouched, unlike buildOverrideEntry which repriced the whole day. */
+  function buildBlockOverrideEntry(listing: Listing, dateIso: string, block: TimeBlock, mode: "adjust" | "exact", amount: number) {
+    const slots = resolveSlotsForDate(listing, dateIso).map((s) => {
+      if (!matchesTimeBlock(s.startTime, block)) return s;
+      const nextPrice = mode === "exact" ? amount : Math.max(0, s.price + amount);
+      return { ...s, price: nextPrice };
+    });
+    const existing = listing.dateOverrides?.find((o) => o.date === dateIso);
+    return { date: dateIso, isHoliday: existing?.isHoliday ?? false, holidayName: existing?.holidayName ?? "", slots };
+  }
+
+  async function applyBlockPrice() {
+    if (!selectedTurf || !blockTarget || applyingBlock) return;
+    const turf = selectedTurf;
+    const target = blockTarget;
+    const mode = blockMode;
+    const amount = blockAmount;
+    const scopeLabel = bulkScope === "month" ? `${monthNames[calMonth]} ${calYear}` : `${calYear}`;
+    setApplyingBlock(true);
+    try {
+      const overrides = [...(turf.dateOverrides ?? [])];
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      let matchedDates = 0;
+      let matchedSlots = 0;
+      for (const d of datesInScope(bulkScope, calYear, calMonth)) {
+        if (d < todayStart) continue;
+        const dateStr = toIso(d);
+        const touched = resolveSlotsForDate(turf, dateStr).filter((s) => matchesTimeBlock(s.startTime, target)).length;
+        if (touched === 0) continue;
+        matchedDates++;
+        matchedSlots += touched;
+        const entry = buildBlockOverrideEntry(turf, dateStr, target, mode, amount);
+        const idx = overrides.findIndex((o) => o.date === dateStr);
+        if (idx > -1) overrides[idx] = entry; else overrides.push(entry);
+      }
+
+      if (matchedDates === 0) {
+        setToast(`No ${TIME_BLOCK_LABEL[target].toLowerCase()} slots found in ${scopeLabel}.`);
+        setApplyingBlock(false);
+        return;
+      }
+
+      const updated = { ...turf, dateOverrides: overrides };
+      // Optimistic update so the calendar reflects the change instantly.
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
+      setBlockTarget(null);
+      setToast(
+        mode === "exact"
+          ? `Set ${TIME_BLOCK_LABEL[target]} slots to ${formatPrice(amount)} across ${matchedSlots} slot${matchedSlots === 1 ? "" : "s"} in ${scopeLabel}.`
+          : `Adjusted ${TIME_BLOCK_LABEL[target]} slots by ${formatDelta(amount)} across ${matchedSlots} slot${matchedSlots === 1 ? "" : "s"} in ${scopeLabel}.`
+      );
+
+      const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? apiListingToMock(saved) : x)));
+    } catch {
+      // Roll the optimistic change back to the last known-good listing.
+      setListings((ls) => ls.map((x) => (x.id === turf.id ? turf : x)));
+      setToast("Couldn't save that time-of-day rate. Please check your connection and try again.");
+    }
+    setApplyingBlock(false);
+  }
+
   async function saveDailyPricing(nextSlots: TurfSlot[]) {
     if (!selectedTurf || !activeDate) return;
     try {
@@ -537,6 +626,124 @@ export default function PriceSettingPage() {
             {byvManaged && (
               <p className="mt-3 text-[10px] font-bold leading-relaxed text-ink-faint">
                 BYV is setting your weekday, weekend and holiday rates automatically. Turn off "Dynamic Pricing by BYV" below to set these yourself.
+              </p>
+            )}
+          </div>
+
+          {/* Time-of-day Pricing — a separate axis from the day-type bulk pricing above:
+              this reprices only the slots that fall inside Morning/Noon (5 AM–3 PM) or
+              Evening/Night (3 PM–3 AM), leaving every other slot on those dates untouched.
+              Individual per-slot pricing (tap a date on the calendar below) still exists
+              for one-off exceptions — this is for "night is always ₹X more" as a rule. */}
+          <div className="relative rounded-xl2 border border-surface-border bg-surface-card shadow-panel p-5 sm:p-6">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Set prices by time of day</p>
+              {byvManaged && (
+                <span className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-indigo-600">
+                  <Sparkles size={10} /> BYV managed
+                </span>
+              )}
+            </div>
+            <p className="mb-3 text-[10.5px] font-semibold leading-relaxed text-ink-faint">
+              Charge Morning/Noon and Evening/Night differently in one go — pick a block below, then either set an exact rate or add/subtract an amount from whatever each slot already costs.
+            </p>
+            <div className={`grid grid-cols-2 gap-2 ${byvManaged ? "pointer-events-none opacity-40" : ""}`}>
+              {(["morningNoon", "eveningNight"] as TimeBlock[]).map((t) => {
+                const Icon = t === "morningNoon" ? Sun : Moon;
+                return (
+                  <button
+                    key={t}
+                    disabled={byvManaged}
+                    onClick={() => setBlockTarget(blockTarget === t ? null : t)}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-3.5 text-sm font-bold transition ${
+                      blockTarget === t
+                        ? "border-ink bg-ink text-white"
+                        : "border-surface-border bg-white text-ink-soft hover:bg-cream-200/40"
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {TIME_BLOCK_LABEL[t]}
+                  </button>
+                );
+              })}
+            </div>
+            {blockTarget && !byvManaged && (
+              <div className="mt-3 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Apply to</span>
+                  <div className="flex overflow-hidden rounded-lg border border-surface-border">
+                    <button
+                      onClick={() => setBulkScope("month")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        bulkScope === "month" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      {monthNames[calMonth]} {calYear} only
+                    </button>
+                    <button
+                      onClick={() => setBulkScope("year")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        bulkScope === "year" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      Whole {calYear}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Mode</span>
+                  <div className="flex overflow-hidden rounded-lg border border-surface-border">
+                    <button
+                      onClick={() => setBlockMode("adjust")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        blockMode === "adjust" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      +/− Adjust
+                    </button>
+                    <button
+                      onClick={() => setBlockMode("exact")}
+                      className={`px-3 py-1.5 text-[10.5px] font-black transition ${
+                        blockMode === "exact" ? "bg-ink text-white" : "bg-white text-ink-faint hover:bg-cream-200/40"
+                      }`}
+                    >
+                      Set exact price
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode={blockMode === "adjust" ? "text" : "numeric"}
+                    value={blockAmountInput}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const cleaned =
+                        blockMode === "adjust"
+                          ? raw.replace(/[^-\d]/g, "").replace(/(?!^)-/g, "")
+                          : raw.replace(/\D/g, "");
+                      setBlockAmountInput(cleaned);
+                    }}
+                    placeholder={blockMode === "adjust" ? "e.g. 100 or -50" : "Enter price"}
+                    className="flex-1 rounded-xl border border-surface-border bg-cream-200/40 px-4 py-2.5 text-sm font-bold outline-none focus:border-vibe-violet"
+                  />
+                  <button
+                    onClick={applyBlockPrice}
+                    disabled={applyingBlock || (blockMode === "exact" ? blockAmount <= 0 : blockAmount === 0)}
+                    className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
+                  >
+                    {applyingBlock
+                      ? "Applying…"
+                      : blockMode === "adjust"
+                      ? `Adjust ${TIME_BLOCK_LABEL[blockTarget]} slots`
+                      : `Set ${TIME_BLOCK_LABEL[blockTarget]} price`}
+                  </button>
+                </div>
+              </div>
+            )}
+            {byvManaged && (
+              <p className="mt-3 text-[10px] font-bold leading-relaxed text-ink-faint">
+                BYV is setting your time-of-day rates automatically. Turn off "Dynamic Pricing by BYV" below to set these yourself.
               </p>
             )}
           </div>
