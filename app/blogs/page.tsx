@@ -50,11 +50,14 @@ export default function BlogsPage() {
                 <MobileCard className="!p-0 overflow-hidden">
                   <div className="h-36 w-full bg-slate-100">
                     {post.thumbnail && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+                      // eslint-disable-next-line @next/next/no-img-element -- thumbnails are raw base64 data URIs, not next/image-compatible remote URLs
+                      <img
+                        src={post.thumbnail}
+                        alt={post.title}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
                     )}
                   </div>
                   <div className="p-4">
@@ -99,14 +102,14 @@ export default function BlogsPage() {
             >
               <div className="h-48 w-full overflow-hidden bg-slate-100">
                 {post.thumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
+                  // eslint-disable-next-line @next/next/no-img-element -- thumbnails are raw base64 data URIs, not next/image-compatible remote URLs
                   <img
                     src={post.thumbnail}
                     alt={post.title}
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-            loading="lazy"
-            decoding="async"
-          />
+                    loading="lazy"
+                    decoding="async"
+                  />
                 )}
               </div>
               <div className="p-5">

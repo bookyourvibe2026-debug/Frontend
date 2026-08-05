@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { UtensilsCrossed, MapPin, Star, BadgePercent, Store } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
@@ -149,22 +150,21 @@ function OutletSection({
   );
 }
 
-function OutletCard({ outlet }: { outlet: FoodOutlet }) {
+const OutletCard = memo(function OutletCard({ outlet }: { outlet: FoodOutlet }) {
   const open = isOutletOpenNow(outlet);
   return (
     <Link
       href={`/food/${outlet.slug || outlet._id}`}
       className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
     >
-      <div className="relative">
+      <div className="relative h-40 w-full">
         {outlet.banner || outlet.poster ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={outlet.banner || outlet.poster}
+          <Image
+            src={(outlet.banner || outlet.poster)!}
             alt={outlet.name}
-            className="h-40 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-            loading="lazy"
-            decoding="async"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition duration-300 group-hover:scale-[1.02]"
           />
         ) : (
           <div className="flex h-40 w-full items-center justify-center bg-brand-50 text-brand-300">
@@ -186,11 +186,9 @@ function OutletCard({ outlet }: { outlet: FoodOutlet }) {
       </div>
       <div className="flex items-center gap-3 p-4">
         {outlet.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={outlet.logo} alt={outlet.name} className="h-12 w-12 shrink-0 rounded-xl object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+          <div className="relative h-12 w-12 shrink-0">
+            <Image src={outlet.logo} alt={outlet.name} fill sizes="48px" className="rounded-xl object-cover" />
+          </div>
         ) : (
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
             <UtensilsCrossed className="h-5 w-5" />
@@ -212,4 +210,4 @@ function OutletCard({ outlet }: { outlet: FoodOutlet }) {
       </div>
     </Link>
   );
-}
+});

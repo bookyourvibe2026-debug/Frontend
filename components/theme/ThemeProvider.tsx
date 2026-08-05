@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { CUSTOM_THEME_ID, DEFAULT_THEME, isThemeId, type ThemeId } from "@/lib/themes";
 import { generateShades, type ShadeStep } from "@/lib/colorShades";
 import { getSiteAppearance } from "@/lib/api/appearance";
@@ -115,11 +115,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(colors));
   }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, customColors, setTheme, setCustomTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({ theme, customColors, setTheme, setCustomTheme }),
+    [theme, customColors, setTheme, setCustomTheme]
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

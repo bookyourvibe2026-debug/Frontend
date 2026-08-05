@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Eye, Copy, Share2, Trash2, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
-import { PackageStudio } from "@/components/vendor/PackageStudio";
+
+// Only rendered once the vendor/admin opens the create/edit studio modal — code-split
+// out of this table page's initial bundle.
+const PackageStudio = dynamic(
+  () => import("@/components/vendor/PackageStudio").then((m) => m.PackageStudio),
+  { ssr: false }
+);
 import { Listing, ListingType } from "@/lib/types";
 import { getAdminListings, createAdminListing, updateAdminListing, deleteAdminListing } from "@/lib/api/admin";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";

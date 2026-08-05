@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Copy, FileText, IndianRupee, MapPin, Layers, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
-import { PackageStudio } from "@/components/vendor/PackageStudio";
+
+// Only rendered once the admin opens the edit studio modal — code-split out of this
+// listing detail page's initial bundle.
+const PackageStudio = dynamic(
+  () => import("@/components/vendor/PackageStudio").then((m) => m.PackageStudio),
+  { ssr: false }
+);
 import { Listing } from "@/lib/types";
 import { getAdminListingById, createAdminListing, updateAdminListing, getAdminBookings } from "@/lib/api/admin";
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";

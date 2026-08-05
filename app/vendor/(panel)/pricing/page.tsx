@@ -8,7 +8,7 @@ import { createVendorBooking, getVendorBookings, getVendorListings, updateVendor
 import { apiListingToMock, mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Booking, Listing, TurfSlot } from "@/lib/types";
-import { INDIAN_HOLIDAYS } from "@/components/vendor/PackageStudio";
+import { INDIAN_HOLIDAYS } from "@/lib/holidays";
 
 /** Vendor bookings carry more than the shared mock type models. */
 type ApiBooking = Booking & { listingId?: string; sport?: string };

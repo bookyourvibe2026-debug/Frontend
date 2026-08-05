@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { type Venue } from "@/lib/venues";
+import { SPORT_CATEGORIES } from "@/lib/taxonomy";
 
 export const PRICE_OPTIONS = [
   { label: "Under ₹300", value: 300 },
@@ -22,6 +23,14 @@ export const SORT_OPTIONS = [
 
 export type SortBy = (typeof SORT_OPTIONS)[number]["value"];
 
+/** A venue can offer several sports, stored for display as a comma-separated label. */
+function sportsForVenue(sport: string): string[] {
+  return sport
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export function filterPillClass(active: boolean): string {
   return `rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
     active ? "border-brand-300 bg-brand-50 text-brand-600" : "border-slate-200 text-slate-600"
@@ -35,7 +44,17 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
   const [maxDistance, setMaxDistance] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<SortBy>("recommended");
 
-  const sportOptions = useMemo(() => Array.from(new Set(venues.map((v) => v.sport))), [venues]);
+  // Always expose every sport supported on BYV, then retain any custom sports
+  // that are currently offered by a venue. Each sport gets its own filter chip.
+  const sportOptions = useMemo(() => {
+    const supportedSports = SPORT_CATEGORIES
+      .filter((category) => category.id !== "indoor-games")
+      .map((category) => category.label);
+    const venueSports = venues
+      .flatMap((venue) => sportsForVenue(venue.sport))
+      .filter((sport) => sport !== "Indoor Games");
+    return Array.from(new Set([...supportedSports, ...venueSports]));
+  }, [venues]);
 
   const toggleSport = (sport: string) =>
     setSelectedSports((prev) => {
@@ -47,6 +66,8 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
       }
       return next;
     });
+
+  const clearSports = () => setSelectedSports(new Set());
 
   const resetFilters = () => {
     setSelectedSports(new Set());
@@ -69,7 +90,8 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
         v.name.toLowerCase().includes(query) ||
         v.sport.toLowerCase().includes(query) ||
         v.area.toLowerCase().includes(query);
-      const matchesSport = selectedSports.size === 0 || selectedSports.has(v.sport);
+      const matchesSport =
+        selectedSports.size === 0 || sportsForVenue(v.sport).some((sport) => selectedSports.has(sport));
       const matchesPrice = maxPrice === null || v.pricePerHour <= maxPrice;
       const matchesDistance = maxDistance === null || v.distanceKm <= maxDistance;
       return matchesSearch && matchesSport && matchesPrice && matchesDistance;
@@ -86,6 +108,7 @@ export function useVenueFilters(venues: Venue[], searchValue: string) {
     sportOptions,
     selectedSports,
     toggleSport,
+    clearSports,
     maxPrice,
     setMaxPrice,
     maxDistance,

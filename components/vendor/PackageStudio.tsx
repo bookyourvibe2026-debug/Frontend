@@ -28,6 +28,7 @@ import { ClockSlotsWidget } from "./ClockSlotsWidget";
 import { SPORT_CATEGORIES, SportCategory, venueOptionsFor, VenueSetting } from "@/lib/taxonomy";
 import { usePexelsImage } from "@/lib/pexels";
 import { trackEvent, trackPriceChange } from "@/lib/analytics";
+import { INDIAN_HOLIDAYS } from "@/lib/holidays";
 
 type Audience = "admin" | "vendor";
 
@@ -1867,37 +1868,6 @@ const TIME_OPTIONS = [
 
 /** "Closes At" choices: same hours minus 00:00 (a venue can't close when the day starts), plus 24:00 so the last slot can run until midnight. */
 const END_TIME_OPTIONS = [...TIME_OPTIONS.slice(1), { value: "24:00", label: "12:00 AM" }];
-
-/* ─── Indian Festival / Holiday lookup ──────────────────────────── */
-export const INDIAN_HOLIDAYS: Record<string, string> = {
-  "2026-01-01": "New Year's Day",
-  "2026-01-02": "Guru Gobind Singh Jayanti",
-  "2026-01-14": "Makar Sankranti",
-  "2026-01-26": "Republic Day",
-  "2026-02-15": "Maha Shivaratri",
-  "2026-03-17": "Holi",
-  "2026-03-20": "Eid al-Fitr",
-  "2026-04-01": "Mahavir Jayanti",
-  "2026-04-02": "Ram Navami",
-  "2026-04-03": "Good Friday",
-  "2026-04-14": "Ambedkar Jayanti",
-  "2026-05-01": "Labour Day",
-  "2026-05-12": "Buddha Purnima",
-  "2026-05-27": "Eid al-Adha",
-  "2026-06-26": "Muharram",
-  "2026-08-15": "Independence Day",
-  "2026-08-19": "Janmashtami",
-  "2026-08-26": "Milad un-Nabi",
-  "2026-08-28": "Raksha Bandhan",
-  "2026-09-14": "Ganesh Chaturthi",
-  "2026-10-02": "Gandhi Jayanti",
-  "2026-10-20": "Dussehra",
-  "2026-11-01": "Diwali",
-  "2026-11-05": "Bhai Dooj",
-  "2026-11-24": "Guru Nanak Jayanti",
-  "2026-12-25": "Christmas",
-  "2026-12-31": "New Year Eve",
-};
 
 /* ─── Slot generation — the single source of truth for turning a duration + a time
    range into concrete slots. Both the bulk "Generate Slots" button and the clock

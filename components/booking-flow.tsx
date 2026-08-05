@@ -33,6 +33,22 @@ type Step = "review" | "confirmed";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)"];
 
+/** Events are fixed by the organizer. Resolve the first scheduled batch and never
+ * expose it as a player-selectable slot. */
+function eventTimingFor(listing: Listing) {
+  const scheduledDay = [...(listing.dateOverrides ?? [])]
+    .filter((override) => !override.isHoliday && override.slots.length > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const scheduledSlot = scheduledDay?.slots[0];
+  const date = scheduledDay?.date ?? listing.availableFrom.slice(0, 10);
+
+  return {
+    date,
+    startTime: scheduledSlot?.startTime ?? "00:00",
+    endTime: scheduledSlot?.endTime ?? "00:00",
+  };
+}
+
 /**
  * A booked range, plus the vendor-blocked windows we synthesise client-side.
  * A booking only takes out the one court it sits on; a blocked window (maintenance,
@@ -332,17 +348,18 @@ export default function BookingFlow({
 }) {
   const { status, customer } = useCustomerAuth();
   const today = new Date();
+  const eventTiming = useMemo(() => eventTimingFor(listing), [listing]);
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [step, setStep] = useState<Step>("review");
-  const [date, setDate] = useState(() => dealContext?.date ?? todayISO());
+  const [date, setDate] = useState(() => listing.type === "Event" ? eventTiming.date : dealContext?.date ?? todayISO());
   const [dateSelected, setDateSelected] = useState(true);
   const [visibleMonth, setVisibleMonth] = useState<number>(today.getMonth());
   const [visibleYear, setVisibleYear] = useState<number>(today.getFullYear());
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
   // "All" by default so every time slot shows up before the player narrows down.
   const [activeDaypart, setActiveDaypart] = useState<string>("All");
-  const [time, setTime] = useState(START_TIMES[6]);
-  const [endTime, setEndTime] = useState(START_TIMES[8]);
+  const [time, setTime] = useState(() => listing.type === "Event" ? minutesToTime12(time24ToMinutes(eventTiming.startTime)) : START_TIMES[6]);
+  const [endTime, setEndTime] = useState(() => listing.type === "Event" ? minutesToTime12(time24ToMinutes(eventTiming.endTime)) : START_TIMES[8]);
   const [selectedPriceTierId, setSelectedPriceTierId] = useState<string>("");
 
   function toggleSlotSelection(index: number) {
@@ -851,6 +868,8 @@ export default function BookingFlow({
       }, 0);
       return slotsTotal + addOnsTotal;
     }
+    // An event's ticket price is fixed by the organizer; players do not choose a package.
+    if (listing.type === "Event") return listing.price;
     const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
     if (selectedTier) {
       return selectedTier.amount + addOnsTotal;
@@ -966,7 +985,7 @@ export default function BookingFlow({
         sport: sport || undefined,
         courtId: effectiveCourtIds[0] || undefined,
         courtIds: effectiveCourtIds.length > 0 ? effectiveCourtIds : undefined,
-        priceTierId: selectedPriceTierId || undefined,
+        priceTierId: listing.type === "Event" ? undefined : selectedPriceTierId || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
         durationMinutes,
@@ -1356,7 +1375,10 @@ function ReviewStep(props: {
   } = props;
 
   const today = new Date();
-  const [mobileStep, setMobileStep] = useState<"slots" | "checkout">("slots");
+  // Events have a fixed organizer schedule, so players land directly on checkout.
+  const [mobileStep, setMobileStep] = useState<"slots" | "checkout">(
+    listing.type === "Event" ? "checkout" : "slots"
+  );
 
   const dateStripRef = useRef<HTMLDivElement>(null);
 
@@ -1562,7 +1584,7 @@ function ReviewStep(props: {
         <div className="p-4 lg:hidden border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => (mobileStep === "checkout" ? setMobileStep("slots") : onClose())}
+              onClick={() => (mobileStep === "checkout" && listing.type !== "Event" ? setMobileStep("slots") : onClose())}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -1583,7 +1605,7 @@ function ReviewStep(props: {
 
         <div className="mt-3 flex flex-col gap-3 lg:flex-row">
           {/* LEFT COLUMN */}
-          <div className={`flex flex-col gap-3 flex-1 min-w-0 ${mobileStep === "checkout" ? "hidden lg:flex" : "flex"}`}>
+          <div className={`flex flex-col gap-3 flex-1 min-w-0 ${listing.type === "Event" ? "hidden" : mobileStep === "checkout" ? "hidden lg:flex" : "flex"}`}>
             {/* Venue info */}
             <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50 text-xl ring-1 ring-slate-100">
@@ -2187,7 +2209,11 @@ function ReviewStep(props: {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className={`flex flex-col gap-3 shrink-0 w-full lg:w-80 ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}>
+          <div
+            className={`flex flex-col gap-3 shrink-0 ${
+              listing.type === "Event" ? "w-full max-w-2xl mx-auto lg:w-full" : "w-full lg:w-80"
+            } ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}
+          >
             {/* Checkout Header Card */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
               <div className="flex items-start justify-between">
@@ -2210,7 +2236,9 @@ function ReviewStep(props: {
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Date</p>
                     <p className="text-xs font-bold text-slate-800">
-                      {date ? new Date(date).toLocaleDateString("en-US", { day: "2-digit", month: "short" }) : "Select Date"}
+                      {date
+                        ? new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { day: "2-digit", month: "short" })
+                        : "Select Date"}
                     </p>
                   </div>
                 </div>
@@ -2219,7 +2247,11 @@ function ReviewStep(props: {
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Time</p>
                     <p className="text-xs font-bold text-slate-800 truncate">
-                      {listing.type === "Turf" && selectedSlotIndices.length > 0 ? selectedSlotSummaryText : "Select Time"}
+                      {listing.type === "Event"
+                        ? time
+                        : listing.type === "Turf" && selectedSlotIndices.length > 0
+                          ? selectedSlotSummaryText
+                          : "Select Time"}
                     </p>
                   </div>
                 </div>
@@ -2260,7 +2292,7 @@ function ReviewStep(props: {
             </div>
 
             {/* Add-ons — filtered specifically to the currently selected game. */}
-            {(() => {
+            {listing.type !== "Event" && (() => {
               const allAddOns = listing.addOns ?? [];
               if (allAddOns.length === 0) return null;
               const filteredAddOns = allAddOns.filter((addOn) => isAddOnForSport(addOn, selectedSport));

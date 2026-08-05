@@ -16,6 +16,7 @@ export function FiltersModal({
     sportOptions,
     selectedSports,
     toggleSport,
+    clearSports,
     maxPrice,
     setMaxPrice,
     maxDistance,
@@ -30,6 +31,9 @@ export function FiltersModal({
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Sport</p>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={clearSports} className={filterPillClass(selectedSports.size === 0)}>
+            Any
+          </button>
           {sportOptions.map((sport) => (
             <button
               key={sport}

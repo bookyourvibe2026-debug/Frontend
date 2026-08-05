@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye } from "lucide-react";
+import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye, Trash2 } from "lucide-react";
 import { PageHero } from "@/components/vendor/ui";
-import { EventStudio } from "@/components/vendor/EventStudio";
 import { Toast } from "@/components/admin/Toast";
-import { getVendorListings, createVendorListing } from "@/lib/api/vendor";
+
+// Only rendered once the vendor taps "create" — this page normally shows a listings
+// table, so most visits never need the studio's bundle at all.
+const EventStudio = dynamic(
+  () => import("@/components/vendor/EventStudio").then((m) => m.EventStudio),
+  { ssr: false }
+);
+import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
 import { mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
@@ -17,6 +24,7 @@ export default function EventListingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function load() {
     getVendorListings({ type: "Event" })
@@ -34,6 +42,21 @@ export default function EventListingsPage() {
       setToast("Event published");
     } catch (err) {
       setToast(err instanceof ApiError ? err.describe() : "Failed to create event");
+    }
+  }
+
+  async function handleDelete(listing: Listing) {
+    if (!window.confirm(`Delete "${listing.title}"? It will no longer be visible to players. This cannot be undone.`)) return;
+
+    setDeletingId(listing._id);
+    try {
+      await deleteVendorListing(listing._id);
+      setListings((previous) => (previous ?? []).filter((item) => item._id !== listing._id));
+      setToast(`Deleted "${listing.title}". It is no longer visible to players.`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to delete event");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -140,13 +163,21 @@ export default function EventListingsPage() {
                 <p className="pt-1 text-sm font-semibold text-ink">
                   {l.price === 0 ? "Free entry" : `₹${l.price.toLocaleString("en-IN")}`}
                 </p>
-                <div className="pt-3 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
                   <Link
                     href={`/vendor/listings/${l._id}`}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-vibe-violet text-white text-xs font-semibold py-2 hover:bg-vibe-violetSoft transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-vibe-violet text-white text-xs font-semibold py-2 hover:bg-vibe-violetSoft transition-colors"
                   >
                     <Eye size={14} /> Manage Event
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(l)}
+                    disabled={deletingId === l._id}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold py-2 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 size={14} /> {deletingId === l._id ? "Deleting..." : "Delete"}
+                  </button>
                 </div>
               </div>
             </div>
