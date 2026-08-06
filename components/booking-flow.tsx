@@ -99,6 +99,25 @@ function freeCourtsFor(
   return courts.filter((c) => !takenIds.has(c.id));
 }
 
+/** True when every range occupying a slot window is a soft "Pending" hold (someone else's
+ * checkout in progress) rather than a firm booking — lets a fully-taken slot read as
+ * "Pending" instead of "Booked", since it may free back up if that hold expires unpaid. */
+function isSlotHeldOnly(slotStart: number, slotEnd: number, unavailable: UnavailableRange[]): boolean {
+  const sStart = slotStart % 1440;
+  const sEnd = sStart + (slotEnd - slotStart);
+  let sawAny = false;
+  for (const r of unavailable) {
+    const bStart = time24ToMinutes(r.startTime);
+    let bEnd = time24ToMinutes(r.endTime);
+    if (bEnd <= bStart) bEnd += 1440;
+    if (sStart >= bEnd || bStart >= sEnd) continue;
+    if (r.blocksAllCourts) return false;
+    sawAny = true;
+    if (r.status !== "Pending") return false;
+  }
+  return sawAny;
+}
+
 /**
  * What one hour costs — the price the vendor set on that time slot, straight from the
  * listing API. Every court in a slot costs the same base rate; Last Min Boost is the only
@@ -614,10 +633,13 @@ export default function BookingFlow({
 
     const boostNow = isToday ? minutesOfDay(new Date(nowTick)) : -1;
     const statusFor = (slotStart: number, slotEnd: number) => {
-      if (courtsForSport.length === 0) return slotStatusFor(slotStart, slotEnd, unavailableRanges);
-      return freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).length > 0
-        ? ("Available" as const)
-        : ("Booked" as const);
+      if (courtsForSport.length === 0) {
+        const base = slotStatusFor(slotStart, slotEnd, unavailableRanges);
+        if (base === "Booked" && isSlotHeldOnly(slotStart, slotEnd, unavailableRanges)) return "Pending" as const;
+        return base;
+      }
+      if (freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).length > 0) return "Available" as const;
+      return isSlotHeldOnly(slotStart, slotEnd, unavailableRanges) ? ("Pending" as const) : ("Booked" as const);
     };
     const freeIdsFor = (slotStart: number, slotEnd: number) =>
       freeCourtsFor(slotStart, slotEnd, courtsForSport, unavailableRanges).map((c) => c.id);
@@ -2069,6 +2091,7 @@ function ReviewStep(props: {
                             {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
+                              const isPending = slot.status === "Pending";
                               const { price: finalPrice, boostPct: displayBoostPct, originalPrice: finalOriginalPrice } = displaySlotPricing(slot);
                               const timeRangeText = `${slot.startTime12.replace(/^0/, "")} - ${slot.endTime12.replace(/^0/, "")}`;
 
@@ -2113,6 +2136,10 @@ function ReviewStep(props: {
                                       {available ? (
                                         <span className={`text-[10.5px] font-black ${isSelected ? "text-white/90" : "text-emerald-800"}`}>
                                           ₹{finalPrice.toLocaleString("en-IN")}
+                                        </span>
+                                      ) : isPending ? (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                                          Pending
                                         </span>
                                       ) : (
                                         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
@@ -2173,6 +2200,10 @@ function ReviewStep(props: {
                                           </span>
                                         )}
                                       </div>
+                                    ) : isPending ? (
+                                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                                        Pending
+                                      </span>
                                     ) : (
                                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                                         Booked
@@ -2231,9 +2262,9 @@ function ReviewStep(props: {
                                   <span className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                                     {photo ? (
                                       <img src={photo} alt={court.name} className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+                                        loading="lazy"
+                                        decoding="async"
+                                      />
                                     ) : (
                                       <span className="flex h-full w-full items-center justify-center text-slate-300">
                                         <ImageIcon className="h-5 w-5" />

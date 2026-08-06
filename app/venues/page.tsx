@@ -108,6 +108,7 @@ function VenuesPageInner() {
           id: l._id,
           href: `/venues/${l.slug || l._id}`,
           title: l.title,
+          subtitle: vendorProfiles[vendorId]?.businessName,
           image: l.coverImage,
           city: l.city,
           price: l.price,

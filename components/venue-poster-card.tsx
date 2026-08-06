@@ -55,6 +55,9 @@ export const VenuePosterCard = memo(function VenuePosterCard({
 
       <div className="absolute inset-x-0 bottom-0 p-3.5">
         <h3 className="line-clamp-2 text-[14.5px] font-black leading-tight text-white">{title}</h3>
+        {subtitle && (
+          <p className="mt-0.5 truncate text-[11px] font-semibold text-white/70">{subtitle}</p>
+        )}
         <div className="mt-1.5 flex items-center justify-between gap-2">
           {city && (
             <span className="flex min-w-0 items-center gap-1 truncate text-[11px] font-medium text-white/70">
