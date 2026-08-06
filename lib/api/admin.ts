@@ -22,7 +22,6 @@ import type {
 const AUD = "admin" as const;
 
 /* ---- Dashboard ---- */
-
 export function getAdminDashboard() {
   return apiRequest<AdminDashboard>("/admin/dashboard", { audience: AUD });
 }
@@ -32,7 +31,6 @@ export function getSystemHealth() {
 }
 
 /* ---- Vendors ---- */
-
 export function listVendors(params: { status?: VendorStatus; page?: number; limit?: number } = {}) {
   return apiRequest<Paginated<Vendor>>("/admin/vendors", { query: params, audience: AUD });
 }

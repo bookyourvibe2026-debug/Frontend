@@ -38,6 +38,7 @@ export interface Coupon {
   id: string;
   code: string;
   discountPercent: number;
+  sports?: string[];
 }
 
 export type BookingType = "Recurring" | "Trips" | "Courses";
@@ -142,6 +143,8 @@ export interface TurfSlot {
   clubId?: string;
   slotIds?: string[];
   durationMinutes?: number;
+  sport?: string;
+  courtId?: string;
 }
 
 export interface DateOverride {
@@ -305,3 +308,4 @@ export interface AppVersionConfig {
   releaseNotes: string;
   forceUpdate: boolean;
 }
+

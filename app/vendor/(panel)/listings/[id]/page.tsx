@@ -7,6 +7,7 @@ import {
   ArrowLeft, Camera, ClipboardList, FileText, Pencil, Plus,
   LayoutGrid, Clock as ClockIcon, ChevronDown, X,
   Ban, BookOpen, Pause, Clock3, CalendarDays, Phone, User, CalendarCheck, Check,
+  Video, Loader2, Upload,
 } from "lucide-react";
 import { Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
@@ -24,7 +25,7 @@ import { ApiError } from "@/lib/api/client";
 import { Booking } from "@/lib/types";
 import { categoryLabel } from "@/lib/taxonomy";
 
-type Tab = "overview" | "registrations" | "agenda";
+type Tab = "overview" | "registrations" | "agenda" | "media";
 
 const TYPE_TONE: Record<Listing["type"], "info" | "success" | "pending"> = {
   Turf: "info",
@@ -92,6 +93,16 @@ export default function ListingDetailPage() {
     }
   }
 
+  async function saveVideo(videoUrl: string) {
+    try {
+      const saved = await updateVendorListing(listing!.id, { videoUrl });
+      setListing(apiListingToMock(saved));
+      setToast("Video saved — it's now live on your event page.");
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.describe() : "Failed to update video");
+    }
+  }
+
   async function handleStudioSave(updated: Listing) {
     try {
       const saved = await updateVendorListing(updated.id, mockListingToApiInput(updated));
@@ -115,6 +126,8 @@ export default function ListingDetailPage() {
           <OverviewTab listing={listing} onEdit={() => setStudioOpen(true)} onReplaceImage={replaceImage} />
         ) : tab === "agenda" ? (
           <AgendaTab listing={listing} />
+        ) : tab === "media" ? (
+          <MediaTab listing={listing} onSaveVideo={saveVideo} onReplaceImage={replaceImage} />
         ) : (
           <RegistrationsTab />
         )}
@@ -180,6 +193,15 @@ function StudioSidebar({
                 hint={tab === "agenda" ? "Current page" : "Slot booking management"}
                 active={tab === "agenda"}
                 onClick={() => onTabChange("agenda")}
+              />
+            )}
+            {listing.type === "Event" && (
+              <SidebarNavItem
+                icon={<Video size={15} />}
+                label="Video & Media"
+                hint={tab === "media" ? "Current page" : "Background video & photos"}
+                active={tab === "media"}
+                onClick={() => onTabChange("media")}
               />
             )}
             <SidebarNavItem
@@ -306,6 +328,226 @@ function OverviewTab({
       </div>
 
       <TagsCard title="Tags" items={listing.tags} pillStyle />
+    </div>
+  );
+}
+
+const videoInputClass =
+  "w-full rounded-lg border border-surface-border bg-cream-200/40 px-3 py-2.5 text-sm outline-none focus:border-vibe-violet placeholder:text-ink-faint";
+
+function getYouTubeEmbedUrl(url: string): string {
+  try {
+    let videoId = "";
+    if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1].split(/[?#]/)[0];
+    } else if (url.includes("youtube.com/watch")) {
+      const match = url.match(/[?&]v=([^&#]+)/);
+      videoId = match ? match[1] : "";
+    } else if (url.includes("youtube.com/embed/")) {
+      videoId = url.split("youtube.com/embed/")[1].split(/[?#]/)[0];
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  } catch {
+    return url;
+  }
+}
+
+function getVimeoEmbedUrl(url: string): string {
+  try {
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? `https://player.vimeo.com/video/${match[1]}` : url;
+  } catch {
+    return url;
+  }
+}
+
+function MediaTab({
+  listing,
+  onSaveVideo,
+  onReplaceImage,
+}: {
+  listing: Listing;
+  onSaveVideo: (videoUrl: string) => Promise<void>;
+  onReplaceImage: (index: number, file: File) => void;
+}) {
+  const [videoInputType, setVideoInputType] = useState<"paste" | "upload">(() =>
+    listing.videoUrl?.includes("cloudinary") || listing.videoUrl?.match(/\.(mp4|mov|webm)/i) ? "upload" : "paste"
+  );
+  const [videoUrl, setVideoUrl] = useState(listing.videoUrl || "");
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [savingVideo, setSavingVideo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setVideoUrl(listing.videoUrl || "");
+  }, [listing.videoUrl]);
+
+  const dirty = videoUrl !== (listing.videoUrl || "");
+
+  async function handleVideoFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Video file is too large — max 2 MB");
+      return;
+    }
+    setError(null);
+    setUploadingVideo(true);
+    try {
+      const { url } = await uploadVendorImage(file, "listings");
+      setVideoUrl(url);
+      await onSaveVideo(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Video upload failed");
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+
+  async function handleSaveClick() {
+    setSavingVideo(true);
+    setError(null);
+    try {
+      await onSaveVideo(videoUrl);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Failed to save video");
+    } finally {
+      setSavingVideo(false);
+    }
+  }
+
+  async function handleRemove() {
+    setVideoUrl("");
+    setError(null);
+    setSavingVideo(true);
+    try {
+      await onSaveVideo("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.describe() : "Failed to remove video");
+    } finally {
+      setSavingVideo(false);
+    }
+  }
+
+  const hasUploadedVideo = videoUrl.match(/\.(mp4|mov|webm)/i) || videoUrl.includes("cloudinary");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-display text-xl font-semibold text-ink">Video &amp; Media</h1>
+        <p className="mt-0.5 text-xs text-ink-faint">
+          Add a background video and manage the photos guests see on your event page.
+        </p>
+      </div>
+
+      <div className="rounded-xl2 border border-surface-border bg-white p-5 shadow-panel">
+        <p className="mb-1 text-sm font-semibold text-ink">Background Video</p>
+        <p className="mb-4 text-xs text-ink-faint">Paste a YouTube/Vimeo link or upload an MP4 file (max 2 MB).</p>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-vibe-coral">{error}</div>
+        )}
+
+        <div className="mb-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setVideoInputType("paste")}
+            className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
+              videoInputType === "paste" ? "bg-vibe-violet text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            Paste YouTube/Vimeo Link
+          </button>
+          <button
+            type="button"
+            onClick={() => setVideoInputType("upload")}
+            className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
+              videoInputType === "upload" ? "bg-vibe-violet text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            Upload MP4 File
+          </button>
+        </div>
+
+        {videoInputType === "paste" ? (
+          <div className="max-w-lg space-y-2">
+            <input
+              type="text"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="e.g. https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+              className={videoInputClass}
+            />
+            <button
+              type="button"
+              onClick={handleSaveClick}
+              disabled={!dirty || savingVideo}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-vibe-violet px-4 py-2 text-xs font-semibold text-white hover:bg-vibe-violetSoft disabled:opacity-50"
+            >
+              {savingVideo && <Loader2 size={13} className="animate-spin" />}
+              {savingVideo ? "Saving..." : "Save Video"}
+            </button>
+          </div>
+        ) : (
+          <div className="max-w-md space-y-2">
+            <input
+              type="file"
+              accept="video/mp4,video/quicktime,video/*"
+              className="hidden"
+              id="media-tab-video-input"
+              onChange={(e) => {
+                handleVideoFile(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {uploadingVideo ? (
+              <div className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                <Loader2 size={14} className="animate-spin" /> Uploading Video...
+              </div>
+            ) : hasUploadedVideo ? (
+              <div className="flex h-10 items-center justify-between rounded-lg border border-vibe-violet/20 bg-vibe-violet/5 px-3">
+                <span className="truncate text-xs font-semibold text-vibe-violet">Video file uploaded</span>
+                <button type="button" onClick={handleRemove} className="text-xs text-vibe-coral underline hover:text-vibe-coral/80">
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => document.getElementById("media-tab-video-input")?.click()}
+                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-surface-border bg-cream-200/50 text-xs font-semibold text-ink hover:bg-cream-200 transition"
+              >
+                <Upload size={13} /> Select MP4 file
+              </button>
+            )}
+          </div>
+        )}
+
+        {videoUrl && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Video Preview</p>
+            <div className="aspect-video w-full max-w-lg overflow-hidden rounded-lg bg-black">
+              {videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be") ? (
+                <iframe
+                  src={getYouTubeEmbedUrl(videoUrl)}
+                  className="h-full w-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : videoUrl.includes("vimeo.com") ? (
+                <iframe src={getVimeoEmbedUrl(videoUrl)} className="h-full w-full border-0" allowFullScreen />
+              ) : (
+                <video src={videoUrl} controls className="h-full w-full" />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-sm font-semibold text-ink">Photos</p>
+        <p className="mb-3 text-xs text-ink-faint">Poster, banner and gallery photos shown alongside your video.</p>
+        <ImageGallery images={listing.images} onReplace={onReplaceImage} />
+      </div>
     </div>
   );
 }

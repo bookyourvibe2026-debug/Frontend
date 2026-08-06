@@ -112,9 +112,18 @@ function finalSlotPrice(slot: { price: number; boostPct?: number }): number {
   return slot.boostPct ? boostedPrice(slot.price, slot.boostPct) : slot.price;
 }
 
-function courtSlotPrice(slot: { price: number; courtBoostPct?: Record<string, number> }, courtId: string | undefined): number {
+function courtSlotPrice(slot: { price: number; courtBoostPct?: Record<string, number>; candidates?: any[] }, courtId: string | undefined, matchSport: string | undefined): number {
+  let basePrice = slot.price;
+  if (slot.candidates && courtId) {
+     let best = null;
+     if (matchSport) best = slot.candidates.find(c => c.sport?.toLowerCase() === matchSport && c.courtId === courtId);
+     if (!best) best = slot.candidates.find(c => !c.sport && c.courtId === courtId);
+     if (!best && matchSport) best = slot.candidates.find(c => c.sport?.toLowerCase() === matchSport && !c.courtId);
+     if (!best) best = slot.candidates.find(c => !c.sport && !c.courtId);
+     if (best && typeof best.price === "number" && best.price > 0) basePrice = best.price;
+  }
   const pct = (courtId && slot.courtBoostPct?.[courtId]) || 0;
-  return pct > 0 ? boostedPrice(slot.price, pct) : slot.price;
+  return pct > 0 ? boostedPrice(basePrice, pct) : basePrice;
 }
 
 /* Start times a venue can be booked from. */
@@ -397,8 +406,8 @@ export default function BookingFlow({
 
   const selectedSlotIndex = selectedSlotIndices[0] ?? -1;
   const [payment, setPayment] = useState<PaymentMethod>(PAYMENT_METHODS[0]);
-  const [paymentOption, setPaymentOption] = useState<"partial" | "full">("partial");
-  const [agreed, setAgreed] = useState(false);
+  const [paymentOption, setPaymentOption] = useState<"partial" | "full">("full");
+  const [playProtect, setPlayProtect] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -542,9 +551,43 @@ export default function BookingFlow({
     const override = listing.dateOverrides?.find((o) => o.date === date && !o.isHoliday);
     const slotsConfig = override?.slots && override.slots.length > 0 ? override.slots : (listing.slotsList || []);
 
+    const matchSport = sport?.toLowerCase();
+    const matchCourt = courtPicks && courtPicks.length > 0 ? courtPicks[0] : null;
+
+    // Group candidates by start/end time
+    const timeGroups: Record<string, typeof slotsConfig> = {};
+    slotsConfig.forEach((s) => {
+      const key = `${s.startTime}-${s.endTime}`;
+      if (!timeGroups[key]) timeGroups[key] = [];
+      timeGroups[key].push(s);
+    });
+
+    const activeSlotsConfig: typeof slotsConfig = [];
+    for (const [key, candidates] of Object.entries(timeGroups)) {
+      let best = null;
+      if (matchSport && matchCourt) {
+        best = candidates.find(c => c.sport?.toLowerCase() === matchSport && c.courtId === matchCourt);
+      }
+      if (!best && matchSport) {
+        best = candidates.find(c => c.sport?.toLowerCase() === matchSport && !c.courtId);
+      }
+      if (!best && matchCourt) {
+        best = candidates.find(c => c.courtId === matchCourt && !c.sport);
+      }
+      if (!best) {
+        best = candidates.find(c => !c.sport && !c.courtId);
+      }
+      if (!best) {
+        best = candidates[0];
+      }
+      if (best) {
+        activeSlotsConfig.push({ ...best, _allCandidates: candidates } as any);
+      }
+    }
+
     const unavailableRanges: UnavailableRange[] = [
       ...bookedRanges,
-      ...slotsConfig
+      ...activeSlotsConfig
         .filter((c) => c.blocked)
         .map((c) => ({
           startTime: c.startTime,
@@ -578,6 +621,7 @@ export default function BookingFlow({
       }
       return map;
     };
+
     // Slot-card-level badge only — "does *some* court on this slot have a deal right
     // now", shown before a court is picked. The map above is what actually prices
     // each individual court button.
@@ -589,7 +633,7 @@ export default function BookingFlow({
 
     const slotDuration = 60; // 1-hour duration per slot
 
-    if (!slotsConfig || slotsConfig.length === 0) {
+    if (!activeSlotsConfig || activeSlotsConfig.length === 0) {
       let current = startMin;
       let idx = 0;
       while (current + slotDuration <= endMin) {
@@ -625,7 +669,7 @@ export default function BookingFlow({
       return slots;
     }
 
-    const clubConfigs = slotsConfig.filter((c) => c.isClubSlot || (time24ToMinutes(c.endTime) - time24ToMinutes(c.startTime) > 60));
+    const clubConfigs = activeSlotsConfig.filter((c) => c.isClubSlot || (time24ToMinutes(c.endTime) - time24ToMinutes(c.startTime) > 60));
     const clubWindows = clubConfigs.map((c) => ({
       start: time24ToMinutes(c.startTime),
       end: time24ToMinutes(c.endTime),
@@ -659,21 +703,22 @@ export default function BookingFlow({
         isClubSlot: true,
         clubId: cw.config.clubId || `club_${startTime24}_${endTime24}`,
         durationMinutes: slotEnd - slotStart,
+        candidates: (cw.config as any)._allCandidates,
       });
     }
 
-    const windows = slotsConfig
+    const windows = activeSlotsConfig
       .filter((cfg) => !cfg.isClubSlot && (time24ToMinutes(cfg.endTime) - time24ToMinutes(cfg.startTime) <= 60))
       .map((cfg) => {
         const start = time24ToMinutes(cfg.startTime);
         let end = time24ToMinutes(cfg.endTime);
         if (end <= start) end += 1440;
         const hourly = typeof cfg.price === "number" && cfg.price > 0 ? cfg.price : baseHourlyRate;
-        return { start, end, hourly };
+        return { start, end, hourly, candidates: (cfg as any)._allCandidates };
       })
       .sort((a, b) => a.start - b.start);
 
-    const ranges: { start: number; end: number; segments: { start: number; end: number; hourly: number }[] }[] = [];
+    const ranges: { start: number; end: number; segments: { start: number; end: number; hourly: number; candidates?: any[] }[] }[] = [];
     for (const w of windows) {
       const last = ranges[ranges.length - 1];
       if (last && w.start <= last.end) {
@@ -708,9 +753,13 @@ export default function BookingFlow({
         else if (startHour >= 22 || startHour < 5) label = "Night";
 
         let priceRaw = 0;
+        let segmentCandidates: any[] | undefined = undefined;
         for (const seg of range.segments) {
           const overlap = Math.min(seg.end, slotEnd) - Math.max(seg.start, slotStart);
-          if (overlap > 0) priceRaw += (overlap / 60) * seg.hourly;
+          if (overlap > 0) {
+             priceRaw += (overlap / 60) * seg.hourly;
+             segmentCandidates = seg.candidates; // Use candidates from the matching segment
+          }
         }
         const price = Math.round(priceRaw) || baseHourlyRate;
 
@@ -729,6 +778,7 @@ export default function BookingFlow({
           courtBoostPct: courtBoostPctFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx++,
+          candidates: range.segments.flatMap((seg) => seg.candidates ?? []),
         });
 
         current += slotDuration;
@@ -738,7 +788,7 @@ export default function BookingFlow({
     // Sort slots by start time and assign final array indices to originalIndex
     slots.sort((a, b) => time24ToMinutes(a.startTime) - time24ToMinutes(b.startTime));
     return slots.map((s, index) => ({ ...s, originalIndex: index }));
-  }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, nowTick]);
+  }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, courtPicks, nowTick]);
 
   // Once the deal's slot shows up as Available in the generated grid, select it (and its
   // court) automatically so a player tapping a Last Minute Deal card lands directly on
@@ -846,6 +896,7 @@ export default function BookingFlow({
     const addOnsTotal = (listing.addOns ?? [])
       .filter((a) => selectedAddOnIds.includes(a.id))
       .reduce((sum, a) => sum + a.price, 0);
+    const playProtectFee = playProtect ? 19 : 0;
     if (listing.type === "Turf") {
       // Turf pricing is always driven by the selected slots/courts, never by a
       // package tier — a tier gets auto-selected as soon as one exists, and letting
@@ -866,16 +917,16 @@ export default function BookingFlow({
         const pct = (primaryCourtId && slot.courtBoostPct?.[primaryCourtId]) || 0;
         return sum + (pct > 0 ? boostedPrice(rawTotal, pct) : rawTotal);
       }, 0);
-      return slotsTotal + addOnsTotal;
+      return slotsTotal + addOnsTotal + playProtectFee;
     }
     // An event's ticket price is fixed by the organizer; players do not choose a package.
-    if (listing.type === "Event") return listing.price;
+    if (listing.type === "Event") return listing.price + addOnsTotal + playProtectFee;
     const selectedTier = listing.priceTiers.find((tier) => tier.id === selectedPriceTierId);
     if (selectedTier) {
-      return selectedTier.amount + addOnsTotal;
+      return selectedTier.amount + addOnsTotal + playProtectFee;
     }
-    return listing.price + addOnsTotal;
-  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport, effectiveCourtIds]);
+    return listing.price + addOnsTotal + playProtectFee;
+  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport, effectiveCourtIds, playProtect]);
 
   /** Whether the selected slot(s) are currently Last Minute Boost-discounted, and by how
    * much — so checkout can show "original price / discounted price / you saved X" instead
@@ -912,17 +963,17 @@ export default function BookingFlow({
       (courtsForSport.length === 0 || effectiveCourtIds.length > 0));
 
   const partialConfig = listing.partialPayment ?? { enabled: true, type: "percentage", value: 25 };
-  const canPartial = partialConfig.enabled !== false;
-  const effectivePaymentOption: "partial" | "full" = canPartial ? paymentOption : "full";
+  const canPartial = false;
+  const effectivePaymentOption: "partial" | "full" = "full";
 
   const payNowAmount = useMemo(() => {
-    if (effectivePaymentOption === "full" || !canPartial) return activePrice;
+    return activePrice;
     if (partialConfig.type === "fixed") {
       return Math.min(activePrice, Math.max(1, Math.round(partialConfig.value)));
     }
     const pct = Math.min(100, Math.max(1, partialConfig.value));
     return Math.min(activePrice, Math.max(1, Math.round((activePrice * pct) / 100)));
-  }, [activePrice, partialConfig, effectivePaymentOption, canPartial]);
+  }, [activePrice]);
 
   const payAtVenueAmount = Math.max(0, activePrice - payNowAmount);
 
@@ -988,6 +1039,7 @@ export default function BookingFlow({
         priceTierId: listing.type === "Event" ? undefined : selectedPriceTierId || undefined,
         phone: needsPhone ? phone : undefined,
         addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
+        playProtect,
         durationMinutes,
       });
 
@@ -1050,8 +1102,8 @@ export default function BookingFlow({
           setEndTime={setEndTime}
           payment={payment}
           setPayment={setPayment}
-          agreed={agreed}
-          setAgreed={setAgreed}
+          playProtect={playProtect}
+          setPlayProtect={setPlayProtect}
           canPay={canPay}
           submitting={submitting}
           error={error}
@@ -1262,8 +1314,8 @@ function ReviewStep(props: {
   setEndTime: (v: string) => void;
   payment: PaymentMethod;
   setPayment: (v: PaymentMethod) => void;
-  agreed: boolean;
-  setAgreed: (v: boolean) => void;
+  playProtect: boolean;
+  setPlayProtect: (v: boolean) => void;
   canPay: boolean;
   submitting: boolean;
   error: string;
@@ -1325,8 +1377,8 @@ function ReviewStep(props: {
     setEndTime,
     payment,
     setPayment,
-    agreed,
-    setAgreed,
+    playProtect,
+    setPlayProtect,
     canPay,
     submitting,
     error,
@@ -1485,7 +1537,7 @@ function ReviewStep(props: {
     for (const court of orderedCourts) {
       const totalPrice = selectedSlotIndices.reduce((sum, idx) => {
         const slot = generatedSlots[idx];
-        return sum + (slot ? courtSlotPrice(slot, court.id) : 0);
+        return sum + (slot ? courtSlotPrice(slot, court.id, selectedSport?.toLowerCase()) : 0);
       }, 0);
       const boostPct = selectedSlotIndices.length > 0
         ? Math.max(0, ...selectedSlotIndices.map((idx) => generatedSlots[idx]?.courtBoostPct?.[court.id] || 0))
@@ -1494,6 +1546,23 @@ function ReviewStep(props: {
     }
     return map;
   }, [orderedCourts, selectedSlotIndices, generatedSlots]);
+  const displaySlotPricing = (slot: { price: number; boostPct?: number; courtBoostPct?: Record<string, number>; candidates?: any[] }) => {
+    const matchSport = selectedSport?.toLowerCase();
+    const candidateCourtIds = selectedCourtIds.length > 0 ? selectedCourtIds : freeCourts.map((c) => c.id);
+    if (candidateCourtIds.length === 0) {
+      return { price: finalSlotPrice(slot), boostPct: slot.boostPct ?? 0 };
+    }
+    let bestPrice = Number.POSITIVE_INFINITY;
+    let bestBoostPct = 0;
+    for (const courtId of candidateCourtIds) {
+      const price = courtSlotPrice(slot, courtId, matchSport);
+      if (price < bestPrice) {
+        bestPrice = price;
+        bestBoostPct = slot.courtBoostPct?.[courtId] ?? 0;
+      }
+    }
+    return { price: bestPrice, boostPct: bestBoostPct };
+  };
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
@@ -1944,7 +2013,7 @@ function ReviewStep(props: {
                             {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
-                              const finalPrice = finalSlotPrice(slot);
+                              const { price: finalPrice, boostPct: displayBoostPct } = displaySlotPricing(slot);
                               const timeRangeText = `${slot.startTime12.replace(/^0/, "")} - ${slot.endTime12.replace(/^0/, "")}`;
 
                               if (slot.isClubSlot) {
@@ -2017,12 +2086,12 @@ function ReviewStep(props: {
                                     }`}
                                 >
                                   {/* Last Minute Deal Badge */}
-                                  {available && slot.boostPct > 0 && (
+                                  {available && displayBoostPct > 0 && (
                                     <span
                                       className={`absolute -top-1.5 -right-1 rounded-full px-1.5 py-0.2 text-[7.5px] font-black uppercase tracking-wider ${isSelected ? "bg-white text-[#0b9c65] shadow-xs" : "bg-red-500 text-white shadow-xs"
                                         }`}
                                     >
-                                      {slot.boostPct}% OFF
+                                      {displayBoostPct}% OFF
                                     </span>
                                   )}
 
@@ -2042,7 +2111,7 @@ function ReviewStep(props: {
                                         >
                                           ₹{finalPrice.toLocaleString("en-IN")}
                                         </span>
-                                        {slot.boostPct > 0 && (
+                                         {displayBoostPct > 0 && (
                                           <span className={`text-[8.5px] line-through ${isSelected ? "text-white/70" : "text-slate-400"}`}>
                                             ₹{slot.price}
                                           </span>
@@ -2282,7 +2351,7 @@ function ReviewStep(props: {
             {/* Play Protect */}
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
               <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-600 accent-indigo-600" />
+                <input type="checkbox" checked={playProtect} onChange={(e) => setPlayProtect(e.target.checked)} className="mt-1 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-600 accent-indigo-600" />
                 <div>
                   <p className="text-sm font-bold text-indigo-900 flex items-center gap-1.5">Add Play Protect <ShieldCheck className="h-4 w-4 text-indigo-700" /></p>
                   <p className="text-[11px] text-indigo-700/80 mt-1 font-medium leading-relaxed">Get 100% refund on cancellation &amp; accidental injury cover up to ₹10K.</p>
@@ -2522,7 +2591,7 @@ function ReviewStep(props: {
                     ? "Booking..."
                     : selectedTier
                       ? `Confirm ${selectedTier.label}`
-                      : `PAY ₹${(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM`}
+                      : `PAY ₹${payNowAmount.toLocaleString("en-IN")} TO CONFIRM`}
                 </button>
               )}
             </div>
@@ -2571,7 +2640,7 @@ function ReviewStep(props: {
             className="w-full rounded-2xl bg-[#0b9c65] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#0b9c65]/30 flex items-center justify-between px-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>
-              PAY ₹{(payNowAmount + (agreed ? 19 : 0)).toLocaleString("en-IN")} TO CONFIRM
+              PAY ₹{payNowAmount.toLocaleString("en-IN")} TO CONFIRM
             </span>
             <ArrowRight className="h-5 w-5" />
           </button>
@@ -2739,3 +2808,13 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

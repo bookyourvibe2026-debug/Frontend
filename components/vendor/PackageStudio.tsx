@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid, LocateFixed, Pencil } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Trash2, Upload, X, Clock3, ChevronLeft, ChevronRight, LayoutGrid, List, Sunrise, Sun, Sunset, Moon, Ban, Crop, ArrowUpDown, Lightbulb, Layers, Grid, LocateFixed, Pencil, Info } from "lucide-react";
 import { uploadAdminImage, uploadVendorImage } from "@/lib/api/uploads";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -219,9 +219,8 @@ function ToggleGroup<T extends string>({
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`px-3 py-1.5 ${
-            value === opt.value ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-cream-300"
-          }`}
+          className={`px-3 py-1.5 ${value === opt.value ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-cream-300"
+            }`}
         >
           {opt.label}
         </button>
@@ -502,11 +501,10 @@ function PackageStep({
                 key={String(opt.on)}
                 type="button"
                 onClick={() => onToggleAcademy(opt.on)}
-                className={`rounded-lg border px-3.5 py-2 text-xs font-bold transition ${
-                  academyEnabled === opt.on
+                className={`rounded-lg border px-3.5 py-2 text-xs font-bold transition ${academyEnabled === opt.on
                     ? "border-vibe-violet bg-vibe-violet text-white"
                     : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet/50"
-                }`}
+                  }`}
               >
                 {opt.label}
               </button>
@@ -594,9 +592,9 @@ function PackageStep({
             {draft.images.map((img, i) => (
               <div key={img.id} className="group relative h-28 w-24 overflow-hidden rounded-lg border border-surface-border">
                 {img.url && <img src={img.url} alt={img.label} className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />}
+                  loading="lazy"
+                  decoding="async"
+                />}
                 {i === 0 && (
                   <span className="absolute left-1 top-1 rounded bg-vibe-violet px-1.5 py-0.5 text-[9px] font-semibold text-white">
                     Poster
@@ -668,9 +666,9 @@ function CategoryPhoto({ cat }: { cat: SportCategory }) {
         alt={cat.label}
         onError={() => setErrored(true)}
         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-            loading="lazy"
-            decoding="async"
-          />
+        loading="lazy"
+        decoding="async"
+      />
     );
   }
   // Last resort (offline / photo missing): a distinct gradient per sport, so two
@@ -688,134 +686,286 @@ function CategoryPhoto({ cat }: { cat: SportCategory }) {
  * pitch hosts only cricket. Players pick their game first, so the counter at the top shows
  * exactly how many courts each game will sell.
  */
-function CourtsField({ draft, update, audience }: StepProps & { audience: Audience }) {
+interface GameCourtsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  sportLabel: string;
+  draft: Listing;
+  update: <K extends keyof Listing>(key: K, value: Listing[K]) => void;
+  audience: Audience;
+  allCategories: SportCategory[];
+}
+
+function GameCourtsModal({
+  isOpen,
+  onClose,
+  sportLabel,
+  draft,
+  update,
+  audience,
+  allCategories,
+}: GameCourtsModalProps) {
   const courts = draft.courts ?? [];
-  // Courts store sport *labels*, matching what a booking sends as its `sport`.
-  const sportLabels = draft.categories.map(
-    (catId) => SPORT_CATEGORIES.find((c) => c.id === catId)?.label ?? catId
-  );
-
   const setCourts = (next: Court[]) => update("courts", next);
-  const patch = (index: number, changes: Partial<Court>) =>
-    setCourts(courts.map((c, i) => (i === index ? { ...c, ...changes } : c)));
 
-  /* The slot rate a court inherits when it has no price of its own. Shown throughout this
-     step because "same as slot" is meaningless to a vendor who can't see the number. */
-  const slotPrices = (draft.slotsList ?? []).filter((s) => s.price > 0 && !s.blocked).map((s) => s.price);
-  const slotPrice = slotPrices.length ? Math.min(...slotPrices) : 0;
-  const slotPriceMax = slotPrices.length ? Math.max(...slotPrices) : 0;
-  const slotPriceLabel = !slotPrice
-    ? ""
-    : slotPrice === slotPriceMax
-    ? `₹${slotPrice.toLocaleString("en-IN")}`
-    : `₹${slotPrice.toLocaleString("en-IN")}–₹${slotPriceMax.toLocaleString("en-IN")}`;
-
-  /** A court with no sports listed hosts everything the venue offers. */
   const hostsSport = (court: Court, label: string) =>
     court.sports.length === 0 || court.sports.includes(label);
 
-  const addCourt = (sports: string[] = []) =>
-    setCourts([
+  // Filter courts hosting the active sport
+  const activeCourtsWithIndices = useMemo(() => {
+    return courts
+      .map((court, originalIndex) => ({ court, originalIndex }))
+      .filter(({ court }) => hostsSport(court, sportLabel));
+  }, [courts, sportLabel]);
+
+  // Other courts in this listing that do NOT host the active sport
+  const otherCourtsWithIndices = useMemo(() => {
+    return courts
+      .map((court, originalIndex) => ({ court, originalIndex }))
+      .filter(({ court }) => !hostsSport(court, sportLabel));
+  }, [courts, sportLabel]);
+
+  const [activeTab, setActiveTab] = useState<number>(0);
+  const [showInfo, setShowInfo] = useState<boolean>(false);
+  const [showPriceInfo, setShowPriceInfo] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(0);
+      setShowInfo(false);
+      setShowPriceInfo(false);
+    }
+  }, [isOpen, sportLabel]);
+
+  const currentTab = Math.min(activeTab, Math.max(0, activeCourtsWithIndices.length - 1));
+
+  const patch = (index: number, changes: Partial<Court>) =>
+    setCourts(courts.map((c, i) => (i === index ? { ...c, ...changes } : c)));
+
+  const addCourtForSport = () => {
+    const nextCourts = [
       ...courts,
       {
         id: `court-${Date.now()}-${courts.length}`,
         name: `Court ${courts.length + 1}`,
-        sports,
+        sports: [sportLabel],
         priceOverride: null,
         sportPrices: [],
         image: "",
         surface: "",
         active: true,
       },
-    ]);
+    ];
+    setCourts(nextCourts);
+    // Find what the new length of active courts will be
+    const hostsSportVal = (c: Court) => c.sports.length === 0 || c.sports.includes(sportLabel);
+    const newActiveCount = nextCourts.filter(hostsSportVal).length;
+    setActiveTab(newActiveCount - 1);
+  };
+
+  const sportLabels = draft.categories.map(
+    (catId) => allCategories.find((c) => c.id === catId)?.label ?? catId
+  );
+
+  const allConfiguredSlots = [
+    ...(draft.slotsList ?? []),
+    ...((draft.dateOverrides ?? []).flatMap((o) => o.slots ?? [])),
+  ];
+  const slotPrices = allConfiguredSlots.filter((s) => s.price > 0 && !s.blocked).map((s) => s.price);
+  const slotPrice = slotPrices.length ? Math.min(...slotPrices) : 0;
+  const slotPriceMax = slotPrices.length ? Math.max(...slotPrices) : 0;
+  const slotPriceLabel = !slotPrice
+    ? ""
+    : slotPrice === slotPriceMax
+      ? `₹${slotPrice.toLocaleString("en-IN")}`
+      : `₹${slotPrice.toLocaleString("en-IN")}–₹${slotPriceMax.toLocaleString("en-IN")}`;
+
+  if (!isOpen) return null;
 
   return (
-    <div>
-      <FieldLabel>Courts per game</FieldLabel>
-      <p className="mb-3 text-[11px] text-ink-faint">
-        Add every court this venue sells, then tick which games each one hosts — a court can host a
-        single game or several. Players pick a game, a date and a time slot, and then see exactly
-        these courts. Add none and the whole venue is sold as one unit at the slot price.
-      </p>
-
-      {/* What the vendor set in the Slots step, repeated here so "same as slot" is a real
-          number rather than a term they have to go back two steps to remember. */}
-      <div className="mb-3 rounded-xl border border-vibe-violet/25 bg-vibe-violet/5 px-3.5 py-2.5">
-        <p className="text-[11px] font-bold text-vibe-violet">
-          {slotPriceLabel
-            ? `Your time slot price is ${slotPriceLabel}/hr.`
-            : "No time slot price set yet — add slots in the Slots step first."}
-        </p>
-        <p className="mt-0.5 text-[11px] text-ink-faint">
-          {courts.length === 0
-            ? "That's what a player pays per hour right now."
-            : "Every court below sells at that same rate. Change it in the Slots step and all courts follow."}
-        </p>
-      </div>
-
-      {/* Per-game counter: the same view the player gets, so a game with no court is obvious. */}
-      {sportLabels.length > 0 && courts.length > 0 && (
-        <div className="mb-3 space-y-1.5">
-          {sportLabels.map((label) => {
-            const forSport = courts.filter((c) => hostsSport(c, label));
-            return (
-              <div
-                key={label}
-                className="flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-white px-3.5 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-ink">{label}</p>
-                  <p className="truncate text-[11px] text-ink-faint">
-                    {forSport.length === 0
-                      ? "No court yet — players can't book this game"
-                      : forSport.map((c) => c.name || "Untitled court").join(", ")}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                      forSport.length === 0 ? "bg-red-50 text-red-500" : "bg-vibe-violet/10 text-vibe-violet"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden rounded-3xl border border-surface-border bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-surface-border pb-3.5">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-vibe-violet/10 text-vibe-violet">
+              <Layers size={18} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-ink leading-none">
+                  Configure {sportLabel}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowInfo(!showInfo)}
+                  className={`rounded-full p-1 transition cursor-pointer ${showInfo ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
                     }`}
-                  >
-                    {forSport.length} {forSport.length === 1 ? "court" : "courts"}
+                  title="Show Info"
+                >
+                  <Info size={15} />
+                </button>
+                {slotPrice ? (
+                  <span className="rounded-full bg-vibe-violet/10 px-2 py-0.5 text-[10px] font-black text-vibe-violet">
+                    {slotPriceLabel}/hr
                   </span>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => addCourt([label])}
-                    className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-ink hover:border-vibe-violet"
+                    onClick={() => setShowPriceInfo(!showPriceInfo)}
+                    className={`rounded-full p-1 transition cursor-pointer ${showPriceInfo ? "bg-red-200 text-red-700" : "bg-red-50 text-red-500 hover:bg-red-100 animate-pulse"
+                      }`}
+                    title="Price Warning"
                   >
-                    <Plus size={12} /> Add
+                    <Info size={15} />
                   </button>
-                </div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 text-ink-faint hover:bg-cream-200 hover:text-ink transition cursor-pointer"
+          >
+            <X size={18} />
+          </button>
         </div>
-      )}
 
-      <div className="space-y-2">
-        {courts.map((court, index) => (
-          <CourtRow
-            key={court.id}
-            court={court}
-            index={index}
-            sportLabels={sportLabels}
-            galleryImages={draft.images}
-            audience={audience}
-            slotPrice={slotPrice}
-            onPatch={(changes) => patch(index, changes)}
-            onRemove={() => setCourts(courts.filter((_, i) => i !== index))}
-          />
-        ))}
+        {/* Scrollable Content */}
+        <div className="mt-3 flex-1 overflow-y-auto pr-1 space-y-3">
+          {/* Info guide panel */}
+          {showInfo && (
+            <div className="rounded-xl border border-surface-border bg-cream-200/40 p-3 text-[11px] text-ink-soft animate-in slide-in-from-top-1 duration-200 space-y-1">
+              <p>• Add and manage bookable courts/pitches that host this sport.</p>
+              <p>• Every court configured for this sport will sell at the slots hourly price by default.</p>
+              <p>• You can enable this sport on other existing courts if they are multi-purpose.</p>
+            </div>
+          )}
+
+          {/* Price Warning Details Banner */}
+          {showPriceInfo && !slotPrice && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-[11px] font-bold text-red-700 animate-in slide-in-from-top-1 duration-155">
+              No time slot price set yet — add slots in the Slots step first.
+            </div>
+          )}
+
+          {/* Active Sport Courts List */}
+          <div className="space-y-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              Courts hosting {sportLabel} ({activeCourtsWithIndices.length})
+            </span>
+            {activeCourtsWithIndices.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-surface-border p-6 text-center">
+                <p className="text-xs text-ink-soft font-semibold">No courts configured for {sportLabel} yet.</p>
+                <p className="text-[10px] text-ink-faint mt-1">Players won&apos;t be able to book this sport unless you add a court.</p>
+              </div>
+            ) : (
+              <div>
+                {/* Tabbed Court Selectors [Court 1] [Court 2] [Court 3] */}
+                <div className="flex items-center gap-2 border-b border-surface-border pb-3 mb-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint shrink-0">Select Court:</span>
+                  <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-none pb-1 scroll-smooth">
+                    {activeCourtsWithIndices.map(({ court }, i) => (
+                      <button
+                        key={court.id}
+                        type="button"
+                        onClick={() => setActiveTab(i)}
+                        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${currentTab === i
+                            ? "bg-vibe-violet text-white shadow-md scale-105"
+                            : "border border-surface-border bg-white text-ink-soft hover:bg-cream-200"
+                          }`}
+                      >
+                        {court.name || `Court ${i + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Render only the selected court */}
+                {(() => {
+                  const target = activeCourtsWithIndices[currentTab];
+                  if (!target) return null;
+                  const { court, originalIndex } = target;
+                  return (
+                    <CourtRow
+                      key={court.id}
+                      court={court}
+                      index={originalIndex}
+                      sportLabels={sportLabels}
+                      galleryImages={draft.images}
+                      audience={audience}
+                      slotPrice={slotPrice}
+                      onPatch={(changes) => patch(originalIndex, changes)}
+                      onRemove={() => {
+                        setCourts(courts.filter((_, i) => i !== originalIndex));
+                        if (currentTab > 0 && currentTab === activeCourtsWithIndices.length - 1) {
+                          setActiveTab(currentTab - 1);
+                        }
+                      }}
+                    />
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Add Court Button */}
+          <button
+            type="button"
+            onClick={addCourtForSport}
+            className="w-full py-3 inline-flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-vibe-violet/40 bg-vibe-violet/5 hover:bg-vibe-violet/10 text-xs font-bold text-vibe-violet transition"
+          >
+            <Plus size={14} /> Add Court for {sportLabel}
+          </button>
+
+          {/* Other Existing Courts Section */}
+          {otherCourtsWithIndices.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-surface-border space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint block">
+                Enable {sportLabel} for other existing courts
+              </span>
+              <p className="text-[10px] text-ink-faint">
+                You have courts configured for other games. You can enable {sportLabel} on them if they are multi-purpose.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {otherCourtsWithIndices.map(({ court, originalIndex }) => (
+                  <div key={court.id} className="flex items-center justify-between rounded-xl border border-surface-border bg-cream-200/20 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-ink truncate">{court.name || `Court ${originalIndex + 1}`}</p>
+                      <p className="text-[10px] text-ink-faint truncate">
+                        Hosts: {court.sports.length > 0 ? court.sports.join(", ") : "All games"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentSports = court.sports;
+                        const nextSports = currentSports.includes(sportLabel) ? currentSports : [...currentSports, sportLabel];
+                        patch(originalIndex, { sports: nextSports });
+                      }}
+                      className="shrink-0 rounded-lg border border-surface-border bg-white px-2 py-1 text-[10px] font-bold text-ink hover:border-vibe-violet hover:text-vibe-violet transition"
+                    >
+                      Enable
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end border-t border-surface-border pt-4 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-vibe-violet px-6 py-2.5 text-xs font-bold text-white transition hover:bg-vibe-violetSoft cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => addCourt()}
-        className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white px-3 py-2 text-[12px] font-bold text-ink hover:border-vibe-violet"
-      >
-        <Plus size={14} /> Add court
-      </button>
     </div>
   );
 }
@@ -873,11 +1023,10 @@ function CourtRow({
           type="button"
           onClick={() => onPatch({ active: !isCourtActive })}
           title={isCourtActive ? "Court is bookable" : "Court is hidden from booking"}
-          className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${
-            isCourtActive
+          className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition ${isCourtActive
               ? "border-vibe-violet bg-vibe-violet text-white"
               : "border-surface-border bg-white text-ink-faint"
-          }`}
+            }`}
         >
           {isCourtActive ? "Active" : "Off"}
         </button>
@@ -907,11 +1056,10 @@ function CourtRow({
                     sports: on ? court.sports.filter((s) => s !== label) : [...court.sports, label],
                   })
                 }
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition ${
-                  on
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition ${on
                     ? "border-vibe-violet bg-vibe-violet text-white"
                     : "border-surface-border bg-white text-ink-faint"
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -940,9 +1088,9 @@ function CourtRow({
           {court.image ? (
             <span className="relative h-14 w-20 overflow-hidden rounded-lg border border-vibe-violet">
               <img src={court.image} alt={court.name} className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+                loading="lazy"
+                decoding="async"
+              />
               <button
                 type="button"
                 onClick={() => onPatch({ image: "" })}
@@ -967,9 +1115,9 @@ function CourtRow({
                 title={`Use ${img.label}`}
               >
                 <img src={img.url} alt={img.label} className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+                  loading="lazy"
+                  decoding="async"
+                />
               </button>
             ))}
 
@@ -1187,9 +1335,9 @@ function CustomSportModal({
             {iconUrl ? (
               <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl border border-surface-border bg-cream-200/50 p-2">
                 <img src={iconUrl} alt="Sport Preview" className="h-full w-full object-contain"
-            loading="lazy"
-            decoding="async"
-          />
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition hover:opacity-100">
                   <button
                     type="button"
@@ -1220,11 +1368,10 @@ function CustomSportModal({
                   handleFileSelected(e.dataTransfer.files?.[0]);
                 }}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex h-36 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center transition cursor-pointer ${
-                  dragOver
+                className={`flex h-36 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center transition cursor-pointer ${dragOver
                     ? "border-vibe-violet bg-vibe-violet/10"
                     : "border-surface-border bg-cream-200/40 hover:border-vibe-violet/50 hover:bg-cream-200"
-                }`}
+                  }`}
               >
                 {uploading ? (
                   <>
@@ -1278,12 +1425,17 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSport, setEditingSport] = useState<SportCategory | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeCourtSport, setActiveCourtSport] = useState<string | null>(null);
+  const [openInfos, setOpenInfos] = useState<Record<string, boolean>>({});
+
+  const toggleInfo = (key: string) =>
+    setOpenInfos((prev) => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
     if (audience === "vendor") {
       getVendorCustomSports()
         .then((res) => setCustomSports(res || []))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [audience]);
 
@@ -1336,21 +1488,51 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
       )}
 
       <div>
-        <p className="mb-1 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Basic info</p>
-        <p className="text-xs text-ink-faint">Name this listing, then set its type &amp; category.</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] font-semibold tracking-wider text-ink-faint uppercase leading-none">Basic info</p>
+          <button
+            type="button"
+            onClick={() => toggleInfo("basic")}
+            className={`rounded-full p-0.5 transition cursor-pointer ${openInfos["basic"] ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+              }`}
+            title="Show info"
+          >
+            <Info size={11} />
+          </button>
+        </div>
+        {openInfos["basic"] && (
+          <p className="text-xs text-ink-faint mt-1 bg-cream-200/40 p-2 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+            Name this listing, then set its type &amp; category.
+          </p>
+        )}
       </div>
 
       <div>
-        <FieldLabel>Listing name *</FieldLabel>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase leading-none">
+            Listing name *
+          </label>
+          <button
+            type="button"
+            onClick={() => toggleInfo("title")}
+            className={`rounded-full p-0.5 transition cursor-pointer ${openInfos["title"] ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+              }`}
+            title="Show info"
+          >
+            <Info size={11} />
+          </button>
+        </div>
+        {openInfos["title"] && (
+          <p className="mb-2 text-xs text-ink-faint bg-cream-200/40 p-2 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+            Pre-filled from your business profile — edit it if this venue has its own name.
+          </p>
+        )}
         <input
           value={draft.title}
           onChange={(e) => update("title", e.target.value)}
           placeholder="e.g. BABA Turf & Sports Arena"
           className={inputClass}
         />
-        <p className="mt-1.5 text-[11px] text-ink-faint">
-          Pre-filled from your business profile — edit it if this venue has its own name.
-        </p>
       </div>
 
       {draft.type !== "Event" && (
@@ -1369,7 +1551,25 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
 
       {draft.type === "Game" && (
         <div>
-          <FieldLabel>Indoor / Outdoor *</FieldLabel>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase leading-none">
+              Indoor / Outdoor *
+            </label>
+            <button
+              type="button"
+              onClick={() => toggleInfo("venue")}
+              className={`rounded-full p-0.5 transition cursor-pointer ${openInfos["venue"] ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                }`}
+              title="Show info"
+            >
+              <Info size={11} />
+            </button>
+          </div>
+          {openInfos["venue"] && (
+            <p className="mb-2 text-xs text-ink-faint bg-cream-200/40 p-2 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              Choose Indoor to only show indoor games, Outdoor for outdoor-only, or Both for the full list.
+            </p>
+          )}
           <ToggleGroup
             value={gameVenue}
             options={[
@@ -1379,61 +1579,78 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
             ]}
             onChange={(v) => update("gameVenue", v)}
           />
-          <p className="mt-1.5 text-[11px] text-ink-faint">
-            Choose Indoor to only show indoor games, Outdoor for outdoor-only, or Both for the full list.
-          </p>
         </div>
       )}
 
       <div>
         <FieldLabel>Category * (select all that apply)</FieldLabel>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {allCategories.map((cat) => {
             const isSelected = draft.categories.includes(cat.id);
             return (
-              <div key={cat.id} className="relative aspect-[4/3] overflow-hidden rounded-2xl">
+              <div key={cat.id} className="group relative aspect-[4/3] overflow-hidden rounded-2xl">
                 <button
                   type="button"
                   onClick={() => {
-                    const next = isSelected
-                      ? draft.categories.filter((c) => c !== cat.id)
-                      : [...draft.categories, cat.id];
-                    update("categories", next);
-                    const validLabels = new Set(
-                      next.map((id) => allCategories.find((c) => c.id === id)?.label ?? id)
-                    );
-                    const courts = draft.courts ?? [];
-                    if (courts.length > 0) {
-                      update(
-                        "courts",
-                        courts
-                          .map((court) => ({ ...court, sports: court.sports.filter((s) => validLabels.has(s)) }))
-                          .filter((court, i) => court.sports.length > 0 || courts[i]!.sports.length === 0)
-                      );
+                    if (isSelected) {
+                      setActiveCourtSport(cat.label);
+                    } else {
+                      const next = [...draft.categories, cat.id];
+                      update("categories", next);
+                      setActiveCourtSport(cat.label);
                     }
                   }}
-                  className={`group relative h-full w-full overflow-hidden rounded-2xl border-2 text-left shadow-sm transition cursor-pointer ${
-                    isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
-                  }`}
+                  className={`relative h-full w-full overflow-hidden rounded-2xl border-2 text-left shadow-sm transition cursor-pointer ${isSelected ? "border-vibe-violet ring-2 ring-vibe-violet/30" : "border-surface-border hover:border-vibe-violet/50"
+                    }`}
                 >
                   <div className="h-full w-full bg-cream-300">
                     <CategoryPhoto cat={cat} />
                   </div>
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
                   {isSelected && <div className="pointer-events-none absolute inset-0 bg-vibe-violet/25" />}
-                  <span className="absolute inset-x-0 bottom-0 px-2.5 py-2 text-sm font-bold text-white drop-shadow-sm">
+                  <span className="absolute inset-x-0 bottom-0 px-1.5 py-1 text-[10px] sm:text-xs md:text-sm font-black text-white drop-shadow-sm leading-tight text-center sm:text-left">
                     {cat.label}
                   </span>
-                  {isSelected && (
-                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-vibe-violet text-white shadow">
-                      <Check size={12} />
+
+                  {/* Hover indicator to open modal */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none z-10">
+                    <span className="rounded-full bg-black/75 px-2 py-1 text-[8px] sm:text-[10px] font-bold text-white backdrop-blur-sm whitespace-nowrap">
+                      {isSelected ? "Configure" : "Select"}
                     </span>
-                  )}
+                  </div>
                 </button>
+
+                {isSelected && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = draft.categories.filter((c) => c !== cat.id);
+                      update("categories", next);
+                      const validLabels = new Set(
+                        next.map((id) => allCategories.find((c) => c.id === id)?.label ?? id)
+                      );
+                      const courts = draft.courts ?? [];
+                      if (courts.length > 0) {
+                        update(
+                          "courts",
+                          courts
+                            .map((court) => ({ ...court, sports: court.sports.filter((s) => validLabels.has(s)) }))
+                            .filter((court, i) => court.sports.length > 0 || courts[i]!.sports.length === 0)
+                        );
+                      }
+                    }}
+                    className="absolute right-1 top-1 sm:right-1.5 sm:top-1.5 z-20 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-vibe-violet text-white shadow hover:bg-rose-600 transition cursor-pointer"
+                    title={`Deselect ${cat.label}`}
+                  >
+                    <X size={10} className="hidden group-hover:block sm:w-[12px] sm:h-[12px]" />
+                    <Check size={10} className="block group-hover:hidden sm:w-[12px] sm:h-[12px]" />
+                  </button>
+                )}
 
                 {/* Edit & Delete Action Buttons for Custom Sports only */}
                 {cat.isCustom && (
-                  <div className="absolute left-1.5 top-1.5 z-20 flex gap-1">
+                  <div className="absolute left-1 top-1 z-20 flex gap-1">
                     <button
                       type="button"
                       title="Edit Custom Sport"
@@ -1442,9 +1659,9 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
                         setEditingSport(cat);
                         setModalOpen(true);
                       }}
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-vibe-violet transition cursor-pointer"
+                      className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-vibe-violet transition cursor-pointer"
                     >
-                      <Pencil size={11} />
+                      <Pencil size={9} className="sm:w-[11px] sm:h-[11px]" />
                     </button>
                     <button
                       type="button"
@@ -1453,9 +1670,9 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
                         e.stopPropagation();
                         handleDeleteCustomSport(cat);
                       }}
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-rose-600 transition cursor-pointer"
+                      className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-rose-600 transition cursor-pointer"
                     >
-                      <Trash2 size={11} />
+                      <Trash2 size={9} className="sm:w-[11px] sm:h-[11px]" />
                     </button>
                   </div>
                 )}
@@ -1471,13 +1688,13 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
                 setEditingSport(null);
                 setModalOpen(true);
               }}
-              className="group relative flex aspect-[4/3] flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 border-dashed border-vibe-violet/40 bg-vibe-violet/5 text-center transition hover:border-vibe-violet hover:bg-vibe-violet/10 cursor-pointer"
+              className="group relative flex aspect-[4/3] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border-2 border-dashed border-vibe-violet/40 bg-vibe-violet/5 text-center transition hover:border-vibe-violet hover:bg-vibe-violet/10 cursor-pointer"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-vibe-violet text-white shadow-md transition group-hover:scale-110">
-                <Plus size={18} />
+              <span className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-vibe-violet text-white shadow-md transition group-hover:scale-110">
+                <Plus size={14} className="sm:w-[18px] sm:h-[18px]" />
               </span>
-              <span className="text-xs font-black text-vibe-violet">
-                + Add New Sport
+              <span className="text-[10px] sm:text-xs font-black text-vibe-violet leading-tight">
+                + Add Sport
               </span>
             </button>
           )}
@@ -1486,8 +1703,25 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
 
       {draft.categories.length > 0 && draft.type !== "Event" && (
         <div>
-          <FieldLabel>Max players per game *</FieldLabel>
-          <p className="mb-2 text-[11px] text-ink-faint">How many players are allowed on court at once, for each sport you selected.</p>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="block text-[11px] font-semibold tracking-wider text-ink-faint uppercase leading-none">
+              Max players per game *
+            </label>
+            <button
+              type="button"
+              onClick={() => toggleInfo("capacities")}
+              className={`rounded-full p-0.5 transition cursor-pointer ${openInfos["capacities"] ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                }`}
+              title="Show info"
+            >
+              <Info size={11} />
+            </button>
+          </div>
+          {openInfos["capacities"] && (
+            <p className="mb-2 text-xs text-ink-faint bg-cream-200/40 p-2 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              How many players are allowed on court at once, for each sport you selected.
+            </p>
+          )}
           <div className="space-y-2">
             {draft.categories.map((catId) => {
               const label = allCategories.find((c) => c.id === catId)?.label ?? catId;
@@ -1523,7 +1757,56 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
         </div>
       )}
 
-      {draft.type !== "Event" && <CourtsField draft={draft} update={update} audience={audience} />}
+      {draft.type !== "Event" && draft.categories.length > 0 && (
+        <div className="mt-4 rounded-xl2 border border-surface-border bg-cream-200/20 p-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              Configure Courts per Game
+            </span>
+            <button
+              type="button"
+              onClick={() => toggleInfo("courts")}
+              className={`rounded-full p-0.5 transition cursor-pointer ${openInfos["courts"] ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                }`}
+              title="Show info"
+            >
+              <Info size={11} />
+            </button>
+          </div>
+          {openInfos["courts"] && (
+            <p className="text-xs text-ink-faint mb-3 bg-cream-200/40 p-2 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              Click &quot;Configure&quot; on any selected game to manage its bookable courts.
+            </p>
+          )}
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {draft.categories.map((catId) => {
+              const cat = allCategories.find((c) => c.id === catId);
+              if (!cat) return null;
+              const hostsSport = (court: Court, label: string) =>
+                court.sports.length === 0 || court.sports.includes(label);
+              const forSport = (draft.courts ?? []).filter((c) => hostsSport(c, cat.label));
+              return (
+                <div key={catId} className="flex items-center justify-between rounded-xl border border-surface-border bg-white px-3.5 py-2.5 shadow-sm">
+                  <div>
+                    <span className="text-sm font-bold text-ink">{cat.label}</span>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${forSport.length === 0 ? "bg-red-50 text-red-500" : "bg-vibe-violet/10 text-vibe-violet"
+                      }`}>
+                      {forSport.length} {forSport.length === 1 ? "court" : "courts"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCourtSport(cat.label)}
+                    className="rounded-lg border border-surface-border bg-white px-3 py-1.5 text-xs font-bold text-ink hover:border-vibe-violet hover:text-vibe-violet transition cursor-pointer"
+                  >
+                    Configure
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <CustomSportModal
         isOpen={modalOpen}
@@ -1532,6 +1815,16 @@ function DetailsStep({ draft, update, audience }: StepProps & { audience: Audien
         audience={audience}
         existingSportNames={allCategories.map((c) => c.label)}
         onSaved={handleSportSaved}
+      />
+
+      <GameCourtsModal
+        isOpen={activeCourtSport !== null}
+        onClose={() => setActiveCourtSport(null)}
+        sportLabel={activeCourtSport || ""}
+        draft={draft}
+        update={update}
+        audience={audience}
+        allCategories={allCategories}
       />
     </div>
   );
@@ -1679,8 +1972,12 @@ function LocationStep({ draft, update }: StepProps) {
   const mapEmbedUrl = coords
     ? `https://maps.google.com/maps?q=${coords.lat},${coords.lon}&t=&z=16&ie=UTF8&iwloc=&output=embed`
     : draft.address
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(draft.address)}&t=&z=16&ie=UTF8&iwloc=&output=embed`
-    : null;
+      ? `https://maps.google.com/maps?q=${encodeURIComponent(draft.address)}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+      : (draft.cityMode === "single" && draft.city)
+        ? `https://maps.google.com/maps?q=${encodeURIComponent(draft.city + (draft.state ? ", " + draft.state : "") + ", " + (draft.country ?? "India"))}&t=&z=12&ie=UTF8&iwloc=&output=embed`
+        : (draft.cityMode === "multiple" && draft.cities && draft.cities.length > 0)
+          ? `https://maps.google.com/maps?q=${encodeURIComponent(draft.cities[0] + (draft.state ? ", " + draft.state : "") + ", " + (draft.country ?? "India"))}&t=&z=12&ie=UTF8&iwloc=&output=embed`
+          : null;
 
   return (
     <div className="space-y-5">
@@ -1766,31 +2063,31 @@ function LocationStep({ draft, update }: StepProps) {
             <div className="mb-2 flex flex-wrap gap-2">
               {draft.cityMode === "multiple"
                 ? (draft.cities ?? []).map((c) => (
-                    <span key={c} className="inline-flex items-center gap-1.5 rounded-full bg-vibe-violet/10 px-2.5 py-1 text-xs font-medium text-vibe-violet">
-                      {c}
-                      <button onClick={() => update("cities", (draft.cities ?? []).filter((x) => x !== c))}>
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))
+                  <span key={c} className="inline-flex items-center gap-1.5 rounded-full bg-vibe-violet/10 px-2.5 py-1 text-xs font-medium text-vibe-violet">
+                    {c}
+                    <button onClick={() => update("cities", (draft.cities ?? []).filter((x) => x !== c))}>
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))
                 : draft.city && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-vibe-violet/10 px-2.5 py-1 text-xs font-medium text-vibe-violet">
-                      {draft.city}
-                      <button onClick={() => update("city", "")}>
-                        <X size={12} />
-                      </button>
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-vibe-violet/10 px-2.5 py-1 text-xs font-medium text-vibe-violet">
+                    {draft.city}
+                    <button onClick={() => update("city", "")}>
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
             </div>
             <input
               value={cityInput}
               onChange={(e) => setCityInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCity())}
-              placeholder="Search and choose city..."
+              placeholder="Type city name and press Enter..."
               className={inputClass}
             />
             <p className="mt-1.5 text-[11px] text-ink-faint">
-              Choose city for the main destination details.
+              Press enter to add the city.
             </p>
           </div>
         </div>
@@ -1818,8 +2115,8 @@ function LocationStep({ draft, update }: StepProps) {
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-xs text-ink-faint p-4 text-center">
-                <span>No venue selected yet.</span>
-                <span className="text-[10px] mt-1">Start typing a venue name on the left to load map preview.</span>
+                <span>No location to display.</span>
+                <span className="text-[10px] mt-1">Start typing a venue name or add a city to load the map preview.</span>
               </div>
             )}
           </div>
@@ -1979,10 +2276,10 @@ function BookingStep({ draft, update }: StepProps) {
     const dayOverride = (draft.dateOverrides ?? []).find((o) => o.date === dateStr);
     const isHolidayCell = dayOverride?.isHoliday;
     const slots = dayOverride ? (dayOverride.slots ?? []) : (draft.slotsList ?? []);
-    const typeLabel = dayOverride 
-      ? isHolidayCell ? "Closed / Holiday" : "Custom Override Slots" 
+    const typeLabel = dayOverride
+      ? isHolidayCell ? "Closed / Holiday" : "Custom Override Slots"
       : "Default Slots (Daily Routine)";
-    
+
     let text = `${dateStr}\n---------------------\nType: ${typeLabel}\nTotal Slots: ${slots.length}\n`;
     if (isHolidayCell) {
       text += `Reason: ${dayOverride?.holidayName || "Holiday"}\n`;
@@ -2002,10 +2299,10 @@ function BookingStep({ draft, update }: StepProps) {
   const activeSlots: TurfSlot[] = isDailyRoutine
     ? dailySlots
     : selectedDate
-    ? override
-      ? override.slots ?? []
-      : dailySlots // starts with copy of default slots for easier customization
-    : [];
+      ? override
+        ? override.slots ?? []
+        : dailySlots // starts with copy of default slots for easier customization
+      : [];
 
   /* helpers */
   function fmtDur(mins: number) {
@@ -2057,28 +2354,53 @@ function BookingStep({ draft, update }: StepProps) {
     if (!isDailyRoutine && !selectedDate) { alert("Please select a date first."); return; }
     const dur = parseInt(bulkDuration);
     const generated = generateSlotsInRange(t24m(bulkStartTime), getBulkEndMins(), dur);
-    // Preserve price override for matching start times if available
-    const merged = generated.map((gen) => {
-      const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
-      return match ? { ...gen, price: match.price } : gen;
+    // Preserve overrides (slots with sport or courtId) and merge properties of matching base slots
+    const overrides = activeSlots.filter((s) => (s.sport && s.sport.trim() !== "") || (s.courtId && s.courtId.trim() !== ""));
+    const baseSlots = activeSlots.filter((s) => !((s.sport && s.sport.trim() !== "") || (s.courtId && s.courtId.trim() !== "")));
+
+    const mergedBase = generated.map((gen) => {
+      const match = baseSlots.find((existing) => existing.startTime === gen.startTime);
+      return match ? { ...gen, ...match } : gen;
     });
-    save(merged);
+    save([...mergedBase, ...overrides]);
   }
 
-  /* Auto-generate slots when generator parameters change to keep UI strictly synchronized */
+  /* Auto-generate slots when generator parameters change to keep UI strictly synchronized.
+   * bulkStartTime/bulkEndTime/bulkDuration are local state seeded with fixed defaults
+   * (05:00–22:00, 60 min) that essentially never match an existing listing's real
+   * schedule. Since this effect also fires on mount, editing an existing package used to
+   * silently regenerate — and overwrite — its actual slot list (and any custom
+   * sport/court pricing that no longer lined up with the regenerated boundaries) the
+   * instant the vendor landed on this step, before they had touched anything. On the
+   * very first run, only proceed if there's nothing configured yet (a brand-new
+   * listing) — that keeps the "auto-fill sensible defaults" convenience for a fresh
+   * package while protecting an existing one. Every run after that only happens because
+   * the vendor deliberately changed one of these three controls. */
+  const didInitialSync = useRef(false);
   useEffect(() => {
+    const isInitialMount = !didInitialSync.current;
+    didInitialSync.current = true;
+    if (isInitialMount && activeSlots.length > 0) return;
     if (!rangeValid) return;
     const dur = parseInt(bulkDuration);
     const generated = generateSlotsInRange(t24m(bulkStartTime), getBulkEndMins(), dur);
-    // Merge existing prices if any match
-    const merged = generated.map((gen) => {
-      const match = activeSlots.find((existing) => existing.startTime === gen.startTime);
-      return match ? { ...gen, price: match.price } : gen;
+
+    // Separate overrides and base slots from activeSlots
+    const overrides = activeSlots.filter((s) => (s.sport && s.sport.trim() !== "") || (s.courtId && s.courtId.trim() !== ""));
+    const baseSlots = activeSlots.filter((s) => !((s.sport && s.sport.trim() !== "") || (s.courtId && s.courtId.trim() !== "")));
+
+    // Merge existing base slots properties if any match
+    const mergedBase = generated.map((gen) => {
+      const match = baseSlots.find((existing) => existing.startTime === gen.startTime);
+      return match ? { ...gen, ...match } : gen;
     });
-    // Only update if generated slot layout has changed to avoid loop
+
+    const merged = [...mergedBase, ...overrides];
+
+    // Only update if generated slot layout (base slots) has changed to avoid loop
     const isDifferent =
-      merged.length !== activeSlots.length ||
-      merged.some((s, idx) => s.startTime !== activeSlots[idx]?.startTime || s.endTime !== activeSlots[idx]?.endTime);
+      mergedBase.length !== baseSlots.length ||
+      mergedBase.some((s, idx) => s.startTime !== baseSlots[idx]?.startTime || s.endTime !== baseSlots[idx]?.endTime);
 
     if (isDifferent) {
       save(merged);
@@ -2268,12 +2590,12 @@ function BookingStep({ draft, update }: StepProps) {
             <div className="flex items-center gap-3">
               {/* Reset to global default button */}
               {selectedDate && (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => {
                     setSelectedDate("");
                     update("dailyRoutine", true);
-                  }} 
+                  }}
                   className="text-[10px] font-bold text-slate-500 hover:text-vibe-violet bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition"
                 >
                   ⚙️ Edit Global Default
@@ -2293,126 +2615,125 @@ function BookingStep({ draft, update }: StepProps) {
             </div>
           </div>
 
-            {/* Weekdays row */}
-            <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d}>{d}</div>)}
-            </div>
+          {/* Weekdays row */}
+          <div className="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d}>{d}</div>)}
+          </div>
 
-            {/* Calendar grid cells */}
-            <div className="grid grid-cols-7 gap-1.5">
-              {calendarDays.map((day, idx) => {
-                if (!day) return <div key={idx} className="bg-slate-50/20 rounded-lg min-h-[60px]" />;
+          {/* Calendar grid cells */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {calendarDays.map((day, idx) => {
+              if (!day) return <div key={idx} className="bg-slate-50/20 rounded-lg min-h-[60px]" />;
 
-                const isSel = selectedDate === day.dateStr;
-                const hasOvr = (draft.dateOverrides ?? []).some((o) => o.date === day.dateStr);
-                const dayOverride = (draft.dateOverrides ?? []).find((o) => o.date === day.dateStr);
-                const isHolidayCell = dayOverride?.isHoliday;
+              const isSel = selectedDate === day.dateStr;
+              const hasOvr = (draft.dateOverrides ?? []).some((o) => o.date === day.dateStr);
+              const dayOverride = (draft.dateOverrides ?? []).find((o) => o.date === day.dateStr);
+              const isHolidayCell = dayOverride?.isHoliday;
 
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    title={getTooltipText(day.dateStr)}
-                    onClick={() => {
-                      setSelectedDate(day.dateStr);
-                      setIsHoliday(dayOverride?.isHoliday ?? false);
-                      setHolidayName(dayOverride?.holidayName ?? day.festival ?? "");
-                      update("dailyRoutine", false);
-                    }}
-                    className={`flex flex-col justify-between items-start rounded-xl p-2 min-h-[75px] border text-left transition ${
-                      isSel 
-                        ? "border-slate-900 bg-slate-900 text-white shadow-md font-extrabold" 
-                        : isHolidayCell
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  title={getTooltipText(day.dateStr)}
+                  onClick={() => {
+                    setSelectedDate(day.dateStr);
+                    setIsHoliday(dayOverride?.isHoliday ?? false);
+                    setHolidayName(dayOverride?.holidayName ?? day.festival ?? "");
+                    update("dailyRoutine", false);
+                  }}
+                  className={`flex flex-col justify-between items-start rounded-xl p-2 min-h-[75px] border text-left transition ${isSel
+                      ? "border-slate-900 bg-slate-900 text-white shadow-md font-extrabold"
+                      : isHolidayCell
                         ? "border-rose-300 bg-rose-50 hover:bg-rose-100"
                         : hasOvr
-                        ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300"
-                        : day.festival
-                        ? "border-rose-100 bg-rose-50/30 hover:border-rose-200 text-rose-900"
-                        : day.isSunday
-                        ? "border-amber-200 bg-amber-50/40 hover:border-amber-300 text-amber-900"
-                        : "border-slate-100 bg-white hover:border-slate-300"
+                          ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300"
+                          : day.festival
+                            ? "border-rose-100 bg-rose-50/30 hover:border-rose-200 text-rose-900"
+                            : day.isSunday
+                              ? "border-amber-200 bg-amber-50/40 hover:border-amber-300 text-amber-900"
+                              : "border-slate-100 bg-white hover:border-slate-300"
                     }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className={`text-xs font-extrabold ${isSel ? "text-white" : "text-slate-800"}`}>
-                        {day.dayNumber}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-xs font-extrabold ${isSel ? "text-white" : "text-slate-800"}`}>
+                      {day.dayNumber}
+                    </span>
+                    {hasOvr && !isSel && (
+                      <span className={`w-2 h-2 rounded-full ${isHolidayCell ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
+                    )}
+                  </div>
+
+                  {/* Small text indicator & Festival name */}
+                  <div className="w-full mt-2 flex flex-col gap-0.5">
+                    {day.festival && !isSel && (
+                      <span className="text-[7px] truncate font-bold text-rose-500 bg-rose-100/50 px-1 py-0.5 rounded uppercase leading-none">
+                        {day.festival}
                       </span>
-                      {hasOvr && !isSel && (
-                        <span className={`w-2 h-2 rounded-full ${isHolidayCell ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
-                      )}
-                    </div>
-                    
-                    {/* Small text indicator & Festival name */}
-                    <div className="w-full mt-2 flex flex-col gap-0.5">
-                      {day.festival && !isSel && (
-                        <span className="text-[7px] truncate font-bold text-rose-500 bg-rose-100/50 px-1 py-0.5 rounded uppercase leading-none">
-                          {day.festival}
-                        </span>
-                      )}
-                      {!day.festival && day.isSunday && !isSel && (
-                        <span className="text-[7px] truncate font-bold text-amber-600 bg-amber-100/60 px-1 py-0.5 rounded uppercase leading-none">
-                          Sunday
-                        </span>
-                      )}
-                      <span className="text-[8px] truncate uppercase font-semibold leading-tight tracking-tight">
-                        {isHolidayCell 
-                          ? "🚫 Closed" 
-                          : hasOvr 
-                          ? `✨ Custom` 
+                    )}
+                    {!day.festival && day.isSunday && !isSel && (
+                      <span className="text-[7px] truncate font-bold text-amber-600 bg-amber-100/60 px-1 py-0.5 rounded uppercase leading-none">
+                        Sunday
+                      </span>
+                    )}
+                    <span className="text-[8px] truncate uppercase font-semibold leading-tight tracking-tight">
+                      {isHolidayCell
+                        ? "🚫 Closed"
+                        : hasOvr
+                          ? `✨ Custom`
                           : "⚙️ Default"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Selected override holiday / reset controls */}
-            {selectedDate && (
-              <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isHoliday}
-                      onChange={(e) => {
-                        setIsHoliday(e.target.checked);
-                        if (!e.target.checked) setHolidayName("");
-                      }}
-                      className="w-4 h-4 rounded border-slate-300 accent-vibe-violet focus:ring-0"
-                    />
-                    <span className="text-xs font-bold text-slate-700">Mark {selectedDate} as Holiday/Closed</span>
-                  </label>
-                  {isHoliday && (
-                    <input
-                      type="text"
-                      placeholder="e.g. Diwali, Maintenance..."
-                      value={holidayName}
-                      onChange={(e) => setHolidayName(e.target.value)}
-                      className={`${inputClass} text-xs py-1.5 w-48`}
-                    />
-                  )}
-                  {isHoliday && (
-                    <button type="button" onClick={saveHoliday} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[10px] font-bold uppercase transition">Save Holiday</button>
-                  )}
-                </div>
-
-                {override && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      update("dateOverrides", (draft.dateOverrides ?? []).filter((o) => o.date !== selectedDate));
-                      setIsHoliday(false);
-                      setHolidayName("");
+          {/* Selected override holiday / reset controls */}
+          {selectedDate && (
+            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isHoliday}
+                    onChange={(e) => {
+                      setIsHoliday(e.target.checked);
+                      if (!e.target.checked) setHolidayName("");
                     }}
-                    className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-lg font-bold uppercase transition"
-                  >
-                    🗑️ Reset to Default Slots
-                  </button>
+                    className="w-4 h-4 rounded border-slate-300 accent-vibe-violet focus:ring-0"
+                  />
+                  <span className="text-xs font-bold text-slate-700">Mark {selectedDate} as Holiday/Closed</span>
+                </label>
+                {isHoliday && (
+                  <input
+                    type="text"
+                    placeholder="e.g. Diwali, Maintenance..."
+                    value={holidayName}
+                    onChange={(e) => setHolidayName(e.target.value)}
+                    className={`${inputClass} text-xs py-1.5 w-48`}
+                  />
+                )}
+                {isHoliday && (
+                  <button type="button" onClick={saveHoliday} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[10px] font-bold uppercase transition">Save Holiday</button>
                 )}
               </div>
-            )}
-          </div>
+
+              {override && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    update("dateOverrides", (draft.dateOverrides ?? []).filter((o) => o.date !== selectedDate));
+                    setIsHoliday(false);
+                    setHolidayName("");
+                  }}
+                  className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-lg font-bold uppercase transition"
+                >
+                  🗑️ Reset to Default Slots
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* ── SLOT GENERATOR ── */}
         {(!selectedDate || (selectedDate && !isHoliday)) && (
@@ -2482,11 +2803,10 @@ function BookingStep({ draft, update }: StepProps) {
                   const isSelected = bulkEndTime === t.value;
                   return (
                     <button key={t.value} type="button" onClick={() => setBulkEndTime(t.value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                        isSelected
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${isSelected
                           ? "bg-slate-900 text-white"
                           : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                      }`}>
+                        }`}>
                       {t.label}
                     </button>
                   );
@@ -2577,157 +2897,157 @@ function BookingStep({ draft, update }: StepProps) {
                   : "No slots configured yet — use the generator or clock dial."}
               </p>
             </div>
-            ) : viewMode === "list" ? (
-              <div className="rounded-xl border border-surface-border bg-white shadow-sm overflow-hidden max-h-[320px] overflow-y-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="sticky top-0 bg-slate-50 z-10">
-                    <tr className="border-b border-surface-border text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="px-3 py-2.5 w-6">Select</th>
-                      <th className="px-3 py-2.5">#</th>
-                      <th className="px-3 py-2.5">Time Range</th>
-                      <th className="px-3 py-2.5">Dur.</th>
-                      <th className="px-3 py-2.5">Label / Type</th>
-                      <th className="px-3 py-2.5 w-16 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeSlots.map((slot, i) => {
-                      const durMins = slot.durationMinutes || (t24m(slot.endTime) - t24m(slot.startTime));
-                      const isChecked = selectedSlotIndices.includes(i);
-                      return (
-                        <tr key={i} className={`border-b border-surface-border last:border-0 hover:bg-cream-200/30 group ${slot.isClubSlot ? "bg-purple-50/40" : ""}`}>
-                          <td className="px-3 py-2">
+          ) : viewMode === "list" ? (
+            <div className="rounded-xl border border-surface-border bg-white shadow-sm overflow-hidden max-h-[320px] overflow-y-auto">
+              <table className="w-full text-left text-[11px]">
+                <thead className="sticky top-0 bg-slate-50 z-10">
+                  <tr className="border-b border-surface-border text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="px-3 py-2.5 w-6">Select</th>
+                    <th className="px-3 py-2.5">#</th>
+                    <th className="px-3 py-2.5">Time Range</th>
+                    <th className="px-3 py-2.5">Dur.</th>
+                    <th className="px-3 py-2.5">Label / Type</th>
+                    <th className="px-3 py-2.5 w-16 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeSlots.map((slot, i) => {
+                    const durMins = slot.durationMinutes || (t24m(slot.endTime) - t24m(slot.startTime));
+                    const isChecked = selectedSlotIndices.includes(i);
+                    return (
+                      <tr key={i} className={`border-b border-surface-border last:border-0 hover:bg-cream-200/30 group ${slot.isClubSlot ? "bg-purple-50/40" : ""}`}>
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, i]);
+                              else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== i));
+                            }}
+                            className="w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-slate-400 font-semibold">{i + 1}</td>
+                        <td className="px-3 py-2 font-bold text-slate-800">
+                          {to12h(slot.startTime)} – {to12h(slot.endTime)}
+                        </td>
+                        <td className="px-3 py-2 text-slate-500">{fmtDur(durMins)}</td>
+                        <td className="px-3 py-2">
+                          {slot.isClubSlot ? (
+                            <span className="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-[9px] font-extrabold uppercase border border-purple-300">
+                              ⭐ Club Slot (₹{slot.price})
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-[9px] font-bold uppercase">
+                              {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {slot.isClubSlot ? (
+                            <button type="button" onClick={() => handleSplitClubSlot(i)} className="text-[9px] font-bold text-purple-700 hover:underline mr-2">
+                              Split
+                            </button>
+                          ) : null}
+                          <button type="button" onClick={() => deleteSlot(i)} className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-vibe-coral transition">
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* GRID VIEW CATEGORIZED BY DAY PARTS */
+            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
+                const partSlots = activeSlots
+                  .map((s, idx) => ({ ...s, originalIndex: idx }))
+                  .filter((s) => s.label === part);
+
+                if (partSlots.length === 0) return null;
+
+                const sizeH = cardSize === "S" ? "h-20" : cardSize === "M" ? "h-24" : "h-28";
+                const gridCols = cardSize === "S" ? "grid-cols-4 sm:grid-cols-5" : cardSize === "M" ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
+
+                return (
+                  <div key={part} className="border-b border-slate-100 pb-3 last:border-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{part}</p>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">
+                          {partSlots.length}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDayPartGroupPrice(part)}
+                          className="text-[9px] font-bold text-vibe-violet hover:underline"
+                        >
+                          Set Price
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteDayPartGroup(part)}
+                          className="text-[9px] font-bold text-rose-500 hover:underline"
+                        >
+                          Clear Group
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`grid ${gridCols} gap-2`}>
+                      {partSlots.map((slot) => {
+                        const isChecked = selectedSlotIndices.includes(slot.originalIndex);
+                        if (slot.isClubSlot) {
+                          return (
+                            <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-purple-300 bg-purple-50/50 relative hover:shadow transition-shadow group ${sizeH}`}>
+                              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-extrabold uppercase text-purple-700 mb-1">⭐ Club Slot</span>
+                              <span className="text-xs font-bold text-purple-950 font-mono">{to12h(slot.startTime)} – {to12h(slot.endTime)}</span>
+                              <span className="text-[9px] font-semibold text-purple-700 mt-0.5">{fmtDur(slot.durationMinutes || 120)} · ₹{slot.price}</span>
+                              <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition">
+                                <button type="button" onClick={() => handleSplitClubSlot(slot.originalIndex)} className="text-[9px] font-bold text-purple-700 hover:underline">Split Club</button>
+                                <button type="button" onClick={() => deleteSlot(slot.originalIndex)} className="p-0.5 text-slate-400 hover:text-rose-600"><Trash2 size={11} /></button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 bg-white relative hover:shadow transition-shadow group ${sizeH} ${isChecked ? "ring-2 ring-vibe-violet border-vibe-violet" : ""}`}>
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={(e) => {
-                                if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, i]);
-                                else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== i));
+                                if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, slot.originalIndex]);
+                                else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== slot.originalIndex));
                               }}
-                              className="w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
+                              className="absolute top-1.5 left-1.5 w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
                             />
-                          </td>
-                          <td className="px-3 py-2 text-slate-400 font-semibold">{i + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800">
-                            {to12h(slot.startTime)} – {to12h(slot.endTime)}
-                          </td>
-                          <td className="px-3 py-2 text-slate-500">{fmtDur(durMins)}</td>
-                          <td className="px-3 py-2">
-                            {slot.isClubSlot ? (
-                              <span className="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-[9px] font-extrabold uppercase border border-purple-300">
-                                ⭐ Club Slot (₹{slot.price})
-                              </span>
-                            ) : (
-                              <span className="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-[9px] font-bold uppercase">
-                                {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {slot.isClubSlot ? (
-                              <button type="button" onClick={() => handleSplitClubSlot(i)} className="text-[9px] font-bold text-purple-700 hover:underline mr-2">
-                                Split
-                              </button>
-                            ) : null}
-                            <button type="button" onClick={() => deleteSlot(i)} className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-vibe-coral transition">
+                            <span className="text-xs font-bold text-slate-700 font-mono mt-2">
+                              {slot.startTime} - {slot.endTime}
+                            </span>
+                            <span className="text-[9px] text-slate-400 uppercase mt-1">
+                              {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
+                            </span>
+
+                            <button type="button" onClick={() => deleteSlot(slot.originalIndex)}
+                              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-vibe-coral transition">
                               <Trash2 size={12} />
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              /* GRID VIEW CATEGORIZED BY DAY PARTS */
-              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
-                  const partSlots = activeSlots
-                    .map((s, idx) => ({ ...s, originalIndex: idx }))
-                    .filter((s) => s.label === part);
-
-                  if (partSlots.length === 0) return null;
-
-                  const sizeH = cardSize === "S" ? "h-20" : cardSize === "M" ? "h-24" : "h-28";
-                  const gridCols = cardSize === "S" ? "grid-cols-4 sm:grid-cols-5" : cardSize === "M" ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
-
-                  return (
-                    <div key={part} className="border-b border-slate-100 pb-3 last:border-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{part}</p>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">
-                            {partSlots.length}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setDayPartGroupPrice(part)}
-                            className="text-[9px] font-bold text-vibe-violet hover:underline"
-                          >
-                            Set Price
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteDayPartGroup(part)}
-                            className="text-[9px] font-bold text-rose-500 hover:underline"
-                          >
-                            Clear Group
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className={`grid ${gridCols} gap-2`}>
-                        {partSlots.map((slot) => {
-                          const isChecked = selectedSlotIndices.includes(slot.originalIndex);
-                          if (slot.isClubSlot) {
-                            return (
-                              <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-purple-300 bg-purple-50/50 relative hover:shadow transition-shadow group ${sizeH}`}>
-                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-extrabold uppercase text-purple-700 mb-1">⭐ Club Slot</span>
-                                <span className="text-xs font-bold text-purple-950 font-mono">{to12h(slot.startTime)} – {to12h(slot.endTime)}</span>
-                                <span className="text-[9px] font-semibold text-purple-700 mt-0.5">{fmtDur(slot.durationMinutes || 120)} · ₹{slot.price}</span>
-                                <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition">
-                                  <button type="button" onClick={() => handleSplitClubSlot(slot.originalIndex)} className="text-[9px] font-bold text-purple-700 hover:underline">Split Club</button>
-                                  <button type="button" onClick={() => deleteSlot(slot.originalIndex)} className="p-0.5 text-slate-400 hover:text-rose-600"><Trash2 size={11} /></button>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return (
-                            <div key={slot.originalIndex} className={`flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 bg-white relative hover:shadow transition-shadow group ${sizeH} ${isChecked ? "ring-2 ring-vibe-violet border-vibe-violet" : ""}`}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedSlotIndices((prev) => [...prev, slot.originalIndex]);
-                                  else setSelectedSlotIndices((prev) => prev.filter((idx) => idx !== slot.originalIndex));
-                                }}
-                                className="absolute top-1.5 left-1.5 w-3.5 h-3.5 rounded border-slate-300 accent-vibe-violet"
-                              />
-                              <span className="text-xs font-bold text-slate-700 font-mono mt-2">
-                                {slot.startTime} - {slot.endTime}
-                              </span>
-                              <span className="text-[9px] text-slate-400 uppercase mt-1">
-                                {slot.label} {slot.price > 0 ? `· ₹${slot.price}` : ""}
-                              </span>
-
-                              <button type="button" onClick={() => deleteSlot(slot.originalIndex)}
-                                className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-vibe-coral transition">
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── RIGHT PANEL: CLOCK ─────────────────────────────── */}
@@ -2783,10 +3103,10 @@ function DayPartGroup({ part, children, onSelectAll, onDeselectAll }: { part: st
       style={
         url
           ? {
-              backgroundImage: `linear-gradient(rgba(15,23,42,.6),rgba(15,23,42,.6)), url(${url})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }
+            backgroundImage: `linear-gradient(rgba(15,23,42,.6),rgba(15,23,42,.6)), url(${url})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }
           : undefined
       }
     >
@@ -2884,7 +3204,7 @@ function AddOnRow({
           />
           <input
             type="number"
-            value={addOn.price}
+            value={addOn.price === 0 ? "" : addOn.price}
             onChange={(e) => onChange({ price: Number(e.target.value) })}
             placeholder="₹ Price"
             className={`${inputClass} w-28`}
@@ -2915,9 +3235,8 @@ function AddOnRow({
                   const updated = current.includes(sp) ? current.filter((s) => s !== sp) : [...current, sp];
                   onChange({ sports: updated });
                 }}
-                className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase transition ${
-                  active ? "bg-vibe-violet text-white" : "bg-cream-200/80 text-ink-soft hover:bg-cream-300"
-                }`}
+                className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase transition ${active ? "bg-vibe-violet text-white" : "bg-cream-200/80 text-ink-soft hover:bg-cream-300"
+                  }`}
               >
                 {sp}
               </button>
@@ -2933,8 +3252,58 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   // Held as a string so the field can actually be cleared. As a number, clearing it
   // coerced ""→0 and the box snapped back to a stuck "0".
-  const [priceInput, setPriceInput] = useState<string>("1000");
+  const [priceInput, setPriceInput] = useState<string>("");
   const [activeSource, setActiveSource] = useState<string>("default");
+
+  const [customSports, setCustomSports] = useState<VendorCustomSport[]>([]);
+  const [selectedSportFilter, setSelectedSportFilter] = useState<string>("all");
+  const [selectedCourtFilter, setSelectedCourtFilter] = useState<string>("all");
+
+  const [showSlotPricingInfo, setShowSlotPricingInfo] = useState(false);
+  const [showAddOnsInfo, setShowAddOnsInfo] = useState(false);
+  const [showCouponsInfo, setShowCouponsInfo] = useState(false);
+
+  useEffect(() => {
+    if (audience === "vendor") {
+      getVendorCustomSports()
+        .then((res) => setCustomSports(res || []))
+        .catch(() => { });
+    }
+  }, [audience]);
+
+  useEffect(() => {
+    setSelectedCourtFilter("all");
+  }, [selectedSportFilter]);
+
+  const customCategories: SportCategory[] = customSports.map((cs) => ({
+    id: cs._id,
+    label: cs.sportName,
+    image: cs.iconUrl,
+    venue: cs.venue || "both",
+    subCategories: [],
+    isCustom: true,
+    customId: cs._id,
+  }));
+
+  const allCategories = [...SPORT_CATEGORIES, ...customCategories];
+
+  const selectedGames = useMemo(() => {
+    return draft.categories.map((catId) => {
+      const label = allCategories.find((c) => c.id === catId)?.label ?? catId;
+      return { id: catId, label };
+    });
+  }, [draft.categories, allCategories]);
+
+  const filteredCourtsForPricing = useMemo(() => {
+    if (selectedSportFilter === "all") {
+      return draft.courts ?? [];
+    }
+    const sportLabel = selectedGames.find((g) => g.id === selectedSportFilter)?.label;
+    if (!sportLabel) return [];
+    return (draft.courts ?? []).filter(
+      (c) => c.sports.length === 0 || c.sports.includes(sportLabel)
+    );
+  }, [draft.courts, selectedSportFilter, selectedGames]);
 
   /* slots can live in two places: the global default list, or per-date overrides */
   const defaultSlots = draft.slotsList ?? [];
@@ -2966,41 +3335,234 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
     }
   }
 
+  const uniqueTimeRanges = useMemo(() => {
+    const ranges: { startTime: string; endTime: string; label: string }[] = [];
+    const seen = new Set<string>();
+    slots.forEach((s) => {
+      const key = `${s.startTime}-${s.endTime}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        ranges.push({ startTime: s.startTime, endTime: s.endTime, label: s.label });
+      }
+    });
+    return ranges;
+  }, [slots]);
+
+  interface EffectiveSlotInfo {
+    price: number;
+    blocked: boolean;
+    source: "exact" | "sport" | "court" | "default" | "none";
+    sourceLabel: string;
+  }
+
+  const getEffectiveSlot = (startTime: string, endTime: string): EffectiveSlotInfo => {
+    const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+    const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+
+    // 1. Exact match for sport + court
+    if (matchSport && matchCourt) {
+      const exact = slots.find(s => s.startTime === startTime && s.endTime === endTime && s.sport === matchSport && s.courtId === matchCourt);
+      if (exact) {
+        return {
+          price: exact.price,
+          blocked: !!exact.blocked,
+          source: "exact",
+          sourceLabel: `This Court`,
+        };
+      }
+    }
+
+    // 2. Match for sport only
+    if (matchSport) {
+      const sportOnly = slots.find(s => s.startTime === startTime && s.endTime === endTime && s.sport === matchSport && !s.courtId);
+      if (sportOnly) {
+        return {
+          price: sportOnly.price,
+          blocked: !!sportOnly.blocked,
+          source: "sport",
+          sourceLabel: `${matchSport} Default`,
+        };
+      }
+    }
+
+    // 3. Match for court only
+    if (matchCourt) {
+      const courtOnly = slots.find(s => s.startTime === startTime && s.endTime === endTime && !s.sport && s.courtId === matchCourt);
+      if (courtOnly) {
+        return {
+          price: courtOnly.price,
+          blocked: !!courtOnly.blocked,
+          source: "court",
+          sourceLabel: `Court Default`,
+        };
+      }
+    }
+
+    // 4. Default fallback (no sport, no court)
+    const fallback = slots.find(s => s.startTime === startTime && s.endTime === endTime && !s.sport && !s.courtId);
+    if (fallback) {
+      return {
+        price: fallback.price,
+        blocked: !!fallback.blocked,
+        source: "default",
+        sourceLabel: "Global Default",
+      };
+    }
+
+    return {
+      price: 0,
+      blocked: false,
+      source: "none",
+      sourceLabel: "Unpriced",
+    };
+  };
+
+  const activeFilterSlots = useMemo(() => {
+    const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+    const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+    const isOverrideMode = matchSport !== undefined || matchCourt !== undefined;
+
+    return uniqueTimeRanges.map((range) => {
+      const existing = slots.find(
+        (s) =>
+          s.startTime === range.startTime &&
+          s.endTime === range.endTime &&
+          s.sport === matchSport &&
+          s.courtId === matchCourt
+      );
+
+      const effective = getEffectiveSlot(range.startTime, range.endTime);
+
+      return {
+        startTime: range.startTime,
+        endTime: range.endTime,
+        label: range.label,
+        price: effective.price,
+        blocked: effective.blocked,
+        source: effective.source,
+        sourceLabel: effective.sourceLabel,
+        isOverride: isOverrideMode && !!existing,
+        sport: matchSport,
+        courtId: matchCourt,
+      };
+    });
+  }, [uniqueTimeRanges, slots, selectedSportFilter, selectedCourtFilter, selectedGames]);
+
+  const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+  const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+  const isOverrideMode = matchSport !== undefined || matchCourt !== undefined;
+
   // Blocked slots (unavailable — excluded from pricing entirely)
-  const blockedSlots = slots.filter((s) => s.blocked);
-  // Unpriced slots (price === 0, not blocked)
-  const unpricedSlots = slots.filter((s) => s.price === 0 && !s.blocked);
-  // Priced slots (price > 0, not blocked)
-  const pricedSlots = slots.filter((s) => s.price > 0 && !s.blocked);
+  const blockedSlots = activeFilterSlots.filter((s) => s.blocked);
+  // Slots that don't have custom overrides set for the exact selection
+  const unpricedSlots = activeFilterSlots.filter((s) => {
+    if (isOverrideMode) {
+      return !s.isOverride && !s.blocked;
+    } else {
+      return s.price === 0 && !s.blocked;
+    }
+  });
+  // Slots that DO have custom overrides set for the exact selection
+  const pricedSlots = activeFilterSlots.filter((s) => {
+    if (isOverrideMode) {
+      return s.isOverride && s.price > 0 && !s.blocked;
+    } else {
+      return s.price > 0 && !s.blocked;
+    }
+  });
 
   function toggleBlockSlot(key: string, blocked: boolean) {
-    const nextSlots = slots.map((s) =>
-      `${s.startTime}-${s.endTime}` === key ? { ...s, blocked } : s
+    const [start, end] = key.split("-");
+    const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+    const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+
+    let nextSlots = [...slots];
+    const idx = nextSlots.findIndex(
+      (s) =>
+        s.startTime === start &&
+        s.endTime === end &&
+        s.sport === matchSport &&
+        s.courtId === matchCourt
     );
+
+    if (blocked) {
+      if (idx > -1) {
+        nextSlots[idx] = { ...nextSlots[idx], blocked: true };
+      } else {
+        const label = uniqueTimeRanges.find(r => r.startTime === start)?.label ?? "Morning";
+        nextSlots.push({
+          startTime: start,
+          endTime: end,
+          label,
+          price: 0,
+          blocked: true,
+          sport: matchSport,
+          courtId: matchCourt,
+        });
+      }
+    } else {
+      if (idx > -1) {
+        if (nextSlots[idx].price > 0) {
+          nextSlots[idx] = { ...nextSlots[idx], blocked: false };
+        } else {
+          nextSlots = nextSlots.filter((_, i) => i !== idx);
+        }
+      }
+    }
     saveSlots(nextSlots);
     setSelectedKeys((prev) => prev.filter((k) => k !== key));
   }
 
   function handleSetPrice() {
     if (selectedKeys.length === 0) return;
-    const nextSlots = slots.map((s) => {
-      const key = `${s.startTime}-${s.endTime}`;
-      if (selectedKeys.includes(key)) {
-        return { ...s, price: Number(priceInput) || 0 };
+    const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+    const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+    const priceNum = Number(priceInput) || 0;
+
+    let nextSlots = [...slots];
+    selectedKeys.forEach((key) => {
+      const [start, end] = key.split("-");
+      const idx = nextSlots.findIndex(
+        (s) =>
+          s.startTime === start &&
+          s.endTime === end &&
+          s.sport === matchSport &&
+          s.courtId === matchCourt
+      );
+      if (idx > -1) {
+        nextSlots[idx] = { ...nextSlots[idx], price: priceNum };
+      } else {
+        const label = uniqueTimeRanges.find(r => r.startTime === start)?.label ?? "Morning";
+        nextSlots.push({
+          startTime: start,
+          endTime: end,
+          label,
+          price: priceNum,
+          blocked: false,
+          sport: matchSport,
+          courtId: matchCourt,
+        });
       }
-      return s;
     });
     saveSlots(nextSlots);
     setSelectedKeys([]);
   }
 
   function handleRemovePrice(key: string) {
-    const nextSlots = slots.map((s) => {
-      if (`${s.startTime}-${s.endTime}` === key) {
-        return { ...s, price: 0 };
-      }
-      return s;
-    });
+    const [start, end] = key.split("-");
+    const matchSport = selectedSportFilter === "all" ? undefined : selectedGames.find(g => g.id === selectedSportFilter)?.label;
+    const matchCourt = selectedCourtFilter === "all" ? undefined : selectedCourtFilter;
+
+    // Filter out override completely so it reverts to fallback defaults
+    const nextSlots = slots.filter(
+      (s) =>
+        !(
+          s.startTime === start &&
+          s.endTime === end &&
+          s.sport === matchSport &&
+          s.courtId === matchCourt
+        )
+    );
     saveSlots(nextSlots);
     setSelectedKeys((prev) => prev.filter((k) => k !== key));
   }
@@ -3056,8 +3618,25 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
       {/* ── TURF SLOT PRICING SELECTOR ── */}
       {draft.type !== "Event" && (
         <div className="rounded-xl border border-surface-border bg-cream-200/25 p-5">
-          <p className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-1">Slot-by-Slot Pricing</p>
-          <p className="text-xs text-ink-faint mb-4">Click to select one or multiple slots below, set their price, and apply. Priced slots will move to the list below.</p>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
+              Slot-by-Slot Pricing
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSlotPricingInfo(!showSlotPricingInfo)}
+              className={`rounded-full p-0.5 transition cursor-pointer ${showSlotPricingInfo ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                }`}
+              title="Show info"
+            >
+              <Info size={11} />
+            </button>
+          </div>
+          {showSlotPricingInfo && (
+            <p className="text-xs text-ink-faint mb-3 bg-cream-200/40 p-2.5 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              Click to select one or multiple slots below, set their price, and apply. Priced slots will move to the list below.
+            </p>
+          )}
 
           {/* Slot source tabs — global default + per-date override lists */}
           {sources.length > 1 && (
@@ -3070,7 +3649,7 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
                     setActiveSource(src.id);
                     setSelectedKeys([]);
                   }}
-                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold transition ${
+                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold transition cursor-pointer ${
                     sourceId === src.id
                       ? "bg-slate-900 text-white shadow-sm"
                       : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
@@ -3088,23 +3667,114 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
             </p>
           )}
 
+          {/* Game and Court selectors for pricing overrides */}
+          <div className="mb-4 bg-cream-200/50 p-4 rounded-xl border border-surface-border space-y-4">
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                1. Select Sport / Game
+              </span>
+              <div className="flex flex-row flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSportFilter("all")}
+                  className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer ${
+                    selectedSportFilter === "all"
+                      ? "border-vibe-violet bg-vibe-violet text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  All Games (Global Default)
+                </button>
+                {selectedGames.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedSportFilter(g.id)}
+                    className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer ${
+                      selectedSportFilter === g.id
+                        ? "border-vibe-violet bg-vibe-violet text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                2. Select Court
+              </span>
+              <div className="flex flex-row flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourtFilter("all")}
+                  disabled={selectedSportFilter === "all" && filteredCourtsForPricing.length === 0}
+                  className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    selectedCourtFilter === "all"
+                      ? "border-vibe-violet bg-vibe-violet text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  All Courts
+                </button>
+                {filteredCourtsForPricing.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedCourtFilter(c.id)}
+                    className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer ${
+                      selectedCourtFilter === c.id
+                        ? "border-vibe-violet bg-vibe-violet text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dynamic Selection Tip banner */}
+            <div className="mt-3 pt-3 border-t border-cream-200/40">
+              {selectedSportFilter === "all" && selectedCourtFilter === "all" ? (
+                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-800 border border-emerald-100/80 leading-relaxed animate-in slide-in-from-top-1 duration-150">
+                  💡 <strong>Global Default:</strong> Setting a price here will apply to <strong>all games and all courts</strong> by default.
+                </p>
+              ) : selectedSportFilter !== "all" && selectedCourtFilter === "all" ? (
+                <p className="rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-semibold text-indigo-850 border border-indigo-150/80 leading-relaxed animate-in slide-in-from-top-1 duration-150">
+                  💡 <strong>Game Default:</strong> Setting a price here will apply to <strong>all courts</strong> hosting <strong>{selectedGames.find(g => g.id === selectedSportFilter)?.label}</strong> (unless overridden).
+                </p>
+              ) : selectedSportFilter === "all" && selectedCourtFilter !== "all" ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-850 border border-amber-150/80 leading-relaxed animate-in slide-in-from-top-1 duration-150">
+                  💡 <strong>Court Default:</strong> Setting a price here will apply to <strong>all games</strong> played on <strong>{filteredCourtsForPricing.find(c => c.id === selectedCourtFilter)?.name ?? selectedCourtFilter}</strong>.
+                </p>
+              ) : (
+                <p className="rounded-lg bg-purple-50 px-3 py-2 text-[11px] font-semibold text-purple-850 border border-purple-150/80 leading-relaxed animate-in slide-in-from-top-1 duration-150">
+                  💡 <strong>Custom Override:</strong> Setting a price here will apply <strong>only</strong> to the game <strong>{selectedGames.find(g => g.id === selectedSportFilter)?.label}</strong> on <strong>{filteredCourtsForPricing.find(c => c.id === selectedCourtFilter)?.name ?? selectedCourtFilter}</strong>.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Pricing Controls Row */}
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="w-48">
                 <FieldLabel>Enter Price (₹) *</FieldLabel>
-                <input inputMode="numeric" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="0" className={`${inputClass} text-xs`} />
+                <input type="number" value={priceInput} onChange={(e) => setPriceInput(e.target.value)} placeholder="e.g. 1000" className={`${inputClass} text-xs`} />
               </div>
               <button type="button" onClick={handleSetPrice} disabled={selectedKeys.length === 0}
-                className="rounded-xl bg-vibe-violet px-5 py-2.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50 transition">
+                className="rounded-xl bg-vibe-violet px-5 py-2.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50 transition cursor-pointer">
                 Apply Price ({selectedKeys.length} selected)
               </button>
             </div>
 
             {unpricedSlots.length > 0 && (
               <div className="flex gap-2">
-                <button type="button" onClick={selectAll} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg font-bold uppercase transition">Select All</button>
-                <button type="button" onClick={deselectAll} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg font-bold uppercase transition">Deselect All</button>
+                <button type="button" onClick={selectAll} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg font-bold uppercase transition cursor-pointer">Select All</button>
+                <button type="button" onClick={deselectAll} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg font-bold uppercase transition cursor-pointer">Deselect All</button>
               </div>
             )}
           </div>
@@ -3112,7 +3782,7 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
           {/* Unpriced slots selector cards */}
           <div className="mb-6">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Select Slots to Price ({unpricedSlots.length})</p>
-            {slots.length === 0 ? (
+            {uniqueTimeRanges.length === 0 ? (
               <p className="text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
                 No slots generated yet. Go back to the Slots step (Step 2) and generate slots first.
               </p>
@@ -3125,8 +3795,8 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
                   if (partSlots.length === 0) return null;
 
                   return (
-                    <DayPartGroup 
-                      key={part} 
+                    <DayPartGroup
+                      key={part}
                       part={part}
                       onSelectAll={() => {
                         const keys = partSlots.map((s) => `${s.startTime}-${s.endTime}`);
@@ -3144,18 +3814,20 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
                           return (
                             <div key={key} className="group relative">
                               <button type="button" onClick={() => toggleSelect(key)}
-                                className={`flex w-full flex-col items-center justify-center p-3 rounded-xl border-2 transition ${
-                                  isSelected ? "border-vibe-violet bg-vibe-violet/5 font-extrabold shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
-                                }`}
+                                className={`flex w-full flex-col items-center justify-center p-2.5 rounded-xl border-2 transition cursor-pointer ${isSelected ? "border-vibe-violet bg-vibe-violet/5 font-extrabold shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
+                                  }`}
                               >
                                 <span className="text-xs font-bold text-slate-700 font-mono">{to12h(s.startTime)} - {to12h(s.endTime)}</span>
-                                <span className="text-[9px] text-slate-400 uppercase mt-1">{s.label}</span>
+                                <span className={`text-[10px] font-extrabold mt-1 ${s.price > 0 ? "text-vibe-violet" : "text-slate-400"}`}>
+                                  {s.price > 0 ? `₹${s.price}` : "Not Set"}
+                                </span>
+                                <span className="text-[8px] text-slate-400 uppercase mt-0.5">{s.sourceLabel}</span>
                               </button>
                               <button
                                 type="button"
                                 title="Block this slot"
                                 onClick={(e) => { e.stopPropagation(); toggleBlockSlot(key, true); }}
-                                className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-white opacity-0 transition group-hover:flex group-hover:opacity-100 hover:bg-vibe-coral"
+                                className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-white opacity-0 transition group-hover:flex group-hover:opacity-100 hover:bg-vibe-coral cursor-pointer"
                               >
                                 <Ban size={11} />
                               </button>
@@ -3171,34 +3843,32 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
           </div>
 
           {/* List of Priced Slots */}
-          <div className="mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Priced Slots ({pricedSlots.length})</p>
+          <div className="mb-5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Custom Overrides for Selected Sport/Court ({pricedSlots.length})
+            </p>
+            <p className="text-[9px] text-ink-faint mb-2.5">
+              These are specific prices you set just for this game/court. Deleting them will revert the slot to inherit the default price.
+            </p>
             {pricedSlots.length === 0 ? (
-              <p className="text-xs text-ink-faint italic rounded-xl bg-white p-4 border border-slate-100">No slot pricing set yet.</p>
+              <p className="text-xs text-ink-faint italic rounded-xl bg-white p-3 border border-slate-100">No custom pricing overrides set yet.</p>
             ) : (
-              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-                {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
-                  const partSlots = pricedSlots.filter((s) => s.label === part);
-                  if (partSlots.length === 0) return null;
+              <div className="flex flex-wrap gap-1.5 max-h-[200px] overflow-y-auto pr-1">
+                {pricedSlots.map((s) => {
+                  const key = `${s.startTime}-${s.endTime}`;
                   return (
-                    <DayPartGroup key={part} part={part}>
-                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {partSlots.map((s) => {
-                          const key = `${s.startTime}-${s.endTime}`;
-                          return (
-                            <div key={key} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
-                              <div>
-                                <p className="font-extrabold text-slate-800">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
-                                <p className="text-[9px] text-vibe-violet font-extrabold uppercase mt-0.5">₹{s.price} · {s.label}</p>
-                              </div>
-                              <button type="button" onClick={() => handleRemovePrice(key)} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-vibe-coral rounded-lg">
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </DayPartGroup>
+                    <div key={key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-800 shadow-sm animate-in zoom-in-95 duration-100">
+                      <span>{to12h(s.startTime)} - {to12h(s.endTime)}: ₹{s.price}</span>
+                      <span className="text-[8px] text-vibe-violet bg-vibe-violet/5 px-1.5 py-0.5 rounded uppercase tracking-tight">{s.sourceLabel}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePrice(key)}
+                        className="text-slate-400 hover:text-vibe-coral rounded p-0.5 transition cursor-pointer"
+                        title="Remove override"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -3207,21 +3877,24 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
 
           {/* Blocked slots */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Blocked Slots ({blockedSlots.length})</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Blocked Slots ({blockedSlots.length})</p>
             {blockedSlots.length === 0 ? (
-              <p className="text-xs text-ink-faint italic rounded-xl bg-white p-4 border border-slate-100">No slots blocked. Hover a slot above and tap the ban icon to block it.</p>
+              <p className="text-xs text-ink-faint italic rounded-xl bg-white p-3 border border-slate-100">No slots blocked. Hover a slot above and tap the ban icon to block it.</p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-[220px] overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-1.5 max-h-[150px] overflow-y-auto pr-1">
                 {blockedSlots.map((s) => {
                   const key = `${s.startTime}-${s.endTime}`;
                   return (
-                    <div key={key} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-100 text-xs">
-                      <div>
-                        <p className="font-extrabold text-slate-600">{to12h(s.startTime)} - {to12h(s.endTime)}</p>
-                        <p className="text-[9px] text-slate-400 font-extrabold uppercase mt-0.5">Blocked · {s.label}</p>
-                      </div>
-                      <button type="button" onClick={() => toggleBlockSlot(key, false)} className="rounded-lg px-2 py-1 text-[10px] font-bold text-vibe-violet hover:bg-vibe-violet/10">
-                        Unblock
+                    <div key={key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-600 animate-in zoom-in-95 duration-100">
+                      <span>{to12h(s.startTime)} - {to12h(s.endTime)}</span>
+                      <span className="text-[8px] text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded uppercase tracking-tight">Blocked</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleBlockSlot(key, false)}
+                        className="text-slate-400 hover:text-vibe-violet rounded p-0.5 transition cursor-pointer"
+                        title="Unblock slot"
+                      >
+                        <X size={12} />
                       </button>
                     </div>
                   );
@@ -3248,7 +3921,7 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
                   <FieldLabel>Amount (₹)</FieldLabel>
                   <input
                     type="number"
-                    value={tier.amount}
+                    value={tier.amount === 0 ? "" : tier.amount}
                     onChange={(e) => updateTier(i, { amount: Number(e.target.value) })}
                     className={inputClass}
                   />
@@ -3268,8 +3941,25 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="rounded-xl2 border border-surface-border p-5">
-          <p className="text-sm font-semibold text-ink">Add-ons</p>
-          <p className="mb-4 text-xs text-ink-faint">Optional extras with charges — add a photo to drive impulse buys</p>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-ink">Add-ons</span>
+              <button
+                type="button"
+                onClick={() => setShowAddOnsInfo(!showAddOnsInfo)}
+                className={`rounded-full p-0.5 transition cursor-pointer ${showAddOnsInfo ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                  }`}
+                title="Show info"
+              >
+                <Info size={11} />
+              </button>
+            </div>
+          </div>
+          {showAddOnsInfo && (
+            <p className="text-xs text-ink-faint mb-3 bg-cream-200/40 p-2.5 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              Optional extras with charges — add a photo to drive impulse buys.
+            </p>
+          )}
           <div className="space-y-3">
             {addOns.map((a, i) => (
               <AddOnRow
@@ -3281,49 +3971,93 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
               />
             ))}
           </div>
-          <button onClick={addAddOn} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo">
+          <button onClick={addAddOn} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-vibe-lime px-3 py-2 text-xs font-semibold text-vibe-indigo cursor-pointer">
             <Plus size={13} /> Add extra
           </button>
         </div>
 
         <div className="rounded-xl2 border border-surface-border p-5">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-sm font-semibold text-ink">Coupons &amp; Discounts</p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-ink">Coupons &amp; Discounts</span>
+              <button
+                type="button"
+                onClick={() => setShowCouponsInfo(!showCouponsInfo)}
+                className={`rounded-full p-0.5 transition cursor-pointer ${showCouponsInfo ? "bg-vibe-violet/20 text-vibe-violet" : "text-ink-faint hover:bg-cream-200 hover:text-ink"
+                  }`}
+                title="Show info"
+              >
+                <Info size={11} />
+              </button>
+            </div>
             <button
               onClick={addCoupon}
-              className="inline-flex items-center gap-1 rounded-full border border-vibe-violet px-3 py-1 text-xs font-semibold text-vibe-violet"
+              className="inline-flex items-center gap-1 rounded-full border border-vibe-violet px-3 py-1 text-xs font-semibold text-vibe-violet cursor-pointer"
             >
               <Plus size={12} /> Add Coupon
             </button>
           </div>
-          <p className="mb-4 text-xs text-ink-faint">Configure multiple promotional codes for this package</p>
+          {showCouponsInfo && (
+            <p className="text-xs text-ink-faint mb-3 bg-cream-200/40 p-2.5 rounded-lg leading-relaxed animate-in slide-in-from-top-1 duration-150">
+              Configure multiple promotional codes for this package.
+            </p>
+          )}
           <p className="mb-2 text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Active Coupons</p>
           {coupons.length === 0 ? (
             <p className="rounded-lg bg-cream-200/60 px-3 py-3 text-xs text-ink-faint">
               No coupons have been configured yet. Click Add Coupon to create one.
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {coupons.map((c, i) => (
-                <div key={c.id} className="flex items-center gap-2">
-                  <input
-                    value={c.code}
-                    onChange={(e) => updateCoupon(i, { code: e.target.value.toUpperCase() })}
-                    placeholder="CODE20"
-                    className={inputClass}
-                  />
-                  <div className="flex shrink-0 items-center gap-1">
+                <div key={c.id} className="bg-cream-200/30 p-3 rounded-xl border border-surface-border">
+                  <div className="flex items-center gap-2">
                     <input
-                      type="number"
-                      value={c.discountPercent}
-                      onChange={(e) => updateCoupon(i, { discountPercent: Number(e.target.value) })}
-                      className={`${inputClass} w-16`}
+                      value={c.code}
+                      onChange={(e) => updateCoupon(i, { code: e.target.value.toUpperCase() })}
+                      placeholder="CODE20"
+                      className={`${inputClass} flex-1 uppercase`}
                     />
-                    <span className="text-xs text-ink-faint">%</span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <input
+                        type="number"
+                        value={c.discountPercent === 0 ? "" : c.discountPercent}
+                        onChange={(e) => updateCoupon(i, { discountPercent: Number(e.target.value) })}
+                        className={`${inputClass} w-20`}
+                        placeholder="%"
+                      />
+                    </div>
+                    <button onClick={() => removeCoupon(i)} className="text-ink-faint hover:text-vibe-coral p-1 cursor-pointer">
+                      <X size={16} />
+                    </button>
                   </div>
-                  <button onClick={() => removeCoupon(i)} className="text-ink-faint hover:text-vibe-coral">
-                    <X size={16} />
-                  </button>
+                  
+                  {draft.type !== "Event" && selectedGames.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-cream-200/50">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-2">Applicable Games (Leave blank for all)</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedGames.map(g => {
+                          const isActive = c.sports?.includes(g.label);
+                          return (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => {
+                                const current = c.sports ?? [];
+                                const next = isActive ? current.filter(s => s !== g.label) : [...current, g.label];
+                                updateCoupon(i, { sports: next });
+                              }}
+                              className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition cursor-pointer ${
+                                isActive ? "bg-vibe-violet text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
+                            >
+                              {g.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -3396,9 +4130,8 @@ function AcademyStep({
                     sports: active ? academy.sports.filter((s) => s !== c.id) : [...academy.sports, c.id],
                   })
                 }
-                className={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-                  active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet/50"
-                }`}
+                className={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft hover:border-vibe-violet/50"
+                  }`}
               >
                 {c.label}
               </button>
@@ -3419,9 +4152,8 @@ function AcademyStep({
               key={mode}
               type="button"
               onClick={() => setAcademy({ pricingMode: mode })}
-              className={`flex-1 py-2.5 text-xs font-bold transition ${
-                academy.pricingMode === mode ? "bg-vibe-violet text-white" : "bg-white text-ink-soft hover:bg-cream-300"
-              }`}
+              className={`flex-1 py-2.5 text-xs font-bold transition ${academy.pricingMode === mode ? "bg-vibe-violet text-white" : "bg-white text-ink-soft hover:bg-cream-300"
+                }`}
             >
               {label}
             </button>
@@ -3462,9 +4194,8 @@ function AcademyStep({
                 onClick={() =>
                   setAcademy({ days: active ? academy.days.filter((x) => x !== d.day) : [...academy.days, d.day] })
                 }
-                className={`h-10 w-14 rounded-lg border text-xs font-bold transition ${
-                  active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft"
-                }`}
+                className={`h-10 w-14 rounded-lg border text-xs font-bold transition ${active ? "border-vibe-violet bg-vibe-violet text-white" : "border-surface-border bg-white text-ink-soft"
+                  }`}
               >
                 {d.label}
               </button>
@@ -3803,8 +4534,8 @@ export function PackageStudio({
               const name = ("businessName" in profile)
                 ? (profile as any).businessName
                 : ("holderName" in profile)
-                ? (profile as any).holderName
-                : "";
+                  ? (profile as any).holderName
+                  : "";
               return { ...d, title: name || "" };
             }
             return d;
@@ -3929,26 +4660,34 @@ export function PackageStudio({
       </div>
 
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-6 flex flex-nowrap overflow-x-auto scrollbar-none gap-2 pb-2">
           {stepsFor(draft.type, showAcademyStep).map((s) => (
             <button
               key={s.id}
               onClick={() => goTo(s.id)}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
-                step === s.id ? "border-vibe-violet bg-vibe-violet/5" : "border-surface-border bg-white hover:bg-cream-300"
+              className={`flex shrink-0 items-center transition-all duration-300 ${
+                step === s.id
+                  ? "gap-2 rounded-xl border border-vibe-violet bg-vibe-violet/5 px-3 py-2"
+                  : "rounded-full border border-surface-border bg-white p-2 hover:bg-cream-300"
               }`}
             >
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
-                  step === s.id ? "bg-vibe-violet text-white" : maxStep > s.id ? "bg-vibe-limeDark text-white" : "bg-cream-300 text-ink-faint"
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                  step === s.id
+                    ? "bg-vibe-violet text-white"
+                    : maxStep > s.id
+                    ? "bg-vibe-limeDark text-white"
+                    : "bg-cream-300 text-ink-faint"
                 }`}
               >
                 {maxStep > s.id ? <Check size={12} /> : s.id}
               </span>
-              <span>
-                <p className="text-xs font-semibold leading-none text-ink">{s.label}</p>
-                <p className="mt-0.5 text-[10px] text-ink-faint">{s.hint}</p>
-              </span>
+              {step === s.id && (
+                <span className="animate-in fade-in slide-in-from-left-1 overflow-hidden whitespace-nowrap">
+                  <p className="text-xs font-semibold leading-none text-ink">{s.label}</p>
+                  <p className="mt-0.5 text-[10px] text-ink-faint">{s.hint}</p>
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -4003,8 +4742,8 @@ export function PackageStudio({
             {step < lastStep
               ? "Save & Next"
               : mode === "edit"
-              ? draft.type === "Event" ? "Update Event" : "Update Package"
-              : draft.type === "Event" ? "Publish Event" : "Create Listing"}
+                ? draft.type === "Event" ? "Update Event" : "Update Package"
+                : draft.type === "Event" ? "Publish Event" : "Create Listing"}
           </button>
         </div>
       </div>

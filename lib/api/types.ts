@@ -164,6 +164,8 @@ export interface TurfSlot {
   clubId?: string;
   slotIds?: string[];
   durationMinutes?: number;
+  sport?: string;
+  courtId?: string;
 }
 
 export interface DateOverride {
@@ -1139,3 +1141,4 @@ export interface VendorDineoutDashboard {
   upcomingBookings: TableBooking[];
   recentBills: DiningBillSummary[];
 }
+

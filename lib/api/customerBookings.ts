@@ -12,6 +12,7 @@ export interface CreateBookingInput {
   email?: string;
   payment: PaymentMethod;
   paymentType?: "partial" | "full";
+  playProtect?: boolean;
   /** Which sport the player is booking (venues can host several). */
   sport?: string;
   /** Court picked on the venue. Omit to let the backend assign the first free one. */
@@ -48,3 +49,6 @@ export function confirmMyBookingPayment(orderId: string, paymentId?: string) {
     audience: "customer",
   });
 }
+
+
+

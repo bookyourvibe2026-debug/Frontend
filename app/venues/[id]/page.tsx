@@ -837,8 +837,13 @@ function VenueInfoSections({
                   <span className="text-3xl">{sportEmoji(sportName)}</span>
                   <div className="mt-1 text-center">
                     <span className="block text-sm font-bold text-slate-800">{sportName}</span>
+                    {venue.price > 0 && (
+                      <span className="mt-0.5 block text-[10px] font-bold text-brand-600">
+                        From Rs.{venue.price.toLocaleString("en-IN")}/hr
+                      </span>
+                    )}
                     <span className="block text-[10px] font-semibold text-slate-400">
-                      {courtCount > 0 ? `${courtCount} ${courtCount === 1 ? "court" : "courts"} · Tap to book` : "Tap to book"}
+                      {courtCount > 0 ? `${courtCount} ${courtCount === 1 ? "court" : "courts"} � Tap to book` : "Tap to book"}
                     </span>
                   </div>
                 </button>
@@ -1070,6 +1075,9 @@ function SportPickerSheet({
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-slate-900">{sportName}</p>
+                    {venue.price > 0 && (
+                      <p className="mt-0.5 text-[10px] font-bold text-[#0b9c65]">From Rs.{venue.price.toLocaleString("en-IN")}/hr</p>
+                    )}
                   </div>
                 </div>
                 <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${isSelected ? "border-[#0b9c65]" : "border-slate-300"}`}>

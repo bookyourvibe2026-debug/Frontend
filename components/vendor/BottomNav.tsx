@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
@@ -41,8 +42,21 @@ export default function BottomNav({
   verticals: VendorVertical[];
 }) {
   const pathname = usePathname();
-<<<<<<< Updated upstream
-  const [activeVertical, setActiveVertical] = useState<VendorVertical>(verticals[0] ?? "turf");
+
+  // Derive active vertical from the current URL, then fall back to localStorage,
+  // then to the first vertical the vendor has access to.
+  const activeVertical = (() => {
+    const matched = verticals.find((v) =>
+      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
+    );
+    if (matched) return matched;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
+      if (stored && verticals.includes(stored)) return stored;
+    }
+    return verticals[0] ?? "turf";
+  })();
+
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Poll whichever vertical's bookings/enrolments feed the Notifications tab, so the bottom
@@ -81,21 +95,6 @@ export default function BottomNav({
       clearInterval(id);
     };
   }, [activeVertical]);
-
-  useEffect(() => {
-=======
-  const activeVertical = (() => {
->>>>>>> Stashed changes
-    const matched = verticals.find((v) =>
-      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
-    );
-    if (matched) return matched;
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
-      if (stored && verticals.includes(stored)) return stored;
-    }
-    return verticals[0] ?? "turf";
-  })();
 
   const allItems = NAV_ITEMS_BY_VERTICAL[activeVertical];
   const customOrder = MOBILE_NAV_ORDER[activeVertical];

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye, Trash2 } from "lucide-react";
+import { CalendarDays, MapPin, Plus, Share2, Ticket, Users, Eye, Trash2, Zap } from "lucide-react";
 import { PageHero } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { EventStudio } from "@/components/vendor/EventStudio";
+import { QuickAddEventModal } from "@/components/vendor/QuickAddEventModal";
 import { getVendorListings, createVendorListing, deleteVendorListing } from "@/lib/api/vendor";
 import { mockListingToApiInput } from "@/lib/api/listingAdapter";
 import { ApiError } from "@/lib/api/client";
@@ -17,6 +18,7 @@ export default function EventListingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [quickAdding, setQuickAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function load() {
@@ -36,6 +38,13 @@ export default function EventListingsPage() {
     } catch (err) {
       setToast(err instanceof ApiError ? err.describe() : "Failed to create event");
     }
+  }
+
+  async function handleQuickCreate(listing: MockListing) {
+    const created = await createVendorListing(mockListingToApiInput(listing));
+    setListings((prev) => [created, ...(prev ?? [])]);
+    setQuickAdding(false);
+    setToast("Event published");
   }
 
   async function handleDelete(listing: Listing) {
@@ -74,12 +83,20 @@ export default function EventListingsPage() {
         title="Event Listings"
         description="Publish and manage your events. Each listing takes bookings and check-ins just like a turf slot."
         right={
-          <button
-            onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/25"
-          >
-            <Plus size={16} /> Create Event
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setQuickAdding(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/25"
+            >
+              <Zap size={16} /> Quick Add
+            </button>
+            <button
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-white text-vibe-violet px-4 py-2.5 text-sm font-semibold hover:bg-white/90"
+            >
+              <Plus size={16} /> Create Event
+            </button>
+          </div>
         }
       />
 
@@ -98,12 +115,20 @@ export default function EventListingsPage() {
           <p className="mx-auto mt-1 max-w-sm text-sm text-ink-faint">
             Create your first event listing to start taking bookings.
           </p>
-          <button
-            onClick={() => setCreating(true)}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-vibe-violet px-4 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violet/90"
-          >
-            <Plus size={16} /> Create Event
-          </button>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <button
+              onClick={() => setQuickAdding(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-vibe-violet px-4 py-2.5 text-sm font-semibold text-vibe-violet hover:bg-vibe-violet/5"
+            >
+              <Zap size={16} /> Quick Add
+            </button>
+            <button
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-vibe-violet px-4 py-2.5 text-sm font-semibold text-white hover:bg-vibe-violet/90"
+            >
+              <Plus size={16} /> Create Event
+            </button>
+          </div>
         </div>
       )}
 
@@ -177,6 +202,8 @@ export default function EventListingsPage() {
           ))}
         </div>
       )}
+
+      {quickAdding && <QuickAddEventModal onClose={() => setQuickAdding(false)} onCreate={handleQuickCreate} />}
 
       <Toast message={toast} onDone={() => setToast(null)} />
     </div>
