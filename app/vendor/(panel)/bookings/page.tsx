@@ -469,7 +469,21 @@ export default function BookingsPage() {
           ? overlappingBookings.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
           : []
       );
-      
+
+      // A court whose only claim is a still-"Pending" booking (payment in progress,
+      // not yet confirmed) is a soft hold, not a firm sale — tagged separately so the
+      // vendor doesn't mistake an open checkout for a real booking.
+      const pendingOnlyCourtIds = new Set<string>();
+      if (activeCourts.length > 0) {
+        const firmCourtIds = new Set<string>();
+        for (const bk of overlappingBookings) {
+          const courtIds = bk.courtIds?.length ? bk.courtIds : [bk.courtId || activeCourts[0]!.id];
+          const set = bk.status === "Pending" ? pendingOnlyCourtIds : firmCourtIds;
+          for (const id of courtIds) set.add(id);
+        }
+        for (const id of firmCourtIds) pendingOnlyCourtIds.delete(id);
+      }
+
       const courtsTotal = activeCourts.length > 0 ? gameCourts.length : 0;
       const courtsFree = courtsTotal > 0 ? gameCourts.filter(c => !takenCourtIds.has(c.id)).length : 0;
 
@@ -526,7 +540,8 @@ export default function BookingsPage() {
         courtsInfo: activeCourts.length > 0 ? gameCourts.map(c => ({
           id: c.id,
           name: c.name,
-          isBooked: takenCourtIds.has(c.id)
+          isBooked: takenCourtIds.has(c.id),
+          isPending: pendingOnlyCourtIds.has(c.id)
         })) : undefined,
         isClubSlot: Boolean(slot.isClubSlot || (t24m(slot.endTime) - t24m(slot.startTime) > 60)),
         clubId: slot.clubId,

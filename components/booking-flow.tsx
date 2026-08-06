@@ -2253,7 +2253,7 @@ function ReviewStep(props: {
                                       </span>
                                     ) : isHeldOnly ? (
                                       <span className="mt-1 block text-[13px] font-black text-amber-600">
-                                        Reserved · try again shortly
+                                        Pending
                                       </span>
                                     ) : (
                                       <span className="mt-1 block text-[13px] font-black text-slate-400">

@@ -32,7 +32,7 @@ export interface TimelineSlot {
   clubId?: string;
   slotIds?: string[];
   durationMinutes?: number;
-  courtsInfo?: { id: string; name: string; isBooked: boolean }[];
+  courtsInfo?: { id: string; name: string; isBooked: boolean; isPending?: boolean }[];
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -309,6 +309,9 @@ export function BookingsTimeline({
         // "Part Paid" also covers a plain pending hold with no money down at all —
         // only badge it "Partial" when something was genuinely collected but not in full.
         const isPartial = slot.status === "Part Paid" && slot.paidAmount !== undefined && slot.paidAmount > 0 && slot.paidAmount < slot.price;
+        // The other half of that overload: a checkout someone has open right now but
+        // hasn't paid for yet — still reversible, so it's flagged distinctly from a real booking.
+        const isPendingOnly = slot.status === "Part Paid" && !isPartial;
         const remaining = slot.price - (slot.paidAmount ?? 0);
         const isLast = i === slots.length - 1;
         const isSelected = selectMode && isFree && (selectedKeys?.includes(slot.startTime) ?? false);
@@ -403,8 +406,17 @@ export function BookingsTimeline({
                     {slot.courtsInfo && slot.courtsInfo.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {slot.courtsInfo.map(court => (
-                          <span key={court.id} className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${court.isBooked ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                            {court.name} {court.isBooked ? '(Booked)' : '(Free)'}
+                          <span
+                            key={court.id}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                              !court.isBooked
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : court.isPending
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-rose-50 text-rose-600 border-rose-200"
+                            }`}
+                          >
+                            {court.name} {!court.isBooked ? "(Free)" : court.isPending ? "(Pending)" : "(Booked)"}
                           </span>
                         ))}
                       </div>
@@ -442,6 +454,11 @@ export function BookingsTimeline({
                       {isPartial && (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[7.5px] font-black uppercase text-amber-700">
                           Partial
+                        </span>
+                      )}
+                      {isPendingOnly && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[7.5px] font-black uppercase text-amber-700">
+                          Pending
                         </span>
                       )}
                       {slot.arrived && (
