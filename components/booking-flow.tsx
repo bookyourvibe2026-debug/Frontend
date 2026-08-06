@@ -2021,7 +2021,7 @@ function ReviewStep(props: {
                           </div>
 
                           {/* Time slots — compact, ultra-sleek, single-line pills grid */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-[280px] overflow-y-auto pr-1 text-center">
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 max-h-[280px] overflow-y-auto pr-1 text-center">
                             {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
@@ -2058,7 +2058,7 @@ function ReviewStep(props: {
                                     </span>
 
                                     <span
-                                      className={`text-[11px] font-black whitespace-nowrap tracking-tight leading-tight ${
+                                      className={`text-[11px] font-black whitespace-pre-wrap break-words text-center tracking-tight leading-tight ${
                                         isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
                                       }`}
                                     >
@@ -2090,7 +2090,7 @@ function ReviewStep(props: {
                                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
                                     onToggleSlotSelection(slot.originalIndex);
                                   }}
-                                  className={`relative flex flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200 cursor-pointer active:scale-95 border min-h-[44px] ${isSelected
+                                  className={`relative flex flex-col items-center justify-center rounded-xl px-2 py-2 transition-all duration-200 cursor-pointer active:scale-95 border min-h-[54px] ${isSelected
                                     ? "bg-[#0b9c65] text-white border-[#0b9c65] shadow-md shadow-[#0b9c65]/30 ring-2 ring-[#0b9c65]/30 scale-[1.02]"
                                     : available
                                       ? "bg-white text-slate-900 border-slate-200 hover:border-[#0b9c65] hover:bg-emerald-50/30 shadow-2xs"
@@ -2108,7 +2108,7 @@ function ReviewStep(props: {
                                   )}
 
                                   <span
-                                    className={`text-[10.5px] font-extrabold whitespace-nowrap tracking-tight leading-tight ${isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
+                                    className={`text-[10.5px] font-extrabold whitespace-pre-wrap break-words text-center tracking-tight leading-tight ${isSelected ? "text-white" : available ? "text-slate-900" : "text-slate-400 line-through"
                                       }`}
                                   >
                                     {timeRangeText}
