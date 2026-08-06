@@ -192,7 +192,7 @@ export function DineoutMarketplace() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eefdf5,_#f8fafc_40%,_#ffffff_85%)]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#eefdf5,#f8fafc_40%,#ffffff_85%)]">
       <div className="hidden sm:block">
         <SiteHeader />
       </div>
@@ -201,49 +201,44 @@ export function DineoutMarketplace() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
-        <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(135deg,#053d24_0%,#0d6b3e_50%,#144d31_100%)] px-5 py-6 text-white shadow-[0_18px_70px_rgba(5,61,36,0.25)] sm:px-8 sm:py-8">
-          <div className="pointer-events-none absolute -left-24 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-amber-300/10 blur-3xl" />
-          <div className="relative grid gap-5 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
-            <div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/80">
-                <Sparkles className="h-3.5 w-3.5" /> Dineout
+        <section className="relative overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#053d24_0%,#0d6b3e_50%,#144d31_100%)] p-4 sm:p-6 text-white shadow-[0_12px_45px_rgba(5,61,36,0.2)]">
+          <div className="pointer-events-none absolute -left-20 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 right-0 h-48 w-48 rounded-full bg-amber-300/10 blur-2xl" />
+          
+          <div className="relative flex flex-col gap-3">
+            {/* Header row with badge & offer inline */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-200 backdrop-blur-md">
+                <Sparkles className="h-3 w-3" /> Dineout
               </span>
-              <h1 className="mt-4 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-5xl">
-                Discover restaurants, book a table, and pay the bill in one flow.
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/75 sm:text-base">
-                Browse premium cafes, rooftops, family dining, and live-music venues around your turf or event
-                without a delivery cart in sight.
-              </p>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                {[
-                  { label: "Restaurants", value: `${outlets.length || DINING_SPOTS.length}` },
-                  { label: "Open now", value: `${openCount}` },
-                  { label: "Avg. cost for two", value: `₹${averageCost.toLocaleString("en-IN")}` },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">{item.label}</p>
-                    <p className="mt-1 text-lg font-extrabold text-white">{item.value}</p>
-                  </div>
-                ))}
-              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[10px] font-black text-slate-950 uppercase tracking-wide shadow-sm">
+                <BadgePercent className="h-3 w-3" /> Flat 10% OFF
+              </span>
             </div>
 
-            <div className="rounded-[1.75rem] border border-white/10 bg-white/10 p-4 backdrop-blur">
-              <div className="rounded-[1.5rem] bg-white p-4 text-slate-900 shadow-xl">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-600">Featured dining offer</p>
-                <p className="mt-2 text-xl font-extrabold">Flat 10% off on pre-booking</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Combine promo codes, bank offers, and DineCash on your settlement screen.
-                </p>
-                <div className="mt-4 flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800">
-                  <span className="inline-flex items-center gap-2 text-sm font-bold">
-                    <BadgePercent className="h-4 w-4" /> DineCash
-                  </span>
-                  <span className="text-sm font-extrabold">Earn on every bill</span>
-                </div>
+            {/* Compact Heading */}
+            <div>
+              <h1 className="text-lg font-black tracking-tight sm:text-3xl leading-snug">
+                Discover &amp; Book Table in One Flow
+              </h1>
+              <p className="mt-1 text-xs text-white/80 line-clamp-1 sm:line-clamp-2 leading-relaxed">
+                Browse top cafes, rooftops &amp; dining spots near your turf with instant table pre-booking.
+              </p>
+            </div>
+
+            {/* Inline Compact Stats Ribbon */}
+            <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3">
+              <div className="rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-center backdrop-blur">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-white/70">Restaurants</p>
+                <p className="text-sm font-black text-white">{outlets.length || DINING_SPOTS.length}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-center backdrop-blur">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-white/70">Open Now</p>
+                <p className="text-sm font-black text-emerald-300">{openCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-center backdrop-blur">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-white/70">Avg Cost / 2</p>
+                <p className="text-sm font-black text-amber-300">₹{averageCost.toLocaleString("en-IN")}</p>
               </div>
             </div>
           </div>
@@ -340,7 +335,7 @@ export function DineoutMarketplace() {
                       loading="lazy"
                       decoding="async"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-linear-to-t from-black/55 via-transparent to-transparent" />
                     <div className="absolute left-4 top-4 flex items-center gap-2">
                       <span
                         className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${
@@ -405,7 +400,7 @@ export function DineoutMarketplace() {
                       <button
                         type="button"
                         onClick={() => router.push(`/food/${outlet.slug || outlet._id}`)}
-                        className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-extrabold text-white shadow-md transition hover:scale-[1.01]"
+                        className="rounded-2xl bg-linear-to-r from-emerald-600 to-teal-600 py-3 text-sm font-extrabold text-white shadow-md transition hover:scale-[1.01]"
                       >
                         Pay Bill
                       </button>
