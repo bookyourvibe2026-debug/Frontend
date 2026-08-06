@@ -11,9 +11,9 @@ const CATEGORY_IMAGES: Record<string, string> = {
   cricket: "/bat.png",
   football: "/football.png",
   pickleball: "/pickball.png",
-  skating: "/skating.jfif",
-  swimming: "/swimming.jfif",
-  volleyball: "/volleyball.jfif",
+  skating: "/skating.jpg",
+  swimming: "/swimming.jpg",
+  volleyball: "/volleyball.jpg",
   tennis: "/tennis.png",
   "table tennis": "/tabletennis.png",
 };

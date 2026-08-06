@@ -126,6 +126,19 @@ function courtSlotPrice(slot: { price: number; courtBoostPct?: Record<string, nu
   return pct > 0 ? boostedPrice(basePrice, pct) : basePrice;
 }
 
+function courtSlotBasePrice(slot: { price: number; candidates?: any[] }, courtId: string | undefined, matchSport: string | undefined): number {
+  let basePrice = slot.price;
+  if (slot.candidates && courtId) {
+     let best = null;
+     if (matchSport) best = slot.candidates.find(c => c.sport?.toLowerCase() === matchSport && c.courtId === courtId);
+     if (!best) best = slot.candidates.find(c => !c.sport && c.courtId === courtId);
+     if (!best && matchSport) best = slot.candidates.find(c => c.sport?.toLowerCase() === matchSport && !c.courtId);
+     if (!best) best = slot.candidates.find(c => !c.sport && !c.courtId);
+     if (best && typeof best.price === "number" && best.price > 0) basePrice = best.price;
+  }
+  return basePrice;
+}
+
 /* Start times a venue can be booked from. */
 const START_TIMES = [
   "06:00 AM", "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM",
@@ -892,24 +905,19 @@ export default function BookingFlow({
       .reduce((sum, a) => sum + a.price, 0);
     const playProtectFee = playProtect ? 19 : 0;
     if (listing.type === "Turf") {
-      // Turf pricing is always driven by the selected slots/courts, never by a
-      // package tier — a tier gets auto-selected as soon as one exists, and letting
-      // it win here would silently charge the flat tier price instead of the real total.
       if (selectedSlotIndices.length === 0) return addOnsTotal;
-      // Every court booked pays the slot price, so 2 courts for an hour costs it twice.
-      // A venue without courts is a single unit and pays it once. The boost — scoped to
-      // one exact court — is checked against whichever court would actually be booked
-      // (the first selected one), then applied to the combined total, matching exactly
-      // how the backend prices it (see booking.service.ts: sum courts first, discount
-      // the sum by the first selected court's eligibility, not per-court).
-      const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
-      const primaryCourtId = effectiveCourtIds[0];
+      const matchSport = sport?.toLowerCase();
       const slotsTotal = selectedSlotIndices.reduce((sum, idx) => {
         const slot = generatedSlots[idx];
         if (!slot) return sum;
-        const rawTotal = slot.price * courtCount;
-        const pct = (primaryCourtId && slot.courtBoostPct?.[primaryCourtId]) || 0;
-        return sum + (pct > 0 ? boostedPrice(rawTotal, pct) : rawTotal);
+        if (courtsForSport.length === 0) {
+          const pct = slot.boostPct || 0;
+          return sum + (pct > 0 ? boostedPrice(slot.price, pct) : slot.price);
+        }
+        const courtsTotal = selectedCourts.reduce((courtSum, court) => {
+          return courtSum + courtSlotPrice(slot, court.id, matchSport);
+        }, 0);
+        return sum + courtsTotal;
       }, 0);
       return slotsTotal + addOnsTotal + playProtectFee;
     }
@@ -920,30 +928,39 @@ export default function BookingFlow({
       return selectedTier.amount + addOnsTotal + playProtectFee;
     }
     return listing.price + addOnsTotal + playProtectFee;
-  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport, effectiveCourtIds, playProtect]);
+  }, [listing, generatedSlots, selectedSlotIndices, selectedAddOnIds, selectedPriceTierId, selectedCourts, courtsForSport, playProtect, sport]);
 
   /** Whether the selected slot(s) are currently Last Minute Boost-discounted, and by how
    * much — so checkout can show "original price / discounted price / you saved X" instead
    * of silently charging the lower number. Mirrors activePrice's court-specific logic. */
   const dealSavings = useMemo(() => {
     if (listing.type !== "Turf" || selectedSlotIndices.length === 0) return null;
-    const courtCount = courtsForSport.length === 0 ? 1 : selectedCourts.length;
-    const primaryCourtId = effectiveCourtIds[0];
+    const matchSport = sport?.toLowerCase();
     let original = 0;
     let discounted = 0;
     let boosted = false;
     for (const idx of selectedSlotIndices) {
       const slot = generatedSlots[idx];
       if (!slot) continue;
-      const rawTotal = slot.price * courtCount;
-      const pct = (primaryCourtId && slot.courtBoostPct?.[primaryCourtId]) || 0;
-      original += rawTotal;
-      discounted += pct > 0 ? boostedPrice(rawTotal, pct) : rawTotal;
-      if (pct > 0) boosted = true;
+      if (courtsForSport.length === 0) {
+        const base = slot.price;
+        const pct = slot.boostPct || 0;
+        original += base;
+        discounted += pct > 0 ? boostedPrice(base, pct) : base;
+        if (pct > 0) boosted = true;
+      } else {
+        for (const court of selectedCourts) {
+          const base = courtSlotBasePrice(slot, court.id, matchSport);
+          const pct = slot.courtBoostPct?.[court.id] || 0;
+          original += base;
+          discounted += pct > 0 ? boostedPrice(base, pct) : base;
+          if (pct > 0) boosted = true;
+        }
+      }
     }
     if (!boosted || original <= discounted) return null;
     return { originalPrice: original, discountedPrice: discounted, savings: original - discounted };
-  }, [listing.type, generatedSlots, selectedSlotIndices, selectedCourts, courtsForSport, effectiveCourtIds]);
+  }, [listing, generatedSlots, selectedSlotIndices, selectedCourts, courtsForSport, sport]);
 
   const phoneValid = !needsPhone || /^[6-9]\d{9}$/.test(phone);
   const canPay =
@@ -1543,18 +1560,20 @@ function ReviewStep(props: {
     const matchSport = selectedSport?.toLowerCase();
     const candidateCourtIds = selectedCourtIds.length > 0 ? selectedCourtIds : freeCourts.map((c) => c.id);
     if (candidateCourtIds.length === 0) {
-      return { price: finalSlotPrice(slot), boostPct: slot.boostPct ?? 0 };
+      return { price: finalSlotPrice(slot), boostPct: slot.boostPct ?? 0, originalPrice: slot.price };
     }
     let bestPrice = Number.POSITIVE_INFINITY;
     let bestBoostPct = 0;
+    let bestOriginalPrice = 0;
     for (const courtId of candidateCourtIds) {
       const price = courtSlotPrice(slot, courtId, matchSport);
       if (price < bestPrice) {
         bestPrice = price;
         bestBoostPct = slot.courtBoostPct?.[courtId] ?? 0;
+        bestOriginalPrice = courtSlotBasePrice(slot, courtId, matchSport);
       }
     }
-    return { price: bestPrice, boostPct: bestBoostPct };
+    return { price: bestPrice, boostPct: bestBoostPct, originalPrice: bestOriginalPrice };
   };
   /** Playo-style toggle between the compact date strip and the full month grid. */
   const [calendarExpanded, setCalendarExpanded] = useState(false);
@@ -2006,7 +2025,7 @@ function ReviewStep(props: {
                             {orderedSlots.map((slot) => {
                               const isSelected = selectedSlotIndices.includes(slot.originalIndex);
                               const available = slot.status === "Available";
-                              const { price: finalPrice, boostPct: displayBoostPct } = displaySlotPricing(slot);
+                              const { price: finalPrice, boostPct: displayBoostPct, originalPrice: finalOriginalPrice } = displaySlotPricing(slot);
                               const timeRangeText = `${slot.startTime12.replace(/^0/, "")} - ${slot.endTime12.replace(/^0/, "")}`;
 
                               if (slot.isClubSlot) {
@@ -2106,7 +2125,7 @@ function ReviewStep(props: {
                                         </span>
                                          {displayBoostPct > 0 && (
                                           <span className={`text-[8.5px] line-through ${isSelected ? "text-white/70" : "text-slate-400"}`}>
-                                            ₹{slot.price}
+                                            ₹{finalOriginalPrice}
                                           </span>
                                         )}
                                       </div>

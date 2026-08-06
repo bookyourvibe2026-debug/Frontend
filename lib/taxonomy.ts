@@ -86,7 +86,7 @@ export const SPORT_CATEGORIES: SportCategory[] = [
   {
     id: "basketball",
     label: "Basketball",
-    image: "/basketball.jfif",
+    image: "/basketball.jpg",
     venue: "both",
     subCategories: [
       { id: "basketball-half", label: "Half Court" },
@@ -96,7 +96,7 @@ export const SPORT_CATEGORIES: SportCategory[] = [
   {
     id: "volleyball",
     label: "Volleyball",
-    image: "/volleyball.jfif",
+    image: "/volleyball.jpg",
     venue: "both",
     subCategories: [
       { id: "volleyball-indoor", label: "Indoor" },
@@ -106,7 +106,7 @@ export const SPORT_CATEGORIES: SportCategory[] = [
   {
     id: "swimming",
     label: "Swimming",
-    image: "/swimming.jfif",
+    image: "/swimming.jpg",
     venue: "both",
     subCategories: [
       { id: "swimming-pool", label: "Pool Access" },
@@ -116,7 +116,7 @@ export const SPORT_CATEGORIES: SportCategory[] = [
   {
     id: "snooker-pool",
     label: "Snooker & Pool",
-    image: "/snooker.jfif",
+    image: "/snooker.jpg",
     venue: "indoor",
     subCategories: [
       { id: "snooker-table", label: "Snooker Table" },
@@ -126,14 +126,14 @@ export const SPORT_CATEGORIES: SportCategory[] = [
   {
     id: "skating",
     label: "Skating",
-    image: "/skating.jfif",
+    image: "/skating.jpg",
     venue: "both",
     subCategories: [{ id: "skating-rink", label: "Rink Access" }],
   },
   {
     id: "indoor-games",
     label: "Indoor Games",
-    image: "/indoor games.jfif",
+    image: "/indoor-games.jpg",
     venue: "indoor",
     subCategories: [
       { id: "carrom", label: "Carrom" },
