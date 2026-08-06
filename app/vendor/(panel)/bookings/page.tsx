@@ -492,9 +492,13 @@ export default function BookingsPage() {
           const mCourts = m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id];
           return mCourts.some(id => gameCourts.some(gc => gc.id === id));
       });
+      const sportMatched = relevantMatches[0] || matches[0];
       // Falls back to a cross-sport booking's details so a slot that's fully taken by
-      // e.g. Football bookings doesn't read as "Available" while browsing the Cricket tab.
-      const match = relevantMatches[0] || matches[0] || overlappingBookings[0];
+      // e.g. a Cricket booking on the shared court doesn't read as "Available" while
+      // browsing the Football tab. Flagged separately so the row never displays that
+      // other sport's booking as if it were one for the sport currently being viewed.
+      const match = sportMatched || overlappingBookings[0];
+      const otherSportBooking = Boolean(match) && !sportMatched;
 
       const isFullyBooked = activeCourts.length > 0 ? (courtsTotal > 0 && courtsFree === 0) : matches.length > 0;
       let status: SlotStatus = "Available";
@@ -505,11 +509,13 @@ export default function BookingsPage() {
 
       if (match && isFullyBooked) {
         bookingId = match.orderId;
-        customerName = match.customerName ?? match.customer;
+        customerName = otherSportBooking
+          ? `Court in use — ${match.sport || "other sport"}`
+          : match.customerName ?? match.customer;
         phone = match.phone;
         arrived = Boolean(match.checkedIn);
         const isWalkIn = !match.customerId;
-        const isHold = customerName === "Hold";
+        const isHold = match.customerName === "Hold";
         if (isHold && match.status === "Pending") status = "On Hold";
         else if (match.status === "Pending" || match.status === "Part Paid") status = "Part Paid";
         else status = isWalkIn ? "Offline Booked" : "Booked";

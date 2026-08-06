@@ -452,10 +452,20 @@ export default function BookingFlow({
       return;
     }
     let cancelled = false;
-    getVenueAvailability(listing._id, date)
-      .then((ranges) => { if (!cancelled) setBookedRanges(ranges); })
-      .catch(() => { if (!cancelled) setBookedRanges([]); });
-    return () => { cancelled = true; };
+    const load = () => {
+      getVenueAvailability(listing._id, date)
+        .then((ranges) => { if (!cancelled) setBookedRanges(ranges); })
+        .catch(() => { if (!cancelled) setBookedRanges([]); });
+    };
+    load();
+    // Poll while the player is still picking a slot — someone else's hold opening (or
+    // expiring) is otherwise invisible until a manual reload, since this only re-fetches
+    // on date/listing change. Not worth polling once they've moved past review.
+    const interval = step === "review" ? setInterval(load, 15_000) : undefined;
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
   }, [listing._id, listing.type, date, step]);
 
   useEffect(() => {
@@ -783,7 +793,7 @@ export default function BookingFlow({
           courtBoostPct: courtBoostPctFor(startTime24, slotStatus, slotStart, slotEnd),
           freeCourtIds: freeIdsFor(slotStart, slotEnd),
           originalIndex: idx++,
-          candidates: range.segments.flatMap((seg) => seg.candidates ?? []),
+          candidates: segmentCandidates,
         });
 
         current += slotDuration;
