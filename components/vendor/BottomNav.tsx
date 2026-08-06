@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
@@ -21,6 +20,16 @@ const SHORT_LABELS: Record<string, string> = {
   "Manage Coaches": "Coaches",
   "Schedule Manager": "Schedule",
   "Menu Management": "Menu",
+  "Billing Slide / POS": "POS",
+  "Table Reservations": "Tables",
+  "Notifications": "Alerts",
+  "Food Orders": "Orders",
+  "Offers": "Offers",
+  "Payments": "Payments",
+  "Analytics": "Analytics",
+  "Reviews": "Reviews",
+  "Team": "Team",
+  "Activity Log": "Activity",
   "Events Dashboard": "Dashboard",
   "Food Dashboard": "Dashboard",
   "Coaches Dashboard": "Dashboard",
@@ -28,12 +37,11 @@ const SHORT_LABELS: Record<string, string> = {
 
 export default function BottomNav({
   verticals,
-  onLogout,
 }: {
   verticals: VendorVertical[];
-  onLogout: () => void;
 }) {
   const pathname = usePathname();
+<<<<<<< Updated upstream
   const [activeVertical, setActiveVertical] = useState<VendorVertical>(verticals[0] ?? "turf");
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
@@ -75,21 +83,19 @@ export default function BottomNav({
   }, [activeVertical]);
 
   useEffect(() => {
+=======
+  const activeVertical = (() => {
+>>>>>>> Stashed changes
     const matched = verticals.find((v) =>
       NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
     );
-    if (matched) {
-      localStorage.setItem("byv_vendor_active_vertical", matched);
-      setActiveVertical(matched);
-    } else {
+    if (matched) return matched;
+    if (typeof window !== "undefined") {
       const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
-      if (stored && verticals.includes(stored)) {
-        setActiveVertical(stored);
-      } else {
-        setActiveVertical(verticals[0] ?? "turf");
-      }
+      if (stored && verticals.includes(stored)) return stored;
     }
-  }, [pathname, verticals]);
+    return verticals[0] ?? "turf";
+  })();
 
   const allItems = NAV_ITEMS_BY_VERTICAL[activeVertical];
   const customOrder = MOBILE_NAV_ORDER[activeVertical];

@@ -420,9 +420,15 @@ export interface MenuItem {
   category: string;
   photo?: string;
   inStock: boolean;
+  /** Overrides the outlet's per-category default when set. */
   prepTimeMins?: number;
   /** When non-empty, the customer must pick one when ordering. */
   priceVariants: PriceVariant[];
+  /** Opt-in stock counting — off means the simple in/out toggle governs availability. */
+  trackInventory: boolean;
+  stockQty: number;
+  lowStockThreshold: number;
+  stockUnit?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -438,6 +444,19 @@ export interface OutletLeave {
   date: string;
   type: "full" | "half";
   reason?: string;
+}
+
+/** Owner-set default prep time for a menu category — drives the player's checkout ETA. */
+export interface CategoryPrepTime {
+  category: string;
+  prepTimeMins: number;
+}
+
+export interface OutletFulfilment {
+  preOrder: boolean;
+  inVenue: boolean;
+  postMatch: boolean;
+  dineIn: boolean;
 }
 
 export interface OutletLocation {
@@ -466,12 +485,25 @@ export interface FoodOutlet {
   location: OutletLocation;
   weeklyAvailability: OutletWeeklyDay[];
   leaves: OutletLeave[];
+  /** Per-category prep-time defaults; drives the checkout ETA. */
+  categoryPrepTimes: CategoryPrepTime[];
+  /** Table booking + pay-bill settings. Used by "dining" outlets. */
+  dineout: OutletDineout;
+  /** Minutes added when the order is carried to a court or table. */
+  serviceBufferMins: number;
+  fulfilment: OutletFulfilment;
   status: "Active" | "Inactive";
   createdAt: string;
   updatedAt: string;
 }
 
 export type FoodOrderStatus = "Pending" | "Accepted" | "Rejected" | "Preparing" | "Ready" | "Delivered" | "Cancelled";
+
+/** How the player wants the order served — or "Counter" for a walk-in billed on the POS. */
+export type FoodOrderType = "PreOrder" | "InVenue" | "PostMatch" | "DineIn" | "Counter";
+
+/** Where the order came from — the player app, or the owner's Billing Slide / POS. */
+export type FoodOrderChannel = "app" | "pos";
 
 export interface FoodOrderItem {
   menuItemId: string;
@@ -486,17 +518,46 @@ export interface FoodOrder {
   orderId: string;
   vendorId: string;
   outletId?: string;
-  customerId: string;
+  /** Absent on counter (POS) bills, which have no logged-in player. */
+  customerId?: string;
   customerName: string;
   phone: string;
   items: FoodOrderItem[];
+  /** Billing breakdown. Optional because orders placed before GST billing shipped don't carry it. */
+  subtotal?: number;
+  taxAmount?: number;
+  gstRate?: number;
+  packagingFee?: number;
   totalAmount: number;
   status: FoodOrderStatus;
+  orderType?: FoodOrderType;
+  channel?: FoodOrderChannel;
+  /** Prep + service ETA frozen at checkout, in minutes. */
+  etaMins?: number;
+  /** Pre-orders: when the player will arrive to collect. */
+  scheduledFor?: string | null;
+  /** Dine-in table, or the court an in-venue order goes to. */
+  serveTo?: string;
+  paymentMethod?: string;
+  paymentStatus?: "Paid" | "Unpaid";
+  billNo?: string;
   notes?: string;
   checkedIn: boolean;
   checkedInAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Server-priced checkout preview: bill breakdown + the ETA shown before paying. */
+export interface FoodOrderQuote {
+  items: FoodOrderItem[];
+  subtotal: number;
+  gstRate: number;
+  taxAmount: number;
+  packagingFee: number;
+  totalAmount: number;
+  orderType: FoodOrderType;
+  etaMins: number;
 }
 
 export interface FoodVendor {
@@ -524,6 +585,9 @@ export interface FoodOrderSummary {
   items: FoodOrderItem[];
   totalAmount: number;
   status: FoodOrderStatus;
+  orderType?: FoodOrderType;
+  channel?: FoodOrderChannel;
+  outletId?: string;
   createdAt: string;
 }
 
@@ -533,6 +597,11 @@ export interface VendorFoodDashboard {
   totalRevenue: number;
   deliveredOrderCount: number;
   allTimeOrderCount: number;
+  /** Takings rung up on the Billing Slide / POS, already included in totalRevenue. */
+  counterRevenue: number;
+  counterOrderCount: number;
+  appRevenue: number;
+  ordersByType: Partial<Record<FoodOrderType, number>>;
   chart: FoodDashboardChartPoint[];
   recentOrders: FoodOrderSummary[];
 }
@@ -921,4 +990,152 @@ export interface CustomerNotification {
   read: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/* ─── Dineout — table booking & pay-at-restaurant ────────────────── */
+
+/** Table-booking and pay-bill settings on a "dining" outlet. */
+export interface OutletDineout {
+  tableBooking: boolean;
+  payBill: boolean;
+  /** Flat % off the bill for players paying through the app. */
+  flatDiscountPct: number;
+  slotMinutes: number;
+  tablesPerSlot: number;
+  maxPartySize: number;
+  advanceDays: number;
+  costForTwo?: number;
+  autoConfirm: boolean;
+  seatingOptions?: string[];
+}
+
+export type TableBookingStatus =
+  | "Pending"
+  | "Confirmed"
+  | "Rejected"
+  | "Seated"
+  | "Completed"
+  | "Cancelled"
+  | "NoShow";
+
+export interface TableBooking {
+  _id: string;
+  bookingId: string;
+  vendorId: string;
+  outletId: string;
+  customerId: string;
+  customerName: string;
+  phone: string;
+  /** ISO timestamp at midnight of the reservation day. */
+  date: string;
+  /** Slot start, "HH:mm". */
+  slotTime: string;
+  partySize: number;
+  seatingPreference?: string;
+  selectedOfferCode?: string;
+  occasion?: string;
+  specialRequests?: string;
+  status: TableBookingStatus;
+  rejectionReason?: string;
+  checkedIn: boolean;
+  checkedInAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One bookable time slot for a given day. */
+export interface BookingSlot {
+  time: string;
+  seatsLeft: number;
+  available: boolean;
+  reason?: string;
+}
+
+export interface BookingSlotsResponse {
+  date: string;
+  slots: BookingSlot[];
+  closed: boolean;
+  reason?: string;
+}
+
+/** Server-priced bill breakdown, shown before the player pays. */
+export interface DiningBillQuote {
+  outletId: string;
+  outletName: string;
+  billAmount: number;
+  flatDiscountPct: number;
+  flatDiscount: number;
+  couponCode?: string;
+  couponDiscount: number;
+  bankOfferCode?: string;
+  bankOfferDiscount?: number;
+  walletAmount?: number;
+  rewardPointsRedeemed?: number;
+  cashbackEarned?: number;
+  /** Set when a coupon was entered but couldn't be applied. */
+  couponError?: string;
+  convenienceFee: number;
+  gstOnConvenienceFee: number;
+  convenienceFeeTotal: number;
+  tipAmount: number;
+  payableAmount: number;
+  totalSavings: number;
+  restaurantNet: number;
+}
+
+export interface DiningBill {
+  _id: string;
+  billId: string;
+  vendorId: string;
+  outletId: string;
+  customerId: string;
+  customerName: string;
+  phone: string;
+  bookingId?: string;
+  billAmount: number;
+  flatDiscountPct: number;
+  flatDiscount: number;
+  couponCode?: string;
+  couponDiscount: number;
+  bankOfferCode?: string;
+  bankOfferDiscount?: number;
+  walletAmount?: number;
+  rewardPointsRedeemed?: number;
+  cashbackEarned?: number;
+  convenienceFee: number;
+  gstOnConvenienceFee: number;
+  convenienceFeeTotal: number;
+  tipAmount: number;
+  payableAmount: number;
+  restaurantNet: number;
+  paymentMethod?: string;
+  paymentStatus: "Paid" | "Failed" | "Pending";
+  distanceMetres?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DiningBillSummary {
+  billId: string;
+  customerName: string;
+  billAmount: number;
+  payableAmount: number;
+  restaurantNet: number;
+  outletId?: string;
+  createdAt: string;
+}
+
+export interface VendorDineoutDashboard {
+  period: "day" | "week" | "month" | "year";
+  bookingsByStatus: Partial<Record<TableBookingStatus, number>>;
+  todayBookingCount: number;
+  /** Guests seated today across confirmed/seated/completed bookings. */
+  todayCovers: number;
+  /** What the restaurant keeps after the discounts it funded. */
+  netRevenue: number;
+  grossBilled: number;
+  discountGiven: number;
+  billCount: number;
+  upcomingBookings: TableBooking[];
+  recentBills: DiningBillSummary[];
 }

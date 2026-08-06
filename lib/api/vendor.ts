@@ -6,9 +6,17 @@ import type {
   CoachSubscription,
   CoachSubscriptionStatus,
   CoachWeeklyDay,
+  CategoryPrepTime,
+  DiningBill,
+  OutletDineout,
+  TableBooking,
+  TableBookingStatus,
+  VendorDineoutDashboard,
   FoodOrder,
   FoodOrderStatus,
+  FoodOrderType,
   FoodOutlet,
+  OutletFulfilment,
   Listing,
   ListingType,
   Membership,
@@ -548,6 +556,80 @@ export function removeOutletLeave(outletId: string, isoDate: string) {
   });
 }
 
+/** Per-category prep times + accepted fulfilment modes. These drive the player's checkout ETA. */
+export function setOutletPrepTimes(
+  outletId: string,
+  input: {
+    categoryPrepTimes?: CategoryPrepTime[];
+    serviceBufferMins?: number;
+    fulfilment?: Partial<OutletFulfilment>;
+  }
+) {
+  return apiRequest<FoodOutlet>(`/vendor/food-outlets/${outletId}/prep-times`, {
+    method: "PUT",
+    body: input,
+    audience: AUD,
+  });
+}
+
+/** Table-booking and pay-bill settings for a dining outlet. */
+export function setOutletDineout(outletId: string, input: Partial<OutletDineout>) {
+  return apiRequest<FoodOutlet>(`/vendor/dineout/outlets/${outletId}/settings`, {
+    method: "PUT",
+    body: input,
+    audience: AUD,
+  });
+}
+
+/* ---- Dineout: table bookings & settled bills (Food Owner) ---- */
+
+export function getVendorTableBookings(
+  params: {
+    status?: TableBookingStatus;
+    outletId?: string;
+    scope?: "upcoming" | "history";
+    /** "YYYY-MM-DD" — one day's reservation sheet. */
+    date?: string;
+    page?: number;
+    limit?: number;
+  } = {}
+) {
+  return apiRequest<Paginated<TableBooking>>("/vendor/dineout/bookings", { query: params, audience: AUD });
+}
+
+/** Full booking behind a scanned QR — read-only, so the host can check the party first. */
+export function getVendorTableBooking(bookingId: string) {
+  return apiRequest<TableBooking>(`/vendor/dineout/bookings/${bookingId}`, { audience: AUD });
+}
+
+export function updateVendorTableBookingStatus(
+  bookingId: string,
+  status: Exclude<TableBookingStatus, "Pending">,
+  rejectionReason?: string
+) {
+  return apiRequest<TableBooking>(`/vendor/dineout/bookings/${bookingId}/status`, {
+    method: "PATCH",
+    body: { status, rejectionReason },
+    audience: AUD,
+  });
+}
+
+/** Scanning the booking QR at the door seats the party. */
+export function checkInVendorTableBooking(bookingId: string) {
+  return apiRequest<TableBooking>(`/vendor/dineout/bookings/${bookingId}/checkin`, {
+    method: "POST",
+    audience: AUD,
+  });
+}
+
+export function getVendorDiningBills(params: { outletId?: string; page?: number; limit?: number } = {}) {
+  return apiRequest<Paginated<DiningBill>>("/vendor/dineout/bills", { query: params, audience: AUD });
+}
+
+export function getVendorDineoutDashboard(period: "day" | "week" | "month" | "year" = "day") {
+  return apiRequest<VendorDineoutDashboard>("/vendor/dineout/dashboard", { query: { period }, audience: AUD });
+}
+
 /* ---- Menu (Food Owner) ---- */
 
 export function listVendorMenu(params: { outletId?: string } = {}) {
@@ -564,6 +646,10 @@ export interface MenuItemInput {
   inStock?: boolean;
   prepTimeMins?: number;
   priceVariants?: PriceVariant[];
+  trackInventory?: boolean;
+  stockQty?: number;
+  lowStockThreshold?: number;
+  stockUnit?: string;
 }
 
 export interface BulkMenuUploadResult {
@@ -589,10 +675,53 @@ export function deleteVendorMenuItem(id: string) {
   return apiRequest<null>(`/vendor/menu/${id}`, { method: "DELETE", audience: AUD });
 }
 
+export interface MenuStockInput {
+  trackInventory?: boolean;
+  stockQty?: number;
+  lowStockThreshold?: number;
+  stockUnit?: string;
+  inStock?: boolean;
+}
+
+/** Inventory board edit — adjust stock without resending the whole dish. */
+export function updateVendorMenuStock(id: string, input: MenuStockInput) {
+  return apiRequest<MenuItem>(`/vendor/menu/${id}/stock`, { method: "PATCH", body: input, audience: AUD });
+}
+
 /* ---- Food Orders (Food Owner) ---- */
 
-export function getVendorFoodOrders(params: { status?: FoodOrderStatus; page?: number; limit?: number } = {}) {
+export function getVendorFoodOrders(
+  params: {
+    status?: FoodOrderStatus;
+    /** Omit to pull orders from every turf at once. */
+    outletId?: string;
+    orderType?: FoodOrderType;
+    scope?: "upcoming" | "history";
+    page?: number;
+    limit?: number;
+  } = {}
+) {
   return apiRequest<Paginated<FoodOrder>>("/vendor/food-orders", { query: params, audience: AUD });
+}
+
+/** Full order behind a scanned QR — read-only, so the counter can verify before handing over. */
+export function getVendorFoodOrder(orderId: string) {
+  return apiRequest<FoodOrder>(`/vendor/food-orders/${orderId}`, { audience: AUD });
+}
+
+export interface CounterOrderInput {
+  outletId: string;
+  items: { menuItemId: string; quantity: number; variantLabel?: string }[];
+  customerName?: string;
+  phone?: string;
+  paymentMethod?: "Cash" | "UPI" | "Card" | "Other";
+  paymentStatus?: "Paid" | "Unpaid";
+  notes?: string;
+}
+
+/** Billing Slide / POS — ring up a walk-in bill against the live menu. */
+export function createVendorCounterOrder(input: CounterOrderInput) {
+  return apiRequest<FoodOrder>("/vendor/food-orders/counter", { method: "POST", body: input, audience: AUD });
 }
 
 export function updateVendorFoodOrderStatus(orderId: string, status: FoodOrderStatus) {

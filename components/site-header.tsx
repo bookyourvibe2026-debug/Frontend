@@ -13,6 +13,7 @@ import { CustomerNotificationBell } from "./notifications/CustomerNotificationBe
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Sports", href: "/games" },
+  { label: "Dineout", href: "/food" },
   { label: "Events", href: "/events" },
   { label: "Coaches", href: "/coaches" },
   { label: "Community", href: "/community" },

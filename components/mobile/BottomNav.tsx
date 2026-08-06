@@ -18,6 +18,7 @@ import {
   Trophy,
   Users,
   UserRoundCog,
+  UtensilsCrossed,
   X,
   Zap,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { SignupModal } from "@/components/home/modals/SignupModal";
 const PRIMARY_TABS = [
   { label: "Home", href: "/", icon: Home },
   { label: "Games", href: "/games", icon: Gamepad2 },
+  { label: "Dineout", href: "/food", icon: UtensilsCrossed },
   { label: "Events", href: "/events", icon: Calendar },
   { label: "Community", href: "/community", icon: Users },
 ];
@@ -58,7 +60,7 @@ export function BottomNav() {
     <>
       <div className="h-16 sm:hidden" aria-hidden />
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] backdrop-blur-md sm:hidden">
-        <div className="mx-auto flex max-w-lg items-stretch justify-between px-1">
+        <div className="mx-auto flex max-w-lg items-stretch justify-between px-0.5">
           {PRIMARY_TABS.map((tab) => {
             const active = isActive(tab.href);
             const Icon = tab.icon;
@@ -66,10 +68,14 @@ export function BottomNav() {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
+                className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
               >
                 <Icon className={`h-5 w-5 ${active ? "text-brand-600" : "text-slate-400"}`} strokeWidth={active ? 2.5 : 2} />
-                <span className={`text-[10px] font-semibold ${active ? "text-brand-600" : "text-slate-400"}`}>
+                <span
+                  className={`w-full truncate text-center text-[9px] font-semibold leading-tight ${
+                    active ? "text-brand-600" : "text-slate-400"
+                  }`}
+                >
                   {tab.label}
                 </span>
               </Link>
@@ -78,10 +84,10 @@ export function BottomNav() {
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
+            className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
           >
             <Menu className="h-5 w-5 text-slate-400" />
-            <span className="text-[10px] font-semibold text-slate-400">More</span>
+            <span className="w-full truncate text-center text-[9px] font-semibold leading-tight text-slate-400">More</span>
           </button>
         </div>
       </nav>

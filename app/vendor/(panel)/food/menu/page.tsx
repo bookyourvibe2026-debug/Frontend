@@ -19,6 +19,7 @@ import {
 import { PageHero, SectionCard, Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
 import { VariantPricingEditor } from "@/components/food/VariantPricingEditor";
+import { CategoryPrepTimeEditor } from "@/components/food/CategoryPrepTimeEditor";
 import { MENU_CATEGORY_PRESETS } from "@/lib/foodTaxonomy";
 import { uploadVendorImage } from "@/lib/api/uploads";
 import {
@@ -447,6 +448,14 @@ function MenuPageContent() {
               </div>
             )}
           </SectionCard>
+
+          {/* Per-category prep times — these drive the player's checkout ETA */}
+          <CategoryPrepTimeEditor
+            outlet={activeOutlet}
+            categories={categories}
+            onSaved={(updated) => setOutlets((list) => list.map((o) => (o._id === updated._id ? updated : o)))}
+            onToast={setToast}
+          />
 
           {/* Menu grouped by category */}
           <SectionCard title={`Menu — ${activeOutlet.name}`} description="Grouped by category. Tap the stock badge to mark items unavailable.">

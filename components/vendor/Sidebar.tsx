@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Briefcase,
   CalendarCheck2,
+  LayoutGrid,
   Wallet,
   CreditCard,
   ShieldCheck,
@@ -17,10 +18,13 @@ import {
   UtensilsCrossed,
   ClipboardList,
   UserRoundCog,
-  Trophy,
   Tag,
   Ticket,
   ScanLine,
+  Receipt,
+  Boxes,
+  Clock3,
+  Star,
   X,
   Bell,
 } from "lucide-react";
@@ -44,9 +48,20 @@ export const NAV_ITEMS_BY_VERTICAL: Record<VendorVertical, { href: string; label
   ],
   food: [
     { href: "/vendor/food/dashboard", label: "Food Dashboard", icon: LayoutDashboard },
+    { href: "/vendor/food/notifications", label: "Notifications", icon: Bell },
+    { href: "/vendor/food/reservations", label: "Table Reservations", icon: CalendarCheck2 },
+    { href: "/vendor/food/tables", label: "Tables", icon: LayoutGrid },
     { href: "/vendor/food/profile", label: "Restaurants", icon: Briefcase },
     { href: "/vendor/food/menu", label: "Menu Management", icon: UtensilsCrossed },
+    { href: "/vendor/food/offers", label: "Offers", icon: Tag },
     { href: "/vendor/food/orders", label: "Food Orders", icon: ClipboardList },
+    { href: "/vendor/food/payments", label: "Payments", icon: Wallet },
+    { href: "/vendor/food/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/vendor/food/reviews", label: "Reviews", icon: Star },
+    { href: "/vendor/food/team", label: "Team", icon: UserRoundCog },
+    { href: "/vendor/food/activity", label: "Activity Log", icon: Clock3 },
+    { href: "/vendor/food/pos", label: "Billing Slide / POS", icon: Receipt },
+    { href: "/vendor/food/inventory", label: "Inventory", icon: Boxes },
   ],
   coaches: [
     { href: "/vendor/coaches/dashboard", label: "Coaches Dashboard", icon: LayoutDashboard },
@@ -62,7 +77,8 @@ export const MOBILE_NAV_ORDER: Partial<Record<VendorVertical, string[]>> = {
   events: ["/vendor/events/listings", "/vendor/events/scanner", "/vendor/events/dashboard"],
   // Dashboard sits 3rd so the bottom-nav floats it to the centre.
   coaches: ["/vendor/coaches", "/vendor/coaches/schedule", "/vendor/coaches/dashboard", "/vendor/coaches/notifications"],
-  food: ["/vendor/food/menu", "/vendor/food/orders", "/vendor/food/dashboard", "/vendor/food/profile"],
+  // Dashboard sits 3rd so the bottom-nav floats it to the centre; deeper tools live under "More".
+  food: ["/vendor/food/reservations", "/vendor/food/tables", "/vendor/food/dashboard", "/vendor/food/menu"],
 };
 
 const VERTICAL_TAB_LABELS: Record<VendorVertical, string> = {
@@ -91,30 +107,20 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [appMode, setAppMode] = useState<VendorVertical>(() => {
-    if (typeof localStorage !== "undefined") {
+  const activeMode = (() => {
+    const matched = verticals.find((v) =>
+      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
+    );
+    if (matched) return matched;
+    if (typeof window !== "undefined") {
       const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
       if (stored && verticals.includes(stored)) return stored;
     }
     return verticals[0] ?? "turf";
-  });
-
-  useEffect(() => {
-    // Only switch active vertical if pathname explicitly matches a vertical-specific route
-    const matched = verticals.find((v) =>
-      NAV_ITEMS_BY_VERTICAL[v].some((item) => pathname?.startsWith(item.href))
-    );
-    if (matched) {
-      setAppMode(matched);
-      localStorage.setItem("byv_vendor_active_vertical", matched);
-    }
-  }, [pathname, verticals]);
-
-  const activeMode = verticals.includes(appMode) ? appMode : verticals[0] ?? "turf";
+  })();
 
   /** Switch panels: jump straight to that vertical's dashboard (its first nav item). */
   function switchVertical(v: VendorVertical) {
-    setAppMode(v);
     localStorage.setItem("byv_vendor_active_vertical", v);
     const home = NAV_ITEMS_BY_VERTICAL[v][0]?.href ?? "/vendor/dashboard";
     router.push(home);

@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Book Your Vibe",
     short_name: "Book Your Vibe",
     description:
-      "Book sports venues, join tournaments and challenges, connect with the community, and order food, all in one platform.",
+      "Book sports venues, join tournaments and challenges, connect with the community, and reserve tables or pay dine-in bills at partner restaurants.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

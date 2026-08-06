@@ -7,7 +7,7 @@ import Sidebar from "@/components/vendor/Sidebar";
 import BottomNav from "@/components/vendor/BottomNav";
 import { VendorPanelSwitcher } from "@/components/vendor/VendorPanelSwitcher";
 
-import { isVendorOwner, restoreVendorSession, vendorLogout, type VendorProfile } from "@/lib/api/auth";
+import { restoreVendorSession, vendorLogout, type VendorProfile } from "@/lib/api/auth";
 import { VendorAuthProvider } from "@/components/providers/VendorAuthProvider";
 
 export default function VendorPanelLayout({
@@ -92,7 +92,7 @@ export default function VendorPanelLayout({
             {children}
           </main>
         </div>
-        <BottomNav verticals={session.verticals} onLogout={() => void handleLogout()} />
+        <BottomNav verticals={session.verticals} />
       </div>
     </VendorAuthProvider>
   );

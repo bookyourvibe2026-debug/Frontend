@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useVendorAuth } from "@/components/providers/VendorAuthProvider";
 import { isVendorOwner } from "@/lib/api/auth";
@@ -49,9 +49,20 @@ const ICON_COLOR_BY_HREF: Record<string, { bg: string; text: string }> = {
   "/vendor/events/listings": { bg: "bg-rose-50", text: "text-rose-600" },
   "/vendor/events/scanner": { bg: "bg-cyan-50", text: "text-cyan-600" },
   "/vendor/food/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
+  "/vendor/food/notifications": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/food/reservations": { bg: "bg-emerald-50", text: "text-emerald-600" },
+  "/vendor/food/tables": { bg: "bg-emerald-50", text: "text-emerald-600" },
   "/vendor/food/profile": { bg: "bg-orange-50", text: "text-orange-600" },
   "/vendor/food/menu": { bg: "bg-amber-50", text: "text-amber-600" },
+  "/vendor/food/offers": { bg: "bg-rose-50", text: "text-rose-600" },
   "/vendor/food/orders": { bg: "bg-emerald-50", text: "text-emerald-600" },
+  "/vendor/food/payments": { bg: "bg-lime-50", text: "text-lime-700" },
+  "/vendor/food/analytics": { bg: "bg-blue-50", text: "text-blue-600" },
+  "/vendor/food/reviews": { bg: "bg-fuchsia-50", text: "text-fuchsia-600" },
+  "/vendor/food/team": { bg: "bg-indigo-50", text: "text-indigo-600" },
+  "/vendor/food/activity": { bg: "bg-slate-100", text: "text-slate-600" },
+  "/vendor/food/pos": { bg: "bg-violet-50", text: "text-violet-600" },
+  "/vendor/food/inventory": { bg: "bg-amber-50", text: "text-amber-600" },
   "/vendor/coaches/dashboard": { bg: "bg-sky-50", text: "text-sky-600" },
   "/vendor/coaches": { bg: "bg-teal-50", text: "text-teal-600" },
   "/vendor/coaches/schedule": { bg: "bg-violet-50", text: "text-violet-600" },
@@ -99,8 +110,6 @@ export default function MorePage() {
     external?: boolean;
   }
 
-  const [overflowItems, setOverflowItems] = useState<MoreLink[]>([]);
-  const [activeVertical, setActiveVertical] = useState<VendorVertical | null>(null);
   const [boostOpen, setBoostOpen] = useState(false);
   const [partialPaymentOpen, setPartialPaymentOpen] = useState(false);
   const [addingVertical, setAddingVertical] = useState<VendorVertical | null>(null);
@@ -124,12 +133,17 @@ export default function MorePage() {
     }
   }
 
-  useEffect(() => {
-    if (!vendor) return;
+  const activeVertical = useMemo(() => {
+    if (!vendor) return null;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
+      if (stored && vendor.verticals.includes(stored)) return stored;
+    }
+    return vendor.verticals[0] ?? "turf";
+  }, [vendor]);
 
-    const stored = localStorage.getItem("byv_vendor_active_vertical") as VendorVertical | null;
-    const activeVertical = (stored && vendor.verticals.includes(stored)) ? stored : (vendor.verticals[0] ?? "turf");
-    setActiveVertical(activeVertical);
+  const overflowItems = useMemo<MoreLink[]>(() => {
+    if (!vendor || !activeVertical) return [];
 
     const allItems = NAV_ITEMS_BY_VERTICAL[activeVertical] ?? [];
     const customOrder = MOBILE_NAV_ORDER[activeVertical];
@@ -137,14 +151,14 @@ export default function MorePage() {
       ? (customOrder.map((href) => allItems.find((item) => item.href === href)).filter(Boolean) as typeof allItems)
       : allItems.slice(0, MAX_PRIMARY_ITEMS);
     const primaryHrefs = new Set(primaryItems.map((item) => item.href));
-    
+
     // Events organizers & coaches don't use Role Access, My Listings or BYV Insights — hide them there.
     const isEvents = activeVertical === "events";
     const hideBusinessExtras = isEvents || activeVertical === "coaches";
 
     // Filter out primary items and don't double include "Marketing" if it's already shown as a big card.
     // For events, Profile lives in the bottom nav, so it's dropped from this list here.
-    const list: MoreLink[] = [
+    return [
       ...allItems.filter(
         (item) => !primaryHrefs.has(item.href) && item.href !== "/vendor/marketing" && item.href !== "/vendor/payments"
       ),
@@ -163,8 +177,7 @@ export default function MorePage() {
       { href: SUPPORT_WHATSAPP_URL, label: "Chat with Us", icon: MessageCircle, external: true },
       { href: "/vendor/forgot-password", label: "Forgot Password", icon: KeyRound },
     ];
-    setOverflowItems(list);
-  }, [vendor]);
+  }, [activeVertical, vendor]);
 
   const handleLogout = async () => {
     try {

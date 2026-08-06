@@ -16,12 +16,12 @@ try {
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.bookyourvibe.in";
 const SITE_NAME = "Book Your Vibe";
 const SITE_DESCRIPTION =
-  "Book Your Vibe - Play. Book. Vibe. Book sports venues, join tournaments and challenges, connect with the community, and order food, all in one platform.";
+  "Book Your Vibe - Play. Book. Vibe. Book sports venues, join tournaments and challenges, connect with the community, and reserve tables or pay dine-in bills at partner restaurants.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    default: `${SITE_NAME} | Book Sports Venues, Tournaments & Dineout`,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -32,7 +32,9 @@ export const metadata: Metadata = {
     "sports challenges",
     "venue booking app",
     "sports community",
-    "food ordering",
+    "restaurant reservations",
+    "dineout",
+    "pay restaurant bill",
     "play book vibe",
   ],
   applicationName: SITE_NAME,
@@ -46,7 +48,7 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    title: `${SITE_NAME} | Book Sports Venues, Tournaments & Dineout`,
     description: SITE_DESCRIPTION,
     locale: "en_IN",
     images: [
@@ -60,7 +62,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: `${SITE_NAME} | Book Sports Venues, Tournaments & More`,
+    title: `${SITE_NAME} | Book Sports Venues, Tournaments & Dineout`,
     description: SITE_DESCRIPTION,
     images: [`${SITE_URL}/logo.jpg`],
   },
@@ -120,7 +122,7 @@ export default function RootLayout({
                 "https://www.instagram.com/bookyourvibe",
                 "https://twitter.com/bookyourvibe"
               ],
-              "description": "Book Your Vibe - Play. Book. Vibe. Book sports venues (turfs, box cricket, badminton courts), register for tournaments and challenges, and order food in Udaipur, Rajasthan."
+              "description": "Book Your Vibe - Play. Book. Vibe. Book sports venues (turfs, box cricket, badminton courts), register for tournaments and challenges, reserve restaurant tables, and pay dine-in bills in Udaipur, Rajasthan."
             })
           }}
         />

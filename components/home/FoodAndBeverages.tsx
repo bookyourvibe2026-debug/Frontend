@@ -12,7 +12,7 @@ export function FoodAndBeverages() {
   const [outlets, setOutlets] = useState<FoodOutlet[]>([]);
 
   useEffect(() => {
-    getFoodOutlets({ limit: 3 })
+    getFoodOutlets({ kind: "dining", limit: 3 })
       .then((result) => setOutlets(result.items))
       .catch(() => setOutlets([]));
   }, []);
@@ -21,7 +21,7 @@ export function FoodAndBeverages() {
     <section id="food" className="mx-auto mt-16 max-w-7xl px-4 sm:px-6">
       <SectionHeading
         title="Food & Beverages"
-        subtitle="Order snacks and drinks from partner restaurants and venue counters."
+        subtitle="Discover partner restaurants, reserve tables, and pay dine-in bills through BookYourVibe."
         actionLabel="View All"
         onAction={() => window.location.assign("/food")}
       />
@@ -53,8 +53,8 @@ export function FoodAndBeverages() {
           <span className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><Store className="h-5 w-5" /></span>
             <span>
-              <span className="block text-sm font-bold text-slate-700">Explore Food &amp; Beverages</span>
-              <span className="block text-xs text-slate-500">Browse partner restaurants and venue counters.</span>
+              <span className="block text-sm font-bold text-slate-700">Explore Dineout</span>
+              <span className="block text-xs text-slate-500">Browse restaurants, book tables, and settle bills in app.</span>
             </span>
           </span>
           <ArrowRight className="h-4 w-4 text-brand-600" />

@@ -81,8 +81,8 @@ export function Hero({
             </h1>
 
             <p className="mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
-              Book courts and turfs, find players for tonight&rsquo;s match, order food
-              courtside, and never argue about who owes what — all from one app.
+              Book courts and turfs, find players for tonight&rsquo;s match, discover nearby
+              restaurants, and never argue about who owes what - all from one app.
             </p>
 
             {/* Search bar */}

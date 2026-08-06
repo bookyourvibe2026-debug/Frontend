@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CalendarOff, ChevronLeft, ChevronRight, Clock, Store, Trash2, UtensilsCrossed, X } from "lucide-react";
 import { SectionCard, Badge } from "@/components/vendor/ui";
 import { Toast } from "@/components/admin/Toast";
+import { DineoutSettingsEditor } from "@/components/dineout/DineoutSettingsEditor";
 import { TimeField } from "@/components/vendor/TimeField";
 import {
   addOutletLeave,
@@ -88,6 +89,11 @@ export default function VendorOutletDetailPage() {
           <UtensilsCrossed size={15} /> Menu
         </Link>
       </div>
+
+      {/* Dineout controls only apply to partner restaurants, not venue food counters. */}
+      {outlet.kind === "dining" && (
+        <DineoutSettingsEditor outlet={outlet} onSaved={setOutlet} onToast={setToast} />
+      )}
 
       <HoursCard outlet={outlet} onSaved={(m) => { setToast(m); refresh(); }} onError={setToast} />
       <HolidaysCard outlet={outlet} onChanged={(m) => { setToast(m); refresh(); }} onError={setToast} />
