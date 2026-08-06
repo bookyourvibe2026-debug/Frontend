@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  Calendar,
   CupSoda,
   Feather,
   Flame,
@@ -13,13 +14,16 @@ import {
   Heart,
   LayoutGrid,
   MapPin,
+  Medal,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Star,
   Swords,
   Trophy,
   Waves,
   X,
+  Zap,
 } from "lucide-react";
 import { type Venue } from "@/lib/venues";
 import { getFoodOutlets } from "@/lib/api/foodOrders";
@@ -31,11 +35,41 @@ import { LastMinuteDealsSection } from "../LastMinuteDealsSection";
 import { TopPlayersRanking } from "../TopPlayersRanking";
 
 const MOBILE_QUICK_ACTIONS = [
-  { id: "coaches", label: "Coaches", icon: GraduationCap },
-  { id: "challenge-a-friend", label: "Challenge a Friend", icon: Swords },
-  { id: "tournaments", label: "Tournaments", icon: Trophy },
-  { id: "near-me", label: "Near Me", icon: MapPin },
-  { id: "community", label: "Community", icon: Handshake },
+  {
+    id: "coaches",
+    label: "Coaches",
+    icon: GraduationCap,
+    iconBg: "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600",
+    glowColor: "shadow-amber-500/30",
+  },
+  {
+    id: "challenge-a-friend",
+    label: "Challenge a Friend",
+    icon: Swords,
+    iconBg: "bg-gradient-to-br from-rose-500 via-red-500 to-orange-500",
+    glowColor: "shadow-rose-500/30",
+  },
+  {
+    id: "tournaments",
+    label: "Tournaments",
+    icon: Trophy,
+    iconBg: "bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500",
+    glowColor: "shadow-yellow-500/35",
+  },
+  {
+    id: "near-me",
+    label: "Near Me",
+    icon: MapPin,
+    iconBg: "bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500",
+    glowColor: "shadow-emerald-500/30",
+  },
+  {
+    id: "community",
+    label: "Community",
+    icon: Handshake,
+    iconBg: "bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600",
+    glowColor: "shadow-blue-500/30",
+  },
 ];
 
 import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
@@ -222,7 +256,7 @@ export function MobileHome({
       </div>
 
       <section>
-        <MobileSectionRow title="Choose Your Game" actionLabel="View All Sports" onAction={onViewAllSports} />
+        <MobileSectionRow title="Choose Your Game" />
         <SportsCategoryBar
           categories={CHOOSE_GAME_CHIPS}
           selectedId={selectedGame}
@@ -242,23 +276,23 @@ export function MobileHome({
       <LastMinuteDealsSection className="" />
 
       <section>
-        <MobileSectionRow
-          title="Quick Actions"
-          actionLabel="View All"
-          onAction={onViewAllQuickActions}
-        />
+        <MobileSectionRow title="Quick Actions" />
         <div className="-mx-4 flex items-start gap-3.5 overflow-x-auto px-4 pt-2 pb-1 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {MOBILE_QUICK_ACTIONS.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => onQuickAction(a.id, "")}
-              className="flex shrink-0 w-[74px] flex-col items-center gap-2 text-center group active:scale-95 transition-transform"
+              className="flex shrink-0 w-[76px] flex-col items-center gap-2 text-center group active:scale-95 transition-transform"
             >
-              <span className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-white text-[#f97316] shadow-md shadow-slate-200/50 border border-slate-100/80 transition-all duration-300 group-hover:scale-105 group-hover:border-orange-200">
-                <a.icon className="h-8 w-8 stroke-[2]" />
-              </span>
-              <span className="text-[11px] font-extrabold leading-tight text-slate-800 tracking-tight">
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-white p-1 shadow-[0_8px_22px_rgba(0,0,0,0.06)] border border-slate-100 transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
+                <div
+                  className={`flex h-full w-full items-center justify-center rounded-[18px] ${a.iconBg} text-white shadow-md ${a.glowColor}`}
+                >
+                  <a.icon className="h-8 w-8 stroke-[2.2] drop-shadow-md" />
+                </div>
+              </div>
+              <span className="text-[11px] font-extrabold leading-tight text-slate-800 tracking-tight group-hover:text-brand-600 transition-colors">
                 {a.label}
               </span>
             </button>
@@ -379,49 +413,156 @@ export function MobileHome({
       </section>
 
       <section>
-        <MobileSectionRow title="Food & Beverages" actionLabel="View All" onAction={() => window.location.assign("/food")} />
-        <div className="space-y-2">
-          {foodOutlets.length > 0 ? foodOutlets.map((outlet) => (
-            <Link
-              key={outlet._id}
-              href={`/food/${outlet.slug || outlet._id}`}
-              className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                <CupSoda className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold text-slate-900">{outlet.name}</span>
-                <span className="block truncate text-xs text-slate-500">{outlet.location.city || outlet.location.area || "Food partner"}</span>
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-brand-600" />
-            </Link>
-          )) : (
-            <Link href="/food" className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><CupSoda className="h-5 w-5" /></span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-700">Explore food near your game</span><span className="block text-xs text-slate-500">Restaurants and venue counters</span></span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-brand-600" />
-            </Link>
-          )}
+        <MobileSectionRow title="Dineout" />
+        <div className="mt-2">
+          <Link
+            href="/food"
+            className="group relative block overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)] transition-all duration-300 active:scale-[0.99]"
+          >
+            {/* Hero Cover Banner Image */}
+            <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1000&q=80"
+                alt="Dineout"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-black/20" />
+
+              {/* Top Badges */}
+              <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2">
+                <span className="rounded-full bg-slate-900/90 backdrop-blur-md px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-xs">
+                  DINEOUT &amp; CAFÉS
+                </span>
+                <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow-md">
+                  <Zap className="h-3 w-3 fill-slate-950 text-slate-950 shrink-0" />
+                  <span>UP TO 15% OFF</span>
+                </span>
+              </div>
+
+              {/* Bottom Inset Outlets Preview */}
+              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                <div className="flex -space-x-2">
+                  {[
+                    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=120&q=80",
+                    "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=120&q=80",
+                    "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=120&q=80",
+                  ].map((src, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={src} alt="Outlet" className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm" />
+                  ))}
+                </div>
+                <span className="rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-extrabold text-amber-300 border border-white/10">
+                  12+ Outlets Live
+                </span>
+              </div>
+            </div>
+
+            {/* Body Content */}
+            <div className="relative p-4 pt-3">
+              <h3 className="text-base font-black text-slate-900 line-clamp-1 group-hover:text-brand-600 transition-colors">
+                Partner Dining Spots &amp; Venue Counters
+              </h3>
+              <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2 leading-relaxed">
+                Explore all top-rated cafes, restaurants &amp; venue food counters near your game with exclusive player discounts.
+              </p>
+
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {["Continental", "Italian", "Fast Food", "Beverages"].map((c: string) => (
+                  <span key={c} className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
+                    {c}
+                  </span>
+                ))}
+              </div>
+
+              {/* Order Button */}
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-[#0f172a] px-4 py-2.5 text-white shadow-sm transition group-hover:bg-brand-600">
+                <span className="text-xs font-black uppercase tracking-wide">EXPLORE DINEOUT OUTLETS</span>
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            </div>
+          </Link>
         </div>
       </section>
 
       <section>
-        <MobileCard className="flex flex-col gap-2 !p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-900">Upcoming Events</p>
-            <button onClick={onViewAllEvents} className="text-[10px] font-semibold text-brand-600">
-              View All
-            </button>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-2.5">
-            <Trophy className="h-6 w-6 shrink-0 text-amber-500" aria-hidden />
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">BYV Premier League</p>
-              <p className="text-[10px] text-slate-500">31 May – 6 June</p>
+        <MobileSectionRow title="Upcoming Events & Tournaments" actionLabel="View All" onAction={onViewAllEvents} />
+
+        <div className="mt-2 space-y-4">
+          <div
+            onClick={onViewAllEvents}
+            className="group relative cursor-pointer overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-[0_10px_30px_rgba(245,158,11,0.12)] transition-all duration-300 active:scale-[0.99]"
+          >
+            {/* Header Banner */}
+            <div className="relative h-36 w-full overflow-hidden bg-slate-900 p-4 text-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/events-banner.png"
+                alt="Upcoming Events Banner"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+
+              {/* Badges */}
+              <div className="relative z-10 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1 rounded-full bg-amber-400 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow-md">
+                  <Sparkles className="h-3 w-3 fill-slate-950" /> Live Championship
+                </span>
+                <span className="rounded-full bg-black/65 backdrop-blur-md px-3 py-1 text-[10px] font-extrabold text-amber-200 border border-amber-400/30">
+                  ₹50,000 Prize Pool
+                </span>
+              </div>
+
+              <div className="absolute bottom-3 left-4 right-4 z-10">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300">Annual Tournament</p>
+                <h3 className="text-lg font-black text-white drop-shadow-md line-clamp-1">BYV Premier League 2026</h3>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-4 pt-3">
+              <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <Calendar className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>31 May – 6 June 2026</span>
+                </div>
+                <div className="flex items-center gap-1 text-slate-500">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>Udaipur Sports Hub</span>
+                </div>
+              </div>
+
+              {/* Tournament Features */}
+              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-amber-50/80 border border-amber-100 p-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+                  <Trophy className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-extrabold text-slate-900 truncate">Multi-Sport Championship</p>
+                  <p className="text-[11px] font-medium text-amber-800 truncate">Football · Pickleball · Badminton</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="block text-[10px] font-bold uppercase text-slate-400">Slots</span>
+                  <span className="text-xs font-black text-emerald-600">12 / 16 Teams</span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                onClick={onViewAllEvents}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 py-2.5 text-xs font-extrabold text-white shadow-md shadow-amber-500/20 transition group-hover:brightness-110"
+              >
+                <Medal className="h-4 w-4" /> Register &amp; View Details
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
-        </MobileCard>
+        </div>
       </section>
 
       {filtersOpen && (

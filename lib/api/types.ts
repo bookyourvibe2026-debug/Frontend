@@ -190,6 +190,8 @@ export interface Booking {
   phone: string;
   email?: string;
   sport?: string;
+  duration?: string;
+  durationMinutes?: number;
   /** Which court was booked. Absent on bookings taken before courts existed.
    *  With several courts booked together this is the first of `courtIds`. */
   courtId?: string;

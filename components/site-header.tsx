@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, ShieldCheck, User, X } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 import { useCustomerAuth } from "./providers/CustomerAuthProvider";
 import { LoginModal } from "./home/modals/LoginModal";
@@ -59,7 +59,6 @@ export function SiteHeader() {
           className="shrink-0"
           logoBoxClassName="h-11 w-11 rounded-xl sm:h-12 sm:w-12"
           imageClassName="p-1.5"
-          showText={false}
           priority
         />
 
@@ -95,19 +94,12 @@ export function SiteHeader() {
           </Link>
 
           {isLoggedIn ? (
-            <div className="hidden items-center gap-2 sm:flex">
-              <button
-                type="button"
-                onClick={logout}
-                className="rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
-              >
-                Logout
-              </button>
+            <div className="flex items-center gap-2">
               <Link
                 href="/profile"
                 aria-label="My Profile"
                 title="My Profile"
-                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200"
+                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-bold text-brand-700 transition hover:bg-brand-200 border border-brand-200 shadow-2xs"
               >
                 {customer?.avatarUrl && !imgError ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -116,22 +108,33 @@ export function SiteHeader() {
                     alt={userName}
                     className="h-full w-full object-cover"
                     onError={() => setImgError(true)}
-            loading="lazy"
-            decoding="async"
-          />
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   getInitials()
                 )}
               </Link>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAuthView("login")}
-              className="hidden rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.03] sm:inline-flex"
-            >
-              Login / Sign Up
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setAuthView("login")}
+                className="hidden rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/30 transition hover:scale-[1.03] sm:inline-flex"
+              >
+                Login / Sign Up
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthView("login")}
+                aria-label="Profile / Login"
+                title="Profile / Login"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-2xs transition active:scale-95 sm:hidden"
+              >
+                <User className="h-4 w-4 text-slate-700" />
+              </button>
+            </>
           )}
 
           <button

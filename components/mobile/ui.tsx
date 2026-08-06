@@ -45,30 +45,32 @@ export function MobileTopBar() {
           subtitleClassName="text-slate-400 text-[8px]"
           priority
         />
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-2">
           <CustomerNotificationBell />
-          {status !== "loading" && (
-            isLoggedIn ? (
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition active:scale-95 hover:bg-rose-100"
-                title="Logout"
-                aria-label="Logout"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Logout</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAuthView("login")}
-                className="flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition active:scale-95"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Login</span>
-              </button>
-            )
+          {isLoggedIn ? (
+            <Link
+              href="/profile"
+              aria-label="My Profile"
+              title="My Profile"
+              className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand-200 bg-brand-50 text-xs font-black text-brand-700 shadow-2xs transition active:scale-95"
+            >
+              {customer?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={customer.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                customer?.name?.charAt(0).toUpperCase() || <User className="h-4 w-4 text-brand-600" />
+              )}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAuthView("login")}
+              aria-label="Profile / Login"
+              title="Profile / Login"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-2xs transition hover:border-brand-300 hover:text-brand-600 active:scale-95"
+            >
+              <User className="h-4 w-4 text-slate-700" />
+            </button>
           )}
           <button
             aria-label="Toggle menu"
@@ -89,7 +91,7 @@ export function MobileTopBar() {
           />
           <div className="fixed inset-x-0 top-0 z-50 max-h-[85vh] overflow-y-auto rounded-b-3xl bg-white p-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <BrandLogo showText={false} logoBoxClassName="h-11 w-11 rounded-xl" imageClassName="p-1.5" />
+              <BrandLogo logoBoxClassName="h-11 w-11 rounded-xl" imageClassName="p-1.5" />
               <button
                 aria-label="Close menu"
                 onClick={() => setMenuOpen(false)}

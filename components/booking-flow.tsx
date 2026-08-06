@@ -260,7 +260,7 @@ function SportChips({
   return (
     <div
       ref={scrollRef}
-      className={`flex items-center gap-2.5 overflow-x-auto py-1.5 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      className={`flex items-center gap-2 overflow-x-auto py-1.5 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {categories.map((catId) => {
         const name = categoryLabel(catId);
@@ -270,26 +270,18 @@ function SportChips({
             key={catId}
             type="button"
             onClick={() => handleSelect(name)}
-            className={`group relative flex h-[82px] w-[80px] shrink-0 flex-col items-center justify-center gap-1 rounded-[20px] border p-2 text-center transition-all duration-300 ease-in-out transform active:scale-95 cursor-pointer ${active
-              ? "border-[#0b9c65] bg-gradient-to-b from-emerald-50/50 to-white ring-2 ring-[#0b9c65]/30 shadow-md shadow-[#0b9c65]/15 scale-[1.03]"
-              : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:shadow-sm"
+            className={`group relative flex h-10 shrink-0 items-center gap-2 rounded-2xl border px-3.5 text-center text-xs font-extrabold transition-all duration-200 cursor-pointer ${active
+              ? "border-[#0b9c65] bg-emerald-50/80 text-[#0b9c65] ring-2 ring-[#0b9c65]/30 shadow-xs"
+              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
               }`}
           >
-            {active && (
-              <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            )}
-            <span className="flex items-center justify-center text-[32px] leading-none transition duration-200 group-hover:scale-110">
+            <span className="text-base leading-none">
               {sportEmoji(name)}
             </span>
-            <span
-              className={`text-[11px] font-black tracking-tight truncate w-full capitalize ${active ? "text-[#0b9c65]" : "text-slate-700"
-                }`}
-            >
-              {name}
-            </span>
+            <span className="capitalize">{name}</span>
+            {active && (
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            )}
           </button>
         );
       })}
@@ -810,9 +802,11 @@ export default function BookingFlow({
   }, [selectedSlotIndices, generatedSlots]);
 
   // Filter generated slots by activeDaypart select filter — "All" shows every time of day.
+  // Excludes slots that have already passed ("Past") so players only see active & upcoming slots.
   const filteredGeneratedSlots = useMemo(() => {
-    if (activeDaypart === "All") return generatedSlots;
-    return generatedSlots.filter((s) => s.label === activeDaypart);
+    const activeSlots = generatedSlots.filter((s) => s.status !== "Past");
+    if (activeDaypart === "All") return activeSlots;
+    return activeSlots.filter((s) => s.label === activeDaypart);
   }, [generatedSlots, activeDaypart]);
 
   useEffect(() => {
@@ -1499,8 +1493,7 @@ function ReviewStep(props: {
    * reach the ones they can actually book. Time order is kept inside each group.
    */
   const orderedSlots = useMemo(() => {
-    const rank = (s: { status: string }) => (s.status === "Available" ? 0 : s.status === "Past" ? 2 : 1);
-    return [...filteredGeneratedSlots].sort((a, b) => rank(a) - rank(b) || a.originalIndex - b.originalIndex);
+    return [...filteredGeneratedSlots].sort((a, b) => a.originalIndex - b.originalIndex);
   }, [filteredGeneratedSlots]);
 
   /* The slot strip is a 2-row carousel rather than a full grid — a venue open 06:00–24:00
@@ -1650,7 +1643,7 @@ function ReviewStep(props: {
 
       {/* Mobile Header */}
       {!embedded && (
-        <div className="p-4 lg:hidden border-b border-slate-100 bg-white">
+        <div className="px-4 pt-3.5 pb-2 lg:hidden border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
             <button
               onClick={() => (mobileStep === "checkout" && listing.type !== "Event" ? setMobileStep("slots") : onClose())}
@@ -1664,19 +1657,19 @@ function ReviewStep(props: {
           </div>
           {/* Game selector in the header — the player picks the sport they're booking. */}
           {mobileStep === "slots" && (
-            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-3" />
+            <SportChips listing={listing} sport={selectedSport} onSelect={onSelectSport} className="mt-2" />
           )}
         </div>
       )}
 
-      <div className={embedded ? "" : "overflow-y-auto p-4 pb-28 sm:p-5"}>
+      <div className={embedded ? "" : "overflow-y-auto p-3 pt-2.5 pb-28 sm:p-5"}>
         {!embedded && <h2 className="hidden lg:block text-lg font-extrabold text-slate-900">Review &amp; Confirm Your Booking</h2>}
 
-        <div className="mt-3 flex flex-col gap-3 lg:flex-row">
+        <div className="mt-1 lg:mt-3 flex flex-col gap-2.5 lg:gap-3 lg:flex-row">
           {/* LEFT COLUMN */}
           <div className={`flex flex-col gap-3 flex-1 min-w-0 ${listing.type === "Event" ? "hidden" : mobileStep === "checkout" ? "hidden lg:flex" : "flex"}`}>
-            {/* Venue info */}
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            {/* Venue info (Desktop only — mobile already displays venue in header) */}
+            <div className="hidden lg:flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50 text-xl ring-1 ring-slate-100">
                 {sportEmoji(listing.categories[0] ? categoryLabel(listing.categories[0]) : listing.type)}
               </span>
