@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { browsePublicTournaments } from "@/lib/api/tournaments";
 import { Tournament } from "@/lib/api/types";
+import { EventCategoryFilter, EVENT_CATEGORIES } from "@/components/events/EventCategoryFilter";
 
 function statusLabel(t: Tournament) {
   if (t.status === "Completed") return "Completed";
@@ -24,7 +25,7 @@ const MOCK_TOURNAMENTS: Tournament[] = [
     _id: "tour-1",
     vendorId: "v-1",
     title: "Championship Badminton Cup 2026",
-    category: "Badminton",
+    category: "Sports",
     description: "Battle it out in the premier Badminton championship of Udaipur. Open to singles and doubles teams.",
     city: "Udaipur",
     state: "Rajasthan",
@@ -45,44 +46,88 @@ const MOCK_TOURNAMENTS: Tournament[] = [
   {
     _id: "tour-2",
     vendorId: "v-2",
-    title: "BYV Box Cricket Premier League",
-    category: "Cricket",
-    description: "Fast-paced indoor box cricket league. Standard rules, 8 players per team. Cash prize for Winners & Runners-up.",
+    title: "Sunset VIP Cocktail Night & DJ Bash",
+    category: "Alcoholic Party",
+    description: "Exclusive rooftop sunset party with signature cocktails, live DJ sets, and craft drinks.",
     city: "Udaipur",
     state: "Rajasthan",
-    address: "Bhawani Nagar Box Turf",
-    entryFee: 1200,
-    prizeMoney: 25000,
-    startDate: new Date(Date.now() + 86400000 * 10).toISOString(),
-    endDate: new Date(Date.now() + 86400000 * 12).toISOString(),
-    registrationDeadline: new Date(Date.now() + 86400000 * 7).toISOString(),
-    maxTeams: 16,
-    registeredTeamsCount: 14,
+    address: "Skyline Rooftop Lounge",
+    entryFee: 1500,
+    prizeMoney: 0,
+    startDate: new Date(Date.now() + 86400000 * 3).toISOString(),
+    endDate: new Date(Date.now() + 86400000 * 4).toISOString(),
+    registrationDeadline: new Date(Date.now() + 86400000 * 2).toISOString(),
+    maxTeams: 100,
+    registeredTeamsCount: 65,
     status: "Upcoming",
     fixtures: [],
-    spotsLeft: 2,
+    spotsLeft: 35,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     _id: "tour-3",
     vendorId: "v-3",
-    title: "Udaipur Table Tennis Social League",
-    category: "Table Tennis",
-    description: "Friendly table tennis social mixes and knockout tournament. Bring your own paddle or rent one at the venue.",
+    title: "Sober Social & Artisan Mocktail Jam",
+    category: "Non-Alcoholic Party",
+    description: "A high-vibe, zero-alcohol social evening with gourmet mocktails, live acoustic music, and board games.",
     city: "Udaipur",
     state: "Rajasthan",
-    address: "Hiran Magri Table Tennis Club",
-    entryFee: 250,
-    prizeMoney: 5000,
-    startDate: new Date(Date.now() - 86400000 * 1).toISOString(),
-    endDate: new Date(Date.now() + 86400000 * 1).toISOString(),
-    registrationDeadline: new Date(Date.now() - 86400000 * 2).toISOString(),
-    maxTeams: 24,
-    registeredTeamsCount: 24,
-    status: "Ongoing",
+    address: "The Garden Cafe & Studio",
+    entryFee: 499,
+    prizeMoney: 0,
+    startDate: new Date(Date.now() + 86400000 * 6).toISOString(),
+    endDate: new Date(Date.now() + 86400000 * 6).toISOString(),
+    registrationDeadline: new Date(Date.now() + 86400000 * 4).toISOString(),
+    maxTeams: 50,
+    registeredTeamsCount: 38,
+    status: "Upcoming",
     fixtures: [],
-    spotsLeft: 0,
+    spotsLeft: 12,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    _id: "tour-4",
+    vendorId: "v-4",
+    title: "Udaipur Founders & Investors Summit 2026",
+    category: "Business",
+    description: "Premier networking meet for startup founders, tech builders, and angel investors with panel discussions.",
+    city: "Udaipur",
+    state: "Rajasthan",
+    address: "Taj Fateh Prakash Palace Convention Center",
+    entryFee: 2499,
+    prizeMoney: 50000,
+    startDate: new Date(Date.now() + 86400000 * 12).toISOString(),
+    endDate: new Date(Date.now() + 86400000 * 13).toISOString(),
+    registrationDeadline: new Date(Date.now() + 86400000 * 9).toISOString(),
+    maxTeams: 200,
+    registeredTeamsCount: 140,
+    status: "Upcoming",
+    fixtures: [],
+    spotsLeft: 60,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    _id: "tour-5",
+    vendorId: "v-5",
+    title: "Live Indie Music & Standup Comedy Showcase",
+    category: "Performance",
+    description: "An intimate night of live original indie music followed by top standup comedy acts.",
+    city: "Udaipur",
+    state: "Rajasthan",
+    address: "Amphitheatre Cultural Club",
+    entryFee: 799,
+    prizeMoney: 0,
+    startDate: new Date(Date.now() + 86400000 * 8).toISOString(),
+    endDate: new Date(Date.now() + 86400000 * 8).toISOString(),
+    registrationDeadline: new Date(Date.now() + 86400000 * 5).toISOString(),
+    maxTeams: 120,
+    registeredTeamsCount: 110,
+    status: "Upcoming",
+    fixtures: [],
+    spotsLeft: 10,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -91,6 +136,7 @@ const MOCK_TOURNAMENTS: Tournament[] = [
 export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   useEffect(() => {
     browsePublicTournaments({ limit: 24 })
@@ -107,6 +153,29 @@ export default function TournamentsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredTournaments = useMemo(() => {
+    if (selectedCategory === "all") return tournaments;
+
+    const catObj = EVENT_CATEGORIES.find((c) => c.id === selectedCategory);
+    if (!catObj) return tournaments;
+
+    const targetLabel = catObj.label.toLowerCase();
+
+    return tournaments.filter((t) => {
+      const tCat = (t.category || "").toLowerCase();
+      const tTitle = (t.title || "").toLowerCase();
+      const tDesc = (t.description || "").toLowerCase();
+
+      return (
+        tCat.includes(targetLabel) ||
+        tCat.includes(catObj.id) ||
+        targetLabel.includes(tCat) ||
+        tTitle.includes(targetLabel) ||
+        tDesc.includes(targetLabel)
+      );
+    });
+  }, [tournaments, selectedCategory]);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff7ed,_#f8fafc_42%,_#ffffff_78%)]">
       <div className="hidden sm:block">
@@ -119,17 +188,23 @@ export default function TournamentsPage() {
         </div>
         <main className="flex flex-col gap-5 px-4 py-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Tournaments</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Events &amp; Experiences</p>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
-              Competitive events without the clutter.
+              Discover &amp; book events in seconds.
             </h1>
             <p className="mt-2 text-sm text-slate-500">
-              Clear dates, prize money, and status — decide in seconds.
+              Parties, corporate summits, tournaments &amp; live performances near you.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {tournaments.map((t) => (
+          {/* Premium Category Filter Section */}
+          <EventCategoryFilter
+            selectedCategoryId={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+          />
+
+          <div className="flex flex-col gap-3 transition-all duration-300">
+            {filteredTournaments.map((t) => (
               <MobileCard key={t._id} className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -154,15 +229,15 @@ export default function TournamentsPage() {
                 </div>
                 <Link
                   href={`/tournaments/${t._id}`}
-                  className="rounded-full bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white"
+                  className="rounded-full bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white transition active:scale-95"
                 >
-                  View & Register
+                  View &amp; Register
                 </Link>
               </MobileCard>
             ))}
-            {!loading && tournaments.length === 0 && (
+            {!loading && filteredTournaments.length === 0 && (
               <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
-                No tournaments live right now. Check back soon.
+                No events found in this category right now.
               </p>
             )}
           </div>
@@ -172,30 +247,37 @@ export default function TournamentsPage() {
       <main className="mx-auto hidden max-w-7xl px-4 py-10 sm:block sm:px-6 sm:py-14">
         <section className="rounded-[2rem] bg-gradient-to-br from-brand-500 via-accent-500 to-fuchsia-600 p-6 text-white shadow-[0_30px_90px_rgba(249,115,22,0.22)] sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/75">
-            Tournaments
+            Events &amp; Tournaments
           </p>
           <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-            Competitive events without the clutter.
+            Unforgettable experiences &amp; events.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/85 sm:text-base">
-            Discover tournaments that feel organized from the first look. Clear dates, prize
-            money, and the exact status you need to decide quickly.
+            Discover curated parties, corporate summits, tournaments, and live performances.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
-              Multi-sport calendar
+              Multi-category roster
             </span>
             <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
-              Easy registration
+              Instant RSVP
             </span>
             <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
-              Prize pool highlights
+              Verified Hosts
             </span>
           </div>
         </section>
 
-        <section className="mt-8 grid gap-4 lg:grid-cols-2">
-          {tournaments.map((t) => (
+        {/* Desktop Premium Category Filter */}
+        <div className="mt-8">
+          <EventCategoryFilter
+            selectedCategoryId={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+          />
+        </div>
+
+        <section className="mt-8 grid gap-4 lg:grid-cols-2 transition-all duration-300">
+          {filteredTournaments.map((t) => (
             <article
               key={t._id}
               className="rounded-[1.75rem] border border-slate-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
@@ -228,20 +310,20 @@ export default function TournamentsPage() {
 
               <div className="mt-6 flex items-center justify-between gap-3">
                 <p className="text-sm text-slate-500">
-                  {t.maxTeams ? `${t.registeredTeamsCount}/${t.maxTeams} teams registered` : "Best suited for competitive squads."}
+                  {t.maxTeams ? `${t.registeredTeamsCount}/${t.maxTeams} spots registered` : "Best suited for groups & squads."}
                 </p>
                 <Link
                   href={`/tournaments/${t._id}`}
                   className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
                 >
-                  View & Register
+                  View &amp; Register
                 </Link>
               </div>
             </article>
           ))}
-          {!loading && tournaments.length === 0 && (
+          {!loading && filteredTournaments.length === 0 && (
             <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
-              No tournaments live right now. Check back soon.
+              No events found in this category right now.
             </p>
           )}
         </section>
@@ -249,3 +331,4 @@ export default function TournamentsPage() {
     </div>
   );
 }
+

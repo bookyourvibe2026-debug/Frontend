@@ -113,13 +113,19 @@ export function HostEventForm({ onClose, onSaved }: Props) {
                 placeholder="City Half Marathon"
               />
             </FormField>
-            <FormField label="Event Type" error={errors.category}>
-              <input
+            <FormField label="Event Category *" error={errors.category}>
+              <select
                 value={form.category}
                 onChange={(e) => update("category", e.target.value)}
                 className={inputClass(!!errors.category)}
-                placeholder="Marathon, Workshop, Corporate Offsite..."
-              />
+              >
+                <option value="">Select Event Category...</option>
+                <option value="Alcoholic Party">🍾 Alcoholic Party</option>
+                <option value="Non-Alcoholic Party">🥤 Non-Alcoholic Party</option>
+                <option value="Business">💼 Business</option>
+                <option value="Sports">🏆 Sports</option>
+                <option value="Performance">🎭 Performance</option>
+              </select>
             </FormField>
           </div>
 

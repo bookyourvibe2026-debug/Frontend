@@ -53,6 +53,7 @@ export function QuickAddEventModal({
   const [posterUrl, setPosterUrl] = useState("");
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const posterInput = useRef<HTMLInputElement>(null);
+  const [category, setCategory] = useState("Sports");
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -108,12 +109,12 @@ export function QuickAddEventModal({
       return;
     }
     if (!venue) {
-      setError("Search and pick your event venue.");
+      setError("Search and select a venue from the dropdown.");
       return;
     }
-    const priceNum = Number(price);
-    if (price === "" || isNaN(priceNum) || priceNum < 0) {
-      setError("Enter a valid price (0 for free entry).");
+    const priceNum = price === "" ? 0 : Number(price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setError("Enter a valid price.");
       return;
     }
     if (!date) {
@@ -129,7 +130,7 @@ export function QuickAddEventModal({
         id: `byv-${now.getTime()}`,
         title: title.trim(),
         type: "Event",
-        categories: ["Events"],
+        categories: [category, "Events"],
         subCategories: [],
         price: priceNum,
         listedOn: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
@@ -264,6 +265,21 @@ export function QuickAddEventModal({
               placeholder="e.g. Sunday Trek Meetup"
               className={inputClass}
             />
+          </div>
+
+          <div>
+            <label className={fieldLabelClass}>Event Category *</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={inputClass}
+            >
+              <option value="Alcoholic Party">🍾 Alcoholic Party</option>
+              <option value="Non-Alcoholic Party">🥤 Non-Alcoholic Party</option>
+              <option value="Business">💼 Business</option>
+              <option value="Sports">🏆 Sports</option>
+              <option value="Performance">🎭 Performance</option>
+            </select>
           </div>
 
           <div className="relative">

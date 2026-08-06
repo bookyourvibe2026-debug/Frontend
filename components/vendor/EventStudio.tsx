@@ -29,12 +29,11 @@ const STEPS = [
 ] as const;
 
 const EVENT_SUBCATEGORIES = [
-  { id: "marathon", label: "Marathon" },
-  { id: "tournament", label: "Tournament" },
-  { id: "workshop", label: "Workshop" },
-  { id: "corporate-offsite", label: "Corporate Offsite" },
-  { id: "trek-adventure", label: "Trek / Adventure" },
-  { id: "other", label: "Other" },
+  { id: "alcoholic-party", label: "Alcoholic Party" },
+  { id: "non-alcoholic-party", label: "Non-Alcoholic Party" },
+  { id: "business", label: "Business" },
+  { id: "sports", label: "Sports" },
+  { id: "performance", label: "Performance" },
 ];
 
 function todayISO() {
