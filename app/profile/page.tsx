@@ -533,7 +533,7 @@ export default function ProfilePage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-base font-bold text-slate-900">
-                          {b.listingTitle ?? "Venue Booking"}
+                          {b.listingTitle || (b.sport ? `${b.sport} Venue` : "Venue")}
                         </p>
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${

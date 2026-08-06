@@ -156,10 +156,10 @@ export async function downloadBookingTicket(booking: Booking) {
     ctx.fillText("OFFICIAL TICKET", width - 44, 54);
     ctx.textAlign = "left";
 
-    // Listing Title
+    // Listing Title (Venue Name)
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px sans-serif";
-    const titleText = booking.listingTitle ?? "Venue Booking";
+    const titleText = booking.listingTitle || (booking.sport ? `${booking.sport} Venue` : "Venue");
     ctx.fillText(titleText.length > 28 ? `${titleText.slice(0, 28)}…` : titleText, 44, 92);
 
     // Order ID Badge

@@ -2689,7 +2689,10 @@ function ConfirmedStep({ listing, booking, onClose, embedded = false }: { listin
     if (downloading) return;
     setDownloading(true);
     try {
-      await downloadBookingTicket(booking);
+      await downloadBookingTicket({
+        ...booking,
+        listingTitle: booking.listingTitle || listing.title,
+      });
     } finally {
       setDownloading(false);
     }
