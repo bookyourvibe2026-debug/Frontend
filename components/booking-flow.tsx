@@ -879,6 +879,36 @@ export default function BookingFlow({
     );
   }, [courtsForSport, generatedSlots, selectedSlotIndices]);
 
+  // Taken courts whose only clash is someone else's payment in progress (a short-lived
+  // hold, not a firm booking) — shown as "Reserved" rather than "Booked" so a player
+  // understands why an apparently-open court can't be picked right now.
+  const heldOnlyCourtIds = useMemo(() => {
+    const windows = selectedSlotIndices
+      .map((idx) => generatedSlots[idx])
+      .filter((s): s is NonNullable<typeof s> => Boolean(s))
+      .map((s) => {
+        const start = time24ToMinutes(s.startTime);
+        let end = time24ToMinutes(s.endTime);
+        if (end <= start) end += 1440;
+        return { start, end };
+      });
+    if (windows.length === 0) return new Set<string>();
+
+    const held = new Set<string>();
+    const firm = new Set<string>();
+    for (const r of bookedRanges) {
+      if (!r.courtId) continue;
+      const rStart = time24ToMinutes(r.startTime);
+      let rEnd = time24ToMinutes(r.endTime);
+      if (rEnd <= rStart) rEnd += 1440;
+      const overlaps = windows.some((w) => rStart < w.end && w.start < rEnd);
+      if (!overlaps) continue;
+      (r.status === "Pending" ? held : firm).add(r.courtId);
+    }
+    for (const id of firm) held.delete(id);
+    return held;
+  }, [bookedRanges, generatedSlots, selectedSlotIndices]);
+
   // Until the player picks, the first free court stands in — the same one they'd tap
   // anyway. Anything taken while they were deciding drops out instead of failing at
   // payment, so what's shown as selected is always still bookable.
@@ -1162,6 +1192,7 @@ export default function BookingFlow({
             setDateSelected(true);
           }}
           freeCourts={freeCourts}
+          heldOnlyCourtIds={heldOnlyCourtIds}
           courtsForSport={courtsForSport}
           selectedCourts={selectedCourts}
           selectedCourtIds={effectiveCourtIds}
@@ -1362,6 +1393,8 @@ function ReviewStep(props: {
   onSelectSport: (s: string) => void;
   /** Courts still open for the selected slots. */
   freeCourts: Court[];
+  /** Taken courts blocked only by someone else's in-progress checkout, not a firm booking. */
+  heldOnlyCourtIds: Set<string>;
   /** Every court that hosts the selected sport — taken ones render disabled. */
   courtsForSport: Court[];
   /** Courts currently selected for the booking. */
@@ -1410,6 +1443,7 @@ function ReviewStep(props: {
     selectedSlotIndices,
     onToggleSlotSelection,
     freeCourts,
+    heldOnlyCourtIds,
     courtsForSport,
     selectedCourts,
     selectedCourtIds,
@@ -2159,6 +2193,7 @@ function ReviewStep(props: {
                           <div className="mt-2.5 space-y-2.5">
                             {orderedCourts.map((court) => {
                               const isFree = freeCourts.some((c) => c.id === court.id);
+                              const isHeldOnly = !isFree && heldOnlyCourtIds.has(court.id);
                               const active = isFree && selectedCourtIds.includes(court.id);
                               // Priced per this exact court — a boost on Court 4 must not
                               // show up on Court 6's button just because they share a slot.
@@ -2215,6 +2250,10 @@ function ReviewStep(props: {
                                             ⚡ {courtBoostPct}% OFF
                                           </span>
                                         )}
+                                      </span>
+                                    ) : isHeldOnly ? (
+                                      <span className="mt-1 block text-[13px] font-black text-amber-600">
+                                        Reserved · try again shortly
                                       </span>
                                     ) : (
                                       <span className="mt-1 block text-[13px] font-black text-slate-400">

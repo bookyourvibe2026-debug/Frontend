@@ -429,12 +429,14 @@ export default function BookingsPage() {
         };
       }
 
-      // Find bookings on this date + turf that match the start time or overlap range.
-      const matches = bookings.filter((bk) => {
+      // Bookings on this date + turf that overlap this slot, of any sport — a court
+      // shared across sports (e.g. Cricket|Football) is physically occupied no matter
+      // which sport its booking was tagged with, so this set must not be sport-filtered.
+      const overlappingBookings = bookings.filter((bk) => {
         const d = new Date(bk.dateTime);
         const bkDate = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
         const bkTime = d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
-        
+
         const bkListingId = String(bk.listingId ?? bk.listing ?? "");
         const targetId = String(selectedTurfId || selectedTurf?.id || "");
 
@@ -446,19 +448,25 @@ export default function BookingsPage() {
         const isMatchTurf = bkListingId === targetId || (selectedTurf?.id && bkListingId === String(selectedTurf.id));
         const isMatchDate = bkDate === selectedDate;
         const isTimeOverlap = slotStartMins < bkEndMins && bkStartMins < slotEndMins;
-        const isSportMatch = selectedGameFilter === "All" || !bk.sport || bk.sport.trim().toLowerCase() === selectedGameFilter.trim().toLowerCase();
 
-        return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap) && isSportMatch;
+        return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap);
+      });
+
+      // Narrowed to the sport currently being viewed — drives which booking's details
+      // (customer name, phone) the row displays.
+      const matches = overlappingBookings.filter((bk) => {
+        const isSportMatch = selectedGameFilter === "All" || !bk.sport || bk.sport.trim().toLowerCase() === selectedGameFilter.trim().toLowerCase();
+        return isSportMatch;
       });
 
       const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
-      const gameCourts = activeCourts.filter(c => 
+      const gameCourts = activeCourts.filter(c =>
          selectedGameFilter === "All" || !c.sports || c.sports.length === 0 || c.sports.some(s => s.toLowerCase() === selectedGameFilter.toLowerCase())
       );
 
       const takenCourtIds = new Set(
         activeCourts.length > 0
-          ? matches.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
+          ? overlappingBookings.flatMap((m) => (m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id]))
           : []
       );
       
@@ -470,7 +478,9 @@ export default function BookingsPage() {
           const mCourts = m.courtIds?.length ? m.courtIds : [m.courtId || activeCourts[0]!.id];
           return mCourts.some(id => gameCourts.some(gc => gc.id === id));
       });
-      const match = relevantMatches[0] || matches[0];
+      // Falls back to a cross-sport booking's details so a slot that's fully taken by
+      // e.g. Football bookings doesn't read as "Available" while browsing the Cricket tab.
+      const match = relevantMatches[0] || matches[0] || overlappingBookings[0];
 
       const isFullyBooked = activeCourts.length > 0 ? (courtsTotal > 0 && courtsFree === 0) : matches.length > 0;
       let status: SlotStatus = "Available";
