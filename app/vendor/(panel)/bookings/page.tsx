@@ -399,7 +399,25 @@ export default function BookingsPage() {
       ? override.isHoliday ? [] : (override.slots || [])
       : (selectedTurf.slotsList || []);
 
-    const mapped = base.map((slot) => {
+    // Pricing Studio can save more than one row for the same time range (a base row
+    // plus per-court / per-sport price-override rows) — collapse to one row per
+    // startTime+endTime so the Timeline doesn't render duplicate slots.
+    const dedupedBase = (() => {
+      const priority = (row: (typeof base)[number]) => {
+        if (selectedGameFilter !== "All" && row.sport && row.sport.toLowerCase() === selectedGameFilter.toLowerCase()) return 2;
+        if (!row.sport && !row.courtId) return 1;
+        return 0;
+      };
+      const byKey = new Map<string, (typeof base)[number]>();
+      for (const row of base) {
+        const key = `${row.startTime}|${row.endTime}`;
+        const existing = byKey.get(key);
+        if (!existing || priority(row) > priority(existing)) byKey.set(key, row);
+      }
+      return Array.from(byKey.values());
+    })();
+
+    const mapped = dedupedBase.map((slot) => {
       if (slot.blocked) {
         return {
           startTime: slot.startTime,
@@ -428,8 +446,9 @@ export default function BookingsPage() {
         const isMatchTurf = bkListingId === targetId || (selectedTurf?.id && bkListingId === String(selectedTurf.id));
         const isMatchDate = bkDate === selectedDate;
         const isTimeOverlap = slotStartMins < bkEndMins && bkStartMins < slotEndMins;
+        const isSportMatch = selectedGameFilter === "All" || !bk.sport || bk.sport.trim().toLowerCase() === selectedGameFilter.trim().toLowerCase();
 
-        return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap);
+        return isMatchTurf && bk.status !== "Cancelled" && isMatchDate && (bkTime === slot.startTime || isTimeOverlap) && isSportMatch;
       });
 
       const activeCourts = (selectedTurf?.courts ?? []).filter((c) => c.active);
