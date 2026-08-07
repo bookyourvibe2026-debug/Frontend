@@ -843,7 +843,7 @@ function VenueInfoSections({
                       </span>
                     )}
                     <span className="block text-[10px] font-semibold text-slate-400">
-                      {courtCount > 0 ? `${courtCount} ${courtCount === 1 ? "court" : "courts"} � Tap to book` : "Tap to book"}
+                      {courtCount > 0 ? `${courtCount} ${courtCount === 1 ? "court" : "courts"} • Tap to book` : "Tap to book"}
                     </span>
                   </div>
                 </button>

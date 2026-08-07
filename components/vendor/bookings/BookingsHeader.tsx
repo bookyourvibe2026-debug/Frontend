@@ -11,7 +11,7 @@ function SlotsRing({ booked, total }: { booked: number; total: number }) {
   const circ = 2 * Math.PI * r;
 
   return (
-    <div className="relative flex h-[68px] w-[68px] shrink-0 items-center justify-center">
+    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 64 64">
         <circle cx="32" cy="32" r={r} fill="none" stroke="#e2e8f0" strokeWidth="5" />
         <circle
@@ -127,7 +127,7 @@ export function BookingsHeader({
   const activeTurf = turfs.find((t) => t.id === selectedTurfId) || turfs[0];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       {/* Venue + location */}
       <div className="flex items-center gap-2 px-1">
         <div className="min-w-0 flex-1">
@@ -194,8 +194,8 @@ export function BookingsHeader({
       </div>
 
       {/* Today card — ring, quick actions, next booking */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-100 bg-white p-2.5 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
             Selected <span className="text-slate-300">•</span> <span className="text-slate-700">{dateLabel}</span>
           </p>
@@ -218,18 +218,18 @@ export function BookingsHeader({
           <button
             type="button"
             onClick={onOpenQrScanner}
-            className="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-xl bg-emerald-50/70 py-3 transition active:scale-95"
+            className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-emerald-50/70 py-2 transition active:scale-95"
           >
-            <QrCode size={19} className="text-emerald-600" />
+            <QrCode size={17} className="text-emerald-600" />
             <span className="text-[9px] font-bold text-slate-700">QR Scanner</span>
           </button>
 
           <button
             type="button"
             onClick={onAddBooking}
-            className="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-xl bg-emerald-50/70 py-3 transition active:scale-95"
+            className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-emerald-50/70 py-2 transition active:scale-95"
           >
-            <CalendarPlus size={19} className="text-emerald-600" />
+            <CalendarPlus size={17} className="text-emerald-600" />
             <span className="text-[9px] font-bold text-slate-700">Add Booking</span>
           </button>
 
@@ -275,7 +275,7 @@ export function BookingsHeader({
                 key={iso}
                 data-iso={iso}
                 onClick={() => onSelectDate(iso)}
-                className={`relative flex h-[54px] w-12 shrink-0 flex-col items-center justify-center rounded-xl border transition ${
+                className={`relative flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl border transition ${
                   isSel
                     ? "border-vibe-navy bg-vibe-navy text-white shadow-md"
                     : isWeekend

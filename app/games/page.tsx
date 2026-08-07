@@ -1,14 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Volleyball, Waves, CircleDot, Footprints, Gamepad2, type LucideIcon } from "lucide-react";
 import { SiteHeader } from "../../components/site-header";
 import { MobileCard, MobileTopBar } from "@/components/mobile/ui";
 import { SPORT_CATEGORIES, categoryLabel } from "@/lib/taxonomy";
-import { browseVenues } from "@/lib/api/venues";
+import { browseVenues, getVendorProfile, type VendorPublicProfile } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
+
+/** One card on the browsing grid — either a single venue, or a business with
+ * several venues (tap it to see all of them, à la a vendor's own storefront).
+ * Mirrors /venues page's grouping so the same vendor never shows as unrelated
+ * separate cards just because this page fetches its own short venue list. */
+interface VenueCard {
+  id: string;
+  href: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  city?: string;
+  price: number;
+  badge?: string;
+}
 
 import { useRouter } from "next/navigation";
 import { SportsCategoryBar, SportCategoryItem } from "@/components/sports/SportsCategoryBar";
@@ -50,15 +65,85 @@ const SPORTS = CATEGORIES;
 export default function GamesPage() {
   const router = useRouter();
   const [venues, setVenues] = useState<Listing[]>([]);
+  const [vendorProfiles, setVendorProfiles] = useState<Record<string, VendorPublicProfile>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     browseVenues({ type: "Turf", limit: 8 })
-      .then((res) => {
+      .then(async (res) => {
         setVenues(res.items);
+        // One business can list several turfs — fetch each distinct vendor's public
+        // profile (business name + poster) so they can be grouped into one card,
+        // same as the /venues page.
+        const vendorIds = Array.from(
+          new Set(res.items.map((v) => v.vendorId).filter((id): id is string => Boolean(id)))
+        );
+        const profiles = await Promise.all(
+          vendorIds.map((id) => getVendorProfile(id).then((r) => r.vendor).catch(() => null))
+        );
+        const map: Record<string, VendorPublicProfile> = {};
+        profiles.forEach((p) => {
+          if (p) map[p._id] = p;
+        });
+        setVendorProfiles(map);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  /** Group listings by vendor — a single-listing vendor keeps its own card, a
+   * multi-listing vendor collapses into one "N Venues" card that opens its
+   * business profile. Mirrors /venues page's grouping exactly. */
+  const cards = useMemo<VenueCard[]>(() => {
+    const byVendor = new Map<string, Listing[]>();
+    const standalone: Listing[] = [];
+    for (const v of venues) {
+      if (v.vendorId) {
+        const arr = byVendor.get(v.vendorId) ?? [];
+        arr.push(v);
+        byVendor.set(v.vendorId, arr);
+      } else {
+        standalone.push(v);
+      }
+    }
+
+    const result: VenueCard[] = [];
+    for (const [vendorId, listings] of byVendor) {
+      if (listings.length === 1) {
+        const l = listings[0];
+        result.push({
+          id: l._id,
+          href: `/venues/${l.slug || l._id}`,
+          title: l.title,
+          subtitle: vendorProfiles[vendorId]?.businessName,
+          image: l.coverImage,
+          city: l.city,
+          price: l.price,
+        });
+        continue;
+      }
+      const profile = vendorProfiles[vendorId];
+      result.push({
+        id: vendorId,
+        href: `/venues/vendor/${vendorId}`,
+        title: profile?.businessName ?? listings[0].title,
+        image: profile?.poster || profile?.banner || listings[0].coverImage,
+        city: profile?.city ?? listings[0].city,
+        price: Math.min(...listings.map((l) => l.price)),
+        badge: `${listings.length} venues`,
+      });
+    }
+    for (const l of standalone) {
+      result.push({
+        id: l._id,
+        href: `/venues/${l.slug || l._id}`,
+        title: l.title,
+        image: l.coverImage,
+        city: l.city,
+        price: l.price,
+      });
+    }
+    return result;
+  }, [venues, vendorProfiles]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff,_#f8fafc_40%,_#ffffff_75%)]">
@@ -91,33 +176,39 @@ export default function GamesPage() {
           <div>
             <p className="mb-2 text-sm font-bold uppercase tracking-[0.15em] text-brand-600">Venues</p>
             <div className="flex flex-col gap-3">
-              {venues.map((venue) => (
-                <MobileCard key={venue._id} className="!p-4">
-                  {/* Banner opens the venue too — not just the "View details" button */}
-                  <Link href={`/venues/${venue.slug || venue._id}`} className="relative flex h-36 flex-col justify-end overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
-                    {venue.coverImage && (
+              {cards.map((card) => (
+                <MobileCard key={card.id} className="!p-4">
+                  {/* Banner opens the venue/vendor too — not just the "View details" button */}
+                  <Link href={card.href} className="relative flex h-36 flex-col justify-end overflow-hidden rounded-2xl bg-slate-900 p-4 text-white">
+                    {card.image && (
                       <Image
-                        src={venue.coverImage}
-                        alt={venue.title}
+                        src={card.image}
+                        alt={card.title}
                         fill
                         sizes="(max-width: 640px) 100vw, 400px"
                         className="object-cover opacity-80"
                       />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    {card.badge && (
+                      <span className="absolute right-2.5 top-2.5 z-10 rounded-full bg-black/50 px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-wide text-white backdrop-blur">
+                        {card.badge}
+                      </span>
+                    )}
                     <div className="relative z-10">
-                      <h2 className="text-lg font-extrabold text-white">{venue.title}</h2>
+                      <h2 className="text-lg font-extrabold text-white">{card.title}</h2>
+                      {card.subtitle && <p className="text-xs font-semibold text-white/70">{card.subtitle}</p>}
                     </div>
                   </Link>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="flex items-center gap-1 text-xs text-slate-500">
-                        <MapPin className="h-3 w-3" /> {venue.city}
+                        <MapPin className="h-3 w-3" /> {card.city}
                       </p>
-                      <p className="mt-1 text-sm font-bold text-slate-900">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                      <p className="mt-1 text-sm font-bold text-slate-900">₹{card.price.toLocaleString("en-IN")}/hr</p>
                     </div>
                     <Link
-                      href={`/venues/${venue.slug || venue._id}`}
+                      href={card.href}
                       className="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white"
                     >
                       View details
@@ -125,7 +216,7 @@ export default function GamesPage() {
                   </div>
                 </MobileCard>
               ))}
-              {!loading && venues.length === 0 && (
+              {!loading && cards.length === 0 && (
                 <p className="rounded-2xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">
                   No venues available yet.
                 </p>
@@ -231,36 +322,42 @@ export default function GamesPage() {
             </Link>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {venues.map((venue) => (
+            {cards.map((card) => (
               <Link
-                key={venue._id}
-                href={`/venues/${venue.slug || venue._id}`}
+                key={card.id}
+                href={card.href}
                 className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="relative flex h-40 flex-col justify-end overflow-hidden rounded-[1.25rem] bg-slate-900 p-4 text-white">
-                  {venue.coverImage && (
+                  {card.image && (
                     <Image
-                      src={venue.coverImage}
-                      alt={venue.title}
+                      src={card.image}
+                      alt={card.title}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                       className="object-cover opacity-80"
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  {card.badge && (
+                    <span className="absolute right-2.5 top-2.5 z-10 rounded-full bg-black/50 px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-wide text-white backdrop-blur">
+                      {card.badge}
+                    </span>
+                  )}
                   <div className="relative z-10">
-                    <h3 className="text-lg font-black text-white">{venue.title}</h3>
+                    <h3 className="text-lg font-black text-white">{card.title}</h3>
+                    {card.subtitle && <p className="text-xs font-semibold text-white/70">{card.subtitle}</p>}
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="flex items-center gap-1 text-xs text-slate-500">
-                    <MapPin className="h-3.5 w-3.5" /> {venue.city}
+                    <MapPin className="h-3.5 w-3.5" /> {card.city}
                   </p>
-                  <p className="text-sm font-bold text-slate-950">₹{venue.price.toLocaleString("en-IN")}/hr</p>
+                  <p className="text-sm font-bold text-slate-950">₹{card.price.toLocaleString("en-IN")}/hr</p>
                 </div>
               </Link>
             ))}
-            {!loading && venues.length === 0 && (
+            {!loading && cards.length === 0 && (
               <p className="col-span-full rounded-[1.75rem] border border-slate-100 bg-white p-10 text-center text-sm text-slate-500">
                 No venues available yet.
               </p>

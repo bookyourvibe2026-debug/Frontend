@@ -1099,6 +1099,10 @@ export default function BookingFlow({
     if (pendingBooking) return pendingBooking;
     if (creatingPending) return null;
     setCreatingPending(true);
+    // Clear out any error from a previous attempt (e.g. "Court 1 is already booked") —
+    // otherwise it lingers on screen even after the customer picks a different, actually
+    // available slot and this retry succeeds.
+    setError("");
     try {
       let dateTime = "";
       let durationMinutes = undefined;

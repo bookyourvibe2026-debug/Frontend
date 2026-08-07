@@ -113,6 +113,7 @@ export default function BottomNav({
 
   return (
     <nav
+      id="vendor-bottom-nav"
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-white lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >

@@ -283,6 +283,49 @@ export default function BookingsPage() {
   }, []);
   const isToday = selectedDate === todayIso;
   const [viewMode, setViewMode] = useState<"timeline" | "clock">("timeline");
+
+  /* ── Header/body split: the header block must never move; only the slot list
+     scrolls, inside its own bounded box. A `sticky` header was tried first, but
+     content scrolling past a stuck/fixed header is always visually covered by
+     it — inherent to sticky/fixed, not a bug — which is exactly what looked
+     broken. The only real fix is giving the slot list its own `overflow-y:
+     auto` box sized to whatever viewport space is actually left, so scrolling
+     happens *inside* that box and never passes under the header at all.
+     A hardcoded height for this was tried before (see the shell comment below)
+     and broke on mobile because the guessed numbers drifted from the real fixed
+     chrome. This version only measures ONE number — where this wrapper's own
+     top edge actually renders (via getBoundingClientRect, not an assumption
+     about the mobile top bar's height) — and gives the *wrapper* exactly
+     `100dvh` minus that to work with. Flexbox handles the header/body split
+     from there on its own (header: flex-shrink-0, body: flex-1 + min-h-0),
+     so header/body heights never need separate measuring, and `100dvh` (not
+     `vh`) means a mobile browser showing/hiding its address bar is handled by
+     the browser's own layout engine instead of by our math going stale.
+     Verified in a real headless-browser test (Playwright) at 500/600/700px
+     viewport heights: header never moves, body scrolls to its last item, and
+     the window itself never needs to scroll (zero residual overflow).
+     `outerEl` is a callback ref, not a plain useRef — this component's first
+     render (while `loading` is true) returns a totally different "Loading
+     dashboard…" element with no wrapper div in it at all, so a one-shot
+     `useEffect(() => {...}, [])` measured against a still-null ref and never
+     got a second chance once the real content mounted a render later, leaving
+     the whole thing unconstrained (scrolling with the page again). A callback
+     ref re-fires the instant this specific DOM node actually appears, however
+     many renders that takes. */
+  const [outerEl, setOuterEl] = useState<HTMLDivElement | null>(null);
+  const [wrapperHeight, setWrapperHeight] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!outerEl) return;
+    function measure() {
+      if (!outerEl) return;
+      const top = outerEl.getBoundingClientRect().top;
+      setWrapperHeight(`calc(100dvh - ${top}px)`);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [outerEl]);
   // Active slot action modal
   const [activeSlot, setActiveSlot] = useState<AgendaSlot | null>(null);
   const [activeClubSlot, setActiveClubSlot] = useState<AgendaSlot | null>(null);
@@ -672,7 +715,7 @@ export default function BookingsPage() {
     () => Array.from({ length: 365 }, (_, i) => {
       const d = new Date();
       d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - 3 + i); // 3 days in past + 362 days in future
+      d.setDate(d.getDate() + i); // today through 364 days ahead — no past dates
       return d;
     }),
     []
@@ -1499,20 +1542,29 @@ export default function BookingsPage() {
   }
 
   return (
-    /* The agenda scrolls with the page. It used to live inside a `100dvh - 64px` shell
-       with its own overflow, but that height never matched the real viewport once the
-       mobile browser chrome and the fixed bottom nav were in play, so the slot list got
-       clipped part-way down the screen. */
-    <div className="relative flex min-h-[60vh] flex-col overflow-x-hidden bg-[#f5f5f5] -mx-4 -mt-6 -mb-24 sm:-mx-6 lg:-mb-6">
-      {/* ── HEADER: venue, today card, date strip ── */}
-      <div className="z-20 bg-[#f5f7fa] px-4 pt-3 pb-2 md:px-6">
-        <div className="mb-3 flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <button className="flex-1 bg-vibe-navy px-3 py-2.5 text-center text-[11px] font-bold text-white">
+    /* overflow-x-clip, NOT overflow-x-hidden: verified in a browser (Playwright) that
+       `hidden` on one axis silently computes the other axis's `visible` to `auto`,
+       which broke `position: sticky` outright when this was a sticky header — it
+       measured as moving 1:1 with scroll instead of pinning. Moved on from sticky
+       entirely afterward (see the header/body split comment above) since a sticky or
+       fixed header, once pinned, unavoidably has scrolled-past content pass behind
+       it — `clip` is kept regardless since it still stops horizontal bleed. */
+    <div
+      ref={setOuterEl}
+      className="relative flex flex-col overflow-x-clip bg-[#f5f5f5] -mx-4 -mt-18 -mb-24 sm:-mx-6 lg:-mb-6"
+      style={{ height: wrapperHeight }}
+    >
+      {/* ── HEADER: venue, today card, date strip — normal flow, shrink-0 so the body
+          below gets everything else. Never moves because it's not inside the
+          scrolling box; the body is. */}
+      <div className="shrink-0 z-20 bg-[#f5f7fa] px-4 pt-1 pb-1.5 md:px-6">
+        <div className="mb-1.5 flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <button className="flex-1 bg-vibe-navy px-3 py-2 text-center text-[11px] font-bold text-white">
             Turf Bookings
           </button>
           <button
             onClick={() => setPageTab("academy")}
-            className="flex-1 px-3 py-2.5 text-center text-[11px] font-bold text-slate-500 transition hover:bg-slate-50"
+            className="flex-1 px-3 py-2 text-center text-[11px] font-bold text-slate-500 transition hover:bg-slate-50"
           >
             Academy Bookings
           </button>
@@ -1542,7 +1594,7 @@ export default function BookingsPage() {
 
         {/* Game Filters */}
         {selectedTurf && selectedTurf.categories && selectedTurf.categories.length > 0 && (
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <button
               onClick={() => setSelectedGameFilter("All")}
               className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold transition ${selectedGameFilter === "All" ? "bg-vibe-navy text-white shadow-sm" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"}`}
@@ -1562,7 +1614,7 @@ export default function BookingsPage() {
         )}
 
         {/* View toggle + "All Slots" filter */}
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
             <button
               onClick={() => setViewMode("timeline")}
@@ -1607,9 +1659,10 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {/* Bottom padding clears the fixed bottom nav (~64px) and the floating
-          "See Booking" pill that sits above it. */}
-      <div className="flex-1 px-4 pt-4 pb-36 md:px-6 lg:pb-32">
+      {/* The slot list — the only part of this page that actually scrolls. Bottom
+          padding clears the fixed bottom nav (~64px) and the floating "See Booking"
+          pill that sits above it. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-36 md:px-6 lg:pb-32">
         {!selectedTurf && (
           <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center bg-white">
             <CalendarDays size={32} className="mx-auto text-slate-300 mb-2" />

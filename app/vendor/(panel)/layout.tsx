@@ -66,7 +66,7 @@ export default function VendorPanelLayout({
         />
         <div className="flex-1 min-w-0 flex flex-col lg:pl-64">
           {/* Sticky Mobile Header */}
-          <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-white/95 backdrop-blur-md border-b border-surface-border shadow-2xs">
+          <div id="vendor-mobile-topbar" className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-white/95 backdrop-blur-md border-b border-surface-border shadow-2xs">
             <div className="flex items-center gap-3">
               <button
                 type="button"
