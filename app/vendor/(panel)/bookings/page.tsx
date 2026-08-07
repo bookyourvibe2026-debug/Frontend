@@ -47,6 +47,7 @@ import { AddBookingSheet, type AddBookingValues } from "@/components/vendor/book
 import { QrScannerModal } from "@/components/vendor/bookings/QrScannerModal";
 import { ClubSlotDetailsModal } from "@/components/vendor/bookings/ClubSlotDetailsModal";
 import { SportCourtSelectionModal } from "@/components/vendor/bookings/SportCourtSelectionModal";
+import { useVenueRealtime } from "@/hooks/useVenueRealtime";
 import {
   SlotFilterSheet,
   DEFAULT_FILTERS,
@@ -352,6 +353,19 @@ export default function BookingsPage() {
 
     return () => clearInterval(pollInterval);
   }, []);
+
+  const refreshVendorBookings = useCallback(() => {
+    getVendorBookings({ limit: 500 })
+      .then((b) => setBookings(b.items as unknown as ApiBooking[]))
+      .catch(() => {});
+  }, []);
+
+  useVenueRealtime({
+    listingId: selectedTurfId || null,
+    onSlotHold: refreshVendorBookings,
+    onSlotRelease: refreshVendorBookings,
+    onBookingUpdated: refreshVendorBookings,
+  });
 
   const selectedTurf = useMemo(
     () => listings.find((l) => l.id === selectedTurfId),

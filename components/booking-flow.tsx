@@ -30,6 +30,7 @@ import { downloadBookingTicket } from "@/lib/ticket";
 import { BookingQrCode } from "@/components/BookingQrCode";
 import { trackEvent } from "@/lib/analytics";
 import type { AddOn, Booking, Court, Listing, PaymentMethod } from "@/lib/api/types";
+import { useVenueRealtime } from "@/hooks/useVenueRealtime";
 
 type Step = "review" | "confirmed";
 
@@ -403,11 +404,15 @@ export default function BookingFlow({
     if (!targetSlot || targetSlot.status !== "Available") return;
 
     setSelectedSlotIndices((prev) => {
-      if (prev.length === 0) return [index];
+      if (prev.length === 0) {
+        emitSlotHold({ date, time: targetSlot.startTime });
+        return [index];
+      }
 
       // Tapping an already-selected slot removes it if it's an endpoint or single selection
       if (prev.includes(index)) {
         const next = prev.filter((i) => i !== index);
+        emitSlotRelease({ date, time: targetSlot.startTime });
         return next;
       }
 
@@ -422,10 +427,12 @@ export default function BookingFlow({
       const isConsecutive = targetStartMins === maxEndMins || targetEndMins === minStartMins;
 
       if (isConsecutive) {
+        emitSlotHold({ date, time: targetSlot.startTime });
         return [...prev, index].sort((a, b) => a - b);
       }
 
       // Non-consecutive tap -> switch selection to new slot
+      emitSlotHold({ date, time: targetSlot.startTime });
       return [index];
     });
   }
@@ -466,6 +473,21 @@ export default function BookingFlow({
     if (!sport) return all;
     return all.filter((c) => matchesCourtSport(c.sports, sport));
   }, [listing.courts, sport]);
+
+  const refreshVenueAvailability = useCallback(() => {
+    if (listing.type === "Turf" && date) {
+      getVenueAvailability(listing._id, date)
+        .then(setBookedRanges)
+        .catch(() => setBookedRanges([]));
+    }
+  }, [listing._id, listing.type, date]);
+
+  const { emitSlotHold, emitSlotRelease } = useVenueRealtime({
+    listingId: listing._id || null,
+    onSlotHold: refreshVenueAvailability,
+    onSlotRelease: refreshVenueAvailability,
+    onBookingUpdated: refreshVenueAvailability,
+  });
 
   useEffect(() => {
     if (listing.type !== "Turf" || !date) {
@@ -1053,17 +1075,17 @@ export default function BookingFlow({
       (courtsForSport.length === 0 || effectiveCourtIds.length > 0));
 
   const partialConfig = listing.partialPayment ?? { enabled: true, type: "percentage", value: 25 };
-  const canPartial = false;
-  const effectivePaymentOption: "partial" | "full" = "full";
+  const canPartial = Boolean(activePrice > 0 && listing.type !== "Event");
+  const effectivePaymentOption: "partial" | "full" = canPartial ? paymentOption : "full";
 
   const payNowAmount = useMemo(() => {
-    return activePrice;
+    if (!canPartial || effectivePaymentOption === "full") return activePrice;
     if (partialConfig.type === "fixed") {
       return Math.min(activePrice, Math.max(1, Math.round(partialConfig.value)));
     }
     const pct = Math.min(100, Math.max(1, partialConfig.value));
     return Math.min(activePrice, Math.max(1, Math.round((activePrice * pct) / 100)));
-  }, [activePrice]);
+  }, [activePrice, canPartial, effectivePaymentOption, partialConfig]);
 
   const payAtVenueAmount = Math.max(0, activePrice - payNowAmount);
 
@@ -1584,9 +1606,9 @@ function ReviewStep(props: {
   const [reservationSeconds, setReservationSeconds] = useState<number | null>(null);
   const [timerExpiredNotice, setTimerExpiredNotice] = useState<string | null>(null);
 
-  // 2-minute server court reservation countdown timer when on Checkout step
+  // 2-minute server court reservation countdown timer when on Checkout step (not for Events)
   useEffect(() => {
-    if (mobileStep !== "checkout") {
+    if (listing.type === "Event" || mobileStep !== "checkout") {
       setReservationSeconds(null);
       return;
     }
@@ -1599,7 +1621,7 @@ function ReviewStep(props: {
     if (reservationSeconds <= 0) {
       setTimerExpiredNotice("Your 2-minute court reservation has expired. The court lock has been released.");
       setReservationSeconds(null);
-      if (listing.type !== "Event") {
+      if ((listing.type as string) !== "Event") {
         setMobileStep("slots");
       }
       return;
@@ -2479,7 +2501,7 @@ function ReviewStep(props: {
             } ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}
           >
             {/* 2-Minute Server Court Reservation Banner */}
-            {(mobileStep === "checkout" || listing.type === "Event") && (
+            {mobileStep === "checkout" && listing.type !== "Event" && (
               <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-3.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
