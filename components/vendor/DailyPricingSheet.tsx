@@ -1,22 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X, Lightbulb, ChevronDown, ChevronUp, Check, Sunrise, Sun, Sunset, Moon } from "lucide-react";
-import type { TurfSlot } from "@/lib/types";
+import { X, Check } from "lucide-react";
+import type { Court, TurfSlot } from "@/lib/types";
+import { categoryLabel } from "@/lib/taxonomy";
 import { useBackDismiss } from "@/lib/useBackDismiss";
 
 function t24m(t: string) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
-}
-
-function getSortMinutes(t: string, dayStartMins = 300) {
-  const m = t24m(t);
-  return m < dayStartMins ? m + 1440 : m;
-}
-
-function compareSlotTimes(a: { startTime: string }, b: { startTime: string }) {
-  return getSortMinutes(a.startTime) - getSortMinutes(b.startTime);
 }
 function to12h(t: string) {
   if (!t) return "";
@@ -29,54 +21,115 @@ function to12h(t: string) {
 function roundTo50(n: number) {
   return Math.max(0, Math.round(n / 50) * 50);
 }
-
-/* ─── Day-part sections — grouping is purely a function of each slot's start time,
-   so it automatically regroups whenever slot timings/duration change (nothing here
-   is keyed on a fixed slot count or duration). ── */
-type SectionKey = "morning" | "afternoon" | "evening" | "night";
-
-const SECTIONS: { key: SectionKey; label: string; icon: typeof Sunrise; emoji: string }[] = [
-  { key: "morning", label: "Morning", icon: Sunrise, emoji: "🌅" },
-  { key: "afternoon", label: "Afternoon", icon: Sun, emoji: "☀️" },
-  { key: "evening", label: "Evening", icon: Sunset, emoji: "🌇" },
-  { key: "night", label: "Night", icon: Moon, emoji: "🌙" },
-];
-
-/** Morning 5:00–11:59, Afternoon 12:00–16:59, Evening 17:00–20:59, Night 21:00–4:59
- * (wraps past midnight — anything before 5 AM is still "last night"). */
-function sectionForStart(startMin: number): SectionKey {
-  if (startMin >= 300 && startMin < 720) return "morning";
-  if (startMin >= 720 && startMin < 1020) return "afternoon";
-  if (startMin >= 1020 && startMin < 1260) return "evening";
-  return "night";
+/** Minute-of-day sort key that puts the venue's real day first: anything before 5 AM
+ * (a late-night tail like 12–3 AM) sorts *after* the rest of the day — same ordering
+ * as the time-of-day pricing tool above, on the page this sheet opens from. */
+function dayOrderMinutes(time: string): number {
+  const mins = t24m(time);
+  return mins < 300 ? mins + 1440 : mins;
 }
-
-// The evening demand-dip offer — scoped to fall entirely inside the Evening section
-// (5 PM–7 PM) so it can render as that section's smart suggestion rather than a
-// separate top-of-sheet card that talks about slots the vendor hasn't scrolled to yet.
-const TWILIGHT_START = 17 * 60;
-const TWILIGHT_END = 19 * 60;
 
 export function DailyPricingSheet({
   dateLabel,
   slots,
+  categories,
+  courts,
+  initialGame = "all",
+  initialCourtId = "all",
+  bookedTimes = [],
   onClose,
   onSave,
   onBookSlot,
 }: {
   dateLabel: string;
+  /** Every row saved for this date across every sport/court tag — not just the ones
+   * relevant to the currently selected game/court, so switching combinations up on the
+   * pricing page never loses another combination's pricing. */
   slots: TurfSlot[];
+  /** Sport category ids this turf offers — shown so the vendor knows which game this
+   * sheet is pricing, but not re-selectable here (that choice is made once, above). */
+  categories?: string[];
+  /** This turf's courts, shown the same read-only way as categories. */
+  courts?: Court[];
+  /** Game/court the pricing page currently has selected — this sheet always edits
+   * exactly that combination, matching what's chosen above it on the page. */
+  initialGame?: string;
+  initialCourtId?: string;
+  /** Already-booked start times for this date (any court, days-ahead bookings included)
+   * — those rows are locked so a vendor can never reprice something already sold. */
+  bookedTimes?: { startTime: string; courtIds: string[] }[];
   onClose: () => void;
   onSave: (nextSlots: TurfSlot[]) => Promise<void> | void;
-  /** When provided, each slot row gets a "Book" shortcut that jumps to the booking flow for that slot. */
+  /** When provided, a "Book" shortcut jumps to the booking flow for one selected slot. */
   onBookSlot?: (slot: TurfSlot) => void;
 }) {
   // Device Back closes this sheet instead of leaving the pricing page.
   useBackDismiss(true, onClose);
-  const basePrice = useMemo(
-    () => (slots.length ? Math.min(...slots.map((s) => s.price)) : 0),
-    [slots]
+
+  // Game/court are fixed for the life of this sheet — picked once, above, on the
+  // pricing page itself, not re-chosen every time a date is opened.
+  const gameLabel = initialGame === "all" ? "All games" : categoryLabel(initialGame);
+  const courtLabel = initialCourtId === "all" ? "All courts" : courts?.find((c) => c.id === initialCourtId)?.name ?? "All courts";
+  // Courts/slots store the sport's display label ("Cricket"), not its id ("cricket").
+  const matchSport = initialGame === "all" ? undefined : categoryLabel(initialGame);
+  const matchCourt = initialCourtId === "all" ? undefined : initialCourtId;
+
+  /** True when the currently-selected court (or, under "All courts", any court) is
+   * already booked at this start time — repricing it would silently disagree with
+   * what a player already paid. */
+  function isBookedTime(startTime: string): boolean {
+    const entries = bookedTimes.filter((b) => b.startTime === startTime);
+    if (entries.length === 0) return false;
+    if (!matchCourt) return true;
+    return entries.some((b) => b.courtIds.length === 0 || b.courtIds.includes(matchCourt));
+  }
+
+  /** Every distinct time range saved for this date, regardless of which game/court tag
+   * it belongs to — the fixed menu of rows this sheet edits, day-start-first. */
+  const uniqueTimes = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { startTime: string; endTime: string; label: string }[] = [];
+    for (const s of slots) {
+      const key = `${s.startTime}-${s.endTime}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({ startTime: s.startTime, endTime: s.endTime, label: s.label });
+    }
+    return list.sort((a, b) => dayOrderMinutes(a.startTime) - dayOrderMinutes(b.startTime));
+  }, [slots]);
+
+  /** The price/blocked state to show for one time range under the current game/court
+   * selection — an exact tag match wins, then sport-only, then court-only, then the
+   * venue-wide default, mirroring My Listing's Pricing Studio. A combination that's
+   * never been priced falls back to a zero placeholder rather than crashing. */
+  function getEffectiveSlot(startTime: string, endTime: string, label: string): TurfSlot {
+    if (matchSport && matchCourt) {
+      const exact = slots.find((s) => s.startTime === startTime && s.endTime === endTime && s.sport === matchSport && s.courtId === matchCourt);
+      if (exact) return exact;
+    }
+    if (matchSport) {
+      const sportOnly = slots.find((s) => s.startTime === startTime && s.endTime === endTime && s.sport === matchSport && !s.courtId);
+      if (sportOnly) return sportOnly;
+    }
+    if (matchCourt) {
+      const courtOnly = slots.find((s) => s.startTime === startTime && s.endTime === endTime && !s.sport && s.courtId === matchCourt);
+      if (courtOnly) return courtOnly;
+    }
+    const fallback = slots.find((s) => s.startTime === startTime && s.endTime === endTime && !s.sport && !s.courtId);
+    if (fallback) return fallback;
+    return { startTime, endTime, label, price: 0, blocked: false, sport: matchSport, courtId: matchCourt };
+  }
+
+  const effectiveSlots = useMemo(
+    () => uniqueTimes.map((t) => getEffectiveSlot(t.startTime, t.endTime, t.label)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uniqueTimes, slots, matchSport, matchCourt]
   );
+
+  const basePrice = useMemo(() => {
+    const priced = effectiveSlots.map((s) => s.price).filter((p) => p > 0);
+    return priced.length ? Math.min(...priced) : 0;
+  }, [effectiveSlots]);
 
   const presets = useMemo(
     () => ({
@@ -87,103 +140,107 @@ export function DailyPricingSheet({
     [basePrice]
   );
 
-  /*
-   * Prices are held as strings, not numbers. With a number state, clearing the
-   * field ran Number("") → 0, so it snapped back to 0 and you could never empty
-   * it to type your own price. Strings let the box go genuinely empty; the value
-   * is only coerced on save.
-   */
-  const [bulkPrice, setBulkPrice] = useState(() => String(basePrice));
-  const [selectedPreset, setSelectedPreset] = useState<"offPeak" | "standard" | "peak" | "custom">("standard");
-  const [slotOverrides, setSlotOverrides] = useState<Record<string, string>>({});
+  // One flow, in order: pick slots (or Select all for the whole day) → pick a price →
+  // hit Save once. Nothing is written until Save — an unselected slot's price never
+  // changes just because a price was typed in.
+  const [selectedTimes, setSelectedTimes] = useState<Set<string>>(new Set());
   const [blockedOverrides, setBlockedOverrides] = useState<Record<string, boolean>>({});
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [twilightApplied, setTwilightApplied] = useState(false);
+  /*
+   * Price is held as a string, not a number. With a number state, clearing the field
+   * ran Number("") → 0, so it snapped back to 0 and you could never empty it to type
+   * your own price. A string lets the box go genuinely empty; only coerced on save.
+   */
+  const [priceInput, setPriceInput] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState<"offPeak" | "standard" | "peak" | "custom" | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Each section's own bulk-price box, and its expand/collapse state — expanded by default.
-  const [sectionBulkPrice, setSectionBulkPrice] = useState<Record<SectionKey, string>>({
-    morning: "",
-    afternoon: "",
-    evening: "",
-    night: "",
-  });
-  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    morning: true,
-    afternoon: true,
-    evening: true,
-    night: true,
-  });
+  const pickableTimes = uniqueTimes.filter((t) => !isBookedTime(t.startTime));
+  const allSelected = pickableTimes.length > 0 && pickableTimes.every((t) => selectedTimes.has(t.startTime));
+
+  function toggleTime(startTime: string) {
+    setSelectedTimes((prev) => {
+      const next = new Set(prev);
+      if (next.has(startTime)) next.delete(startTime); else next.add(startTime);
+      return next;
+    });
+  }
+
+  const selectedAllBlocked =
+    selectedTimes.size > 0 &&
+    [...selectedTimes].every((t) => {
+      const opt = uniqueTimes.find((u) => u.startTime === t);
+      return opt ? blockedFor(getEffectiveSlot(opt.startTime, opt.endTime, opt.label)) : false;
+    });
+
+  function toggleBlockSelected() {
+    const nextBlocked = !selectedAllBlocked;
+    setBlockedOverrides((prev) => {
+      const next = { ...prev };
+      for (const t of selectedTimes) next[t] = nextBlocked;
+      return next;
+    });
+  }
 
   /** Digits only — keeps out "e", "+", "-" that a number input would otherwise accept. */
   const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
-  /** Effective price for a slot, falling back to its existing price when left blank. */
+  /** Effective price for a slot at save time. Only a *selected* slot with a real price
+   * typed in actually changes — everything else keeps exactly what it already had, so
+   * picking a price never silently touches slots you never selected. An already-booked
+   * slot never changes here at all, no matter what's selected. */
   function priceFor(slot: TurfSlot): number {
-    const raw = slotOverrides[slot.startTime] ?? bulkPrice;
-    if (raw === "") return slot.price;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : slot.price;
+    if (isBookedTime(slot.startTime)) return slot.price;
+    if (!selectedTimes.has(slot.startTime)) return slot.price;
+    const n = Number(priceInput);
+    return priceInput !== "" && Number.isFinite(n) && n > 0 ? n : slot.price;
   }
 
+  /** An already-booked slot stays whatever it was — blocking/unblocking it here would
+   * disagree with the booking that's already sitting on it. */
   function blockedFor(slot: TurfSlot): boolean {
+    if (isBookedTime(slot.startTime)) return slot.blocked ?? false;
     return blockedOverrides[slot.startTime] ?? slot.blocked ?? false;
   }
 
   function pickPreset(key: "offPeak" | "standard" | "peak") {
     setSelectedPreset(key);
-    setBulkPrice(String(presets[key]));
-  }
-
-  /** Grouped by day-part — recomputed whenever the slot list itself changes, so a
-   * different duration or a new Opens/Closes range regroups automatically. */
-  const grouped = useMemo(() => {
-    const map: Record<SectionKey, TurfSlot[]> = { morning: [], afternoon: [], evening: [], night: [] };
-    for (const slot of slots) map[sectionForStart(t24m(slot.startTime))].push(slot);
-    for (const k of Object.keys(map) as SectionKey[]) {
-      map[k].sort(compareSlotTimes);
-    }
-    return map;
-  }, [slots]);
-
-  const eveningTwilightSlots = grouped.evening.filter((s) => {
-    const startMin = t24m(s.startTime);
-    return startMin >= TWILIGHT_START && startMin < TWILIGHT_END;
-  });
-  const suggestedTwilightPrice = roundTo50(basePrice * 0.8);
-
-  function activateTwilightOffer() {
-    const next: Record<string, string> = { ...slotOverrides };
-    for (const slot of eveningTwilightSlots) {
-      next[slot.startTime] = String(suggestedTwilightPrice);
-    }
-    setSlotOverrides(next);
-    setTwilightApplied(eveningTwilightSlots.length > 0);
-  }
-
-  function applySectionPrice(key: SectionKey) {
-    const raw = onlyDigits(sectionBulkPrice[key]);
-    if (raw === "") return;
-    setSlotOverrides((prev) => {
-      const next = { ...prev };
-      for (const slot of grouped[key]) next[slot.startTime] = raw;
-      return next;
-    });
-  }
-
-  function toggleSection(key: SectionKey) {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    setPriceInput(String(presets[key]));
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      const next = slots.map((s) => ({ ...s, price: priceFor(s), blocked: blockedFor(s) }));
-      await onSave(next);
+      // Upsert into the FULL slot list (every game/court tag), not just this
+      // selection's rows — otherwise saving would silently wipe out every other
+      // combination's pricing for the day. Only slots actually touched this visit
+      // (selected for a price, or block-toggled) are written — every other slot is
+      // left completely alone, so its price keeps inheriting from wherever it always
+      // did instead of freezing today's inherited number into a new explicit row.
+      let nextSlots = [...slots];
+      for (const t of uniqueTimes) {
+        const wasPriced = selectedTimes.has(t.startTime);
+        const wasBlockToggled = t.startTime in blockedOverrides;
+        if (!wasPriced && !wasBlockToggled) continue;
+
+        const effective = getEffectiveSlot(t.startTime, t.endTime, t.label);
+        const price = priceFor(effective);
+        const blocked = blockedFor(effective);
+        const idx = nextSlots.findIndex(
+          (s) => s.startTime === t.startTime && s.endTime === t.endTime && s.sport === matchSport && s.courtId === matchCourt
+        );
+        if (idx > -1) {
+          nextSlots[idx] = { ...nextSlots[idx], price, blocked };
+        } else {
+          nextSlots.push({ startTime: t.startTime, endTime: t.endTime, label: t.label, price, blocked, sport: matchSport, courtId: matchCourt });
+        }
+      }
+      await onSave(nextSlots);
     } finally {
       setSaving(false);
     }
   }
+
+  const priceForSelectionLabel = allSelected ? "the whole day" : `${selectedTimes.size} slot${selectedTimes.size === 1 ? "" : "s"}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
@@ -201,181 +258,134 @@ export function DailyPricingSheet({
           </button>
         </div>
 
-        {/* Base price presets */}
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Set Daily Base Price</p>
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        {/* 1. Game + Court — fixed to whatever's picked above on the pricing page;
+            change it there, not here, so the two stay in lockstep. */}
+        {((categories && categories.length > 0) || (courts && courts.length > 0)) && (
+          <div className="mb-4 flex items-center gap-4">
+            {categories && categories.length > 0 && (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Game</p>
+                <span className="inline-block rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-white">{gameLabel}</span>
+              </div>
+            )}
+            {courts && courts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Court</p>
+                <span className="inline-block rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-white">{courtLabel}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. Time slots — pick any (or Select all for the whole day). Booked ones
+            can't be picked at all. */}
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Time slots ({effectiveSlots.length})</p>
+            <button
+              onClick={() =>
+                setSelectedTimes(allSelected ? new Set() : new Set(pickableTimes.map((t) => t.startTime)))
+              }
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition ${
+                allSelected ? "border-ink bg-ink text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {allSelected ? "All selected (whole day)" : "Select all · Whole day"}
+            </button>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/60 p-2 [scrollbar-width:thin]">
+            {uniqueTimes.map((t) => {
+              const booked = isBookedTime(t.startTime);
+              const selected = selectedTimes.has(t.startTime);
+              const slot = getEffectiveSlot(t.startTime, t.endTime, t.label);
+              const blocked = !booked && blockedFor(slot);
+              return (
+                <button
+                  key={t.startTime}
+                  disabled={booked}
+                  onClick={() => toggleTime(t.startTime)}
+                  className={`shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10.5px] font-bold transition ${
+                    booked
+                      ? "cursor-not-allowed border-rose-100 bg-rose-50 text-rose-400"
+                      : selected
+                      ? "border-ink bg-ink text-white"
+                      : blocked
+                      ? "border-slate-200 bg-slate-100 text-slate-400 line-through"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {to12h(t.startTime)} – {to12h(t.endTime)}
+                  {booked ? " · Booked" : blocked ? " · Blocked" : ` · ₹${slot.price}`}
+                </button>
+              );
+            })}
+            {uniqueTimes.length === 0 && (
+              <p className="py-2 text-center text-[11px] text-slate-400">No slots configured for this date.</p>
+            )}
+          </div>
+          {selectedTimes.size > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleBlockSelected}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50"
+              >
+                {selectedAllBlocked ? "Unblock selected" : "Block selected"}
+              </button>
+              {onBookSlot && selectedTimes.size === 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const startTime = [...selectedTimes][0];
+                    const t = uniqueTimes.find((x) => x.startTime === startTime);
+                    if (t) onBookSlot(getEffectiveSlot(t.startTime, t.endTime, t.label));
+                  }}
+                  className="rounded-lg bg-vibe-navy px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90"
+                >
+                  Book
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 3. Price for whatever's selected above. */}
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+          Set price for {priceForSelectionLabel}
+        </p>
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <PresetTile label="Off-Peak" price={presets.offPeak} active={selectedPreset === "offPeak"} onClick={() => pickPreset("offPeak")} />
           <PresetTile label="Standard" price={presets.standard} active={selectedPreset === "standard"} onClick={() => pickPreset("standard")} />
           <PresetTile label="Peak / Event" price={presets.peak} active={selectedPreset === "peak"} onClick={() => pickPreset("peak")} />
         </div>
 
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Or Set My Price (₹)</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Or Set Custom Price (₹)</p>
         <input
           type="text"
           inputMode="numeric"
-          value={bulkPrice}
+          value={priceInput}
           placeholder="Enter price"
           onChange={(e) => {
             setSelectedPreset("custom");
-            setBulkPrice(onlyDigits(e.target.value));
+            setPriceInput(onlyDigits(e.target.value));
           }}
-          className="w-full rounded-xl border border-surface-border bg-cream-200/40 px-4 py-3 text-sm font-bold outline-none focus:border-vibe-violet mb-4"
+          className="w-full rounded-xl border border-surface-border bg-cream-200/40 px-4 py-3 text-sm font-bold outline-none focus:border-vibe-violet mb-1"
         />
-
-        {/* Advanced: per-slot pricing, grouped into Morning / Afternoon / Evening / Night */}
-        <button
-          onClick={() => setAdvancedOpen((o) => !o)}
-          className="flex w-full items-center justify-between text-xs font-bold text-slate-600 py-2 border-t border-slate-100"
-        >
-          Edit individual slots ({slots.length})
-          {advancedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-
-        {advancedOpen && (
-          <div className="mt-2 mb-2 max-h-[440px] overflow-y-auto overscroll-contain -mx-1 px-1">
-            {SECTIONS.map(({ key, label, icon: Icon, emoji }) => {
-              const sectionSlots = grouped[key];
-              if (sectionSlots.length === 0) return null;
-              const open = openSections[key];
-
-              return (
-                <div key={key} className="mb-3 rounded-2xl border border-slate-100 bg-white overflow-hidden last:mb-0">
-                  {/* Sticky section header */}
-                  <button
-                    type="button"
-                    onClick={() => toggleSection(key)}
-                    className="sticky top-0 z-10 flex w-full items-center justify-between gap-2 bg-slate-50/95 backdrop-blur px-3.5 py-2.5 border-b border-slate-100"
-                  >
-                    <span className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
-                      <Icon size={14} className="text-vibe-violet" aria-hidden />
-                      <span aria-hidden>{emoji}</span> {label}
-                      <span className="font-semibold text-slate-400">
-                        ({sectionSlots.length} {sectionSlots.length === 1 ? "Slot" : "Slots"})
-                      </span>
-                    </span>
-                    <ChevronDown
-                      size={15}
-                      className={`text-slate-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {/* Smooth collapse via grid-template-rows — no JS height measurement needed */}
-                  <div
-                    className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-                      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="p-3 space-y-2">
-                        {/* Smart suggestion — only the Evening section has one right now */}
-                        {key === "evening" && eveningTwilightSlots.length > 0 && (
-                          <div className="rounded-xl bg-vibe-violet/10 border border-vibe-violet/20 p-3">
-                            <div className="flex items-start gap-2">
-                              <Lightbulb size={15} className="text-vibe-violet shrink-0 mt-0.5" />
-                              <p className="text-xs text-slate-600">
-                                Demand typically dips between 5 PM – 7 PM. Suggested Price:{" "}
-                                <span className="font-extrabold text-vibe-violet">₹{suggestedTwilightPrice}</span>
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={activateTwilightOffer}
-                              className="mt-2 w-full rounded-lg bg-vibe-violet text-white text-xs font-bold py-2 hover:bg-vibe-violetSoft transition"
-                            >
-                              {twilightApplied ? "Suggested Price Applied ✓" : "Apply Suggested Price"}
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Bulk-apply for this section */}
-                        <div className="flex items-center gap-1.5 rounded-xl bg-slate-50 px-2.5 py-2">
-                          <span className="text-xs text-slate-400 shrink-0">₹</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={sectionBulkPrice[key]}
-                            placeholder="Price"
-                            onChange={(e) =>
-                              setSectionBulkPrice((prev) => ({ ...prev, [key]: onlyDigits(e.target.value) }))
-                            }
-                            className="w-20 shrink-0 rounded-lg border border-surface-border bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-vibe-violet"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => applySectionPrice(key)}
-                            disabled={!sectionBulkPrice[key]}
-                            className="flex-1 rounded-lg bg-ink text-white text-[11px] font-bold py-1.5 px-2 hover:bg-ink/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            Apply to all {label} slots
-                          </button>
-                        </div>
-
-                        {/* Individual slot rows */}
-                        {sectionSlots.map((slot, index) => {
-                          const isBlocked = blockedFor(slot);
-                          return (
-                            <div
-                              key={`${slot.startTime}-${slot.endTime}-${index}`}
-                              className={`rounded-xl border px-3 py-2 transition ${
-                                isBlocked ? "border-slate-100 bg-slate-50" : "border-slate-100"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`text-xs font-semibold ${isBlocked ? "text-slate-400 line-through" : "text-slate-600"}`}>
-                                  {to12h(slot.startTime)} – {to12h(slot.endTime)}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setBlockedOverrides((prev) => ({ ...prev, [slot.startTime]: !isBlocked }))
-                                  }
-                                  className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide transition ${
-                                    isBlocked ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-700"
-                                  }`}
-                                >
-                                  {isBlocked ? "Disabled" : "Active"}
-                                </button>
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-1.5">
-                                <span className="text-xs text-slate-400">₹</span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  disabled={isBlocked}
-                                  value={slotOverrides[slot.startTime] ?? bulkPrice}
-                                  placeholder={String(slot.price)}
-                                  onChange={(e) =>
-                                    setSlotOverrides((prev) => ({ ...prev, [slot.startTime]: onlyDigits(e.target.value) }))
-                                  }
-                                  className="w-20 rounded-lg border border-surface-border bg-cream-200/40 px-2 py-1.5 text-xs font-bold outline-none focus:border-vibe-violet disabled:opacity-50"
-                                />
-                                {onBookSlot && !isBlocked && (
-                                  <button
-                                    onClick={() => onBookSlot(slot)}
-                                    className="rounded-lg bg-vibe-navy px-2.5 py-1.5 text-[10px] font-black text-white transition hover:opacity-90 active:scale-95"
-                                  >
-                                    Book
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {selectedTimes.size === 0 && (
+          <p className="mb-3 text-[10.5px] text-slate-400">Pick at least one time slot above before applying a price.</p>
         )}
 
+        {/* 4. One final apply. */}
         <button
           onClick={handleSave}
           disabled={saving}
           className="w-full mt-3 rounded-xl bg-ink text-white py-3.5 text-sm font-bold hover:bg-ink/90 transition disabled:opacity-60"
         >
-          {saving ? "Saving…" : "Save Pricing Updates"}
+          {saving
+            ? "Saving…"
+            : selectedTimes.size > 0 && Number(priceInput) > 0
+            ? `Apply ₹${priceInput} to ${priceForSelectionLabel}`
+            : "Save Pricing Updates"}
         </button>
       </div>
     </div>

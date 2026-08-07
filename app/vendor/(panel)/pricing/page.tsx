@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, CalendarDays, ChevronDown, Sofa, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X, Sun, Moon } from "lucide-react";
+import { CalendarRange, CalendarDays, ChevronDown, Sofa, Sparkles, TrendingUp, Users, PartyPopper, Trophy, Flame, X } from "lucide-react";
 import { SectionCard } from "@/components/vendor/ui";
 import { DailyPricingSheet } from "@/components/vendor/DailyPricingSheet";
 import { createVendorBooking, getVendorBookings, getVendorListings, updateVendorListing } from "@/lib/api/vendor";
@@ -38,17 +38,29 @@ function datesInScope(scope: BulkScope, year: number, month: number): Date[] {
   return dates;
 }
 
-/** Matches the Morning/Noon (5 AM–3 PM) vs Evening/Night (3 PM–3 AM) split on the Vibe
- * Cycle clock — the 3–5 AM maintenance window never has slots in it, so it never
- * actually matches either block. */
-type TimeBlock = "morningNoon" | "eveningNight";
-const TIME_BLOCK_LABEL: Record<TimeBlock, string> = {
-  morningNoon: "Morning/Noon",
-  eveningNight: "Evening/Night",
-};
-function matchesTimeBlock(startTime: string, block: TimeBlock): boolean {
-  const h = Number(startTime.split(":")[0]) || 0;
-  return block === "morningNoon" ? h >= 5 && h < 15 : h >= 15 || h < 3;
+/** Minute-of-day sort key that puts the venue's real day first: anything before 5 AM
+ * (a late-night tail like 12–3 AM) sorts *after* the rest of the day instead of before
+ * it, matching how these same slots are generated and ordered everywhere else. */
+function dayOrderMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  const mins = (h || 0) * 60 + (m || 0);
+  return mins < 300 ? mins + 1440 : mins;
+}
+
+/** The venue's own default slot times — the menu of picks for the time-of-day pricing
+ * tool, deduped by startTime+endTime since the same time can carry several sport/court
+ * rows. Date-independent on purpose: this tool applies across a whole month/year, so
+ * picking from any one date's actual slots would be inconsistent day to day. */
+function slotTimeOptions(listing: Listing): { startTime: string; endTime: string; label: string }[] {
+  const seen = new Set<string>();
+  const options: { startTime: string; endTime: string; label: string }[] = [];
+  for (const s of listing.slotsList ?? []) {
+    const key = `${s.startTime}-${s.endTime}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    options.push({ startTime: s.startTime, endTime: s.endTime, label: s.label });
+  }
+  return options.sort((a, b) => dayOrderMinutes(a.startTime) - dayOrderMinutes(b.startTime));
 }
 /**
  * Every date carries a light day-type wash — weekday / weekend / holiday — so the three
@@ -107,11 +119,44 @@ function minPrice(slots: TurfSlot[]): number | null {
   return Math.min(...slots.map((s) => s.price));
 }
 
+/** The calendar's per-day price badge, scoped to whichever game/court is currently
+ * selected up top — once a specific one is picked, "cheapest anything on this day"
+ * stops being useful and the badge should show what THAT combination actually costs.
+ * With nothing specific picked, falls back to the old blind minimum across every row. */
+function effectivePriceForDay(slots: TurfSlot[], sport: string | undefined, courtId: string | undefined): number | null {
+  if (!sport && !courtId) return minPrice(slots);
+  const byTime = new Map<string, TurfSlot[]>();
+  for (const s of slots) {
+    const arr = byTime.get(s.startTime) ?? [];
+    arr.push(s);
+    byTime.set(s.startTime, arr);
+  }
+  let min: number | null = null;
+  for (const rows of byTime.values()) {
+    let resolved: TurfSlot | undefined;
+    if (sport && courtId) resolved = rows.find((s) => s.sport === sport && s.courtId === courtId);
+    if (!resolved && sport) resolved = rows.find((s) => s.sport === sport && !s.courtId);
+    if (!resolved && courtId) resolved = rows.find((s) => !s.sport && s.courtId === courtId);
+    if (!resolved) resolved = rows.find((s) => !s.sport && !s.courtId);
+    if (!resolved || resolved.price <= 0) continue;
+    if (min === null || resolved.price < min) min = resolved.price;
+  }
+  return min;
+}
+
 function formatPrice(price: number): string {
   if (price >= 1000) {
     return `₹${(price / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   }
   return `₹${price}`;
+}
+
+function to12h(t: string): string {
+  const [hStr, m] = t.split(":");
+  let h = Number(hStr) % 24;
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
 }
 
 export default function PriceSettingPage() {
@@ -136,14 +181,15 @@ export default function PriceSettingPage() {
   // never a silent 6-months-from-today window a vendor can't see or reason about.
   const [bulkScope, setBulkScope] = useState<BulkScope>("month");
 
-  // Time-of-day pricing — e.g. "charge ₹800 for every Evening/Night Cricket slot on
-  // Court 1" — shares the same month/year scope toggle as the day-type bulk pricing
-  // above. Always sets an exact rate (no +/- adjust) and, like My Listing's Pricing
-  // Studio, is scoped to one game + court at a time — "All games"/"All courts" repeats
-  // the venue-wide default behaviour.
-  const [blockTarget, setBlockTarget] = useState<TimeBlock | null>(null);
+  // Time-of-day pricing — e.g. "charge ₹800 for every 5–6 PM Cricket slot on Court 1"
+  // — shares the same month/year scope toggle as the day-type bulk pricing above. Like
+  // My Listing's Pricing Studio, it's scoped to one game + court at a time — "All
+  // games"/"All courts" repeats the venue-wide default behaviour. Always sets an exact
+  // price (no +/- adjust) on whichever exact slot times are picked, with "Select all"
+  // as a one-tap shortcut for repricing the whole day.
   const [blockGame, setBlockGame] = useState<string>("all");
   const [blockCourtId, setBlockCourtId] = useState<string>("all");
+  const [blockTimes, setBlockTimes] = useState<Set<string>>(new Set());
   const [blockAmountInput, setBlockAmountInput] = useState("100");
   const blockAmount = Number(blockAmountInput) || 0;
   const [applyingBlock, setApplyingBlock] = useState(false);
@@ -215,12 +261,30 @@ export default function PriceSettingPage() {
 
   const selectedTurf = useMemo(() => listings.find((l) => l.id === selectedTurfId), [listings, selectedTurfId]);
 
+  // Already-sold slots for the date being priced — DailyPricingSheet needs these so it
+  // never lets a vendor reprice something a player already paid for (a court booked
+  // days ahead is exactly as "already booked" as one for today).
+  const activeDateBookedTimes = useMemo(() => {
+    if (!activeDate || !selectedTurf) return [];
+    const result: { startTime: string; courtIds: string[] }[] = [];
+    for (const b of bookings) {
+      if (b.status === "Cancelled") continue;
+      if ((b.listingId ?? b.listing) !== selectedTurf.id) continue;
+      const d = new Date(b.dateTime);
+      if (toIso(d) !== activeDate) continue;
+      const startTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const courtIds = b.courtIds?.length ? b.courtIds : b.courtId ? [b.courtId] : [];
+      result.push({ startTime, courtIds });
+    }
+    return result;
+  }, [activeDate, selectedTurf, bookings]);
+
   // A court left selected from a previous game that this one doesn't host would
   // silently reprice the wrong court — fall back to "All courts" instead.
   useEffect(() => {
     if (blockCourtId === "all" || !selectedTurf) return;
     const court = selectedTurf.courts?.find((c) => c.id === blockCourtId);
-    const stillHosts = court && (blockGame === "all" || court.sports.length === 0 || court.sports.includes(blockGame));
+    const stillHosts = court && (blockGame === "all" || court.sports.length === 0 || court.sports.includes(categoryLabel(blockGame)));
     if (!stillHosts) setBlockCourtId("all");
   }, [blockGame, blockCourtId, selectedTurf]);
 
@@ -400,16 +464,16 @@ export default function PriceSettingPage() {
     setApplyingBulk(false);
   }
 
-  /** Writes a dateOverride for one date, setting an exact price on just the slots
-   * inside the chosen time block (Morning/Noon or Evening/Night) for one game + court
-   * — every other slot, sport or court on that date keeps its existing price untouched,
-   * unlike buildOverrideEntry which repriced the whole day. Mirrors My Listing's
-   * Pricing Studio: an exact-match row is updated in place, otherwise a new row tagged
-   * with that game/court is added rather than touching the venue-wide default. */
+  /** Writes a dateOverride for one date, setting an exact price on just the picked slot
+   * times for one game + court — every other slot, sport or court on that date keeps
+   * its existing price untouched, unlike buildOverrideEntry which repriced the whole
+   * day. Mirrors My Listing's Pricing Studio: an exact-match row is updated in place,
+   * otherwise a new row tagged with that game/court is added rather than touching the
+   * venue-wide default. */
   function buildBlockOverrideEntry(
     listing: Listing,
     dateIso: string,
-    block: TimeBlock,
+    times: Set<string>,
     amount: number,
     sport: string | undefined,
     courtId: string | undefined
@@ -417,7 +481,7 @@ export default function PriceSettingPage() {
     const existingSlots = resolveSlotsForDate(listing, dateIso);
     const targets = new Map<string, TurfSlot>();
     for (const s of existingSlots) {
-      if (!matchesTimeBlock(s.startTime, block)) continue;
+      if (!times.has(s.startTime)) continue;
       const key = `${s.startTime}-${s.endTime}`;
       if (!targets.has(key)) targets.set(key, s);
     }
@@ -439,13 +503,16 @@ export default function PriceSettingPage() {
   }
 
   async function applyBlockPrice() {
-    if (!selectedTurf || !blockTarget || applyingBlock) return;
+    if (!selectedTurf || blockTimes.size === 0 || applyingBlock) return;
     const turf = selectedTurf;
-    const target = blockTarget;
+    const times = blockTimes;
     const amount = blockAmount;
-    const sport = blockGame === "all" ? undefined : blockGame;
+    // Courts/slots store the sport's display label ("Cricket"), not its id ("cricket").
+    const sport = blockGame === "all" ? undefined : categoryLabel(blockGame);
     const courtId = blockCourtId === "all" ? undefined : blockCourtId;
     const scopeLabel = bulkScope === "month" ? `${monthNames[calMonth]} ${calYear}` : `${calYear}`;
+    const allTimes = slotTimeOptions(turf).length;
+    const timesLabel = times.size >= allTimes ? "the whole day" : `${times.size} time slot${times.size === 1 ? "" : "s"}`;
     setApplyingBlock(true);
     try {
       const overrides = [...(turf.dateOverrides ?? [])];
@@ -458,19 +525,19 @@ export default function PriceSettingPage() {
         const dateStr = toIso(d);
         const uniqueTimes = new Set(
           resolveSlotsForDate(turf, dateStr)
-            .filter((s) => matchesTimeBlock(s.startTime, target))
+            .filter((s) => times.has(s.startTime))
             .map((s) => `${s.startTime}-${s.endTime}`)
         );
         if (uniqueTimes.size === 0) continue;
         matchedDates++;
         matchedSlots += uniqueTimes.size;
-        const entry = buildBlockOverrideEntry(turf, dateStr, target, amount, sport, courtId);
+        const entry = buildBlockOverrideEntry(turf, dateStr, times, amount, sport, courtId);
         const idx = overrides.findIndex((o) => o.date === dateStr);
         if (idx > -1) overrides[idx] = entry; else overrides.push(entry);
       }
 
       if (matchedDates === 0) {
-        setToast(`No ${TIME_BLOCK_LABEL[target].toLowerCase()} slots found in ${scopeLabel}.`);
+        setToast(`No matching slots found in ${scopeLabel}.`);
         setApplyingBlock(false);
         return;
       }
@@ -478,12 +545,12 @@ export default function PriceSettingPage() {
       const updated = { ...turf, dateOverrides: overrides };
       // Optimistic update so the calendar reflects the change instantly.
       setListings((ls) => ls.map((x) => (x.id === turf.id ? updated : x)));
-      setBlockTarget(null);
-      const scopeName = [sport ? categoryLabel(sport) : null, courtId ? turf.courts?.find((c) => c.id === courtId)?.name : null]
+      setBlockTimes(new Set());
+      const scopeName = [sport, courtId ? turf.courts?.find((c) => c.id === courtId)?.name : null]
         .filter(Boolean)
         .join(" · ");
       setToast(
-        `Set ${TIME_BLOCK_LABEL[target]}${scopeName ? ` (${scopeName})` : ""} slots to ${formatPrice(amount)} across ${matchedSlots} slot${matchedSlots === 1 ? "" : "s"} in ${scopeLabel}.`
+        `Set ${timesLabel}${scopeName ? ` (${scopeName})` : ""} to ${formatPrice(amount)} across ${matchedSlots} slot${matchedSlots === 1 ? "" : "s"} in ${scopeLabel}.`
       );
 
       const saved = await updateVendorListing(turf.id, mockListingToApiInput(updated));
@@ -672,10 +739,10 @@ export default function PriceSettingPage() {
           </div>
 
           {/* Time-of-day Pricing — a separate axis from the day-type bulk pricing above:
-              this reprices only the slots that fall inside Morning/Noon (5 AM–3 PM) or
-              Evening/Night (3 PM–3 AM), leaving every other slot on those dates untouched.
-              Individual per-slot pricing (tap a date on the calendar below) still exists
-              for one-off exceptions — this is for "night is always ₹X more" as a rule. */}
+              pick a game + court, pick exactly which slot times to reprice (or "Select
+              all" for the whole day), and set an exact rate — every other game, court
+              and slot on those dates stays untouched. Individual per-slot pricing (tap a
+              date on the calendar below) still exists for one-off exceptions. */}
           <div className="relative rounded-xl2 border border-surface-border bg-surface-card shadow-panel p-5 sm:p-6">
             <div className="mb-1 flex items-center justify-between">
               <p className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Set prices by time of day</p>
@@ -686,7 +753,7 @@ export default function PriceSettingPage() {
               )}
             </div>
             <p className="mb-3 text-[10.5px] font-semibold leading-relaxed text-ink-faint">
-              Pick a game and court, then charge Morning/Noon and Evening/Night differently for that exact combination — leaving every other game, court and slot untouched.
+              Pick a game and court, then pick the exact time slots to reprice — leaving every other game, court and slot untouched.
             </p>
 
             {(selectedTurf?.categories?.length ?? 0) > 0 && (
@@ -729,7 +796,7 @@ export default function PriceSettingPage() {
                     All courts
                   </button>
                   {selectedTurf!.courts!
-                    .filter((c) => blockGame === "all" || c.sports.length === 0 || c.sports.includes(blockGame))
+                    .filter((c) => blockGame === "all" || c.sports.length === 0 || c.sports.includes(categoryLabel(blockGame)))
                     .map((c) => (
                       <button
                         key={c.id}
@@ -745,27 +812,53 @@ export default function PriceSettingPage() {
               </div>
             )}
 
-            <div className={`grid grid-cols-2 gap-2 ${byvManaged ? "pointer-events-none opacity-40" : ""}`}>
-              {(["morningNoon", "eveningNight"] as TimeBlock[]).map((t) => {
-                const Icon = t === "morningNoon" ? Sun : Moon;
-                return (
-                  <button
-                    key={t}
-                    disabled={byvManaged}
-                    onClick={() => setBlockTarget(blockTarget === t ? null : t)}
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-3.5 text-sm font-bold transition ${
-                      blockTarget === t
-                        ? "border-ink bg-ink text-white"
-                        : "border-surface-border bg-white text-ink-soft hover:bg-cream-200/40"
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {TIME_BLOCK_LABEL[t]}
-                  </button>
-                );
-              })}
-            </div>
-            {blockTarget && !byvManaged && (
+            {(() => {
+              const timeOptions = selectedTurf ? slotTimeOptions(selectedTurf) : [];
+              const allSelected = timeOptions.length > 0 && blockTimes.size === timeOptions.length;
+              return (
+                <div className={byvManaged ? "pointer-events-none opacity-40" : ""}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Time slots</p>
+                    <button
+                      onClick={() =>
+                        setBlockTimes(allSelected ? new Set() : new Set(timeOptions.map((t) => t.startTime)))
+                      }
+                      className={`rounded-full border px-3 py-1 text-[10.5px] font-black transition ${
+                        allSelected ? "border-ink bg-ink text-white" : "border-surface-border bg-white text-ink-soft hover:bg-cream-200/40"
+                      }`}
+                    >
+                      {allSelected ? "All selected (whole day)" : "Select all · Whole day"}
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-surface-border bg-cream-200/20 p-2 [scrollbar-width:thin]">
+                    {timeOptions.map((t) => {
+                      const selected = blockTimes.has(t.startTime);
+                      return (
+                        <button
+                          key={t.startTime}
+                          onClick={() =>
+                            setBlockTimes((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(t.startTime)) next.delete(t.startTime); else next.add(t.startTime);
+                              return next;
+                            })
+                          }
+                          className={`shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10.5px] font-bold transition ${
+                            selected ? "border-ink bg-ink text-white" : "border-surface-border bg-white text-ink-soft hover:bg-cream-200/40"
+                          }`}
+                        >
+                          {to12h(t.startTime)} – {to12h(t.endTime)}
+                        </button>
+                      );
+                    })}
+                    {timeOptions.length === 0 && (
+                      <p className="col-span-full py-2 text-center text-[11px] text-ink-faint">No slots configured for this turf yet.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            {blockTimes.size > 0 && !byvManaged && (
               <div className="mt-3 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-ink-faint">Apply to</span>
@@ -802,7 +895,7 @@ export default function PriceSettingPage() {
                     disabled={applyingBlock || blockAmount <= 0}
                     className="rounded-xl bg-vibe-violet text-white text-sm font-bold px-5 py-2.5 hover:bg-vibe-violetSoft transition disabled:opacity-60"
                   >
-                    {applyingBlock ? "Applying…" : `Set ${TIME_BLOCK_LABEL[blockTarget]} price`}
+                    {applyingBlock ? "Applying…" : "Set exact price"}
                   </button>
                 </div>
               </div>
@@ -846,7 +939,11 @@ export default function PriceSettingPage() {
               {calendarDays.map((day, idx) => {
                 if (!day) return <div key={idx} className="aspect-square bg-transparent border-0" />;
                 const slots = resolveSlotsForDate(selectedTurf, day.dateStr);
-                const price = minPrice(slots);
+                const price = effectivePriceForDay(
+                  slots,
+                  blockGame === "all" ? undefined : categoryLabel(blockGame),
+                  blockCourtId === "all" ? undefined : blockCourtId
+                );
                 const isSelected = activeDate === day.dateStr;
                 const isEvent = eventDates.has(day.dateStr);
                 const inStreak = holidayStreakDates.has(day.dateStr);
@@ -911,7 +1008,7 @@ export default function PriceSettingPage() {
                         {day.dayNumber}
                       </span>
 
-                      {price !== null && (
+                      {price !== null && price > 0 && (
                         <span className={`text-[8.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded-md ${priceCls}`}>
                           {formatPrice(price)}
                         </span>
@@ -1190,6 +1287,11 @@ export default function PriceSettingPage() {
         <DailyPricingSheet
           dateLabel={activeDateLabel}
           slots={activeDateSlots}
+          categories={selectedTurf.categories}
+          courts={selectedTurf.courts}
+          initialGame={blockGame}
+          initialCourtId={blockCourtId}
+          bookedTimes={activeDateBookedTimes}
           onClose={() => setActiveDate(null)}
           onSave={saveDailyPricing}
           onBookSlot={(slot) => {
