@@ -65,8 +65,13 @@ function VenueCard({
         </button>
         {/* inset-x-3 (not just left-3) bounds the row, so a multi-sport venue listing
             seven categories truncates to one line instead of stacking over the photo. */}
-        <div className="absolute left-3 bottom-3">
+        <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
           <StatusPill status={venue.status} />
+          {venue.totalVenues && venue.totalVenues > 1 && (
+            <span className="rounded-full bg-slate-950/80 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+              {venue.totalVenues} Venues
+            </span>
+          )}
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">
@@ -80,7 +85,7 @@ function VenueCard({
             <span className="font-normal text-slate-400"> /hour</span>
           </p>
           <PrimaryButton onClick={onBook} className="!px-4 !py-2 text-xs">
-            Book Now
+            {venue.totalVenues && venue.totalVenues > 1 ? "Explore All" : "Book Now"}
           </PrimaryButton>
         </div>
       </div>

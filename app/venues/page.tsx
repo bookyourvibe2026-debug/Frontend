@@ -119,11 +119,12 @@ function VenuesPageInner() {
       result.push({
         id: vendorId,
         href: `/venues/vendor/${vendorId}`,
-        title: profile?.businessName ?? listings[0].title,
+        title: profile?.businessName ?? listings[0].ownerName ?? listings[0].title,
+        subtitle: `${listings.length} Venues Available`,
         image: profile?.poster || profile?.banner || listings[0].coverImage,
         city: profile?.city ?? listings[0].city,
         price: Math.min(...listings.map((l) => l.price)),
-        badge: `${listings.length} venues`,
+        badge: `${listings.length} VENUES`,
       });
     }
     for (const l of standalone) {

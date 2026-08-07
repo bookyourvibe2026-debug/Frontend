@@ -813,9 +813,16 @@ export default function BookingsPage() {
       status: "Available",
       label: `${selectedSlots.length} Bookings`,
     };
+    const activeSportFilter =
+      selectedGameFilter && selectedGameFilter !== "All" && selectedGameFilter.trim() !== ""
+        ? selectedGameFilter
+        : filters.sport && filters.sport !== "All" && filters.sport.trim() !== ""
+        ? filters.sport
+        : null;
+
     setOfflineMode("multiple");
     setMultiSlots(selectedSlots);
-    setOfflineSport(selectedTurf.categories[0] || "");
+    setOfflineSport(activeSportFilter || selectedTurf.categories[0] || "");
     setOfflineAmount("");
     setActiveSlot(display);
     setOfflineModal(true);
@@ -898,6 +905,36 @@ export default function BookingsPage() {
     const sports = selectedTurf.categories || [];
     const activeCourts = (selectedTurf.courts || []).filter((c) => c.active);
 
+    // Determine if a specific sport is ALREADY selected from the top sports filter or filter sheet
+    const activeSportFilter =
+      selectedGameFilter && selectedGameFilter !== "All" && selectedGameFilter.trim() !== ""
+        ? selectedGameFilter
+        : filters.sport && filters.sport !== "All" && filters.sport.trim() !== ""
+        ? filters.sport
+        : null;
+
+    if (activeSportFilter) {
+      // Find matching courts for the selected sport
+      let targetCourts = activeCourts.filter((c) => {
+        if (!c.sports || c.sports.length === 0) return true;
+        return c.sports.some((s) => s.trim().toLowerCase() === activeSportFilter.trim().toLowerCase());
+      });
+      if (targetCourts.length === 0) targetCourts = activeCourts;
+
+      const firstAvailable = targetCourts.find((c) => !(slot.bookedCourtIds || []).includes(c.id)) || targetCourts[0];
+
+      setAddBookingInitial({
+        courtId: selectedTurf.id,
+        price: String(slot.price),
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        sport: activeSportFilter,
+        venueCourtId: firstAvailable?.id || "",
+      });
+      setAddBookingOpen(true);
+      return;
+    }
+
     // If venue has 1 or 0 sports AND 1 or 0 courts, skip sport & court selection modal:
     if (sports.length <= 1 && activeCourts.length <= 1) {
       setAddBookingInitial({
@@ -943,9 +980,16 @@ export default function BookingsPage() {
       setSetupSportsOpen(true);
       return;
     }
+    const activeSportFilter =
+      selectedGameFilter && selectedGameFilter !== "All" && selectedGameFilter.trim() !== ""
+        ? selectedGameFilter
+        : filters.sport && filters.sport !== "All" && filters.sport.trim() !== ""
+        ? filters.sport
+        : null;
+
     setOfflineMode("single");
     setMultiSlots([]);
-    setOfflineSport(selectedTurf.categories[0] || "");
+    setOfflineSport(activeSportFilter || selectedTurf.categories[0] || "");
     setOfflineAmount("");
     setOfflineSpanCount(2);
     setActiveSlot(combinedSlot);
@@ -1120,12 +1164,19 @@ export default function BookingsPage() {
 
   /* ── Add Booking ── */
   function openAddBooking(slot?: AgendaSlot) {
+    const activeSportFilter =
+      selectedGameFilter && selectedGameFilter !== "All" && selectedGameFilter.trim() !== ""
+        ? selectedGameFilter
+        : filters.sport && filters.sport !== "All" && filters.sport.trim() !== ""
+        ? filters.sport
+        : null;
+
     setAddBookingInitial({
       courtId: selectedTurfId,
       price: slot ? String(slot.price) : "",
       startTime: slot?.startTime ?? "",
       endTime: slot?.endTime ?? "",
-      sport: selectedTurf?.categories?.[0] ?? "",
+      sport: activeSportFilter || selectedTurf?.categories?.[0] || "",
     });
     setAddBookingOpen(true);
   }

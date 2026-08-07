@@ -12,6 +12,7 @@ import { categoryLabel } from "./taxonomy";
 
 export type Venue = {
   id: string;
+  vendorId?: string;
   /** Preferred over `id` for building /venues URLs — falls back to `id` when unset. */
   slug?: string;
   name: string;
@@ -22,11 +23,13 @@ export type Venue = {
   status: "Available" | "Filling Fast" | "Full";
   sport: string;
   image: string;
+  totalVenues?: number;
 };
 
 export function listingToVenue(listing: Listing): Venue {
   return {
     id: listing._id,
+    vendorId: listing.vendorId ?? undefined,
     slug: listing.slug,
     name: listing.title,
     area: listing.city,

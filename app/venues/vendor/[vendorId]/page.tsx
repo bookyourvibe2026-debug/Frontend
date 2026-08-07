@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { MapPin, Store } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, MapPin, Store, Building2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { MobileTopBar } from "@/components/mobile/ui";
 import { VenuePosterCard } from "@/components/venue-poster-card";
@@ -12,6 +12,7 @@ import { Listing } from "@/lib/api/types";
 import { categoryLabel } from "@/lib/taxonomy";
 
 export default function VendorProfilePage() {
+  const router = useRouter();
   const params = useParams<{ vendorId: string }>();
   const vendorId = params.vendorId;
 
@@ -48,7 +49,17 @@ export default function VendorProfilePage() {
         <MobileTopBar />
       </div>
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => router.push("/venues")}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to All Venues</span>
+          </button>
+        </div>
         {loading && <p className="text-sm text-slate-500">Loading vendor profile...</p>}
         {error && <p className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">{error}</p>}
 
@@ -77,10 +88,16 @@ export default function VendorProfilePage() {
                   <Store className="h-7 w-7" />
                 </span>
               )}
-              <div className="min-w-0">
-                <h1 className="truncate text-2xl font-extrabold text-slate-900 sm:text-3xl">{vendor.businessName}</h1>
-                <p className="flex items-center gap-1 truncate text-sm text-slate-500">
-                  <MapPin className="h-3.5 w-3.5" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-2xl font-extrabold text-slate-900 sm:text-3xl">{vendor.businessName}</h1>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>{listings.length} {listings.length === 1 ? "Venue" : "Venues"}</span>
+                  </span>
+                </div>
+                <p className="mt-1 flex items-center gap-1 truncate text-sm text-slate-500 font-medium">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400" />
                   {vendor.city ? `${vendor.city}, ` : ""}
                   {vendor.state}
                 </p>

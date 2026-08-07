@@ -2174,6 +2174,16 @@ function t24m(t: string) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
+
+/** Computes sorting minutes relative to 5:00 AM (300 mins). Hours from 00:00 to 04:59 sort past midnight (+1440 mins). */
+function getSortMinutes(t: string, dayStartMins = 300) {
+  const m = t24m(t);
+  return m < dayStartMins ? m + 1440 : m;
+}
+
+function compareSlotTimes(a: { startTime: string }, b: { startTime: string }) {
+  return getSortMinutes(a.startTime) - getSortMinutes(b.startTime);
+}
 function m2t(m: number) {
   return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
@@ -2317,7 +2327,7 @@ function BookingStep({ draft, update }: StepProps) {
      clock dial and the "Opens/Closes" summary can never show three different orderings
      of the same underlying data. */
   function save(nextSlots: TurfSlot[]) {
-    const sorted = [...nextSlots].sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+    const sorted = [...nextSlots].sort(compareSlotTimes);
     if (isDailyRoutine && !selectedDate) {
       update("slotsList", sorted);
       update("slotsPerDay", sorted.length);
@@ -2450,7 +2460,7 @@ function BookingStep({ draft, update }: StepProps) {
 
     const newSlots = activeSlots.filter((_, idx) => !sortedIndices.includes(idx));
     newSlots.push(clubSlot);
-    newSlots.sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+    newSlots.sort(compareSlotTimes);
 
     save(newSlots);
     setSelectedSlotIndices([]);
@@ -2489,7 +2499,7 @@ function BookingStep({ draft, update }: StepProps) {
 
     const newSlots = activeSlots.filter((_, idx) => idx !== clubIndex);
     newSlots.push(...splitSlots);
-    newSlots.sort((a, b) => t24m(a.startTime) - t24m(b.startTime));
+    newSlots.sort(compareSlotTimes);
 
     save(newSlots);
     trackEvent("club_slot_deleted", { clubId: slot.clubId }, "vendor");
@@ -2965,7 +2975,8 @@ function BookingStep({ draft, update }: StepProps) {
               {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
                 const partSlots = activeSlots
                   .map((s, idx) => ({ ...s, originalIndex: idx }))
-                  .filter((s) => s.label === part);
+                  .filter((s) => s.label === part)
+                  .sort(compareSlotTimes);
 
                 if (partSlots.length === 0) return null;
 
@@ -3791,7 +3802,7 @@ function PricingStep({ draft, update, audience }: StepProps & { audience: Audien
             ) : (
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
                 {(["Morning", "Afternoon", "Evening", "Night", "Mid Night"] as const).map((part) => {
-                  const partSlots = unpricedSlots.filter((s) => s.label === part);
+                  const partSlots = unpricedSlots.filter((s) => s.label === part).sort(compareSlotTimes);
                   if (partSlots.length === 0) return null;
 
                   return (

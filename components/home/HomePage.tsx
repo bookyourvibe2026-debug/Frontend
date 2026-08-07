@@ -7,6 +7,7 @@ import { type Venue, listingToVenue } from "@/lib/venues";
 import { browseVenues } from "@/lib/api/venues";
 import { SiteHeader } from "@/components/site-header";
 import { Hero } from "./Hero";
+import { QuickEventsSection } from "./QuickEventsSection";
 import { QuickActionsSection } from "./QuickActionsSection";
 import { FoodAndBeverages } from "./FoodAndBeverages";
 import { FindYourGames } from "./FindYourGames";
@@ -84,7 +85,50 @@ export default function HomePage() {
   useEffect(() => {
     browseVenues({ limit: 30, type: "Turf" })
       .then((result) => {
-        setVenues(result.items.map(listingToVenue));
+        const byVendor = new Map<string, typeof result.items>();
+        const standalone: typeof result.items = [];
+
+        for (const item of result.items) {
+          if (item.vendorId) {
+            const list = byVendor.get(item.vendorId) ?? [];
+            list.push(item);
+            byVendor.set(item.vendorId, list);
+          } else {
+            standalone.push(item);
+          }
+        }
+
+        const groupedVenues: Venue[] = [];
+
+        for (const [vendorId, items] of byVendor.entries()) {
+          if (items.length === 1) {
+            groupedVenues.push(listingToVenue(items[0]));
+          } else {
+            const lowestPrice = Math.min(...items.map((i) => i.price));
+            const maxRating = Math.max(...items.map((i) => i.rating || 0));
+            const first = items[0];
+            groupedVenues.push({
+              id: first._id,
+              vendorId,
+              slug: first.slug,
+              name: first.ownerName || first.title,
+              area: first.city,
+              distanceKm: 0,
+              rating: maxRating,
+              pricePerHour: lowestPrice,
+              status: "Available",
+              sport: `${items.length} Venues Available`,
+              image: first.coverImage ?? "",
+              totalVenues: items.length,
+            });
+          }
+        }
+
+        for (const s of standalone) {
+          groupedVenues.push(listingToVenue(s));
+        }
+
+        setVenues(groupedVenues);
       })
       .catch(() => {
         setVenues([]);
@@ -92,7 +136,13 @@ export default function HomePage() {
   }, []);
 
   const openVenue = useCallback(
-    (v: Venue) => router.push(`/venues/${v.slug || v.id}`),
+    (v: Venue) => {
+      if (v.totalVenues && v.totalVenues > 1 && v.vendorId) {
+        router.push(`/venues/vendor/${v.vendorId}`);
+      } else {
+        router.push(`/venues/${v.slug || v.id}`);
+      }
+    },
     [router]
   );
 
@@ -213,8 +263,9 @@ export default function HomePage() {
           onBookVenue={openVenue}
           onViewAll={() => router.push("/venues")}
         />
-
         <TopPlayersRanking />
+
+        <QuickEventsSection onViewAll={() => router.push("/quick-events")} />
 
         <QuickActionsSection
           onQuickAction={handleQuickAction}

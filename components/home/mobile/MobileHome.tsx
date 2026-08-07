@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { QuickEventsSection } from "../QuickEventsSection";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -274,6 +275,8 @@ export function MobileHome({
 
       <AdBanner className="" />
       <LastMinuteDealsSection className="" />
+
+      <QuickEventsSection />
 
       <section>
         <MobileSectionRow title="Quick Actions" />

@@ -9,6 +9,15 @@ function t24m(t: string) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
+
+function getSortMinutes(t: string, dayStartMins = 300) {
+  const m = t24m(t);
+  return m < dayStartMins ? m + 1440 : m;
+}
+
+function compareSlotTimes(a: { startTime: string }, b: { startTime: string }) {
+  return getSortMinutes(a.startTime) - getSortMinutes(b.startTime);
+}
 function to12h(t: string) {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
@@ -131,6 +140,9 @@ export function DailyPricingSheet({
   const grouped = useMemo(() => {
     const map: Record<SectionKey, TurfSlot[]> = { morning: [], afternoon: [], evening: [], night: [] };
     for (const slot of slots) map[sectionForStart(t24m(slot.startTime))].push(slot);
+    for (const k of Object.keys(map) as SectionKey[]) {
+      map[k].sort(compareSlotTimes);
+    }
     return map;
   }, [slots]);
 
