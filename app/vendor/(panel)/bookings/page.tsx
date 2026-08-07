@@ -523,7 +523,7 @@ export default function BookingsPage() {
       }
 
       const isFullyBooked = activeCourts.length > 0 ? (courtsTotal > 0 && courtsFree === 0) : matches.length > 0;
-      const hasBooking = Boolean(match && (isFullyBooked || matches.length > 0));
+      const hasBooking = Boolean(match && isFullyBooked);
 
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
@@ -556,9 +556,9 @@ export default function BookingsPage() {
         label: displayLabel,
         price: (slot.price && slot.price > 0) ? slot.price : (selectedTurf?.price || 1000),
         status,
-        bookingId: isFullyBooked ? bookingId : undefined,
-        customerName: isFullyBooked ? customerName : undefined,
-        phone: isFullyBooked ? phone : undefined,
+        bookingId: hasBooking ? bookingId : undefined,
+        customerName: hasBooking ? (customerName || match?.customerName || match?.customer || "Customer") : undefined,
+        phone: hasBooking ? phone : undefined,
         arrived,
         sport: match?.sport,
         numberOfPlayers: match?.numberOfPlayers,
@@ -567,12 +567,17 @@ export default function BookingsPage() {
         courtsFree,
         courtsTotal,
         bookedCourtIds: Array.from(takenCourtIds),
-        courtsInfo: activeCourts.length > 0 ? gameCourts.map(c => ({
-          id: c.id,
-          name: c.name,
-          isBooked: takenCourtIds.has(c.id),
-          isPending: pendingOnlyCourtIds.has(c.id)
-        })) : undefined,
+        courtsInfo: activeCourts.length > 0 ? gameCourts.map(c => {
+          const courtBooking = overlappingBookings.find(bk => (bk.courtIds?.length ? bk.courtIds.includes(c.id) : (bk.courtId || activeCourts[0]!.id) === c.id));
+          const bookedBy = courtBooking ? (courtBooking.customerName || courtBooking.customer) : undefined;
+          return {
+            id: c.id,
+            name: c.name,
+            isBooked: takenCourtIds.has(c.id),
+            isPending: pendingOnlyCourtIds.has(c.id),
+            bookedBy,
+          };
+        }) : undefined,
         isClubSlot: Boolean(slot.isClubSlot || (t24m(slot.endTime) - t24m(slot.startTime) > 60)),
         clubId: slot.clubId,
         slotIds: slot.slotIds,

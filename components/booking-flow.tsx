@@ -824,8 +824,22 @@ export default function BookingFlow({
       }
     }
 
-    // Sort slots by start time and assign final array indices to originalIndex
-    slots.sort((a, b) => time24ToMinutes(a.startTime) - time24ToMinutes(b.startTime));
+    // Determine venue's opening daytime threshold for operational sequencing
+    const dayStartMins = (() => {
+      const rawList = listing.slotsList || [];
+      if (rawList.length === 0) return 300; // 5:00 AM default
+      const daytimeMins = rawList.map((s: { startTime: string }) => time24ToMinutes(s.startTime)).filter((m: number) => m >= 240); // 04:00 AM threshold
+      if (daytimeMins.length > 0) return Math.min(...daytimeMins);
+      return Math.min(...rawList.map((s: { startTime: string }) => time24ToMinutes(s.startTime)));
+    })();
+
+    const slotOrderKey = (timeStr: string) => {
+      const m = time24ToMinutes(timeStr);
+      return m < dayStartMins ? m + 1440 : m;
+    };
+
+    // Sort slots by operational sequence (daytime/evening first, continuing into overnight post-midnight)
+    slots.sort((a, b) => slotOrderKey(a.startTime) - slotOrderKey(b.startTime));
     return slots.map((s, index) => ({ ...s, originalIndex: index }));
   }, [listing, date, startMin, endMin, baseHourlyRate, isDateHoliday, bookedRanges, courtsForSport, sport, courtPicks, nowTick]);
 
@@ -947,8 +961,9 @@ export default function BookingFlow({
   // anyway. Anything taken while they were deciding drops out instead of failing at
   // payment, so what's shown as selected is always still bookable.
   const effectiveCourtIds = useMemo(() => {
-    const base = courtPicks ?? (freeCourts[0] ? [freeCourts[0].id] : []);
-    return base.filter((id) => freeCourts.some((c) => c.id === id));
+    const validPicks = (courtPicks ?? []).filter((id) => freeCourts.some((c) => c.id === id));
+    if (validPicks.length > 0) return validPicks;
+    return freeCourts[0] ? [freeCourts[0].id] : [];
   }, [courtPicks, freeCourts]);
 
   const toggleCourt = (id: string) => {
@@ -1108,6 +1123,8 @@ export default function BookingFlow({
       return created;
     } catch (err) {
       console.error("Auto-create pending reservation error:", err);
+      const msg = err instanceof ApiError ? err.describe() : "This court or slot is unavailable. Please pick another court.";
+      setError(msg);
       return null;
     } finally {
       setCreatingPending(false);

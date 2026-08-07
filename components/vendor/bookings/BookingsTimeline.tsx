@@ -32,7 +32,8 @@ export interface TimelineSlot {
   clubId?: string;
   slotIds?: string[];
   durationMinutes?: number;
-  courtsInfo?: { id: string; name: string; isBooked: boolean; isPending?: boolean }[];
+  courtName?: string;
+  courtsInfo?: { id: string; name: string; isBooked: boolean; isPending?: boolean; bookedBy?: string }[];
 }
 
 /** What the ⋮ menu can trigger on a row. */
@@ -416,7 +417,7 @@ export function BookingsTimeline({
                                   : "bg-rose-50 text-rose-600 border-rose-200"
                             }`}
                           >
-                            {court.name} {!court.isBooked ? "(Free)" : court.isPending ? "(Pending)" : "(Booked)"}
+                            {court.name} {!court.isBooked ? "(Free)" : court.isPending ? "(Pending)" : court.bookedBy ? `(Booked: ${court.bookedBy})` : "(Booked)"}
                           </span>
                         ))}
                       </div>
@@ -467,9 +468,20 @@ export function BookingsTimeline({
                         </span>
                       )}
                     </div>
-                    <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
-                      {slot.phone || "Booked online"} {slot.sport ? `· ${slot.sport}` : ""}
-                    </p>
+                    {(() => {
+                      const bookingSource = slot.status === "Offline Booked" ? "Booked offline" : "Booked online";
+                      const sourceLabel = slot.phone ? `${slot.phone} (${bookingSource})` : bookingSource;
+                      const courtLabel = slot.courtName
+                        ? slot.courtName
+                        : slot.courtsInfo
+                        ? slot.courtsInfo.filter(c => c.isBooked).map(c => c.name).join(", ")
+                        : "";
+                      return (
+                        <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                          {sourceLabel} {slot.sport ? `· ${slot.sport}` : ""} {courtLabel ? `· ${courtLabel}` : ""}
+                        </p>
+                      );
+                    })()}
                     {isPartial && (
                       <p className="mt-0.5 text-[10px] font-black text-amber-700">
                         Paid ₹{slot.paidAmount} of ₹{slot.price} · <span className="text-rose-600">₹{remaining} remaining</span>
