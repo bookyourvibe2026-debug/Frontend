@@ -311,11 +311,11 @@ export function DailyPricingSheet({
                         </div>
 
                         {/* Individual slot rows */}
-                        {sectionSlots.map((slot) => {
+                        {sectionSlots.map((slot, index) => {
                           const isBlocked = blockedFor(slot);
                           return (
                             <div
-                              key={slot.startTime}
+                              key={`${slot.startTime}-${slot.endTime}-${index}`}
                               className={`rounded-xl border px-3 py-2 transition ${
                                 isBlocked ? "border-slate-100 bg-slate-50" : "border-slate-100"
                               }`}

@@ -204,11 +204,11 @@ export function LastMinuteBoostCard({
         </p>
       ) : (
         <div className="space-y-2">
-          {boostSlots.map((slot) => {
+          {boostSlots.map((slot, index) => {
             const urgent = slot.minutesUntil <= BOOST_WINDOW_MIN && !slot.isBoosted;
             return (
               <div
-                key={slot.startTime}
+                key={`${slot.startTime}-${slot.endTime}-${index}`}
                 className={`rounded-2xl border px-3.5 py-3 transition ${
                   urgent ? "border-amber-300 bg-amber-50/50" : slot.isBoosted ? "border-emerald-200 bg-emerald-50/40" : "border-slate-100 bg-white"
                 }`}

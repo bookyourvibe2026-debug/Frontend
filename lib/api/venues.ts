@@ -43,7 +43,7 @@ export async function getVenueById(id: string) {
 export interface BookedRange {
   startTime: string; // "HH:mm" (24h)
   endTime: string; // "HH:mm" (24h)
-  status: "Confirmed" | "Pending" | "Completed";
+  status: "Confirmed" | "Pending" | "Completed" | "Part Paid";
   /** Which court is taken. Absent only on bookings that predate courts. */
   courtId?: string;
 }

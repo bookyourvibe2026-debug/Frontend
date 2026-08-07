@@ -231,6 +231,7 @@ interface AgendaSlot {
   courtsFree?: number;
   courtsTotal?: number;
   bookedCourtIds?: string[];
+  courtsInfo?: { id: string; name: string; isBooked: boolean; isPending?: boolean }[];
   isClubSlot?: boolean;
   clubId?: string;
   slotIds?: string[];
@@ -327,7 +328,7 @@ export default function BookingsPage() {
   // Generic "are you sure, finalizing in Ns" step before any action actually runs
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; seconds: number; run: () => void | Promise<void> } | null>(null);
 
-  // Load
+  // Load & 10s Background Polling for real-time Pending / Confirmed updates
   useEffect(() => {
     Promise.all([getVendorListings(), getVendorBookings({ limit: 500 })])
       .then(([l, b]) => {
@@ -342,6 +343,14 @@ export default function BookingsPage() {
       })
       .catch((e) => setError(e instanceof ApiError ? e.describe() : "Failed to load"))
       .finally(() => setLoading(false));
+
+    const pollInterval = setInterval(() => {
+      getVendorBookings({ limit: 500 })
+        .then((b) => setBookings(b.items as unknown as ApiBooking[]))
+        .catch(() => {});
+    }, 10_000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   const selectedTurf = useMemo(
@@ -422,7 +431,7 @@ export default function BookingsPage() {
       return Array.from(byKey.values());
     })();
 
-    const mapped = dedupedBase.map((slot) => {
+    const mapped = dedupedBase.map((slot): AgendaSlot | null => {
       if (slot.blocked) {
         return {
           startTime: slot.startTime,
@@ -505,14 +514,24 @@ export default function BookingsPage() {
       const match = sportMatched || overlappingBookings[0];
       const otherSportBooking = Boolean(match) && !sportMatched;
 
+      const slotStartMins = dayOrderKey(slot.startTime, dayStartMins);
+      const isPassed = isToday && slotStartMins < nowOrder;
+
+      // Filter out all past slots so only current and future available/upcoming slots are displayed
+      if (isPassed) {
+        return null;
+      }
+
       const isFullyBooked = activeCourts.length > 0 ? (courtsTotal > 0 && courtsFree === 0) : matches.length > 0;
+      const hasBooking = Boolean(match && (isFullyBooked || matches.length > 0));
+
       let status: SlotStatus = "Available";
       let bookingId: string | undefined;
       let customerName: string | undefined;
       let phone: string | undefined;
       let arrived = false;
 
-      if (match && isFullyBooked) {
+      if (hasBooking && match) {
         bookingId = match.orderId;
         customerName = otherSportBooking
           ? `Court in use — ${match.sport || "other sport"}`
@@ -560,6 +579,7 @@ export default function BookingsPage() {
         durationMinutes: slot.durationMinutes || (t24m(slot.endTime) - t24m(slot.startTime)),
       };
     })
+      .filter((s): s is AgendaSlot => s !== null)
       .sort((a, b) => dayOrderKey(a.startTime, dayStartMins) - dayOrderKey(b.startTime, dayStartMins));
 
     // Combine consecutive slots that belong to the exact same booking into one continuous block (e.g. 11:00 AM – 01:00 PM)
@@ -836,6 +856,10 @@ export default function BookingsPage() {
   /* ── Actions on available slot ── */
   async function setSlotBlocked(slot: AgendaSlot, blocked: boolean, reason?: string) {
     if (!selectedTurf) return;
+    if (blocked && (slot.status === "Part Paid" || slot.status === "On Hold" || (slot.courtsInfo && slot.courtsInfo.length > 0 && slot.courtsInfo.every(c => c.isBooked || c.isPending)))) {
+      alert("This slot is currently reserved by an online player. You cannot block a slot while it is in a Pending state.");
+      return;
+    }
     try {
       const overrides = [...(selectedTurf.dateOverrides || [])];
       const idx = overrides.findIndex(o => o.date === selectedDate);
@@ -1239,11 +1263,21 @@ export default function BookingsPage() {
 
   /* ── Timeline row ⋮ menu ── */
   function handleSlotAction(slot: AgendaSlot, action: SlotAction) {
+    const isPending = slot.status === "Part Paid" || slot.status === "On Hold" || (slot.courtsInfo && slot.courtsInfo.length > 0 && slot.courtsInfo.every(c => c.isBooked || c.isPending));
+
     switch (action) {
       case "create-booking":
+        if (isPending) {
+          alert("This slot is currently reserved by an online player. Offline booking is disabled while the reservation is Pending.");
+          return;
+        }
         startOfflineBooking(slot);
         return;
       case "block-slot":
+        if (isPending) {
+          alert("This slot is currently reserved by an online player. Blocking is disabled while the reservation is Pending.");
+          return;
+        }
         setActiveSlot(slot);
         setBlockReasonOpen(true);
         return;
@@ -1724,6 +1758,7 @@ export default function BookingsPage() {
           sports={selectedTurf.categories || []}
           courts={(selectedTurf.courts || []).filter((c) => c.active)}
           bookedCourtIds={sportCourtModalSlot.bookedCourtIds || []}
+          pendingCourtIds={sportCourtModalSlot.courtsInfo?.filter(ci => ci.isPending).map(ci => ci.id) || []}
           slotTime={`${to12h(sportCourtModalSlot.startTime)} – ${to12h(sportCourtModalSlot.endTime)}`}
           onClose={() => {
             setSportCourtModalOpen(false);
@@ -1740,6 +1775,7 @@ export default function BookingsPage() {
           venueCourts={(selectedTurf?.courts ?? []).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name, sports: c.sports }))}
           sports={selectedTurf?.categories ?? []}
           bookedCourtIds={sportCourtModalSlot?.bookedCourtIds || []}
+          pendingCourtIds={sportCourtModalSlot?.courtsInfo?.filter(ci => ci.isPending).map(ci => ci.id) || []}
           initial={addBookingInitial}
           submitting={addBookingSaving}
           onClose={() => setAddBookingOpen(false)}

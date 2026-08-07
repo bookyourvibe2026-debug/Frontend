@@ -35,6 +35,7 @@ export function SportCourtSelectionModal({
   sports,
   courts,
   bookedCourtIds,
+  pendingCourtIds = [],
   slotTime,
   onClose,
   onConfirm,
@@ -43,6 +44,7 @@ export function SportCourtSelectionModal({
   sports: string[];
   courts: CourtItem[];
   bookedCourtIds: string[];
+  pendingCourtIds?: string[];
   slotTime: string;
   onClose: () => void;
   onConfirm: (selectedSport: string, selectedCourtId: string) => void;
@@ -102,6 +104,7 @@ export function SportCourtSelectionModal({
               }
 
               let isFullyBooked = false;
+              let isPendingHold = false;
               let freeCount = 0;
 
               if (activeCourts.length === 0) {
@@ -111,6 +114,7 @@ export function SportCourtSelectionModal({
                 const freeCourts = sportCourts.filter((c) => !bookedCourtIds.includes(c.id));
                 freeCount = freeCourts.length;
                 isFullyBooked = freeCount === 0;
+                isPendingHold = isFullyBooked && sportCourts.some((c) => pendingCourtIds.includes(c.id));
               }
 
               const isSelected = selectedSport === sport;
@@ -140,14 +144,20 @@ export function SportCourtSelectionModal({
                   <span className="text-xs font-extrabold text-slate-900 mt-1 capitalize">{sport}</span>
                   <span
                     className={`text-[10px] font-semibold ${
-                      isFullyBooked
+                      isPendingHold
+                        ? "text-amber-600 flex items-center gap-1 font-bold"
+                        : isFullyBooked
                         ? "text-rose-600 flex items-center gap-1"
                         : isSelected
                         ? "text-emerald-700 font-bold"
                         : "text-slate-500"
                     }`}
                   >
-                    {isFullyBooked ? (
+                    {isPendingHold ? (
+                      <>
+                        <Ban size={10} className="text-amber-500" /> Pending Hold
+                      </>
+                    ) : isFullyBooked ? (
                       <>
                         <Ban size={10} /> Fully Booked
                       </>

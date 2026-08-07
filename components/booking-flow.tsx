@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback } from "react";
+
 
 /* ------------------------------------------------------------------ */
 /*  BOOKING FLOW                                                       */
@@ -1052,8 +1054,92 @@ export default function BookingFlow({
 
   const [paymentGatewayOpen, setPaymentGatewayOpen] = useState(false);
   const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
+  const [creatingPending, setCreatingPending] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [selectedPayMethod, setSelectedPayMethod] = useState<"UPI" | "Card" | "NetBanking">("UPI");
+
+  const ensurePendingBooking = useCallback(async (): Promise<Booking | null> => {
+    if (pendingBooking) return pendingBooking;
+    if (creatingPending) return null;
+    setCreatingPending(true);
+    try {
+      let dateTime = "";
+      let durationMinutes = undefined;
+      if (listing.type === "Turf") {
+        if (selectedSlotIndices.length === 0) return null;
+        const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
+        const earliestSlot = generatedSlots[sortedIndices[0]];
+        if (!earliestSlot) return null;
+        dateTime = new Date(`${date}T${earliestSlot.startTime}:00`).toISOString();
+        if (sortedIndices.length === 1 && earliestSlot?.isClubSlot) {
+          durationMinutes = earliestSlot.durationMinutes || 120;
+        } else {
+          durationMinutes = sortedIndices.length * 60;
+        }
+      } else {
+        if (!time) return null;
+        dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
+      }
+
+      const created = await createMyBooking({
+        listingId: listing._id,
+        dateTime,
+        payment,
+        paymentType: effectivePaymentOption,
+        sport: sport || undefined,
+        courtId: effectiveCourtIds[0] || undefined,
+        courtIds: effectiveCourtIds.length > 0 ? effectiveCourtIds : undefined,
+        priceTierId: listing.type === "Event" ? undefined : selectedPriceTierId || undefined,
+        phone: needsPhone ? phone : undefined,
+        addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
+        playProtect,
+        durationMinutes,
+      });
+
+      trackEvent("booking_started", {
+        listingId: listing._id,
+        listingTitle: listing.title,
+        date,
+        totalAmount: activePrice,
+        slotCount: selectedSlotIndices.length,
+      });
+
+      setPendingBooking(created);
+      return created;
+    } catch (err) {
+      console.error("Auto-create pending reservation error:", err);
+      return null;
+    } finally {
+      setCreatingPending(false);
+    }
+  }, [
+    pendingBooking,
+    creatingPending,
+    listing._id,
+    listing.type,
+    listing.title,
+    selectedSlotIndices,
+    generatedSlots,
+    date,
+    time,
+    payment,
+    effectivePaymentOption,
+    sport,
+    effectiveCourtIds,
+    selectedPriceTierId,
+    needsPhone,
+    phone,
+    selectedAddOnIds,
+    playProtect,
+    activePrice,
+  ]);
+
+  // Create server-side Pending reservation immediately upon entering Checkout step
+  useEffect(() => {
+    if (step === "review" && !pendingBooking && !creatingPending && status === "authenticated") {
+      ensurePendingBooking();
+    }
+  }, [step, pendingBooking, creatingPending, status, ensurePendingBooking]);
 
   useEffect(() => {
     onStateChange?.({ canPay, submitting, confirmed: step === "confirmed" });
@@ -1087,44 +1173,14 @@ export default function BookingFlow({
     setSubmitting(true);
     setError("");
     try {
-      let dateTime = "";
-      let durationMinutes = undefined;
-      if (listing.type === "Turf") {
-        const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
-        const earliestSlot = generatedSlots[sortedIndices[0]];
-        dateTime = new Date(`${date}T${earliestSlot.startTime}:00`).toISOString();
-        if (sortedIndices.length === 1 && earliestSlot?.isClubSlot) {
-          durationMinutes = earliestSlot.durationMinutes || 120;
-        } else {
-          durationMinutes = sortedIndices.length * 60;
-        }
-      } else {
-        dateTime = new Date(`${date}T${to24Hour(time)}:00`).toISOString();
+      let bookingToPay = pendingBooking;
+      if (!bookingToPay) {
+        bookingToPay = await ensurePendingBooking();
       }
-      const created = await createMyBooking({
-        listingId: listing._id,
-        dateTime,
-        payment,
-        paymentType: effectivePaymentOption,
-        sport: sport || undefined,
-        courtId: effectiveCourtIds[0] || undefined,
-        courtIds: effectiveCourtIds.length > 0 ? effectiveCourtIds : undefined,
-        priceTierId: listing.type === "Event" ? undefined : selectedPriceTierId || undefined,
-        phone: needsPhone ? phone : undefined,
-        addOnIds: selectedAddOnIds.length > 0 ? selectedAddOnIds : undefined,
-        playProtect,
-        durationMinutes,
-      });
-
-      trackEvent("booking_started", {
-        listingId: listing._id,
-        listingTitle: listing.title,
-        date,
-        totalAmount: activePrice,
-        slotCount: selectedSlotIndices.length,
-      });
-
-      setPendingBooking(created);
+      if (!bookingToPay) {
+        throw new Error("Unable to create reservation. Please try again.");
+      }
+      setPendingBooking(bookingToPay);
       setPaymentGatewayOpen(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.describe() : "Something went wrong. Please try again.");
@@ -1508,6 +1564,36 @@ function ReviewStep(props: {
   const [mobileStep, setMobileStep] = useState<"slots" | "checkout">(
     listing.type === "Event" ? "checkout" : "slots"
   );
+  const [reservationSeconds, setReservationSeconds] = useState<number | null>(null);
+  const [timerExpiredNotice, setTimerExpiredNotice] = useState<string | null>(null);
+
+  // 2-minute server court reservation countdown timer when on Checkout step
+  useEffect(() => {
+    if (mobileStep !== "checkout") {
+      setReservationSeconds(null);
+      return;
+    }
+
+    if (reservationSeconds === null) {
+      setReservationSeconds(120); // 2 minutes = 120 seconds
+      return;
+    }
+
+    if (reservationSeconds <= 0) {
+      setTimerExpiredNotice("Your 2-minute court reservation has expired. The court lock has been released.");
+      setReservationSeconds(null);
+      if (listing.type !== "Event") {
+        setMobileStep("slots");
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setReservationSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [mobileStep, reservationSeconds, listing.type]);
 
   const dateStripRef = useRef<HTMLDivElement>(null);
 
@@ -2375,6 +2461,35 @@ function ReviewStep(props: {
               listing.type === "Event" ? "w-full max-w-2xl mx-auto lg:w-full" : "w-full lg:w-80"
             } ${mobileStep === "slots" ? "hidden lg:flex" : "flex"}`}
           >
+            {/* 2-Minute Server Court Reservation Banner */}
+            {(mobileStep === "checkout" || listing.type === "Event") && (
+              <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-3.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs animate-pulse">
+                      <Clock className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-wide text-amber-900">
+                        Court Reserved
+                      </p>
+                      <p className="text-[10.5px] font-medium text-amber-700">
+                        {selectedCourtDisplay ? `${selectedCourtDisplay} locked on server` : "Slot locked on server"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-block rounded-xl border border-amber-300 bg-white px-2.5 py-1 font-mono text-sm font-black text-amber-600 shadow-xs">
+                      {reservationSeconds !== null
+                        ? `${String(Math.floor(reservationSeconds / 60)).padStart(2, "0")}:${String(reservationSeconds % 60).padStart(2, "0")}`
+                        : "02:00"}
+                    </span>
+                    <p className="mt-0.5 text-[8.5px] font-extrabold uppercase tracking-wider text-amber-500">Hold Expires</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Checkout Header Card */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
               <div className="flex items-start justify-between">

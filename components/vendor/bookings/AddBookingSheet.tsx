@@ -41,6 +41,7 @@ export function AddBookingSheet({
   venueCourts,
   sports,
   bookedCourtIds = [],
+  pendingCourtIds = [],
   initial,
   submitting,
   onClose,
@@ -52,6 +53,7 @@ export function AddBookingSheet({
   venueCourts: { id: string; name: string; sports?: string[] }[];
   sports: string[];
   bookedCourtIds?: string[];
+  pendingCourtIds?: string[];
   initial: Partial<AddBookingValues>;
   submitting: boolean;
   onClose: () => void;
@@ -207,17 +209,18 @@ export function AddBookingSheet({
             <Field label="Select Court" icon={Building2}>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 {filteredCourts.map((c) => {
-                  const isBooked = bookedCourtIds.includes(c.id);
+                  const isPending = pendingCourtIds.includes(c.id);
+                  const isBooked = bookedCourtIds.includes(c.id) && !isPending;
                   const isSelected = form.venueCourtId === c.id;
 
                   return (
                     <button
                       key={c.id}
                       type="button"
-                      disabled={isBooked}
+                      disabled={isBooked || isPending}
                       onClick={() => update("venueCourtId", c.id)}
                       className={`flex items-center justify-between rounded-xl border p-2.5 text-xs font-extrabold transition ${
-                        isBooked
+                        isBooked || isPending
                           ? "border-slate-200 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed"
                           : isSelected
                           ? "border-vibe-violet bg-vibe-violet text-white shadow-xs ring-2 ring-vibe-violet/20"
@@ -225,7 +228,11 @@ export function AddBookingSheet({
                       }`}
                     >
                       <span className="truncate">{c.name}</span>
-                      {isBooked ? (
+                      {isPending ? (
+                        <span className="text-[9px] font-black uppercase tracking-wide text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
+                          Pending
+                        </span>
+                      ) : isBooked ? (
                         <span className="text-[9px] font-black uppercase tracking-wide text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100">
                           Booked
                         </span>
