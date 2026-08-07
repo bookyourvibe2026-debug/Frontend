@@ -360,14 +360,19 @@ export default function BookingsPage() {
   }, [selectedTurf?.id]);
 
   /**
-   * The venue's regular opening minute, taken from the listing's default slot list
-   * (never from a date override — an override may already contain the late-night slot
-   * we're trying to place). Everything that orders or compares times uses this anchor.
+   * The venue's regular daytime opening minute, taken from the listing's default slot list.
+   * Filters out post-midnight overnight slots (< 04:00 AM) so that overnight slots
+   * (e.g. 12:00 AM - 03:00 AM) appear as a continuation at the end of the operational day,
+   * rather than being placed at the very top of the schedule.
    */
   const dayStartMins = useMemo(() => {
-    const base = selectedTurf?.slotsList ?? [];
-    if (base.length === 0) return 0;
-    return Math.min(...base.map((s) => t24m(s.startTime)));
+    const rawList = selectedTurf?.slotsList ?? [];
+    if (rawList.length === 0) return 300; // Default 05:00 AM if no slots configured
+    const daytimeMins = rawList.map((s: { startTime: string }) => t24m(s.startTime)).filter((m: number) => m >= 240); // 04:00 AM threshold
+    if (daytimeMins.length > 0) {
+      return Math.min(...daytimeMins);
+    }
+    return Math.min(...rawList.map((s: { startTime: string }) => t24m(s.startTime)));
   }, [selectedTurf]);
 
   /** "Now" projected onto the same anchored timeline as the slots. */
@@ -1579,14 +1584,7 @@ export default function BookingsPage() {
                   scrollToNow={isToday}
                   selectMode={selectMode}
                   selectedKeys={selectedKeys}
-                  onToggleSelect={toggleSelectSlot}
                 />
-                <button
-                  onClick={() => setAddSlotOpen(true)}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-vibe-navy/30 bg-white py-3 text-[11px] font-black text-vibe-navy transition hover:bg-slate-50 active:scale-[0.99]"
-                >
-                  <CalendarDays size={13} /> Add a time slot (e.g. late night 1–2 AM)
-                </button>
                 <TimelineLegend />
               </>
             )}
