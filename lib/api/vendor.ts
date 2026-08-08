@@ -195,7 +195,7 @@ export type ListingInput = Partial<
   slotsPerDay: number;
 };
 
-export function getVendorListings(params: { type?: ListingType; search?: string } = {}) {
+export function getVendorListings(params: { type?: ListingType; search?: string; category?: string } = {}) {
   return apiRequest<Listing[]>("/vendor/listings", { query: params, audience: AUD });
 }
 

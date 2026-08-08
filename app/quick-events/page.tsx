@@ -31,6 +31,8 @@ function formatEventDate(rawDate?: string): string {
   }
 }
 
+import { isEventExpired } from "@/lib/eventUtils";
+
 export default function QuickEventsPage() {
   const router = useRouter();
   const [quickEvents, setQuickEvents] = useState<Listing[]>([]);
@@ -53,7 +55,8 @@ export default function QuickEventsPage() {
           }
         }
 
-        const combined = Array.from(map.values());
+        const now = new Date();
+        const combined = Array.from(map.values()).filter((e) => !isEventExpired(e, now));
         // Filter strictly for Quick Add events
         const filtered = combined.filter((e) => {
           const subCats = e.subCategories || [];

@@ -13,6 +13,17 @@ import { ApiError } from "@/lib/api/client";
 import { Listing } from "@/lib/api/types";
 import { Listing as MockListing } from "@/lib/types";
 
+import { isEventExpired } from "@/lib/eventUtils";
+
+const VENDOR_EVENT_CATEGORIES = [
+  { id: "all", label: "All Categories" },
+  { id: "alcoholic-party", label: "Alcoholic Party" },
+  { id: "non-alcoholic-party", label: "Non-Alcoholic Party" },
+  { id: "business", label: "Business" },
+  { id: "sports", label: "Sports" },
+  { id: "performance", label: "Performance" },
+];
+
 export default function EventListingsPage() {
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,14 +31,21 @@ export default function EventListingsPage() {
   const [creating, setCreating] = useState(false);
   const [quickAdding, setQuickAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   function load() {
-    getVendorListings({ type: "Event" })
-      .then(setListings)
+    getVendorListings({
+      type: "Event",
+      category: selectedCategory === "all" ? undefined : selectedCategory,
+    })
+      .then((res) => {
+        const now = new Date();
+        setListings(res.filter((item) => !isEventExpired(item, now)));
+      })
       .catch((err) => setError(err instanceof ApiError ? err.describe() : "Failed to load event listings"));
   }
 
-  useEffect(load, []);
+  useEffect(load, [selectedCategory]);
 
   async function handleSave(listing: MockListing) {
     try {
@@ -99,6 +117,35 @@ export default function EventListingsPage() {
           </div>
         }
       />
+
+      {/* Category Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl2 border border-surface-border bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <label htmlFor="vendor-event-category-select" className="text-sm font-semibold text-ink">
+            Category Filter:
+          </label>
+          <select
+            id="vendor-event-category-select"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="rounded-lg border border-surface-border bg-cream-50 px-3.5 py-2 text-sm font-semibold text-ink transition focus:border-vibe-violet focus:outline-none focus:ring-1 focus:ring-vibe-violet"
+          >
+            {VENDOR_EVENT_CATEGORIES.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {selectedCategory !== "all" && (
+          <button
+            onClick={() => setSelectedCategory("all")}
+            className="text-xs font-bold text-vibe-violet hover:underline"
+          >
+            Show All Categories
+          </button>
+        )}
+      </div>
 
       {error && <p className="rounded-xl2 border border-surface-border bg-white p-6 text-sm text-vibe-coral">{error}</p>}
 

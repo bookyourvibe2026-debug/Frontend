@@ -7,6 +7,7 @@ import { ArrowRight, Zap } from "lucide-react";
 import { browseVenues } from "@/lib/api/venues";
 import { getVendorListings } from "@/lib/api/vendor";
 import { Listing } from "@/lib/api/types";
+import { isEventExpired } from "@/lib/eventUtils";
 
 interface Props {
   className?: string;
@@ -34,7 +35,8 @@ export function QuickEventsSection({ className = "", onViewAll }: Props) {
           }
         }
 
-        const combined = Array.from(map.values());
+        const now = new Date();
+        const combined = Array.from(map.values()).filter((e) => !isEventExpired(e, now));
         // Filter strictly for Quick Add Events
         const filtered = combined.filter((e) => {
           const subCats = e.subCategories || [];

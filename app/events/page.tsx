@@ -8,6 +8,8 @@ import { browseVenues } from "@/lib/api/venues";
 import { Listing } from "@/lib/api/types";
 import { EventCategoryFilter, EVENT_CATEGORIES } from "@/components/events/EventCategoryFilter";
 
+import { isEventExpired } from "@/lib/eventUtils";
+
 function eventBadge(event: Listing): string | undefined {
   if (typeof event.spotsLeft === "number") return `${event.spotsLeft} spots left`;
   return undefined;
@@ -20,7 +22,10 @@ export default function EventsPage() {
 
   useEffect(() => {
     browseVenues({ type: "Event", limit: 24 })
-      .then((result) => setEvents(result.items))
+      .then((result) => {
+        const now = new Date();
+        setEvents(result.items.filter((item) => !isEventExpired(item, now)));
+      })
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
   }, []);

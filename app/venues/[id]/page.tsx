@@ -48,6 +48,7 @@ import {
   Grid,
 } from "lucide-react";
 import { browsePublicCoaches } from "@/lib/api/coaches";
+import { isEventExpired } from "@/lib/eventUtils";
 import type { Coach } from "@/lib/api/types";
 import { SiteHeader } from "@/components/site-header";
 import BookingFlow, { type DealContext } from "@/components/booking-flow";
@@ -250,6 +251,7 @@ export default function VenueDetailPage() {
   }
 
   const isEvent = venue.type === "Event";
+  const isExpired = isEventExpired(venue);
   const highlights = getVenueHighlights(venue);
   const inclusions = venue.inclusions.length > 0 ? venue.inclusions : DEFAULT_INCLUSIONS;
   const exclusions = venue.exclusions.length > 0 ? venue.exclusions : DEFAULT_EXCLUSIONS;
