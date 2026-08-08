@@ -82,7 +82,7 @@ export function ClubSlotDetailsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 transition-all">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-vibe-navy via-slate-900 to-slate-800 p-6 text-white">
+        <div className="relative bg-linear-to-r from-vibe-navy via-slate-900 to-slate-800 p-6 text-white">
           <button
             type="button"
             onClick={onClose}
