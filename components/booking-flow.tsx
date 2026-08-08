@@ -1816,11 +1816,15 @@ function ReviewStep(props: {
     el.scrollBy({ left: direction * Math.max(220, el.clientWidth * 0.85), behavior: "smooth" });
   }
 
-  /** Same rule for courts: free ones first, already-booked ones greyed out at the end. */
+  /** Same rule for courts: free (or self-held — our own in-progress checkout) ones first,
+   *  already-booked ones greyed out at the end. */
   const orderedCourts = useMemo(() => {
-    const free = new Set(freeCourts.map((c) => c.id));
-    return [...courtsForSport].sort((a, b) => Number(free.has(b.id)) - Number(free.has(a.id)));
-  }, [courtsForSport, freeCourts]);
+    const pickable = new Set([
+      ...freeCourts.map((c) => c.id),
+      ...selectedCourtIds.filter((id) => heldOnlyCourtIds.has(id)),
+    ]);
+    return [...courtsForSport].sort((a, b) => Number(pickable.has(b.id)) - Number(pickable.has(a.id)));
+  }, [courtsForSport, freeCourts, selectedCourtIds, heldOnlyCourtIds]);
 
   /** Per-court price + boost % for the currently selected slots, computed once instead
    * of re-running the reduce/map for every court on every render of the court list. */
@@ -2451,7 +2455,14 @@ function ReviewStep(props: {
                             {orderedCourts.map((court) => {
                               const isFree = freeCourts.some((c) => c.id === court.id);
                               const isHeldOnly = !isFree && heldOnlyCourtIds.has(court.id);
-                              const active = isFree && selectedCourtIds.includes(court.id);
+                              // A court that's "held" but already ours (we're the one mid-checkout
+                              // on it — see the effectiveCourtIds/heldOnlyCourtIds note above) must
+                              // still render as a normal, selected, tappable court — not as a
+                              // disabled "Pending" one, which is what made the very court you'd
+                              // picked look unselected and unavailable to yourself.
+                              const isSelfHeld = isHeldOnly && selectedCourtIds.includes(court.id);
+                              const isPickable = isFree || isSelfHeld;
+                              const active = isPickable && selectedCourtIds.includes(court.id);
                               // Priced per this exact court — a boost on Court 4 must not
                               // show up on Court 6's button just because they share a slot.
                               const { totalPrice: totalCourtPrice, boostPct: courtBoostPct } =
@@ -2463,14 +2474,14 @@ function ReviewStep(props: {
                                 <button
                                   key={court.id}
                                   type="button"
-                                  disabled={!isFree}
+                                  disabled={!isPickable}
                                   onClick={() => {
                                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
                                     onToggleCourt(court.id);
                                   }}
                                   className={`flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition ${active
                                     ? "border-[#0b9c65] bg-[#0b9c65]/5 shadow-sm"
-                                    : isFree
+                                    : isPickable
                                       ? "border-slate-200 bg-white hover:border-[#0b9c65]/60"
                                       : "cursor-not-allowed border-slate-100 bg-slate-50 opacity-60"
                                     }`}
@@ -2497,7 +2508,7 @@ function ReviewStep(props: {
                                         {meta}
                                       </span>
                                     )}
-                                    {isFree ? (
+                                    {isPickable ? (
                                       <span className="mt-1 flex items-center gap-1.5">
                                         <span className="text-[13px] font-black text-slate-900">
                                           ₹{totalCourtPrice.toLocaleString("en-IN")}
@@ -2522,7 +2533,7 @@ function ReviewStep(props: {
                                   <span
                                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${active
                                       ? "border-[#0b9c65] bg-[#0b9c65] text-white"
-                                      : isFree
+                                      : isPickable
                                         ? "border-slate-300 bg-white text-transparent"
                                         : "border-slate-200 bg-slate-100 text-transparent"
                                       }`}
