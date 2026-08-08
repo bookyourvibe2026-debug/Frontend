@@ -36,6 +36,9 @@ type Step = "review" | "confirmed";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cashfree (Online)", "Cash (Offline)"];
 
+/** Mirrors Backend PENDING_HOLD_MS: how long the server-side Pending reservation holds its court. */
+const RESERVATION_HOLD_MS = 120_000;
+
 /** Events are fixed by the organizer. Resolve the first scheduled batch and never
  * expose it as a player-selectable slot. */
 function eventTimingFor(listing: Listing) {
@@ -1093,6 +1096,11 @@ export default function BookingFlow({
   const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
   const [creatingPending, setCreatingPending] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+
+  const onReservationExpired = useCallback(() => {
+    setPendingBooking(null);
+    refreshVenueAvailability();
+  }, [refreshVenueAvailability]);
   const [selectedPayMethod, setSelectedPayMethod] = useState<"UPI" | "Card" | "NetBanking">("UPI");
 
   const ensurePendingBooking = useCallback(async (): Promise<Booking | null> => {
@@ -1288,6 +1296,8 @@ export default function BookingFlow({
           setSelectedPriceTierId={setSelectedPriceTierId}
           onClose={onClose}
           onPay={handlePay}
+          pendingBooking={pendingBooking}
+          onReservationExpired={onReservationExpired}
           dateOptions={dateOptions}
           activeMonthLabel={activeMonthLabel}
           dateSelected={dateSelected}
@@ -1494,6 +1504,8 @@ function ReviewStep(props: {
   error: string;
   onClose: () => void;
   onPay: () => void;
+  pendingBooking: Booking | null;
+  onReservationExpired: () => void;
   dateOptions: { iso: string; dayNum: number; weekday: string; monthLabel: string; monthShort?: string; isFirstOfMonth?: boolean; month: number; year: number }[];
   activeMonthLabel: string;
   dateSelected: boolean;
@@ -1559,6 +1571,8 @@ function ReviewStep(props: {
     error,
     onClose,
     onPay,
+    pendingBooking,
+    onReservationExpired,
     dateOptions,
     activeMonthLabel,
     dateSelected,
@@ -1610,33 +1624,32 @@ function ReviewStep(props: {
   const [reservationSeconds, setReservationSeconds] = useState<number | null>(null);
   const [timerExpiredNotice, setTimerExpiredNotice] = useState<string | null>(null);
 
-  // 2-minute server court reservation countdown timer when on Checkout step (not for Events)
+  // 2-minute server court reservation countdown, driven by the real Pending booking's
+  // createdAt so it can never drift from the backend's actual hold expiry.
   useEffect(() => {
-    if (listing.type === "Event" || mobileStep !== "checkout") {
+    if (listing.type === "Event" || !pendingBooking) {
       setReservationSeconds(null);
       return;
     }
 
-    if (reservationSeconds === null) {
-      setReservationSeconds(120); // 2 minutes = 120 seconds
-      return;
-    }
-
-    if (reservationSeconds <= 0) {
-      setTimerExpiredNotice("Your 2-minute court reservation has expired. The court lock has been released.");
-      setReservationSeconds(null);
-      if ((listing.type as string) !== "Event") {
+    let expired = false;
+    const tick = () => {
+      if (expired) return;
+      const elapsed = Date.now() - new Date(pendingBooking.createdAt).getTime();
+      const remaining = Math.max(0, Math.ceil((RESERVATION_HOLD_MS - elapsed) / 1000));
+      setReservationSeconds(remaining);
+      if (remaining <= 0) {
+        expired = true;
+        setTimerExpiredNotice("Your 2-minute court reservation has expired. The court lock has been released.");
         setMobileStep("slots");
+        onReservationExpired();
       }
-      return;
-    }
+    };
 
-    const timer = setInterval(() => {
-      setReservationSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [mobileStep, reservationSeconds, listing.type]);
+  }, [pendingBooking, listing.type, onReservationExpired]);
 
   const dateStripRef = useRef<HTMLDivElement>(null);
 
