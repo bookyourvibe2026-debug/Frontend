@@ -983,13 +983,19 @@ export default function BookingFlow({
   }, [bookedRanges, generatedSlots, selectedSlotIndices]);
 
   // Until the player picks, the first free court stands in — the same one they'd tap
-  // anyway. Anything taken while they were deciding drops out instead of failing at
-  // payment, so what's shown as selected is always still bookable.
+  // anyway. Anything FIRMLY taken while they were deciding drops out instead of failing at
+  // payment, so what's shown as selected is always still bookable. A pick that only shows
+  // as "held" (Pending), though, is kept as-is — that Pending row is almost always this
+  // player's own reservation reflecting back from the next availability poll, and dropping
+  // it here would bounce the pick to another court, which then immediately self-holds too,
+  // forever (each court re-triggering its own hold the instant it shows up as taken).
   const effectiveCourtIds = useMemo(() => {
-    const validPicks = (courtPicks ?? []).filter((id) => freeCourts.some((c) => c.id === id));
+    const validPicks = (courtPicks ?? []).filter(
+      (id) => freeCourts.some((c) => c.id === id) || heldOnlyCourtIds.has(id)
+    );
     if (validPicks.length > 0) return validPicks;
     return freeCourts[0] ? [freeCourts[0].id] : [];
-  }, [courtPicks, freeCourts]);
+  }, [courtPicks, freeCourts, heldOnlyCourtIds]);
 
   const toggleCourt = (id: string) => {
     setCourtPicks((prev) => {
@@ -1185,6 +1191,11 @@ export default function BookingFlow({
 
       setPendingBooking(created);
       setPendingBookingKey(pendingSelectionKey);
+      // Pin the pick to exactly the court(s) just held, converting an implicit "first free
+      // court" default into an explicit one. Otherwise the next availability poll shows this
+      // very hold back as "Pending", the auto-pick sees its own court as no longer free and
+      // jumps to the next one — which then self-holds too, bouncing between courts forever.
+      if (effectiveCourtIds.length > 0) setCourtPicks(effectiveCourtIds);
       return created;
     } catch (err) {
       console.error("Auto-create pending reservation error:", err);
