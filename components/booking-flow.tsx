@@ -1094,6 +1094,10 @@ export default function BookingFlow({
 
   const [paymentGatewayOpen, setPaymentGatewayOpen] = useState(false);
   const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
+  // Identifies exactly what selection the current `pendingBooking` actually holds
+  // (slot + courts + sport). Selecting a different court/slot changes this key, which is
+  // how the effect below notices the hold is stale instead of silently keeping the old one.
+  const [pendingBookingKey, setPendingBookingKey] = useState<string | null>(null);
   const [creatingPending, setCreatingPending] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
 
@@ -1103,9 +1107,31 @@ export default function BookingFlow({
   }, [refreshVenueAvailability]);
   const [selectedPayMethod, setSelectedPayMethod] = useState<"UPI" | "Card" | "NetBanking">("UPI");
 
+  // What the player currently has picked on screen — recomputed on every slot/court/sport
+  // change. Compared against `pendingBookingKey` so a re-pick after the first auto-hold
+  // (e.g. tapping Court 2 instead of the auto-assigned Court 1) is detected and re-held,
+  // instead of the stale first court silently staying "reserved" while the UI shows a
+  // different one as selected — which let a second customer take the court shown as picked.
+  const pendingSelectionKey = useMemo(() => {
+    if (listing.type === "Turf") {
+      if (selectedSlotIndices.length === 0) return null;
+      const sortedIndices = [...selectedSlotIndices].sort((a, b) => a - b);
+      const earliestSlot = generatedSlots[sortedIndices[0]];
+      if (!earliestSlot) return null;
+      const courts = [...effectiveCourtIds].sort().join(",");
+      return `${date}|${earliestSlot.startTime}|${sortedIndices.length}|${courts}|${sport || ""}`;
+    }
+    if (!time) return null;
+    return `${date}|${time}`;
+  }, [listing.type, selectedSlotIndices, generatedSlots, date, effectiveCourtIds, sport, time]);
+
   const ensurePendingBooking = useCallback(async (): Promise<Booking | null> => {
-    if (pendingBooking) return pendingBooking;
+    if (pendingBooking && pendingBookingKey === pendingSelectionKey) return pendingBooking;
     if (creatingPending) return null;
+    if (!pendingSelectionKey) return null;
+    // The hold about to be replaced, if this call is re-holding after a re-pick rather
+    // than holding for the first time.
+    const staleBooking = pendingBooking && pendingBookingKey !== pendingSelectionKey ? pendingBooking : null;
     setCreatingPending(true);
     // Clear out any error from a previous attempt (e.g. "Court 1 is already booked") —
     // otherwise it lingers on screen even after the customer picks a different, actually
@@ -1153,7 +1179,12 @@ export default function BookingFlow({
         slotCount: selectedSlotIndices.length,
       });
 
+      // Release the old hold now that a fresh one covers the new pick — best-effort, and
+      // only after the new hold succeeds so a failed re-pick never leaves zero reservation.
+      if (staleBooking) cancelMyBooking(staleBooking.orderId).catch(() => undefined);
+
       setPendingBooking(created);
+      setPendingBookingKey(pendingSelectionKey);
       return created;
     } catch (err) {
       console.error("Auto-create pending reservation error:", err);
@@ -1165,6 +1196,8 @@ export default function BookingFlow({
     }
   }, [
     pendingBooking,
+    pendingBookingKey,
+    pendingSelectionKey,
     creatingPending,
     listing._id,
     listing.type,
@@ -1185,17 +1218,41 @@ export default function BookingFlow({
     activePrice,
   ]);
 
-  // Create server-side Pending reservation immediately upon entering Checkout step
+  // Create/refresh the server-side Pending reservation the moment a slot (or a different
+  // court/slot) is selected — not just once on entering Checkout — so the hold always
+  // matches what's actually shown as picked.
   useEffect(() => {
-    if (step === "review" && !pendingBooking && !creatingPending && status === "authenticated") {
-      ensurePendingBooking();
-    }
-  }, [step, pendingBooking, creatingPending, status, ensurePendingBooking]);
+    if (step !== "review" || status !== "authenticated") return;
+    if (!pendingSelectionKey) return;
+    if (pendingBooking && pendingBookingKey === pendingSelectionKey) return;
+    if (creatingPending) return;
+    ensurePendingBooking();
+  }, [step, status, pendingSelectionKey, pendingBooking, pendingBookingKey, creatingPending, ensurePendingBooking]);
 
   useEffect(() => {
     onStateChange?.({ canPay, submitting, confirmed: step === "confirmed" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canPay, submitting, step]);
+
+  // Release the court/slot hold the instant the player closes the flow without paying,
+  // rather than leaving it to occupy the slot for the rest of the 2-minute window for
+  // nothing. Reads through refs (not the state values themselves) so this only fires once,
+  // on actual unmount, with whatever the latest booking/step were at that moment.
+  const pendingBookingRef = useRef<Booking | null>(null);
+  useEffect(() => {
+    pendingBookingRef.current = pendingBooking;
+  }, [pendingBooking]);
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  useEffect(() => {
+    return () => {
+      if (pendingBookingRef.current && stepRef.current !== "confirmed") {
+        cancelMyBooking(pendingBookingRef.current.orderId).catch(() => undefined);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (payTriggerRef) payTriggerRef.current = handlePay;
@@ -1224,7 +1281,7 @@ export default function BookingFlow({
     setSubmitting(true);
     setError("");
     try {
-      let bookingToPay = pendingBooking;
+      let bookingToPay = pendingBooking && pendingBookingKey === pendingSelectionKey ? pendingBooking : null;
       if (!bookingToPay) {
         bookingToPay = await ensurePendingBooking();
       }
@@ -1625,7 +1682,11 @@ function ReviewStep(props: {
   const [timerExpiredNotice, setTimerExpiredNotice] = useState<string | null>(null);
 
   // 2-minute server court reservation countdown, driven by the real Pending booking's
-  // createdAt so it can never drift from the backend's actual hold expiry.
+  // createdAt so it can never drift from the backend's actual hold expiry. Ticking off
+  // `pendingBooking.createdAt` directly (rather than a locally-decremented counter) also
+  // means a fresh booking — e.g. the player picked a different court/slot, which creates a
+  // brand-new Pending row with its own createdAt — restarts the countdown at 2:00 for free,
+  // with no separate "did the selection change" bookkeeping needed here.
   useEffect(() => {
     if (listing.type === "Event" || !pendingBooking) {
       setReservationSeconds(null);
@@ -1641,8 +1702,10 @@ function ReviewStep(props: {
       if (remaining <= 0) {
         expired = true;
         setTimerExpiredNotice("Your 2-minute court reservation has expired. The court lock has been released.");
-        setMobileStep("slots");
-        onReservationExpired();
+        if ((listing.type as string) !== "Event") {
+          setMobileStep("slots");
+          onReservationExpired();
+        }
       }
     };
 
